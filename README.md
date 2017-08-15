@@ -12,7 +12,7 @@ This is still imaginary.
 Examples
 --------
 
-```
+```bash
 # creates an elastic stack called "buildkite"
 buildkite linux-aws-stack create
 
