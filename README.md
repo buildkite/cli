@@ -7,37 +7,40 @@ pipelines and builds. Integrates seamlessly with AWS / Github / Gitlab / Bitbuck
 Status
 ------
 
-This is still imaginary. 
+**This is still imaginary.🤔🦄🦑**
 
 Examples
 --------
 
 ```bash
-# creates an elastic stack called "buildkite"
-buildkite linux-aws-stack create
-
 # creates a .buildkite/pipeline.yml with queue=default and no-op step
-buildkite project init --stack=buildkite .
+bk project init --stack=buildkite .
 
 # creates a bk pipeline for the current project, sets up webhooks in github/bitbucket
-buildkite pipeline create  . 
+# this is inferred from your current directory git remote information
+bk pipeline create .
 
-# uploads a deploy key to the secrets bucket and adds it to the github/bitbucket project as a deploy key
-buildkite linux-aws-stack link . 
+# creates an elastic stack called "buildkite". Will required aws credentials
+bk aws stack create
 
-# trigger a build
-git commit -a -m "Added a basic buildkite pipeline"
-git push
+# uploads a deploy key to the secrets bucket and adds it to the github/bitbucket project as a deploy key. Will
+# require both aws and github credentials
+bk aws stack link .
+
+# trigger a build via the cli
+bk build .
 ```
 
 Commands
 --------
 
-* [ ] `buildkite linux-aws-stack create`
-* [ ] `buildkite linux-aws-stack link` 
-* [ ] `buildkite pipeline create`
-* [ ] `buildkite project init`
-* [ ] `buildkite project build`
+* [ ] `bk aws stack create`
+* [ ] `bk aws stack link`
+* [ ] `bk aws stack inspect`
+* [ ] `bk pipeline create`
+* [ ] `bk pipeline inspect`
+* [ ] `bk build`
+
 
 Supports the following integrations:
 
