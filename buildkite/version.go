@@ -1,4 +1,4 @@
-package main
+package buildkite
 
 var (
 	// Version is the version of the CLI tool
@@ -10,3 +10,7 @@ var (
 	// GitCommit is set at compile time and reflects the git commit at build time
 	GitCommit = ""
 )
+
+func VersionString() string {
+	return Version
+}

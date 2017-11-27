@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/buildkite/buildkite-cli/clicommands"
+	"github.com/buildkite/buildkite-cli/buildkite"
+	"github.com/buildkite/buildkite-cli/cli/commands"
 
 	"github.com/99designs/keyring"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -21,7 +22,7 @@ func run(args []string, exit func(int)) {
 	)
 
 	app.Writer(os.Stdout)
-	app.Version(Version)
+	app.Version(buildkite.VersionString())
 	app.Terminate(exit)
 
 	// --------------------------
@@ -61,22 +62,35 @@ func run(args []string, exit func(int)) {
 	// --------------------------
 	// configure command
 
-	configureCmd := app.Command("configure", "Configure bk")
+	configureCmd := app.Command("configure", "Configure aspects of buildkite cli")
 
 	configureCmd.
-		Command("all", "Configure buildkite cli").
+		Command("default", "Default configuration flow").
 		Default().
+		Hidden().
 		Action(func(c *kingpin.ParseContext) error {
-			return clicommands.ConfigureCommand(clicommands.ConfigureCommandInput{
+			return commands.ConfigureDefaultCommand(commands.ConfigureCommandInput{
 				Keyring: keyringImpl,
 				Debug:   debug,
 			})
 		})
 
-	configureCmd.
-		Command("buildkite", "Configure buildkite.com authentication").
+	configureBuildkiteCmd := configureCmd.
+		Command("buildkite", "Configure buildkite.com authentication")
+
+	configureBuildkiteCmd.
+		Command("rest", "Configure buildkite.com authentication").
 		Action(func(c *kingpin.ParseContext) error {
-			return clicommands.ConfigureBuildkiteCommand(clicommands.ConfigureCommandInput{
+			return commands.ConfigureBuildkiteRestCommand(commands.ConfigureCommandInput{
+				Keyring: keyringImpl,
+				Debug:   debug,
+			})
+		})
+
+	configureBuildkiteCmd.
+		Command("graphql", "Configure buildkite.com graphql authentication (beta)").
+		Action(func(c *kingpin.ParseContext) error {
+			return commands.ConfigureBuildkiteGraphqlCommand(commands.ConfigureCommandInput{
 				Keyring: keyringImpl,
 				Debug:   debug,
 			})
@@ -85,7 +99,7 @@ func run(args []string, exit func(int)) {
 	configureCmd.
 		Command("github", "Configure github authentication").
 		Action(func(c *kingpin.ParseContext) error {
-			return clicommands.ConfigureGithubCommand(clicommands.ConfigureCommandInput{
+			return commands.ConfigureGithubCommand(commands.ConfigureCommandInput{
 				Keyring: keyringImpl,
 				Debug:   debug,
 			})

@@ -1,4 +1,4 @@
-package clicommands
+package commands
 
 import (
 	"bufio"
@@ -6,8 +6,17 @@ import (
 	"os"
 	"strings"
 
+	"github.com/fatih/color"
 	"golang.org/x/crypto/ssh/terminal"
 )
+
+var (
+	headerColor = color.New(color.Bold, color.FgGreen).SprintfFunc()
+)
+
+func header(h string) {
+	fmt.Printf(headerColor("──── " + h + "\n\n"))
+}
 
 func waitForKeyPress(prompt string) {
 	fmt.Fprintf(os.Stderr, "%s", prompt)

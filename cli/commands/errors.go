@@ -1,4 +1,4 @@
-package clicommands
+package commands
 
 import "errors"
 

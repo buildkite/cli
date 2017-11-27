@@ -1,4 +1,4 @@
-package config
+package buildkite
 
 import (
 	"encoding/json"
@@ -32,7 +32,7 @@ func ConfigPath() (string, error) {
 }
 
 // Open opens and parses the Config, returns a empty Config if one doesn't exist
-func Open() (*Config, error) {
+func OpenConfig() (*Config, error) {
 	path, err := ConfigPath()
 	if err != nil {
 		return nil, err

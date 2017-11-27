@@ -1,16 +1,16 @@
-package clicommands
+package commands
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/99designs/keyring"
 	"github.com/briandowns/spinner"
-	"github.com/buildkite/buildkite-cli/api"
-	"github.com/buildkite/buildkite-cli/config"
-	"github.com/buildkite/buildkite-cli/github"
+	"github.com/buildkite/buildkite-cli/buildkite"
+	"github.com/buildkite/buildkite-cli/buildkite/graphql"
+	"github.com/buildkite/buildkite-cli/integrations/github"
 	"github.com/fatih/color"
 )
 
@@ -20,14 +20,15 @@ type ConfigureCommandInput struct {
 	DebugHTTP bool
 }
 
-func ConfigureCommand(input ConfigureCommandInput) error {
-	fmt.Println(color.WhiteString("Ok! Let's get started with configuring bk 🚀\n"))
+func ConfigureDefaultCommand(input ConfigureCommandInput) error {
+	fmt.Println(headerColor("Ok! Let's get started with configuring bk 🚀\n"))
 
-	if err := ConfigureBuildkiteCommand(input); err != nil {
+	if err := ConfigureBuildkiteRestCommand(input); err != nil {
 		return err
 	}
 
 	fmt.Println()
+	fmt.Printf("For now, we will assume you are using Github. Support for others is coming soon! 😓\n\n")
 
 	if err := ConfigureGithubCommand(input); err != nil {
 		return err
@@ -38,7 +39,8 @@ func ConfigureCommand(input ConfigureCommandInput) error {
 }
 
 func ConfigureGithubCommand(input ConfigureCommandInput) error {
-	fmt.Printf("Let's configure your github.com credentials 💻\n")
+	header("Let's configure your github.com credentials 💻")
+
 	fmt.Printf("We need to authorize this app to access your repositories. " +
 		"This authorization is stored securely locally, buildkite.com never gets access to it.\n\n")
 
@@ -64,33 +66,29 @@ func ConfigureGithubCommand(input ConfigureCommandInput) error {
 	fmt.Println()
 	fmt.Printf(color.GreenString("Authenticated as %s ✅\n"), *user.Login)
 
-	tokenData, err := json.Marshal(token)
-	if err != nil {
+	if err = buildkite.StoreCredential(input.Keyring, buildkite.GithubOAuthToken, token); err != nil {
 		return NewExitError(err, 1)
-	}
-
-	// Set the OAuth token in the keyring
-	err = input.Keyring.Set(keyring.Item{
-		Key:         "github-token",
-		Label:       "Buildkite Github OAuth Token",
-		Description: "Buildkite Github OAuth Token",
-		Data:        tokenData,
-	})
-	if err != nil {
-		return NewExitError(fmt.Errorf("Failed to set token into keyring: %v", err), 2)
 	}
 
 	fmt.Printf(color.GreenString("Securely stored Github token! 💪\n"))
 	return nil
 }
 
-func ConfigureBuildkiteCommand(input ConfigureCommandInput) error {
-	config, err := config.Open()
+func ConfigureBuildkiteRestCommand(input ConfigureCommandInput) error {
+	header("Configuring Buildkite REST credentials")
+
+	return errors.New("Not implemented")
+}
+
+func ConfigureBuildkiteGraphqlCommand(input ConfigureCommandInput) error {
+	header("Configuring Buildkite Graphql credentials")
+
+	config, err := buildkite.OpenConfig()
 	if err != nil {
 		return NewExitError(fmt.Errorf("Failed to open config file: %v", err), 1)
 	}
 
-	fmt.Printf("We need to generate a Buildkite GraphQL token. Create one at https://buildkite.com/user/api-access-tokens/new. " +
+	fmt.Printf("Create a GraphQL token at https://buildkite.com/user/api-access-tokens/new. " +
 		"Make sure to tick the GraphQL scope at the bottom.\n\n")
 
 	token, err := readPassword(color.WhiteString("GraphQL Token"))
@@ -102,10 +100,10 @@ func ConfigureBuildkiteCommand(input ConfigureCommandInput) error {
 	s.Start()
 
 	if input.DebugHTTP {
-		api.DebugHTTP = true
+		graphql.DebugHTTP = true
 	}
 
-	client, err := api.NewClient(token)
+	client, err := graphql.NewClient(token)
 	if err != nil {
 		return NewExitError(fmt.Errorf("Failed to create a client: %v", err), 1)
 	}
@@ -136,15 +134,8 @@ func ConfigureBuildkiteCommand(input ConfigureCommandInput) error {
 	fmt.Printf(color.GreenString("%s ✅\n\n"),
 		userQueryResponse.Data.Viewer.User.Email)
 
-	// Set the token in the keyring
-	err = input.Keyring.Set(keyring.Item{
-		Key:         "graphql-token",
-		Label:       "Buildkite GraphQL Token",
-		Description: "Buildkite GraphQL Token",
-		Data:        []byte(token),
-	})
-	if err != nil {
-		return NewExitError(fmt.Errorf("Failed to set token into keyring: %v", err), 2)
+	if err = buildkite.StoreCredential(input.Keyring, buildkite.BuildkiteGraphQLToken, token); err != nil {
+		return NewExitError(err, 1)
 	}
 
 	fmt.Printf(color.GreenString("Securely stored GraphQL token! 💪\n"))
