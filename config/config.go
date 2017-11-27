@@ -9,9 +9,13 @@ import (
 	homedir "github.com/mitchellh/go-homedir"
 )
 
+const FormatVersion = 1
+
 type Config struct {
-	Path              string `json:"-"`
-	BuildkiteUsername string `json:"username"`
+	Path           string `json:"-"`
+	Version        int    `json:"version"`
+	BuildkiteEmail string `json:"email"`
+	BuildkiteUUID  string `json:"uuid"`
 }
 
 // ConfigPath returns either $BUILDKITE_CLI_CONFIG_FILE or ~/.buildkite/config.json
@@ -35,7 +39,8 @@ func Open() (*Config, error) {
 	}
 
 	var cfg Config = Config{
-		Path: path,
+		Path:    path,
+		Version: FormatVersion,
 	}
 
 	jsonBlob, err := ioutil.ReadFile(path)
