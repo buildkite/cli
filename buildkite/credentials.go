@@ -25,7 +25,7 @@ func ListCredentials() []CredentialType {
 func StoreCredential(kr keyring.Keyring, t CredentialType, value interface{}) error {
 	data, err := json.Marshal(value)
 	if err != nil {
-		return NewExitError(err, 1)
+		return err
 	}
 	return kr.Set(keyring.Item{
 		Key:   t.Key,
@@ -35,5 +35,5 @@ func StoreCredential(kr keyring.Keyring, t CredentialType, value interface{}) er
 }
 
 func RetrieveCredential(kr keyring.Keyring, t CredentialType, into interface{}) error {
-	return nil, errors.New("Not implemented")
+	return errors.New("Not implemented")
 }
