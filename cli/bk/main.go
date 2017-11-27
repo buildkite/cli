@@ -1,66 +1,28 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
-	"github.com/urfave/cli"
+	"github.com/buildkite/buildkite-cli/clicommands"
+	"gopkg.in/alecthomas/kingpin.v2"
 )
-
-var (
-	Version, Build string
-)
-
-var AppHelpTemplate = `Usage:
-  {{.Name}} <command> [arguments...]
-Available commands are:
-  {{range .Commands}}{{.Name}}{{with .ShortName}}, {{.}}{{end}}{{ "\t" }}{{.Usage}}
-  {{end}}
-Use "{{.Name}} <command> --help" for more information about a command.
-`
-
-var SubcommandHelpTemplate = `Usage:
-  {{.Name}} {{if .VisibleFlags}}<command>{{end}} [arguments...]
-Available commands are:
-   {{range .Commands}}{{.Name}}{{with .ShortName}}, {{.}}{{end}}{{ "\t" }}{{.Usage}}
-   {{end}}{{if .VisibleFlags}}
-Options:
-   {{range .VisibleFlags}}{{.}}
-   {{end}}{{end}}
-`
-
-var CommandHelpTemplate = `{{.Description}}
-Options:
-   {{range .VisibleFlags}}{{.}}
-   {{end}}
-`
-
-func printVersion(c *cli.Context) {
-	fmt.Printf("%v version %v, build %v\n", c.App.Name, c.App.Version, Build)
-}
 
 func main() {
-	cli.AppHelpTemplate = AppHelpTemplate
-	cli.CommandHelpTemplate = CommandHelpTemplate
-	cli.SubcommandHelpTemplate = SubcommandHelpTemplate
-	cli.VersionPrinter = printVersion
+	run(os.Args[1:], os.Exit)
+}
 
-	app := cli.NewApp()
-	app.Name = "buildkite"
-	app.Version = Version
-	app.Commands = []cli.Command{}
+func run(args []string, exit func(int)) {
+	app := kingpin.New(
+		`bk`,
+		`Manage buildkite from the command-line`,
+	)
 
-	// When no sub command is used
-	app.Action = func(c *cli.Context) {
-		cli.ShowAppHelp(c)
-		os.Exit(1)
-	}
+	app.Writer(os.Stdout)
+	app.Version(Version)
+	app.Terminate(exit)
 
-	// When a sub command can't be found
-	app.CommandNotFound = func(c *cli.Context, command string) {
-		cli.ShowAppHelp(c)
-		os.Exit(1)
-	}
+	clicommands.ConfigureGlobals(app)
+	clicommands.ConfigureConfigureCommand(app)
 
-	app.Run(os.Args)
+	kingpin.MustParse(app.Parse(args))
 }
