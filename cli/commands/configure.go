@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -23,7 +22,7 @@ type ConfigureCommandInput struct {
 func ConfigureDefaultCommand(input ConfigureCommandInput) error {
 	fmt.Println(headerColor("Ok! Let's get started with configuring bk 🚀\n"))
 
-	if err := ConfigureBuildkiteRestCommand(input); err != nil {
+	if err := ConfigureBuildkiteGraphqlCommand(input); err != nil {
 		return err
 	}
 
@@ -72,12 +71,6 @@ func ConfigureGithubCommand(input ConfigureCommandInput) error {
 
 	fmt.Printf(color.GreenString("Securely stored Github token! 💪\n"))
 	return nil
-}
-
-func ConfigureBuildkiteRestCommand(input ConfigureCommandInput) error {
-	header("Configuring Buildkite REST credentials")
-
-	return errors.New("Not implemented")
 }
 
 func ConfigureBuildkiteGraphqlCommand(input ConfigureCommandInput) error {

@@ -1,0 +1,4 @@
+# Default pipeline from buildkite-cli
+steps:
+- label: Example Test
+  command: echo "Hello!"

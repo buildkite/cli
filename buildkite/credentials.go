@@ -2,7 +2,6 @@ package buildkite
 
 import (
 	"encoding/json"
-	"errors"
 
 	"github.com/99designs/keyring"
 )
@@ -14,7 +13,6 @@ type CredentialType struct {
 
 var (
 	BuildkiteGraphQLToken = CredentialType{"Buildkite GraphQL Token", "graphql-token"}
-	BuildkiteRestToken    = CredentialType{"Buildkite REST Token", "rest-token"}
 	GithubOAuthToken      = CredentialType{"Github OAuth Token", "rest-token"}
 )
 
@@ -35,5 +33,9 @@ func StoreCredential(kr keyring.Keyring, t CredentialType, value interface{}) er
 }
 
 func RetrieveCredential(kr keyring.Keyring, t CredentialType, into interface{}) error {
-	return errors.New("Not implemented")
+	item, err := kr.Get(t.Key)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(item.Data, into)
 }
