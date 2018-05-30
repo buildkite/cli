@@ -26,7 +26,7 @@ func run(args []string, exit func(int)) {
 	)
 
 	app.Writer(os.Stdout)
-	app.Version(buildkite.VersionString())
+	app.Version(pkg.VersionString())
 	app.Terminate(exit)
 
 	// --------------------------
@@ -53,7 +53,7 @@ func run(args []string, exit func(int)) {
 	app.PreAction(func(c *kingpin.ParseContext) (err error) {
 		if debug {
 			keyring.Debug = true
-			commands.Debug = true
+			cmd.Debug = true
 		}
 		keyringImpl, err = keyring.Open(keyring.Config{
 			ServiceName: "buildkite",
@@ -67,7 +67,9 @@ func run(args []string, exit func(int)) {
 	// --------------------------
 	// configure command
 
-	configureInput := commands.ConfigureCommandInput{}
+	configureInput := cmd.ConfigureCommandInput{
+		Terminal: &pkg.Terminal{},
+	}
 
 	configureCmd := app.Command("configure", "Configure aspects of buildkite cli")
 
@@ -78,7 +80,7 @@ func run(args []string, exit func(int)) {
 		Action(func(c *kingpin.ParseContext) error {
 			configureInput.Debug = debug
 			configureInput.Keyring = keyringImpl
-			return commands.ConfigureDefaultCommand(configureInput)
+			return cmd.ConfigureDefaultCommand(configureInput)
 		})
 
 	configureCmd.
@@ -86,7 +88,7 @@ func run(args []string, exit func(int)) {
 		Action(func(c *kingpin.ParseContext) error {
 			configureInput.Debug = debug
 			configureInput.Keyring = keyringImpl
-			return commands.ConfigureBuildkiteGraphqlCommand(configureInput)
+			return cmd.ConfigureBuildkiteGraphQLCommand(configureInput)
 		})
 
 	configureCmd.
@@ -94,20 +96,22 @@ func run(args []string, exit func(int)) {
 		Action(func(c *kingpin.ParseContext) error {
 			configureInput.Debug = debug
 			configureInput.Keyring = keyringImpl
-			return commands.ConfigureGithubCommand(configureInput)
+			return cmd.ConfigureGithubCommand(configureInput)
 		})
 
 	// --------------------------
 	// configure command
 
-	initInput := commands.InitCommandInput{}
+	initInput := cmd.InitCommandInput{
+		Terminal: &pkg.Terminal{},
+	}
 
 	initCmd := app.
 		Command("init", "Initialize a project in your filesystem for use with Buildkite").
 		Action(func(c *kingpin.ParseContext) error {
 			initInput.Debug = debug
 			initInput.Keyring = keyringImpl
-			return commands.InitCommand(initInput)
+			return cmd.InitCommand(initInput)
 		})
 
 	initCmd.

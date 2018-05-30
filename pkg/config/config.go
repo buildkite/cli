@@ -1,4 +1,4 @@
-package buildkite
+package config
 
 import (
 	"encoding/json"
@@ -18,8 +18,8 @@ type Config struct {
 	BuildkiteUUID  string `json:"uuid"`
 }
 
-// ConfigPath returns either $BUILDKITE_CLI_CONFIG_FILE or ~/.buildkite/config.json
-func ConfigPath() (string, error) {
+// Path returns either $BUILDKITE_CLI_CONFIG_FILE or ~/.buildkite/config.json
+func Path() (string, error) {
 	file := os.Getenv("BUILDKITE_CLI_CONFIG_FILE")
 	if file == "" {
 		home, err := homedir.Dir()
@@ -32,8 +32,8 @@ func ConfigPath() (string, error) {
 }
 
 // Open opens and parses the Config, returns a empty Config if one doesn't exist
-func OpenConfig() (*Config, error) {
-	path, err := ConfigPath()
+func Open() (*Config, error) {
+	path, err := Path()
 	if err != nil {
 		return nil, err
 	}

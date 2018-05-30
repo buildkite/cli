@@ -1,4 +1,4 @@
-package buildkite
+package pkg
 
 import (
 	"fmt"

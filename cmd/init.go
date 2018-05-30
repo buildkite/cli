@@ -1,4 +1,4 @@
-package commands
+package cmd
 
 import (
 	"context"
@@ -8,15 +8,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/99designs/keyring"
-	"github.com/briandowns/spinner"
 
 	githubclient "github.com/google/go-github/github"
 
 	"github.com/buildkite/cli/pkg"
-	"github.com/buildkite/cli/pkg/integrations/github"
+	"github.com/buildkite/cli/pkg/config"
+	"github.com/buildkite/cli/pkg/github"
 	"github.com/fatih/color"
 	"golang.org/x/oauth2"
 )
@@ -28,13 +27,21 @@ steps:
 `
 
 type InitCommandInput struct {
-	Keyring keyring.Keyring
-	Debug   bool
-	Dir     string
+	Keyring  keyring.Keyring
+	Debug    bool
+	Dir      string
+	Terminal interface {
+		Header(h string)
+		Println(s ...interface{})
+		Printf(s string, v ...interface{})
+		WaitForKeyPress(prompt string)
+		Spinner() pkg.Spinner
+		ReadPassword(prompt string) (string, error)
+	}
 }
 
-func InitCommand(input InitCommandInput) error {
-	dir, err := filepath.Abs(input.Dir)
+func InitCommand(i InitCommandInput) error {
+	dir, err := filepath.Abs(i.Dir)
 	if err != nil {
 		return NewExitError(err, 1)
 	}
@@ -47,13 +54,13 @@ func InitCommand(input InitCommandInput) error {
 
 	// create a .buildkite/pipeline.yml if one doesn't exist
 	if _, err := os.Stat(pipelineFile); err == nil {
-		fmt.Printf(color.YellowString("There is already a .buildkite/pipeline.yml, skipping creating it ⚠️\n"))
+		i.Terminal.Printf(color.YellowString("There is already a .buildkite/pipeline.yml, skipping creating it ⚠️\n"))
 	} else {
 		if err = ioutil.WriteFile(pipelineFile, []byte(defaultPipelineYAML), 0660); err != nil {
 			return NewExitError(err, 1)
 		}
 		pipelineFileAdded = true
-		fmt.Println(color.GreenString("Created .buildkite/pipeline.yml ✅\n"))
+		i.Terminal.Println(color.GreenString("Created .buildkite/pipeline.yml ✅\n"))
 	}
 
 	gitDir := filepath.Join(dir, ".git")
@@ -75,7 +82,7 @@ func InitCommand(input InitCommandInput) error {
 
 	debugf("[init] Git remote: %#v", string(output))
 
-	u, err := buildkite.ParseGittableURL(strings.TrimSpace(string(output)))
+	u, err := pkg.ParseGittableURL(strings.TrimSpace(string(output)))
 	if err != nil {
 		return NewExitError(fmt.Errorf("Error parsing git remote: %v", err), 1)
 	}
@@ -90,16 +97,16 @@ func InitCommand(input InitCommandInput) error {
 
 	var token oauth2.Token
 
-	err = buildkite.RetrieveCredential(input.Keyring, buildkite.GithubOAuthToken, &token)
+	err = config.RetrieveCredential(i.Keyring, config.GithubOAuthToken, &token)
 	if err != nil {
 		return NewExitError(fmt.Errorf("Error retriving github oauth credentials: %v", err), 1)
 	}
 
 	gh := github.NewClientFromToken(&token)
 
-	fmt.Printf("Checking github repository config for %s/%s: ", org, repo)
+	i.Terminal.Printf("Checking github repository config for %s/%s: ", org, repo)
 
-	s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
+	s := i.Terminal.Spinner()
 	s.Start()
 
 	hooks, _, err := gh.Repositories.ListHooks(context.Background(), "buildkite", "agent", &githubclient.ListOptions{})

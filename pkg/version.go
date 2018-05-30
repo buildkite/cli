@@ -1,4 +1,4 @@
-package buildkite
+package pkg
 
 var (
 	// Version is the version of the CLI tool

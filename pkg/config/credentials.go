@@ -1,4 +1,4 @@
-package buildkite
+package config
 
 import (
 	"encoding/json"
