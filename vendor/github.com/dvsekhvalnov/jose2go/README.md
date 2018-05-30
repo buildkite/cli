@@ -21,7 +21,7 @@ v1.2 breaks `jose.Decode` interface by returning 3 values instead of 2.
 v1.2 deprecates `jose.Compress` method in favor of using configuration options to `jose.Encrypt`,
 the method will be removed in next release.
 
-### Migration to v1.2
+###Migration to v1.2
 Pre v1.2 decoding:
 
 ```Go
@@ -911,7 +911,7 @@ func main() {
 ### More examples
 Checkout `jose_test.go` for more examples.
 
-## Changelog
+##Changelog
 ### 1.2
 - interface to access token headers after decoding
 - interface to provide extra headers for token encoding

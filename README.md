@@ -1,7 +1,7 @@
 # Buildkite Command-line Interface
 
 A cli for interacting with Buildkite.com to make it easier to create and manage
-pipelines and builds. Integrates seamlessly with Github / Gitlab / Bitbucket and provides a
+pipelines and builds. Integrates seamlessly with Github / Gitlab / Bitbucket.
 
 ## This is still (mostly) imaginary.🤔🦄🦑
 
@@ -12,14 +12,11 @@ pipelines and builds. Integrates seamlessly with Github / Gitlab / Bitbucket and
 bk configure
 
 # creates a .buildkite/pipeline.yml with queue=default and no-op step
+# also creates a bk pipeline for the current project, sets up webhooks in github/bitbucket
 bk init
 
-# creates a bk pipeline for the current project, sets up webhooks in github/bitbucket
-# this is inferred from your current directory git remote information
-bk pipeline create .
-
 # trigger a build via the cli
-bk build .
+bk build
 ```
 
 ## Design
