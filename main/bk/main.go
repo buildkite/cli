@@ -6,6 +6,7 @@ import (
 
 	"github.com/buildkite/cli/cmd"
 	"github.com/buildkite/cli/pkg"
+	"github.com/buildkite/cli/pkg/graphql"
 
 	"github.com/99designs/keyring"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -39,12 +40,16 @@ func run(args []string, exit func(int)) {
 
 	var (
 		debug          bool
+		debugGraphQL   bool
 		keyringBackend string
 		keyringImpl    keyring.Keyring
 	)
 
 	app.Flag("debug", "Show debugging output").
 		BoolVar(&debug)
+
+	app.Flag("debug-graphql", "Show requests and responses for graphql").
+		BoolVar(&debugGraphQL)
 
 	app.Flag("keyring-backend", fmt.Sprintf("Keyring backend to use: %v", backendsAvailable)).
 		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_BACKEND").
@@ -54,6 +59,9 @@ func run(args []string, exit func(int)) {
 		if debug {
 			keyring.Debug = true
 			cmd.Debug = true
+		}
+		if debugGraphQL {
+			graphql.DebugHTTP = true
 		}
 		keyringImpl, err = keyring.Open(keyring.Config{
 			ServiceName: "buildkite",
@@ -67,10 +75,7 @@ func run(args []string, exit func(int)) {
 	// --------------------------
 	// configure command
 
-	configureInput := cmd.ConfigureCommandInput{
-		Terminal: &pkg.Terminal{},
-	}
-
+	configureCtx := cmd.ConfigureCommandContext{}
 	configureCmd := app.Command("configure", "Configure aspects of buildkite cli")
 
 	configureCmd.
@@ -78,46 +83,48 @@ func run(args []string, exit func(int)) {
 		Default().
 		Hidden().
 		Action(func(c *kingpin.ParseContext) error {
-			configureInput.Debug = debug
-			configureInput.Keyring = keyringImpl
-			return cmd.ConfigureDefaultCommand(configureInput)
+			configureCtx.Debug = debug
+			configureCtx.Keyring = keyringImpl
+			configureCtx.TerminalContext = &pkg.Terminal{}
+			return cmd.ConfigureDefaultCommand(configureCtx)
 		})
 
 	configureCmd.
 		Command("buildkite", "Configure buildkite.com graphql authentication").
 		Action(func(c *kingpin.ParseContext) error {
-			configureInput.Debug = debug
-			configureInput.Keyring = keyringImpl
-			return cmd.ConfigureBuildkiteGraphQLCommand(configureInput)
+			configureCtx.Debug = debug
+			configureCtx.Keyring = keyringImpl
+			configureCtx.TerminalContext = &pkg.Terminal{}
+			return cmd.ConfigureBuildkiteGraphQLCommand(configureCtx)
 		})
 
 	configureCmd.
 		Command("github", "Configure github authentication").
 		Action(func(c *kingpin.ParseContext) error {
-			configureInput.Debug = debug
-			configureInput.Keyring = keyringImpl
-			return cmd.ConfigureGithubCommand(configureInput)
+			configureCtx.Debug = debug
+			configureCtx.Keyring = keyringImpl
+			configureCtx.TerminalContext = &pkg.Terminal{}
+			return cmd.ConfigureGithubCommand(configureCtx)
 		})
 
 	// --------------------------
 	// configure command
 
-	initInput := cmd.InitCommandInput{
-		Terminal: &pkg.Terminal{},
-	}
+	initCtx := cmd.InitCommandContext{}
 
 	initCmd := app.
 		Command("init", "Initialize a project in your filesystem for use with Buildkite").
 		Action(func(c *kingpin.ParseContext) error {
-			initInput.Debug = debug
-			initInput.Keyring = keyringImpl
-			return cmd.InitCommand(initInput)
+			initCtx.Debug = debug
+			initCtx.Keyring = keyringImpl
+			initCtx.TerminalContext = &pkg.Terminal{}
+			return cmd.InitCommand(initCtx)
 		})
 
 	initCmd.
 		Arg("dir", "Directory of your project").
 		Default(".").
-		ExistingDirVar(&initInput.Dir)
+		ExistingDirVar(&initCtx.Dir)
 
 	kingpin.MustParse(app.Parse(args))
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ahmetb/go-cursor"
 	"github.com/briandowns/spinner"
 	"github.com/fatih/color"
 	sshterminal "golang.org/x/crypto/ssh/terminal"
@@ -65,4 +66,38 @@ type Spinner interface {
 
 func (t *Terminal) Spinner() Spinner {
 	return spinner.New(spinner.CharSets[14], 100*time.Millisecond)
+}
+
+type Tryer interface {
+	Start(msg string)
+	Success(msg string)
+	Failure(msg string)
+}
+
+func (t *Terminal) Try() Tryer {
+	return &tryPrompt{terminal: t, spinner: t.Spinner()}
+}
+
+type tryPrompt struct {
+	terminal *Terminal
+	spinner  Spinner
+}
+
+func (t *tryPrompt) Start(msg string) {
+	t.terminal.Printf(color.WhiteString("%s: "), msg)
+	t.spinner.Start()
+}
+
+func (t *tryPrompt) Success(msg string) {
+	t.spinner.Stop()
+	cursor.MoveLeft(2)
+	cursor.ClearLineRight()
+	t.terminal.Printf(color.GreenString("%s ✅\n"), msg)
+}
+
+func (t *tryPrompt) Failure(msg string) {
+	t.spinner.Stop()
+	cursor.MoveLeft(2)
+	cursor.ClearLineRight()
+	t.terminal.Printf(color.RedString("%s ❌\n"), msg)
 }

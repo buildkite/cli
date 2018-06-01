@@ -45,10 +45,14 @@ type Client struct {
 	header     http.Header
 }
 
-func (client *Client) Do(query string) (*Response, error) {
-	b, err := json.Marshal(map[string]string{
-		"query": query,
-	})
+func (client *Client) Do(query string, vars map[string]interface{}) (*Response, error) {
+	b, err := json.MarshalIndent(struct {
+		Query     string                 `json:"query"`
+		Variables map[string]interface{} `json:"variables"`
+	}{
+		Query:     strings.TrimSpace(query),
+		Variables: vars,
+	}, "", "  ")
 	if err != nil {
 		return nil, err
 	}
