@@ -80,7 +80,7 @@ func (client *Client) Do(query string, vars map[string]interface{}) (*Response, 
 		}
 	}
 
-	if err := checkResponse(resp); err != nil {
+	if err := checkResponseForErrors(resp); err != nil {
 		return &Response{resp}, err
 	}
 
@@ -96,8 +96,7 @@ func (r *Response) DecodeInto(v interface{}) error {
 }
 
 type errorResponse struct {
-	Response *http.Response
-	Errors   []struct {
+	Errors []struct {
 		Message string `json:"message"`
 	} `json:"errors"`
 }
@@ -107,17 +106,24 @@ func (r *errorResponse) Error() string {
 	for _, err := range r.Errors {
 		errors = append(errors, err.Message)
 	}
-	return strings.Join(errors, ", ")
+	return fmt.Sprintf("GraphQL error: %s", strings.Join(errors, ", "))
 }
 
-func checkResponse(r *http.Response) error {
-	if c := r.StatusCode; 200 <= c && c <= 299 {
-		return nil
-	}
+func checkResponseForErrors(r *http.Response) error {
 	data, err := ioutil.ReadAll(r.Body)
-	errResp := &errorResponse{Response: r}
-	if err = json.Unmarshal(data, errResp); err != nil {
-		return fmt.Errorf("Failed to parse error response for code %d: %v", r.StatusCode, err)
+	if err != nil {
+		return err
 	}
-	return errResp
+
+	r.Body.Close()
+	r.Body = ioutil.NopCloser(bytes.NewBuffer(data))
+
+	var errResp errorResponse
+
+	_ = json.Unmarshal(data, &errResp)
+	if len(errResp.Errors) > 0 {
+		return &errResp
+	}
+
+	return nil
 }

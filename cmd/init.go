@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -57,42 +56,27 @@ func InitCommand(ctx InitCommandContext) error {
 		pipelineFileTry.Success("Created .buildkite/pipeline.yml")
 	}
 
-	gitDir := filepath.Join(dir, ".git")
-
 	// check we have a git directory
-	if _, err := os.Stat(gitDir); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
 		return NewExitError(fmt.Errorf("%s isn't a git managed project! Try `git init`", dir), 1)
 	}
-
-	debugf("[init] Examining git dir %s", gitDir)
 
 	gitRepoTry := ctx.Try()
 	gitRepoTry.Start("Checking for git repository and remote")
 
-	// get the remote url, e.g git@github.com:buildkite/cli.git
-	cmd := exec.Command("git", "--git-dir", gitDir, "remote", "get-url", "origin")
-	output, err := cmd.CombinedOutput()
-
+	gitRemote, err := pkg.GitRemote(dir)
 	if err != nil {
 		gitRepoTry.Failure(err.Error())
 		return NewExitError(err, 1)
 	}
 
-	gitRepoTry.Success(strings.TrimSpace(string(output)))
-
-	u, err := pkg.ParseGittableURL(strings.TrimSpace(string(output)))
+	org, repo, err := pkg.ParseGithubRemote(gitRemote)
 	if err != nil {
-		gitRepoTry.Failure(fmt.Sprintf("Error parsing git remote: %v", err))
+		gitRepoTry.Failure(err.Error())
 		return NewExitError(err, 1)
 	}
 
-	debugf("[init] Parsed %q as %#v", output, u)
-
-	pathParts := strings.SplitN(strings.TrimLeft(strings.TrimSuffix(u.Path, ".git"), "/"), "/", 2)
-	org := pathParts[0]
-	repo := pathParts[1]
-
-	debugf("[init] Detected a github remote for %s/%s", org, repo)
+	gitRepoTry.Success(fmt.Sprintf("https://github.com/%s/%s", org, repo))
 
 	bk, err := ctx.BuildkiteGraphQLClient()
 	if err != nil {

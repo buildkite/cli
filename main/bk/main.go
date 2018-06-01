@@ -126,5 +126,24 @@ func run(args []string, exit func(int)) {
 		Default(".").
 		ExistingDirVar(&initCtx.Dir)
 
+	// --------------------------
+	// configure command
+
+	buildCtx := cmd.BuildCommandContext{}
+
+	buildCmd := app.
+		Command("build", "Trigger a Buildkite build").
+		Action(func(c *kingpin.ParseContext) error {
+			buildCtx.Debug = debug
+			buildCtx.Keyring = keyringImpl
+			buildCtx.TerminalContext = &pkg.Terminal{}
+			return cmd.BuildCommand(buildCtx)
+		})
+
+	buildCmd.
+		Arg("dir", "Directory of your project").
+		Default(".").
+		ExistingDirVar(&buildCtx.Dir)
+
 	kingpin.MustParse(app.Parse(args))
 }
