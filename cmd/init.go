@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -313,6 +314,8 @@ func createBuildkitePipeline(client *graphql.Client, org, pipeline, steps, repos
 	}, nil
 }
 
+var errPipelineDoesntExist = errors.New("Pipeline doesn't exist")
+
 func getBuildkitePipeline(client *graphql.Client, org, pipeline string) (buildkitePipelineDetails, error) {
 	resp, err := client.Do(`
 		query($slug:ID!) {
@@ -351,6 +354,10 @@ func getBuildkitePipeline(client *graphql.Client, org, pipeline string) (buildki
 
 	if err = resp.DecodeInto(&parsedResp); err != nil {
 		return buildkitePipelineDetails{}, fmt.Errorf("Failed to parse GraphQL response: %v", err)
+	}
+
+	if parsedResp.Data.Pipeline.Slug == "" {
+		return buildkitePipelineDetails{}, errPipelineDoesntExist
 	}
 
 	return buildkitePipelineDetails{

@@ -48,7 +48,9 @@ func BuildCommand(ctx BuildCommandContext) error {
 
 	pipeline, err := getBuildkitePipeline(bk, org, repo)
 	if err != nil {
-		pipelineTry.Failure(err.Error())
+		if err == errPipelineDoesntExist {
+			pipelineTry.Failure(fmt.Sprintf("Pipeline doesn't exist! Try `bk init`"))
+		}
 		return NewExitError(err, 1)
 	}
 
