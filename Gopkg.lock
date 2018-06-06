@@ -9,6 +9,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/ahmetb/go-cursor"
+  packages = ["."]
+  revision = "8136607ea412c5ae8b684cf60ae91f9b4127cae2"
+
+[[projects]]
+  branch = "master"
   name = "github.com/alecthomas/template"
   packages = [
     ".",
@@ -178,6 +184,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "12f7b3b6d9a198f118f9a95015bf541f43333616182917112963fa48a54d3dba"
+  inputs-digest = "9d1238f05a7d94583bc5e9e2bbcca0e70a4d992bb9053c690e869a5599f8d47a"
   solver-name = "gps-cdcl"
   solver-version = 1
