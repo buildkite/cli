@@ -31,6 +31,15 @@ bk init
 bk build
 ```
 
+## Installation
+
+For now, we only support `go get`.
+
+```
+go get -u github.com/buildkite/cli/cmd/bk
+bk --help
+```
+
 ## Design
 
 ### Secret Storage
