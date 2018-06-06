@@ -3,7 +3,19 @@
 A cli for interacting with Buildkite.com to make it easier to create and manage
 pipelines and builds. Integrates seamlessly with Github / Gitlab / Bitbucket.
 
-## This is still (mostly) imaginary.🤔🦄🦑
+## Status
+
+This is still (mostly) imaginary.🤔🦄🦑
+
+ * [x] Configure command
+   * [x] Store Buildkite GraphQL token
+   * [x] OAuth with github.com and store the access token
+ * [x] Init command
+   * [x] Creates Buildkite pipeline if missing
+   * [x] Adds Buildkite webhook to Github repository settings
+   * [x] Adds a generic .buildkite/pipeline.yml to the local repository
+ * [x] Build command
+   * [x] Create a build on Buildkite, shows a link
 
 ## Usage
 
