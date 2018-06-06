@@ -1,4 +1,4 @@
-package pkg
+package cli
 
 var (
 	// Version is the version of the CLI tool

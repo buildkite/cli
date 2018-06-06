@@ -1,11 +1,12 @@
-package cmd
+package cli
 
 import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/buildkite/cli/pkg"
-	"github.com/buildkite/cli/pkg/graphql"
+	"github.com/buildkite/cli/git"
+	"github.com/buildkite/cli/github"
+	"github.com/buildkite/cli/graphql"
 
 	"github.com/fatih/color"
 )
@@ -28,13 +29,13 @@ func BuildCommand(ctx BuildCommandContext) error {
 	pipelineTry := ctx.Try()
 	pipelineTry.Start("Detecting buildkite pipeline")
 
-	gitRemote, err := pkg.GitRemote(dir)
+	gitRemote, err := git.Remote(dir)
 	if err != nil {
 		pipelineTry.Failure(err.Error())
 		return NewExitError(err, 1)
 	}
 
-	org, repo, err := pkg.ParseGithubRemote(gitRemote)
+	org, repo, err := github.ParseGithubRemote(gitRemote)
 	if err != nil {
 		pipelineTry.Failure(err.Error())
 		return NewExitError(err, 1)

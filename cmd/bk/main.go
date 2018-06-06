@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/buildkite/cli/cmd"
-	"github.com/buildkite/cli/pkg"
-	"github.com/buildkite/cli/pkg/graphql"
+	"github.com/buildkite/cli"
+	"github.com/buildkite/cli/graphql"
 
 	"github.com/99designs/keyring"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -27,7 +26,7 @@ func run(args []string, exit func(int)) {
 	)
 
 	app.Writer(os.Stdout)
-	app.Version(pkg.VersionString())
+	app.Version(cli.VersionString())
 	app.Terminate(exit)
 
 	// --------------------------
@@ -58,7 +57,7 @@ func run(args []string, exit func(int)) {
 	app.PreAction(func(c *kingpin.ParseContext) (err error) {
 		if debug {
 			keyring.Debug = true
-			cmd.Debug = true
+			cli.Debug = true
 		}
 		if debugGraphQL {
 			graphql.DebugHTTP = true
@@ -75,7 +74,7 @@ func run(args []string, exit func(int)) {
 	// --------------------------
 	// configure command
 
-	configureCtx := cmd.ConfigureCommandContext{}
+	configureCtx := cli.ConfigureCommandContext{}
 	configureCmd := app.Command("configure", "Configure aspects of buildkite cli")
 
 	configureCmd.
@@ -85,8 +84,8 @@ func run(args []string, exit func(int)) {
 		Action(func(c *kingpin.ParseContext) error {
 			configureCtx.Debug = debug
 			configureCtx.Keyring = keyringImpl
-			configureCtx.TerminalContext = &pkg.Terminal{}
-			return cmd.ConfigureDefaultCommand(configureCtx)
+			configureCtx.TerminalContext = &cli.Terminal{}
+			return cli.ConfigureDefaultCommand(configureCtx)
 		})
 
 	configureCmd.
@@ -94,8 +93,8 @@ func run(args []string, exit func(int)) {
 		Action(func(c *kingpin.ParseContext) error {
 			configureCtx.Debug = debug
 			configureCtx.Keyring = keyringImpl
-			configureCtx.TerminalContext = &pkg.Terminal{}
-			return cmd.ConfigureBuildkiteGraphQLCommand(configureCtx)
+			configureCtx.TerminalContext = &cli.Terminal{}
+			return cli.ConfigureBuildkiteGraphQLCommand(configureCtx)
 		})
 
 	configureCmd.
@@ -103,8 +102,8 @@ func run(args []string, exit func(int)) {
 		Action(func(c *kingpin.ParseContext) error {
 			configureCtx.Debug = debug
 			configureCtx.Keyring = keyringImpl
-			configureCtx.TerminalContext = &pkg.Terminal{}
-			return cmd.ConfigureGithubCommand(configureCtx)
+			configureCtx.TerminalContext = &cli.Terminal{}
+			return cli.ConfigureGithubCommand(configureCtx)
 		})
 
 	// --------------------------
@@ -117,7 +116,7 @@ func run(args []string, exit func(int)) {
 		Action(func(c *kingpin.ParseContext) error {
 			initCtx.Debug = debug
 			initCtx.Keyring = keyringImpl
-			initCtx.TerminalContext = &pkg.Terminal{}
+			initCtx.TerminalContext = &cli.Terminal{}
 			return cmd.InitCommand(initCtx)
 		})
 
@@ -136,7 +135,7 @@ func run(args []string, exit func(int)) {
 		Action(func(c *kingpin.ParseContext) error {
 			buildCtx.Debug = debug
 			buildCtx.Keyring = keyringImpl
-			buildCtx.TerminalContext = &pkg.Terminal{}
+			buildCtx.TerminalContext = &cli.Terminal{}
 			return cmd.BuildCommand(buildCtx)
 		})
 

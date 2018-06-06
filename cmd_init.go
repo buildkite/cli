@@ -1,4 +1,4 @@
-package cmd
+package cli
 
 import (
 	"context"
@@ -11,8 +11,7 @@ import (
 
 	githubclient "github.com/google/go-github/github"
 
-	"github.com/buildkite/cli/pkg"
-	"github.com/buildkite/cli/pkg/graphql"
+	"github.com/buildkite/cli/graphql"
 	"github.com/fatih/color"
 )
 

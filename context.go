@@ -1,14 +1,13 @@
-package cmd
+package cli
 
 import (
 	"fmt"
 	"os"
 
 	"github.com/99designs/keyring"
-	"github.com/buildkite/cli/pkg"
-	"github.com/buildkite/cli/pkg/config"
-	"github.com/buildkite/cli/pkg/github"
-	"github.com/buildkite/cli/pkg/graphql"
+	"github.com/buildkite/cli/config"
+	"github.com/buildkite/cli/github"
+	"github.com/buildkite/cli/graphql"
 
 	githubclient "github.com/google/go-github/github"
 
