@@ -11,6 +11,8 @@ import (
 
 	githubclient "github.com/google/go-github/github"
 
+	"github.com/buildkite/cli/git"
+	"github.com/buildkite/cli/github"
 	"github.com/buildkite/cli/graphql"
 	"github.com/fatih/color"
 )
@@ -64,13 +66,13 @@ func InitCommand(ctx InitCommandContext) error {
 	gitRepoTry := ctx.Try()
 	gitRepoTry.Start("Checking for git repository and remote")
 
-	gitRemote, err := pkg.GitRemote(dir)
+	gitRemote, err := git.Remote(dir)
 	if err != nil {
 		gitRepoTry.Failure(err.Error())
 		return NewExitError(err, 1)
 	}
 
-	org, repo, err := pkg.ParseGithubRemote(gitRemote)
+	org, repo, err := github.ParseGithubRemote(gitRemote)
 	if err != nil {
 		gitRepoTry.Failure(err.Error())
 		return NewExitError(err, 1)

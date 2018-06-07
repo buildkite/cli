@@ -19,8 +19,8 @@ type TerminalContext interface {
 	Println(s ...interface{})
 	Printf(s string, v ...interface{})
 	WaitForKeyPress(prompt string)
-	Spinner() pkg.Spinner
-	Try() pkg.Tryer
+	Spinner() Spinner
+	Try() Tryer
 	ReadPassword(prompt string) (string, error)
 }
 

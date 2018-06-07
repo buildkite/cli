@@ -109,7 +109,7 @@ func run(args []string, exit func(int)) {
 	// --------------------------
 	// configure command
 
-	initCtx := cmd.InitCommandContext{}
+	initCtx := cli.InitCommandContext{}
 
 	initCmd := app.
 		Command("init", "Initialize a project in your filesystem for use with Buildkite").
@@ -117,7 +117,7 @@ func run(args []string, exit func(int)) {
 			initCtx.Debug = debug
 			initCtx.Keyring = keyringImpl
 			initCtx.TerminalContext = &cli.Terminal{}
-			return cmd.InitCommand(initCtx)
+			return cli.InitCommand(initCtx)
 		})
 
 	initCmd.
@@ -128,7 +128,7 @@ func run(args []string, exit func(int)) {
 	// --------------------------
 	// configure command
 
-	buildCtx := cmd.BuildCommandContext{}
+	buildCtx := cli.BuildCommandContext{}
 
 	buildCmd := app.
 		Command("build", "Trigger a Buildkite build").
@@ -136,7 +136,7 @@ func run(args []string, exit func(int)) {
 			buildCtx.Debug = debug
 			buildCtx.Keyring = keyringImpl
 			buildCtx.TerminalContext = &cli.Terminal{}
-			return cmd.BuildCommand(buildCtx)
+			return cli.BuildCommand(buildCtx)
 		})
 
 	buildCmd.
