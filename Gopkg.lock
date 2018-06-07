@@ -122,6 +122,12 @@
   revision = "3864e76763d94a6df2f9960b16a20a33da9f9a66"
 
 [[projects]]
+  name = "github.com/sahilm/fuzzy"
+  packages = ["."]
+  revision = "df93d96a0fd86b97655b90f63c70802b4e793afb"
+  version = "v0.0.5"
+
+[[projects]]
   branch = "master"
   name = "github.com/skratchdot/open-golang"
   packages = ["open"]
@@ -184,6 +190,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "9d1238f05a7d94583bc5e9e2bbcca0e70a4d992bb9053c690e869a5599f8d47a"
+  inputs-digest = "a6027711a90af7be8247bea1c97582bbd9278b937e06700d2d7c0510e9a0f51f"
   solver-name = "gps-cdcl"
   solver-version = 1

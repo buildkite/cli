@@ -144,5 +144,30 @@ func run(args []string, exit func(int)) {
 		Default(".").
 		ExistingDirVar(&buildCtx.Dir)
 
+	// --------------------------
+	// list command
+
+	listCmd := app.Command("list", "List various things")
+
+	listPipelinesCtx := cli.ListPipelinesCommandContext{}
+	listPipelinesCmd := listCmd.
+		Command("pipelines", "List buildkite pipelines").
+		Default().
+		Action(func(c *kingpin.ParseContext) error {
+			listPipelinesCtx.Debug = debug
+			listPipelinesCtx.Keyring = keyringImpl
+			listPipelinesCtx.TerminalContext = &cli.Terminal{}
+			return cli.ListPipelinesCommand(listPipelinesCtx)
+		})
+
+	listPipelinesCmd.Flag("fuzzy", "Fuzzy filter pipelines based on org and slug").
+		StringVar(&listPipelinesCtx.Fuzzy)
+
+	listPipelinesCmd.Flag("url", "Show buildkite.com urls for pipelines").
+		BoolVar(&listPipelinesCtx.ShowURL)
+
+	listPipelinesCmd.Flag("limit", "How many pipelines to output").
+		IntVar(&listPipelinesCtx.Limit)
+
 	kingpin.MustParse(app.Parse(args))
 }
