@@ -18,6 +18,7 @@ type TerminalContext interface {
 	Header(h string)
 	Println(s ...interface{})
 	Printf(s string, v ...interface{})
+	Failure(s string)
 	WaitForKeyPress(prompt string)
 	Spinner() Spinner
 	Try() Tryer

@@ -60,6 +60,10 @@ func (t *Terminal) Printf(s string, v ...interface{}) {
 	fmt.Printf(s, v...)
 }
 
+func (t *Terminal) Failure(msg string) {
+	t.Printf(color.RedString("%s ❌\n"), msg)
+}
+
 type Spinner interface {
 	Start()
 	Stop()

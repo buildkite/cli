@@ -126,23 +126,45 @@ func run(args []string, exit func(int)) {
 		ExistingDirVar(&initCtx.Dir)
 
 	// --------------------------
-	// configure command
+	// create commands
 
-	buildCtx := cli.BuildCommandContext{}
+	createCmd := app.Command("create", "Create various things")
 
-	buildCmd := app.
-		Command("build", "Trigger a Buildkite build").
+	createBuildCtx := cli.CreateBuildCommandContext{}
+	createBuildCmd := createCmd.
+		Command("build", "Create a new build in a pipeline").
 		Action(func(c *kingpin.ParseContext) error {
-			buildCtx.Debug = debug
-			buildCtx.Keyring = keyringImpl
-			buildCtx.TerminalContext = &cli.Terminal{}
-			return cli.BuildCommand(buildCtx)
+			createBuildCtx.Debug = debug
+			createBuildCtx.Keyring = keyringImpl
+			createBuildCtx.TerminalContext = &cli.Terminal{}
+
+			// Default to the current director
+			if createBuildCtx.Pipeline == "" && createBuildCtx.Dir == "" {
+				createBuildCtx.Dir = "."
+			}
+
+			return cli.CreateBuildCommand(createBuildCtx)
 		})
 
-	buildCmd.
-		Arg("dir", "Directory of your project").
-		Default(".").
-		ExistingDirVar(&buildCtx.Dir)
+	createBuildCmd.
+		Flag("dir", "Build a specific directory, defaults to the current").
+		ExistingDirVar(&createBuildCtx.Dir)
+
+	createBuildCmd.
+		Flag("pipeline", "Build a specific pipeline rather than a directory").
+		StringVar(&createBuildCtx.Pipeline)
+
+	createBuildCmd.
+		Flag("message", "The message to use for the build").
+		StringVar(&createBuildCtx.Message)
+
+	createBuildCmd.
+		Flag("commit", "The commit to use for the build").
+		StringVar(&createBuildCtx.Commit)
+
+	createBuildCmd.
+		Flag("branch", "The branch to use for the build").
+		StringVar(&createBuildCtx.Branch)
 
 	// --------------------------
 	// list command
@@ -160,13 +182,16 @@ func run(args []string, exit func(int)) {
 			return cli.ListPipelinesCommand(listPipelinesCtx)
 		})
 
-	listPipelinesCmd.Flag("fuzzy", "Fuzzy filter pipelines based on org and slug").
+	listPipelinesCmd.
+		Flag("fuzzy", "Fuzzy filter pipelines based on org and slug").
 		StringVar(&listPipelinesCtx.Fuzzy)
 
-	listPipelinesCmd.Flag("url", "Show buildkite.com urls for pipelines").
+	listPipelinesCmd.
+		Flag("url", "Show buildkite.com urls for pipelines").
 		BoolVar(&listPipelinesCtx.ShowURL)
 
-	listPipelinesCmd.Flag("limit", "How many pipelines to output").
+	listPipelinesCmd.
+		Flag("limit", "How many pipelines to output").
 		IntVar(&listPipelinesCtx.Limit)
 
 	kingpin.MustParse(app.Parse(args))

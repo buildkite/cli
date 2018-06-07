@@ -99,7 +99,7 @@ func InitCommand(ctx InitCommandContext) error {
 
 	if isPipelineCreated {
 		var err error
-		pipeline, err = getBuildkitePipeline(bk, org, repo)
+		pipeline, err = getBuildkitePipeline(bk, buildkitePipelineSlug(org, repo))
 		if err != nil {
 			pipelineTry.Failure(err.Error())
 			return NewExitError(err, 1)
@@ -315,9 +315,13 @@ func createBuildkitePipeline(client *graphql.Client, org, pipeline, steps, repos
 	}, nil
 }
 
+func buildkitePipelineSlug(org, pipeline string) string {
+	return fmt.Sprintf("%s/%s", org, pipeline)
+}
+
 var errPipelineDoesntExist = errors.New("Pipeline doesn't exist")
 
-func getBuildkitePipeline(client *graphql.Client, org, pipeline string) (buildkitePipelineDetails, error) {
+func getBuildkitePipeline(client *graphql.Client, slug string) (buildkitePipelineDetails, error) {
 	resp, err := client.Do(`
 		query($slug:ID!) {
 			pipeline(slug: $slug) {
@@ -332,7 +336,7 @@ func getBuildkitePipeline(client *graphql.Client, org, pipeline string) (buildki
 			}
 		}
 	`, map[string]interface{}{
-		"slug": fmt.Sprintf("%s/%s", org, pipeline),
+		"slug": slug,
 	})
 	if err != nil {
 		return buildkitePipelineDetails{}, err

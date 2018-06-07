@@ -12,12 +12,31 @@ import (
 
 // Remote returns the git remote for a given directory
 func Remote(dir string) (string, error) {
+	return gitCommand(dir, `remote`, `get-url`, `origin`)
+}
+
+// Commit returns the HEAD commit hash for a directory
+func Commit(dir string) (string, error) {
+	return gitCommand(dir, `log`, `-1`, `--pretty=%H`)
+}
+
+// Message returns the HEAD commit message for a directory
+func Message(dir string) (string, error) {
+	return gitCommand(dir, `log`, `-1`, `--pretty=%B`)
+}
+
+// Branch returns the branch name for a directory
+func Branch(dir string) (string, error) {
+	return gitCommand(dir, `rev-parse`, `--abbrev-ref`, `HEAD`)
+}
+
+// Run a git command against a dir and capture combined output or error
+func gitCommand(dir string, params ...string) (string, error) {
 	gitDir := filepath.Join(dir, ".git")
+	gitParams := append([]string{"--git-dir", gitDir}, params...)
 
-	// get the remote url, e.g git@github.com:buildkite/cli.git
-	cmd := exec.Command("git", "--git-dir", gitDir, "remote", "get-url", "origin")
+	cmd := exec.Command("git", gitParams...)
 	output, err := cmd.CombinedOutput()
-
 	if err != nil {
 		return "", err
 	}
