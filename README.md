@@ -14,8 +14,11 @@ This is still (mostly) imaginary.🤔🦄🦑
    * [x] Creates Buildkite pipeline if missing
    * [x] Adds Buildkite webhook to Github repository settings
    * [x] Adds a generic .buildkite/pipeline.yml to the local repository
- * [x] Build command
+ * [x] Create Build command
    * [x] Create a build on Buildkite, shows a link
+ * [x] List Pipelines command
+   * [x] Lists pipelines on Buildkite
+
 
 ## Usage
 
@@ -28,7 +31,7 @@ bk configure
 bk init
 
 # trigger a build via the cli
-bk build
+bk create build
 ```
 
 ## Installation
