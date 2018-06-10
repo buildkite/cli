@@ -121,8 +121,7 @@ func run(args []string, exit func(int)) {
 		})
 
 	initCmd.
-		Arg("dir", "Directory of your project").
-		Default(".").
+		Flag("dir", "Directory of your project").
 		ExistingDirVar(&initCtx.Dir)
 
 	// --------------------------
@@ -165,6 +164,28 @@ func run(args []string, exit func(int)) {
 	createBuildCmd.
 		Flag("branch", "The branch to use for the build").
 		StringVar(&createBuildCtx.Branch)
+
+	// --------------------------
+	// browse command
+
+	browseCtx := cli.BrowseCommandContext{}
+
+	browseCmd := app.
+		Command("browse", "Open a pipeline on buildkite.com in your browser").
+		Action(func(c *kingpin.ParseContext) error {
+			browseCtx.Debug = debug
+			browseCtx.Keyring = keyringImpl
+			browseCtx.TerminalContext = &cli.Terminal{}
+			return cli.BrowseCommand(browseCtx)
+		})
+
+	browseCmd.
+		Flag("dir", "Directory of your project").
+		ExistingDirVar(&browseCtx.Dir)
+
+	browseCmd.
+		Flag("branch", "The branch to browse to").
+		StringVar(&browseCtx.Branch)
 
 	// --------------------------
 	// list command
