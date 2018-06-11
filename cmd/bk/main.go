@@ -215,5 +215,13 @@ func run(args []string, exit func(int)) {
 		Flag("limit", "How many pipelines to output").
 		IntVar(&listPipelinesCtx.Limit)
 
-	kingpin.MustParse(app.Parse(args))
+	if _, err := app.Parse(args); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+
+		if ec, ok := err.(interface{ ExitCode() int }); ok {
+			os.Exit(ec.ExitCode())
+		} else {
+			os.Exit(1)
+		}
+	}
 }
