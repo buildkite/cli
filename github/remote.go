@@ -7,7 +7,7 @@ import (
 	"github.com/buildkite/cli/git"
 )
 
-func ParseGithubRemote(gitRemote string) (string, string, error) {
+func ParseRemote(gitRemote string) (string, string, error) {
 	u, err := git.ParseGittableURL(gitRemote)
 	if err != nil {
 		return "", "", err

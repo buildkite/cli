@@ -77,3 +77,24 @@ var gitHostAliasRegexp = regexp.MustCompile(`-[a-z0-9\-]+$`)
 func stripAliasesFromGitHost(host string) string {
 	return gitHostAliasRegexp.ReplaceAllString(host, "")
 }
+
+// MatchRemotes compares two github remotes and returns true if the point
+// to the same project. This allows for git and https remotes to be compared
+// and host aliases to be normalized
+func MatchRemotes(r1, r2 string) bool {
+	if r1 == r2 {
+		return true
+	}
+
+	u1, err := ParseGittableURL(strings.TrimSuffix(r1, ".git"))
+	if err != nil {
+		return false
+	}
+
+	u2, err := ParseGittableURL(strings.TrimSuffix(r2, ".git"))
+	if err != nil {
+		return false
+	}
+
+	return u1.Host == u2.Host && u1.Path == u2.Path
+}

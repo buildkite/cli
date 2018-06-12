@@ -137,8 +137,8 @@ func run(args []string, exit func(int)) {
 			createBuildCtx.Keyring = keyringImpl
 			createBuildCtx.TerminalContext = &cli.Terminal{}
 
-			// Default to the current director
-			if createBuildCtx.Pipeline == "" && createBuildCtx.Dir == "" {
+			// Default to the current directory
+			if createBuildCtx.PipelineSlug == "" && createBuildCtx.Dir == "" {
 				createBuildCtx.Dir = "."
 			}
 
@@ -151,7 +151,7 @@ func run(args []string, exit func(int)) {
 
 	createBuildCmd.
 		Flag("pipeline", "Build a specific pipeline rather than a directory").
-		StringVar(&createBuildCtx.Pipeline)
+		StringVar(&createBuildCtx.PipelineSlug)
 
 	createBuildCmd.
 		Flag("message", "The message to use for the build").

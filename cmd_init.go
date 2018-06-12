@@ -72,7 +72,7 @@ func InitCommand(ctx InitCommandContext) error {
 		return NewExitError(err, 1)
 	}
 
-	org, repo, err := github.ParseGithubRemote(gitRemote)
+	org, repo, err := github.ParseRemote(gitRemote)
 	if err != nil {
 		gitRepoTry.Failure(err.Error())
 		return NewExitError(err, 1)

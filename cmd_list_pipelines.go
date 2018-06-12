@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 
-	"github.com/buildkite/cli/graphql"
 	"github.com/sahilm/fuzzy"
 )
 
@@ -31,10 +30,15 @@ func ListPipelinesCommand(ctx ListPipelinesCommandContext) error {
 	}
 
 	var counter int
+	var pipelineStrings []string
+
+	for _, pipeline := range pipelines {
+		pipelineStrings = append(pipelineStrings, pipeline.Slug)
+	}
 
 	if ctx.Fuzzy != "" {
 		const bold = "\033[1m%s\033[0m"
-		matches := fuzzy.Find(ctx.Fuzzy, pipelines)
+		matches := fuzzy.Find(ctx.Fuzzy, pipelineStrings)
 
 		for _, match := range matches {
 			counter++
@@ -80,65 +84,4 @@ func contains(needle int, haystack []int) bool {
 		}
 	}
 	return false
-}
-
-func listPipelines(client *graphql.Client) ([]string, error) {
-	resp, err := client.Do(`
-		query {
-			viewer {
-			  organizations {
-				edges {
-				  node {
-					slug
-					pipelines(first:500) {
-					  edges {
-						node {
-							slug
-						}
-					  }
-					}
-				  }
-				}
-			  }
-			}
-		  }
-	`, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var parsedResp struct {
-		Data struct {
-			Viewer struct {
-				Organizations struct {
-					Edges []struct {
-						Node struct {
-							Slug      string `json:"slug"`
-							Pipelines struct {
-								Edges []struct {
-									Node struct {
-										Slug string `json:"slug"`
-									} `json:"node"`
-								} `json:"edges"`
-							} `json:"pipelines"`
-						} `json:"node"`
-					} `json:"edges"`
-				} `json:"organizations"`
-			} `json:"viewer"`
-		} `json:"data"`
-	}
-
-	if err = resp.DecodeInto(&parsedResp); err != nil {
-		return nil, fmt.Errorf("Failed to parse GraphQL response: %v", err)
-	}
-
-	var pipelines []string
-
-	for _, org := range parsedResp.Data.Viewer.Organizations.Edges {
-		for _, pipeline := range org.Node.Pipelines.Edges {
-			pipelines = append(pipelines, fmt.Sprintf("%s/%s",
-				org.Node.Slug, pipeline.Node.Slug))
-		}
-	}
-	return pipelines, nil
 }

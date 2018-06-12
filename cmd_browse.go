@@ -1,13 +1,9 @@
 package cli
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/buildkite/cli/git"
-	"github.com/buildkite/cli/github"
-	"github.com/buildkite/cli/graphql"
-	"github.com/manifoldco/promptui"
 	"github.com/skratchdot/open-golang/open"
 )
 
@@ -47,20 +43,24 @@ func BrowseCommand(ctx BrowseCommandContext) error {
 		return NewExitError(err, 1)
 	}
 
-	pipelines, err := findPipelinesByGitRemote(bk, gitRemote)
+	allPipelines, err := listPipelines(bk)
 	if err != nil {
 		return NewExitError(err, 1)
 	}
 
-	prompt := promptui.Select{
-		Label: "Select pipeline",
-		Items: pipelines,
+	ps := pipelineSelect{
+		Pipelines: allPipelines,
+		Filter: func(p pipeline) bool {
+			return git.MatchRemotes(p.RepositoryURL, gitRemote)
+		},
 	}
 
-	_, pipelineURL, err := prompt.Run()
+	pipeline, err := ps.Run()
 	if err != nil {
 		return NewExitError(err, 1)
 	}
+
+	pipelineURL := pipeline.URL
 
 	if pipelineURL != "" {
 		pipelineURL += "/builds?branch=" + branch
@@ -71,81 +71,4 @@ func BrowseCommand(ctx BrowseCommandContext) error {
 	}
 
 	return nil
-}
-
-func findPipelinesByGitRemote(client *graphql.Client, gitRemote string) ([]string, error) {
-	resp, err := client.Do(`
-		query {
-			viewer {
-				organizations {
-					edges {
-						node {
-							pipelines(first: 500) {
-								edges {
-									node {
-										url
-										repository {
-											url
-							 			}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		 }
-	`, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var parsedResp struct {
-		Data struct {
-			Viewer struct {
-				Organizations struct {
-					Edges []struct {
-						Node struct {
-							Pipelines struct {
-								Edges []struct {
-									Node struct {
-										URL        string `json:"url"`
-										Repository struct {
-											URL string `json:"url"`
-										} `json:"repository"`
-									} `json:"node"`
-								} `json:"edges"`
-							} `json:"pipelines"`
-						} `json:"node"`
-					} `json:"edges"`
-				} `json:"organizations"`
-			} `json:"viewer"`
-		} `json:"data"`
-	}
-
-	if err = resp.DecodeInto(&parsedResp); err != nil {
-		return nil, fmt.Errorf("Failed to parse GraphQL response: %v", err)
-	}
-
-	org, repo, err := github.ParseGithubRemote(gitRemote)
-	if err != nil {
-		return nil, err
-	}
-
-	var pipelines []string
-
-	for _, orgEdge := range parsedResp.Data.Viewer.Organizations.Edges {
-		for _, pipelineEdge := range orgEdge.Node.Pipelines.Edges {
-			pipelineOrg, pipelineRepo, err := github.ParseGithubRemote(pipelineEdge.Node.Repository.URL)
-			if err != nil {
-				debugf("Error parsing remote: %v", err)
-				continue
-			}
-
-			if pipelineOrg == org && pipelineRepo == repo {
-				pipelines = append(pipelines, pipelineEdge.Node.URL)
-			}
-		}
-	}
-	return pipelines, nil
 }

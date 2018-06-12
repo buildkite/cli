@@ -2,12 +2,9 @@ package cli
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/buildkite/cli/git"
-	"github.com/buildkite/cli/github"
 	"github.com/buildkite/cli/graphql"
-
 	"github.com/fatih/color"
 )
 
@@ -18,8 +15,8 @@ type CreateBuildCommandContext struct {
 	Debug     bool
 	DebugHTTP bool
 
-	Dir      string
-	Pipeline string
+	Dir          string
+	PipelineSlug string
 
 	Branch  string
 	Commit  string
@@ -28,22 +25,70 @@ type CreateBuildCommandContext struct {
 
 func CreateBuildCommand(ctx CreateBuildCommandContext) error {
 	params := buildkiteBuildParams{
-		Slug:    ctx.Pipeline,
 		Branch:  ctx.Branch,
 		Commit:  ctx.Commit,
 		Message: ctx.Message,
-	}
-
-	if ctx.Pipeline == "" {
-		if err := loadBuildParamsFromDir(ctx, &params); err != nil {
-			return NewExitError(err, 1)
-		}
 	}
 
 	bk, err := ctx.BuildkiteGraphQLClient()
 	if err != nil {
 		ctx.Failure(err.Error())
 		return NewExitError(err, 1)
+	}
+
+	pipelineSlug := ctx.PipelineSlug
+
+	if pipelineSlug == "" {
+		gitRemote, err := git.Remote(ctx.Dir)
+		if err != nil {
+			return err
+		}
+
+		allPipelines, err := listPipelines(bk)
+		if err != nil {
+			return NewExitError(err, 1)
+		}
+
+		ps := pipelineSelect{
+			Pipelines: allPipelines,
+			Filter: func(p pipeline) bool {
+				return git.MatchRemotes(p.RepositoryURL, gitRemote)
+			},
+		}
+
+		pipeline, err := ps.Run()
+		if err != nil {
+			return NewExitError(err, 1)
+		}
+
+		params.PipelineID = pipeline.ID
+		pipelineSlug = fmt.Sprintf("%s/%s", pipeline.Org, pipeline.Slug)
+
+		if params.Branch == "" {
+			params.Branch, err = git.Branch(ctx.Dir)
+			if err != nil {
+				return NewExitError(err, 1)
+			}
+		}
+
+		if params.Commit == "" {
+			params.Commit, err = git.Commit(ctx.Dir)
+			if err != nil {
+				return NewExitError(err, 1)
+			}
+		}
+
+		if params.Message == "" {
+			params.Message, err = git.Message(ctx.Dir)
+			if err != nil {
+				return NewExitError(err, 1)
+			}
+		}
+	} else {
+		params.PipelineID, err = getBuildkitePipelineID(bk, ctx.PipelineSlug)
+		if err != nil {
+			return NewExitError(err, 1)
+		}
 	}
 
 	if params.Branch == "" {
@@ -62,7 +107,7 @@ func CreateBuildCommand(ctx CreateBuildCommandContext) error {
 		params.Branch, params.Commit, params.Message)
 
 	buildTry := ctx.Try()
-	buildTry.Start(fmt.Sprintf("Triggering a build on %s", params.Slug))
+	buildTry.Start(fmt.Sprintf("Triggering a build on pipeline %s", pipelineSlug))
 
 	build, err := createBuildkiteBuild(bk, params)
 	if err != nil {
@@ -73,57 +118,6 @@ func CreateBuildCommand(ctx CreateBuildCommandContext) error {
 	buildTry.Success(fmt.Sprintf("Created #%d", build.Number))
 
 	ctx.Printf(color.GreenString("\nCheck out your build at %s 🚀\n"), build.URL)
-	return nil
-}
-
-func loadBuildParamsFromDir(ctx CreateBuildCommandContext, params *buildkiteBuildParams) error {
-	dir, err := filepath.Abs(ctx.Dir)
-	if err != nil {
-		return NewExitError(err, 1)
-	}
-
-	pipelineTry := ctx.Try()
-	pipelineTry.Start("Detecting buildkite pipeline from dir")
-
-	gitRemote, err := git.Remote(dir)
-	if err != nil {
-		pipelineTry.Failure(err.Error())
-		return NewExitError(err, 1)
-	}
-
-	org, repo, err := github.ParseGithubRemote(gitRemote)
-	if err != nil {
-		pipelineTry.Failure(err.Error())
-		return NewExitError(err, 1)
-	}
-
-	params.Slug = fmt.Sprintf("%s/%s", org, repo)
-	pipelineTry.Success(params.Slug)
-
-	if params.Branch == "" {
-		var gitErr error
-		params.Branch, gitErr = git.Branch(dir)
-		if gitErr != nil {
-			return NewExitError(err, 1)
-		}
-	}
-
-	if params.Commit == "" {
-		var gitErr error
-		params.Commit, gitErr = git.Commit(dir)
-		if gitErr != nil {
-			return NewExitError(err, 1)
-		}
-	}
-
-	if params.Message == "" {
-		var gitErr error
-		params.Message, gitErr = git.Message(dir)
-		if gitErr != nil {
-			return NewExitError(err, 1)
-		}
-	}
-
 	return nil
 }
 
@@ -166,18 +160,13 @@ type buildkiteBuildDetails struct {
 }
 
 type buildkiteBuildParams struct {
-	Slug    string
-	Commit  string
-	Branch  string
-	Message string
+	PipelineID string
+	Commit     string
+	Branch     string
+	Message    string
 }
 
 func createBuildkiteBuild(client *graphql.Client, params buildkiteBuildParams) (buildkiteBuildDetails, error) {
-	pipelineID, err := getBuildkitePipelineID(client, params.Slug)
-	if err != nil {
-		return buildkiteBuildDetails{}, err
-	}
-
 	resp, err := client.Do(`
 		mutation($input: BuildCreateInput!) {
 			buildCreate(input: $input) {
@@ -189,7 +178,7 @@ func createBuildkiteBuild(client *graphql.Client, params buildkiteBuildParams) (
 		}
 	`, map[string]interface{}{
 		"input": map[string]interface{}{
-			"pipelineID": pipelineID,
+			"pipelineID": params.PipelineID,
 			"message":    params.Message,
 			"commit":     params.Commit,
 			"branch":     params.Branch,
