@@ -111,7 +111,7 @@ func InitCommand(ctx InitCommandContext) error {
 
 		var err error
 		pipeline, err = createBuildkitePipeline(bk, org, repo,
-			"steps:\n  - command: 'test.sh'",
+			defaultPipelineYAML,
 			gitRemote,
 		)
 		if err != nil {
