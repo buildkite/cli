@@ -1,4 +1,16 @@
-# Default pipeline from buildkite-cli
 steps:
-- label: Example Test
-  command: echo "Hello!"
+  - label: ":golang:"
+    plugins:
+      golang-build:
+        build: ./cmd/bk
+        package: github.com/buildkite/cli
+        golang:
+          - version: 1.10.2
+            os: linux
+            arch: amd64
+          - version: 1.10.2
+            os: windows
+            arch: amd64
+          - version: 1.10.2
+            os: darwin
+            arch: amd64
