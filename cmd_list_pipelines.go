@@ -33,7 +33,8 @@ func ListPipelinesCommand(ctx ListPipelinesCommandContext) error {
 	var pipelineStrings []string
 
 	for _, pipeline := range pipelines {
-		pipelineStrings = append(pipelineStrings, pipeline.Slug)
+		pipelineStrings = append(pipelineStrings,
+			fmt.Sprintf("%s/%s", pipeline.Org, pipeline.Slug))
 	}
 
 	if ctx.Fuzzy != "" {
@@ -63,7 +64,7 @@ func ListPipelinesCommand(ctx ListPipelinesCommandContext) error {
 		return nil
 	}
 
-	for _, p := range pipelines {
+	for _, p := range pipelineStrings {
 		counter++
 		if ctx.Limit > 0 && counter > ctx.Limit {
 			break
