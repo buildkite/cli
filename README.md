@@ -15,11 +15,12 @@ This is still (mostly) imaginary.🤔🦄🦑
    * [x] Adds Buildkite webhook to Github repository settings
    * [x] Adds a generic .buildkite/pipeline.yml to the local repository
  * [x] Create Build command
+   * [x] Prompt for which pipeline to create a build in
    * [x] Create a build on Buildkite, shows a link
  * [x] List Pipelines command
    * [x] Lists pipelines on Buildkite
-
-
+ * [x] Browse command
+   * [x] Prompt for which pipeline to open
 ## Usage
 
 ```bash

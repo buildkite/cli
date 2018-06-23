@@ -1,16 +1,19 @@
 steps:
   - label: ":golang:"
     plugins:
-      golang-build:
+      golang-cross-compile#v1.0.0:
         build: ./cmd/bk
-        package: github.com/buildkite/cli
-        golang:
-          - version: 1.10.2
+        import: github.com/buildkite/cli
+        targets:
+          - version: 1.10.3
             os: linux
             arch: amd64
-          - version: 1.10.2
+          - version: 1.10.3
             os: windows
             arch: amd64
-          - version: 1.10.2
+          - version: 1.10.3
             os: darwin
+            arch: amd64
+          - version: 1.10.3
+            os: freebsd
             arch: amd64
