@@ -29,7 +29,9 @@ type InitCommandContext struct {
 
 	Debug     bool
 	DebugHTTP bool
-	Dir       string
+
+	Dir          string
+	PipelineSlug string
 }
 
 func InitCommand(ctx InitCommandContext) error {
@@ -86,10 +88,21 @@ func InitCommand(ctx InitCommandContext) error {
 		return NewExitError(err, 1)
 	}
 
+	// by default, use the orgname and repo from the github project
+	pipelineOrg := org
+	pipelineRepo := repo
+
+	if ctx.PipelineSlug != "" {
+		debugf("Using %s as pipeline", ctx.PipelineSlug)
+		parts := strings.SplitN(ctx.PipelineSlug, "/", 2)
+		pipelineOrg = parts[0]
+		pipelineRepo = parts[1]
+	}
+
 	pipelineTry := ctx.Try()
 	pipelineTry.Start("Checking for buildkite pipeline")
 
-	isPipelineCreated, err := isBuildkitePipelineCreated(bk, org, repo)
+	isPipelineCreated, err := isBuildkitePipelineCreated(bk, pipelineOrg, pipelineRepo)
 	if err != nil {
 		pipelineTry.Failure(err.Error())
 		return NewExitError(err, 1)
@@ -99,7 +112,7 @@ func InitCommand(ctx InitCommandContext) error {
 
 	if isPipelineCreated {
 		var err error
-		pipeline, err = getBuildkitePipeline(bk, buildkitePipelineSlug(org, repo))
+		pipeline, err = getBuildkitePipeline(bk, buildkitePipelineSlug(pipelineOrg, pipelineRepo))
 		if err != nil {
 			pipelineTry.Failure(err.Error())
 			return NewExitError(err, 1)
@@ -107,10 +120,10 @@ func InitCommand(ctx InitCommandContext) error {
 
 		pipelineTry.Success(pipeline.URL)
 	} else {
-		debugf("[init] Buildkite pipeline %s/%s doesn't exist", org, repo)
+		debugf("[init] Buildkite pipeline %s/%s doesn't exist", pipelineOrg, pipelineRepo)
 
 		var err error
-		pipeline, err = createBuildkitePipeline(bk, org, repo,
+		pipeline, err = createBuildkitePipeline(bk, pipelineOrg, pipelineRepo,
 			defaultPipelineYAML,
 			gitRemote,
 		)

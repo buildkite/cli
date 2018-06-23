@@ -124,6 +124,10 @@ func run(args []string, exit func(int)) {
 		Flag("dir", "Directory of your project").
 		ExistingDirVar(&initCtx.Dir)
 
+	initCmd.
+		Flag("pipeline", "Use a specific pipeline slug (org/pipeline)").
+		StringVar(&initCtx.PipelineSlug)
+
 	// --------------------------
 	// create commands
 
