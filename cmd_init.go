@@ -19,8 +19,8 @@ import (
 
 const defaultPipelineYAML = `# Default pipeline from cli
 steps:
-- label: Example Test
-  command: echo "Hello!"
+- label: ":pipeline:"
+  command: buildkite-agent pipeline upload
 `
 
 type InitCommandContext struct {
