@@ -1,19 +1,23 @@
 steps:
   - label: ":golang:"
     plugins:
-      golang-cross-compile#v1.0.0:
+      golang-cross-compile#v1.3.0:
         build: ./cmd/bk
         import: github.com/buildkite/cli
         targets:
-          - version: 1.10.3
-            os: linux
-            arch: amd64
-          - version: 1.10.3
-            os: windows
-            arch: amd64
-          - version: 1.10.3
-            os: darwin
-            arch: amd64
-          - version: 1.10.3
-            os: freebsd
-            arch: amd64
+          - version: "1.11"
+            goos: linux
+            goarch: amd64
+            gomodule: "on"
+          - version:  "1.11"
+            goos: windows
+            goarch: amd64
+            gomodule: "on"
+          - version:  "1.11"
+            goos: darwin
+            goarch: amd64
+            gomodule: "on"
+          - version:  "1.11"
+            goos: freebsd
+            goarch: amd64
+            gomodule: "on"
