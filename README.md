@@ -35,13 +35,15 @@ bk init
 bk create build
 ```
 
-## Installation
+## Development
 
-For now, we only support `go get`.
+Developed using Golang 1.11+ with modules.
 
 ```
-go get -u github.com/buildkite/cli/cmd/bk
-bk --help
+export GO111MODULE=on
+git clone git@github.com:buildkite/cli.git
+cd cli/
+go run ./cmd/bk --help
 ```
 
 ## Design
