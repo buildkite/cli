@@ -11,7 +11,7 @@ require (
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1 // indirect
 	github.com/danieljoos/wincred v1.0.1 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/davecgh/go-spew v1.1.1
 	github.com/dvsekhvalnov/jose2go v0.0.0-20170216131308-f21a8cedbbae // indirect
 	github.com/fatih/color v1.7.0
 	github.com/godbus/dbus v4.1.0+incompatible // indirect
@@ -30,6 +30,7 @@ require (
 	github.com/mitchellh/go-homedir v0.0.0-20180523094522-3864e76763d9
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/sahilm/fuzzy v0.0.5
+	github.com/satori/go.uuid v1.2.0
 	github.com/skratchdot/open-golang v0.0.0-20160302144031-75fb7ed4208c
 	github.com/stretchr/objx v0.1.1 // indirect
 	github.com/stretchr/testify v1.2.2 // indirect

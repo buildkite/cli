@@ -219,6 +219,33 @@ func run(args []string, exit func(int)) {
 		Flag("limit", "How many pipelines to output").
 		IntVar(&listPipelinesCtx.Limit)
 
+	// --------------------------
+	// run command
+
+	runCmd := app.Command("run", "Run builds")
+
+	runLocalCmdCtx := cli.RunLocalCommandContext{}
+	runLocalCmd := runCmd.
+		Command("local", "Run a pipeline locally").
+		Default().
+		Action(func(c *kingpin.ParseContext) error {
+			runLocalCmdCtx.Debug = debug
+			runLocalCmdCtx.Keyring = keyringImpl
+			runLocalCmdCtx.TerminalContext = &cli.Terminal{}
+			return cli.RunLocalCommand(runLocalCmdCtx)
+		})
+
+	runLocalCmd.
+		Flag("file", "The pipeline.yml file to run").
+		FileVar(&runLocalCmdCtx.File)
+
+	runLocalCmd.
+		Flag("step", "The name of the step to run").
+		StringVar(&runLocalCmdCtx.Step)
+
+	// --------------------------
+	// run the app, parse args
+
 	if _, err := app.Parse(args); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 
@@ -228,4 +255,5 @@ func run(args []string, exit func(int)) {
 			os.Exit(1)
 		}
 	}
+
 }
