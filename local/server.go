@@ -12,10 +12,38 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"time"
+	"sync"
 
 	"github.com/satori/go.uuid"
 )
+
+type build struct {
+	ID     string
+	Number int
+	URL    string
+}
+
+type job struct {
+	ID               string
+	Build            build
+	State            string
+	ProjectSlug      string
+	PipelineSlug     string
+	OrganizationSlug string
+	ArtifactPaths    string
+	CreatorName      string
+	CreatorEmail     string
+	Command          string
+	Label            string
+	Timeout          int
+	Repository       string
+	Commit           string
+	Branch           string
+	Tag              string
+	Message          string
+	RetryCount       int
+	PluginJSON       string
+}
 
 var (
 	uuidRegexp = regexp.MustCompile(
@@ -24,8 +52,60 @@ var (
 
 type apiServer struct {
 	agents          *agentPool
-	scheduler       *scheduler
 	pipelineUploads chan pipelineUpload
+
+	sync.Mutex
+	jobs []*job
+}
+
+func (s *apiServer) AddJob(job job) {
+	s.Lock()
+	defer s.Unlock()
+	s.jobs = append(s.jobs, &job)
+}
+
+func (s *apiServer) JobsLeft() bool {
+	s.Lock()
+	defer s.Unlock()
+	for _, j := range s.jobs {
+		if j.State != "finished" {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *apiServer) changeJobState(jobID string, from, to string) (*job, error) {
+	j, err := s.getJobByID(jobID)
+	if err != nil {
+		return nil, err
+	}
+
+	if j.State != from {
+		return nil, fmt.Errorf("Job state is %q, expected %q", j.State, from)
+	}
+	j.State = to
+	return j, nil
+}
+
+func (s *apiServer) getJobByID(jobID string) (*job, error) {
+	for idx, j := range s.jobs {
+		if j.ID == jobID {
+			return s.jobs[idx], nil
+		}
+	}
+
+	return nil, fmt.Errorf("No job with id %q found", jobID)
+}
+
+func (s *apiServer) nextJob() (*job, bool) {
+	for _, j := range s.jobs {
+		if j.State == "" {
+			j.State = "scheduled"
+			return j, true
+		}
+	}
+	return nil, false
 }
 
 func (a *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -68,15 +148,6 @@ func (a *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *apiServer) handleRegister(w http.ResponseWriter, r *http.Request) {
-	var rr registerRequest
-
-	if err := readRequestInto(r, &rr); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	log.Printf("Registration Body: %#v", rr)
-
 	u := uuid.NewV4()
 
 	agent := agent{
@@ -88,7 +159,16 @@ func (a *apiServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 	a.agents.Register(agent)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(registerResponse{
+	json.NewEncoder(w).Encode(struct {
+		ID                string      `json:"id,omitempty"`
+		Name              string      `json:"name,omitempty"`
+		Endpoint          interface{} `json:"endpoint,omitempty"`
+		AccessToken       string      `json:"access_token,omitempty"`
+		PingInterval      int         `json:"ping_interval,omitempty"`
+		JobStatusInterval int         `json:"job_status_interval,omitempty"`
+		HeartbeatInterval int         `json:"heartbeat_interval,omitempty"`
+		MetaData          []string    `json:"meta_data,omitempty"`
+	}{
 		ID:                agent.ID,
 		Name:              agent.Name,
 		AccessToken:       agent.AccessToken,
@@ -106,12 +186,15 @@ func (a *apiServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("Agent %s is connected", agentID)
 	a.agents.Connect(agentID)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(connectResponse{
-		ID:              agentID,
-		ConnectionState: "connected",
+	json.NewEncoder(w).Encode(struct {
+		ID              string `json:"id"`
+		ConnectionState string `json:"connection_state"`
+	}{
+		agentID, "connected",
 	})
 }
 
@@ -125,13 +208,15 @@ func (a *apiServer) handleDisconnect(w http.ResponseWriter, r *http.Request) {
 	a.agents.Disconnect(agentID)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(&connectResponse{
-		ConnectionState: "disconnected",
+	json.NewEncoder(w).Encode(struct {
+		ConnectionState string `json:"connection_state"`
+	}{
+		"disconnected",
 	})
 }
 
 func (a *apiServer) handlePing(w http.ResponseWriter, r *http.Request) {
-	_, err := a.authenticateAgentFromHeader(r.Header)
+	agentID, err := a.authenticateAgentFromHeader(r.Header)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
@@ -139,15 +224,20 @@ func (a *apiServer) handlePing(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	j, ok := a.scheduler.NextJob()
+	a.Lock()
+	defer a.Unlock()
+
+	j, ok := a.nextJob()
 	if !ok {
 		json.NewEncoder(w).Encode(struct{}{})
 		return
 	}
 
-	json.NewEncoder(w).Encode(pingResponse{
-		pingResponseJob{
-			ID: j.ID,
+	log.Printf("Assigning job %s to %s", j.ID, agentID)
+
+	json.NewEncoder(w).Encode(map[string]map[string]string{
+		"job": map[string]string{
+			"id": j.ID,
 		},
 	})
 }
@@ -160,7 +250,7 @@ func (a *apiServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(heartbeatResponse{})
+	json.NewEncoder(w).Encode(struct{}{})
 }
 
 func (a *apiServer) handleAcceptJob(w http.ResponseWriter, r *http.Request, jobID string) {
@@ -176,7 +266,12 @@ func (a *apiServer) handleAcceptJob(w http.ResponseWriter, r *http.Request, jobI
 		return
 	}
 
-	job, err := a.scheduler.ChangeJobState(jobID, "scheduled", "accepted")
+	log.Printf("Agent %s accepting job %s", agentID, jobID)
+
+	a.Lock()
+	defer a.Unlock()
+
+	job, err := a.changeJobState(jobID, "scheduled", "accepted")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -227,7 +322,13 @@ func (a *apiServer) handleAcceptJob(w http.ResponseWriter, r *http.Request, jobI
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(acceptResponse{
+	json.NewEncoder(w).Encode(struct {
+		ID                 string            `json:"id"`
+		State              string            `json:"state"`
+		Env                map[string]string `json:"env"`
+		Endpoint           string            `json:"endpoint"`
+		ChunksMaxSizeBytes int               `json:"chunks_max_size_bytes"`
+	}{
 		ID:                 job.ID,
 		State:              "accepted",
 		Endpoint:           fmt.Sprintf("http://%s", r.Host),
@@ -237,40 +338,55 @@ func (a *apiServer) handleAcceptJob(w http.ResponseWriter, r *http.Request, jobI
 }
 
 func (a *apiServer) handleGetJob(w http.ResponseWriter, r *http.Request, jobID string) {
-	job, err := a.scheduler.GetJob(jobID)
+	a.Lock()
+	defer a.Unlock()
+
+	job, err := a.getJobByID(jobID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(jobResponse{
+	json.NewEncoder(w).Encode(struct {
+		State string `json:"state"`
+	}{
 		State: job.State,
 	})
 }
 
 func (a *apiServer) handleStartJob(w http.ResponseWriter, r *http.Request, jobID string) {
-	job, err := a.scheduler.ChangeJobState(jobID, "accepted", "started")
+	a.Lock()
+	defer a.Unlock()
+
+	job, err := a.changeJobState(jobID, "accepted", "started")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(startResponse{
+	json.NewEncoder(w).Encode(struct {
+		State string `json:"state"`
+	}{
 		State: job.State,
 	})
 }
 
 func (a *apiServer) handleFinishJob(w http.ResponseWriter, r *http.Request, jobID string) {
-	job, err := a.scheduler.ChangeJobState(jobID, "started", "finished")
+	a.Lock()
+	defer a.Unlock()
+
+	job, err := a.changeJobState(jobID, "started", "finished")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(finishResponse{
+	json.NewEncoder(w).Encode(struct {
+		State string `json:"state"`
+	}{
 		State: job.State,
 	})
 }
@@ -307,13 +423,18 @@ func (a *apiServer) handleLogChunks(w http.ResponseWriter, r *http.Request, jobI
 	os.Stdout.Write(b)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(chunksResponse{
+	json.NewEncoder(w).Encode(struct {
+		ID string `json:"id"`
+	}{
 		ID: uuid.NewV4().String(),
 	})
 }
 
 func (a *apiServer) handlePipelineUpload(w http.ResponseWriter, r *http.Request, jobID string) {
-	var pur pipelineUploadRequest
+	var pur struct {
+		UUID string `json:"uuid"`
+		pipelineUpload
+	}
 
 	if err := readRequestInto(r, &pur); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -352,94 +473,4 @@ func (a *apiServer) ListenAndServe() (string, error) {
 func (a *apiServer) authenticateAgentFromHeader(h http.Header) (string, error) {
 	authToken := strings.TrimPrefix(h.Get(`Authorization`), `Token `)
 	return a.agents.Authenticate(authToken)
-}
-
-type pingResponseJob struct {
-	ID string `json:"id"`
-}
-
-type pingResponse struct {
-	Job pingResponseJob `json:"job,omitempty"`
-}
-
-type heartbeatRequest struct {
-	SentAt string `json:"sent_at"`
-}
-
-type heartbeatResponse struct {
-	SentAt     string `json:"sent_at,omitempty"`
-	ReceivedAt string `json:"received_at,omitempty"`
-}
-
-type registerRequest struct {
-	Name              string        `json:"name"`
-	AccessToken       string        `json:"access_token"`
-	Hostname          string        `json:"hostname"`
-	Endpoint          string        `json:"endpoint"`
-	PingInterval      int           `json:"ping_interval"`
-	JobStatusInterval int           `json:"job_status_interval"`
-	HeartbeatInterval int           `json:"heartbeat_interval"`
-	Os                string        `json:"os"`
-	Arch              string        `json:"arch"`
-	ScriptEvalEnabled bool          `json:"script_eval_enabled"`
-	Version           string        `json:"version"`
-	Build             string        `json:"build"`
-	MetaData          []interface{} `json:"meta_data"`
-	Pid               int           `json:"pid"`
-	MachineID         string        `json:"machine_id"`
-}
-
-type registerResponse struct {
-	ID                string      `json:"id,omitempty"`
-	Name              string      `json:"name,omitempty"`
-	Endpoint          interface{} `json:"endpoint,omitempty"`
-	AccessToken       string      `json:"access_token,omitempty"`
-	PingInterval      int         `json:"ping_interval,omitempty"`
-	JobStatusInterval int         `json:"job_status_interval,omitempty"`
-	HeartbeatInterval int         `json:"heartbeat_interval,omitempty"`
-	MetaData          []string    `json:"meta_data,omitempty"`
-}
-
-type connectResponse struct {
-	ID              string `json:"id,omitempty"`
-	ConnectionState string `json:"connection_state,omitempty"`
-}
-
-type acceptResponse struct {
-	ID                 string            `json:"id"`
-	State              string            `json:"state"`
-	Env                map[string]string `json:"env"`
-	Endpoint           string            `json:"endpoint"`
-	ChunksMaxSizeBytes int               `json:"chunks_max_size_bytes"`
-}
-
-type startRequest struct {
-	StartedAt string `json:"started_at"`
-}
-
-type startResponse struct {
-	State string `json:"state"`
-}
-
-type finishRequest struct {
-	ExitStatus        string    `json:"exit_status"`
-	FinishedAt        time.Time `json:"finished_at"`
-	ChunksFailedCount int       `json:"chunks_failed_count"`
-}
-
-type finishResponse struct {
-	State string `json:"state"`
-}
-
-type jobResponse struct {
-	State string `json:"state"`
-}
-
-type chunksResponse struct {
-	ID string `json:"id"`
-}
-
-type pipelineUploadRequest struct {
-	UUID string `json:"uuid"`
-	pipelineUpload
 }

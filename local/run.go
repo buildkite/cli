@@ -28,12 +28,11 @@ type RunParams struct {
 
 func Run(ctx context.Context, params RunParams) error {
 	agentPool := newAgentPool()
-	scheduler := newScheduler()
 
 	server := &apiServer{
 		agents:          agentPool,
-		scheduler:       scheduler,
 		pipelineUploads: make(chan pipelineUpload),
+		jobs:            []*job{},
 	}
 
 	steps := newStepQueue()
@@ -66,7 +65,7 @@ func Run(ctx context.Context, params RunParams) error {
 		Number: 1,
 	}
 
-	scheduler.Schedule(job{
+	server.AddJob(job{
 		ID:               uuid.NewV4().String(),
 		Build:            build,
 		Command:          params.Command,
@@ -88,6 +87,10 @@ func Run(ctx context.Context, params RunParams) error {
 			log.Printf("Shutting down runner")
 			return nil
 		case <-time.NewTimer(time.Second).C:
+			if steps.Len() == 0 && !server.JobsLeft() {
+				log.Printf("Finished work")
+				return nil
+			}
 			if step := steps.Next(); step != nil {
 				switch {
 				case step.Command != nil:
@@ -98,7 +101,7 @@ func Run(ctx context.Context, params RunParams) error {
 						continue
 					}
 
-					scheduler.Schedule(job{
+					server.AddJob(job{
 						ID:               uuid.NewV4().String(),
 						Build:            build,
 						Command:          strings.Join(step.Command.Commands, "\n"),
@@ -149,6 +152,13 @@ func newStepQueue() *stepQueue {
 	return &stepQueue{
 		steps: []stepWithEnv{},
 	}
+}
+
+func (s *stepQueue) Len() int {
+	s.Lock()
+	defer s.Unlock()
+
+	return len(s.steps)
 }
 
 func (s *stepQueue) Replace(p pipelineUpload) {

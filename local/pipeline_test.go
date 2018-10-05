@@ -9,33 +9,33 @@ import (
 func TestPipelineParsing(t *testing.T) {
 	for _, tc := range []struct {
 		JSON     string
-		Expected Pipeline
+		Expected pipeline
 	}{
-		{`{"steps":[{"command": "echo hello world"}]}`, Pipeline{
-			Steps: []Step{
+		{`{"steps":[{"command": "echo hello world"}]}`, pipeline{
+			Steps: []step{
 				{
-					Command: &CommandStep{
+					Command: &commandStep{
 						Commands: []string{"echo hello world"},
 					},
 				},
 			},
 		}},
-		{`{"steps":[{"commands": ["echo hello world","pwd"]}]}`, Pipeline{
-			Steps: []Step{
+		{`{"steps":[{"commands": ["echo hello world","pwd"]}]}`, pipeline{
+			Steps: []step{
 				{
-					Command: &CommandStep{
+					Command: &commandStep{
 						Commands: []string{"echo hello world", "pwd"},
 					},
 				},
 			},
 		}},
-		{`{"steps":[{"wait":""},{"label": "llamas"}]}`, Pipeline{
-			Steps: []Step{
+		{`{"steps":[{"wait":""},{"label": "llamas"}]}`, pipeline{
+			Steps: []step{
 				{
-					Wait: &WaitStep{},
+					Wait: &waitStep{},
 				},
 				{
-					Command: &CommandStep{
+					Command: &commandStep{
 						Label: "llamas",
 					},
 				},
@@ -43,7 +43,7 @@ func TestPipelineParsing(t *testing.T) {
 		}},
 	} {
 		t.Run("", func(t *testing.T) {
-			var pipeline Pipeline
+			var pipeline pipeline
 
 			if err := json.Unmarshal([]byte(tc.JSON), &pipeline); err != nil {
 				t.Fatal(err)
