@@ -2,15 +2,18 @@ package local
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
+	"github.com/fatih/color"
 	uuid "github.com/satori/go.uuid"
 )
 
@@ -28,14 +31,10 @@ type RunParams struct {
 
 func Run(ctx context.Context, params RunParams) error {
 	agentPool := newAgentPool()
-
-	server := &apiServer{
-		agents:          agentPool,
-		pipelineUploads: make(chan pipelineUpload),
-		jobs:            []*job{},
-	}
-
+	server := newApiServer(agentPool)
 	steps := newStepQueue()
+
+	// consume pipeline uploads from the server
 	go func() {
 		for p := range server.pipelineUploads {
 			if p.Replace {
@@ -51,21 +50,21 @@ func Run(ctx context.Context, params RunParams) error {
 		return err
 	}
 
-	log.Printf("Serving API on %s", endpoint)
+	debugf("Serving API on %s", endpoint)
 
 	err = runAgent(ctx, endpoint)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("Started Agent")
+	debugf("Started Agent")
 
 	build := build{
 		ID:     uuid.NewV4().String(),
 		Number: 1,
 	}
 
-	server.AddJob(job{
+	err = executeJob(ctx, server, ioutil.Discard, job{
 		ID:               uuid.NewV4().String(),
 		Build:            build,
 		Command:          params.Command,
@@ -78,54 +77,116 @@ func Run(ctx context.Context, params RunParams) error {
 		OrganizationSlug: params.OrganizationSlug,
 		PipelineSlug:     params.PipelineSlug,
 	})
+	if err != nil {
+		return fmt.Errorf("Initial pipeline upload failed: %v", err)
+	}
 
-	log.Printf("Scheduled initial step")
+	w := newBuildLogFormatter()
 
-	for {
-		select {
-		case <-ctx.Done():
-			log.Printf("Shutting down runner")
-			return nil
-		case <-time.NewTimer(time.Second).C:
-			if steps.Len() == 0 && !server.JobsLeft() {
-				log.Printf("Finished work")
-				return nil
+	// Process each step that we receive
+	for step := range processSteps(ctx, steps, server) {
+		debugf("Processing %s", step)
+
+		if step.Command != nil {
+			plugins, err := marshalPlugins(step.Command.Plugins)
+			if err != nil {
+				log.Printf("Error marshaling plugins")
+				continue
 			}
-			if step := steps.Next(); step != nil {
-				switch {
-				case step.Command != nil:
-					log.Printf("Processing a command step")
-					plugins, err := marshalPlugins(step.Command.Plugins)
-					if err != nil {
-						log.Printf("Error marshaling plugins")
-						continue
-					}
 
-					server.AddJob(job{
-						ID:               uuid.NewV4().String(),
-						Build:            build,
-						Command:          strings.Join(step.Command.Commands, "\n"),
-						Label:            step.Command.Label,
-						Commit:           params.Commit,
-						Branch:           params.Branch,
-						Tag:              params.Tag,
-						Message:          params.Message,
-						Repository:       params.Repository,
-						OrganizationSlug: params.OrganizationSlug,
-						PipelineSlug:     params.PipelineSlug,
-						PluginJSON:       plugins,
-					})
-				default:
-					log.Printf("Unknown step type")
-					spew.Dump(step)
+			err = executeJob(ctx, server, w, job{
+				ID:               uuid.NewV4().String(),
+				Build:            build,
+				Command:          strings.Join(step.Command.Commands, "\n"),
+				Label:            step.Command.Label,
+				Commit:           params.Commit,
+				Branch:           params.Branch,
+				Tag:              params.Tag,
+				Message:          params.Message,
+				Repository:       params.Repository,
+				OrganizationSlug: params.OrganizationSlug,
+				PipelineSlug:     params.PipelineSlug,
+				PluginJSON:       plugins,
+			})
+			if err != nil {
+				return err
+			}
+		} else {
+			return fmt.Errorf("Unknown step type: %s", step)
+		}
+	}
+
+	return nil
+}
+
+func newBuildLogFormatter() io.Writer {
+	var subtleHeaderRegexp = regexp.MustCompile(`^~~~`)
+	var expandedHeaderRegexp = regexp.MustCompile(`^\+\+\+`)
+	var minimizedHeaderRegexp = regexp.MustCompile(`^---`)
+
+	subtle := color.New(color.FgWhite)
+	expanded := color.New(color.FgHiWhite, color.Underline)
+	minimized := color.New(color.FgWhite, color.Faint)
+
+	return newLineWriter(func(line string) {
+		if subtleHeaderRegexp.MatchString(line) {
+			subtle.Printf("\n%s\n", line)
+		} else if expandedHeaderRegexp.MatchString(line) {
+			expanded.Printf("\n%s\n", line)
+		} else if minimizedHeaderRegexp.MatchString(line) {
+			minimized.Printf("\n%s\n", line)
+		} else {
+			fmt.Println(line)
+		}
+	})
+}
+
+func processSteps(ctx context.Context, s *stepQueue, server *apiServer) chan stepWithEnv {
+	ch := make(chan stepWithEnv)
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				debugf("Context done, stopping processing steps")
+				close(ch)
+				return
+
+			case <-time.NewTimer(time.Second).C:
+				step, ok := s.Next()
+				if ok {
+					ch <- step
+				} else if !server.HasUnfinishedJobs() {
+					debugf("Steps finished and server done, stopping processing step queue")
+					close(ch)
+					return
 				}
 			}
 		}
+	}()
+
+	return ch
+}
+
+func executeJob(ctx context.Context, server *apiServer, w io.Writer, j job) error {
+	debugf("Executing job with command %q", j.Command)
+
+	exitCh := server.Execute(j, w)
+
+	select {
+	case <-ctx.Done():
+		return nil
+	case exitCode := <-exitCh:
+		if exitCode != 0 {
+			return fmt.Errorf("Job failed with code %d", exitCode)
+		}
 	}
+
+	return nil
 }
 
 func runAgent(ctx context.Context, endpoint string) error {
-	cmd := exec.CommandContext(ctx, "buildkite-agent", "start")
+	cmd := exec.CommandContext(ctx, "buildkite-agent", "start", "--debug")
 
 	cmd.Stdout = ioutil.Discard
 	cmd.Stderr = ioutil.Discard
@@ -170,7 +231,6 @@ func (s *stepQueue) Append(p pipelineUpload) {
 	defer s.Unlock()
 
 	for _, step := range p.Pipeline.Steps {
-		log.Printf("Appending step")
 		s.steps = append(s.steps, stepWithEnv{
 			step: step,
 			env:  p.Pipeline.Env,
@@ -178,14 +238,16 @@ func (s *stepQueue) Append(p pipelineUpload) {
 	}
 }
 
-func (s *stepQueue) Next() *stepWithEnv {
+func (s *stepQueue) Next() (stepWithEnv, bool) {
 	s.Lock()
 	defer s.Unlock()
 
 	if len(s.steps) == 0 {
-		return nil
+		return stepWithEnv{}, false
 	}
+
 	var next stepWithEnv
 	next, s.steps = s.steps[0], s.steps[1:]
-	return &next
+
+	return next, true
 }

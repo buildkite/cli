@@ -5,12 +5,13 @@ import (
 	"crypto/sha1"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -43,6 +44,9 @@ type job struct {
 	Message          string
 	RetryCount       int
 	PluginJSON       string
+
+	exitCh chan int
+	writer io.Writer
 }
 
 var (
@@ -58,13 +62,32 @@ type apiServer struct {
 	jobs []*job
 }
 
+func newApiServer(agentPool *agentPool) *apiServer {
+	return &apiServer{
+		agents:          agentPool,
+		pipelineUploads: make(chan pipelineUpload),
+		jobs:            []*job{},
+	}
+}
+
+func (s *apiServer) Execute(job job, w io.Writer) chan int {
+	job.exitCh = make(chan int, 1)
+	job.writer = w
+
+	s.Lock()
+	defer s.Unlock()
+	s.jobs = append(s.jobs, &job)
+
+	return job.exitCh
+}
+
 func (s *apiServer) AddJob(job job) {
 	s.Lock()
 	defer s.Unlock()
 	s.jobs = append(s.jobs, &job)
 }
 
-func (s *apiServer) JobsLeft() bool {
+func (s *apiServer) HasUnfinishedJobs() bool {
 	s.Lock()
 	defer s.Unlock()
 	for _, j := range s.jobs {
@@ -109,7 +132,7 @@ func (s *apiServer) nextJob() (*job, bool) {
 }
 
 func (a *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Printf("[http] %s %s %s", r.Method, r.RequestURI, r.RemoteAddr)
+	debugf("[http] %s %s %s", r.Method, r.RequestURI, r.RemoteAddr)
 
 	requestPath := uuidRegexp.ReplaceAllString(r.Method+" "+r.URL.Path, ":uuid")
 
@@ -186,7 +209,6 @@ func (a *apiServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Agent %s is connected", agentID)
 	a.agents.Connect(agentID)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -216,7 +238,7 @@ func (a *apiServer) handleDisconnect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *apiServer) handlePing(w http.ResponseWriter, r *http.Request) {
-	agentID, err := a.authenticateAgentFromHeader(r.Header)
+	_, err := a.authenticateAgentFromHeader(r.Header)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
@@ -232,8 +254,6 @@ func (a *apiServer) handlePing(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(struct{}{})
 		return
 	}
-
-	log.Printf("Assigning job %s to %s", j.ID, agentID)
 
 	json.NewEncoder(w).Encode(map[string]map[string]string{
 		"job": map[string]string{
@@ -265,8 +285,6 @@ func (a *apiServer) handleAcceptJob(w http.ResponseWriter, r *http.Request, jobI
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
-
-	log.Printf("Agent %s accepting job %s", agentID, jobID)
 
 	a.Lock()
 	defer a.Unlock()
@@ -356,6 +374,12 @@ func (a *apiServer) handleGetJob(w http.ResponseWriter, r *http.Request, jobID s
 }
 
 func (a *apiServer) handleStartJob(w http.ResponseWriter, r *http.Request, jobID string) {
+	_, err := a.authenticateAgentFromHeader(r.Header)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+
 	a.Lock()
 	defer a.Unlock()
 
@@ -374,6 +398,20 @@ func (a *apiServer) handleStartJob(w http.ResponseWriter, r *http.Request, jobID
 }
 
 func (a *apiServer) handleFinishJob(w http.ResponseWriter, r *http.Request, jobID string) {
+	_, err := a.authenticateAgentFromHeader(r.Header)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+
+	var rr struct {
+		ExitStatus string `json:"exit_status"`
+	}
+	if err := readRequestInto(r, &rr); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	a.Lock()
 	defer a.Unlock()
 
@@ -382,6 +420,14 @@ func (a *apiServer) handleFinishJob(w http.ResponseWriter, r *http.Request, jobI
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	exitCodeInt, err := strconv.Atoi(rr.ExitStatus)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	job.exitCh <- exitCodeInt
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(struct {
@@ -420,7 +466,16 @@ func (a *apiServer) handleLogChunks(w http.ResponseWriter, r *http.Request, jobI
 		return
 	}
 
-	os.Stdout.Write(b)
+	a.Lock()
+	defer a.Unlock()
+
+	job, err := a.getJobByID(jobID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	job.writer.Write(b)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(struct {
@@ -437,6 +492,7 @@ func (a *apiServer) handlePipelineUpload(w http.ResponseWriter, r *http.Request,
 	}
 
 	if err := readRequestInto(r, &pur); err != nil {
+		log.Printf("Failed to parse pipeline: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

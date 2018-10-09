@@ -27,6 +27,10 @@ func RunLocalCommand(ctx RunLocalCommandContext) error {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt)
 
+	if ctx.Debug {
+		local.Debug = true
+	}
+
 	cancelCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -41,7 +45,7 @@ func RunLocalCommand(ctx RunLocalCommandContext) error {
 		return err
 	}
 
-	branch, err := gitCommit()
+	branch, err := gitBranch()
 	if err != nil {
 		return err
 	}

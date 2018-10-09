@@ -2,6 +2,7 @@ package local
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
 type step struct {
@@ -9,11 +10,30 @@ type step struct {
 	Wait    *waitStep    `json:"-"`
 	Block   *blockStep   `json:"-"`
 	Trigger *triggerStep `json:"-"`
+
+	raw []byte
 }
 
 func (s *step) UnmarshalJSON(data []byte) error {
+	var stringStep string
+
+	// Store raw bytes for debugging
+	s.raw = data
+
+	// Handle steps that are just strings, e.g "wait"
+	if err := json.Unmarshal(data, &stringStep); err == nil {
+		switch stringStep {
+		case "wait":
+			s.Wait = &waitStep{}
+			return nil
+		default:
+			return fmt.Errorf("Unknown step type %q", stringStep)
+		}
+	}
+
 	var intermediate map[string]interface{}
 
+	// Determine the type of step it is
 	if err := json.Unmarshal(data, &intermediate); err != nil {
 		return err
 	}
@@ -31,6 +51,19 @@ func (s *step) UnmarshalJSON(data []byte) error {
 	}
 
 	return json.Unmarshal(data, &s.Command)
+}
+
+func (s step) String() string {
+	if s.Command != nil {
+		return fmt.Sprintf("{Command: %+v} (JSON: %s)", *s.Command, s.raw)
+	} else if s.Block != nil {
+		return fmt.Sprintf("{Block: %+v} (JSON:%s)", *s.Block, s.raw)
+	} else if s.Wait != nil {
+		return fmt.Sprintf("{Wait: %+v} (JSON: %s)", *s.Wait, s.raw)
+	} else if s.Trigger != nil {
+		return fmt.Sprintf("{Trigger: %+v} (JSON: %s)", *s.Trigger, s.raw)
+	}
+	return string(s.raw)
 }
 
 type blockStep struct {
