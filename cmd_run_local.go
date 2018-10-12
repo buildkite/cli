@@ -19,8 +19,9 @@ type RunLocalCommandContext struct {
 	Debug     bool
 	DebugHTTP bool
 
-	File *os.File
-	Step string
+	File            *os.File
+	StepFilterRegex string
+	Prompt          bool
 }
 
 func RunLocalCommand(ctx RunLocalCommandContext) error {
@@ -56,13 +57,19 @@ func RunLocalCommand(ctx RunLocalCommandContext) error {
 	}
 
 	if err := local.Run(cancelCtx, local.RunParams{
-		Commit:           commit,
-		Branch:           branch,
-		Command:          "buildkite-agent pipeline upload",
-		Label:            ":pipeline:",
-		Repository:       wd,
-		OrganizationSlug: "local",
-		PipelineSlug:     filepath.Base(wd),
+		Prompt: ctx.Prompt,
+		Filter: func(j local.Job) bool {
+			return true
+		},
+		JobTemplate: local.Job{
+			Commit:           commit,
+			Branch:           branch,
+			Command:          "buildkite-agent pipeline upload",
+			Label:            ":pipeline:",
+			Repository:       wd,
+			OrganizationSlug: "local",
+			PipelineSlug:     filepath.Base(wd),
+		},
 	}); err != nil {
 		return NewExitError(err, 1)
 	}

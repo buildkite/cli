@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"regexp"
@@ -14,19 +13,14 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/manifoldco/promptui"
 	uuid "github.com/satori/go.uuid"
 )
 
 type RunParams struct {
-	Branch           string
-	Commit           string
-	Command          string
-	Message          string
-	Label            string
-	Tag              string
-	Repository       string
-	OrganizationSlug string
-	PipelineSlug     string
+	Prompt      bool
+	Filter      func(Job) bool
+	JobTemplate Job
 }
 
 func Run(ctx context.Context, params RunParams) error {
@@ -59,56 +53,67 @@ func Run(ctx context.Context, params RunParams) error {
 
 	debugf("Started Agent")
 
-	build := build{
+	build := Build{
 		ID:     uuid.NewV4().String(),
 		Number: 1,
 	}
 
-	err = executeJob(ctx, server, ioutil.Discard, job{
-		ID:               uuid.NewV4().String(),
-		Build:            build,
-		Command:          params.Command,
-		Label:            params.Label,
-		Commit:           params.Commit,
-		Branch:           params.Branch,
-		Tag:              params.Tag,
-		Message:          params.Message,
-		Repository:       params.Repository,
-		OrganizationSlug: params.OrganizationSlug,
-		PipelineSlug:     params.PipelineSlug,
-	})
+	pipelineUploadJob := params.JobTemplate
+	pipelineUploadJob.ID = uuid.NewV4().String()
+	pipelineUploadJob.Label = ":pipeline"
+	pipelineUploadJob.Build = build
+
+	ejl, err := newEmojiLoader()
+	if err != nil {
+		return err
+	}
+
+	w := newBuildLogFormatter(ejl)
+
+	pipelineUploadWriter := ioutil.Discard
+	if Debug {
+		pipelineUploadWriter = w
+	}
+
+	timer := time.Now()
+	headerColor := color.New(color.FgWhite)
+
+	headerColor.Printf("Starting Build 👟\n")
+
+	err = executeJob(ctx, server, pipelineUploadWriter, pipelineUploadJob)
 	if err != nil {
 		return fmt.Errorf("Initial pipeline upload failed: %v", err)
 	}
 
-	w := newBuildLogFormatter()
-
 	// Process each step that we receive
 	for step := range processSteps(ctx, steps, server) {
-		debugf("Processing %s", step)
-
-		if step.Command != nil {
-			plugins, err := marshalPlugins(step.Command.Plugins)
-			if err != nil {
-				log.Printf("Error marshaling plugins")
-				continue
+		if params.Prompt {
+			prompt := promptui.Prompt{
+				Label:     fmt.Sprintf("Run %s", ejl.Render(step.Command.Label)),
+				IsConfirm: true,
+				Default:   "y",
 			}
 
-			err = executeJob(ctx, server, w, job{
-				ID:               uuid.NewV4().String(),
-				Build:            build,
-				Command:          strings.Join(step.Command.Commands, "\n"),
-				Label:            step.Command.Label,
-				Commit:           params.Commit,
-				Branch:           params.Branch,
-				Tag:              params.Tag,
-				Message:          params.Message,
-				Repository:       params.Repository,
-				OrganizationSlug: params.OrganizationSlug,
-				PipelineSlug:     params.PipelineSlug,
-				PluginJSON:       plugins,
-			})
+			result, err := prompt.Run()
 			if err != nil {
+				return err
+			}
+
+			if result == "n" {
+				continue
+			}
+		}
+
+		if step.Command != nil {
+			headerColor.Printf("Executing %s\n", ejl.Render(step.Command.Label))
+
+			j := params.JobTemplate
+			j.ID = uuid.NewV4().String()
+			j.Command = strings.Join(step.Command.Commands, "\n")
+			j.Label = step.Command.Label
+			j.Plugins = step.Command.Plugins
+
+			if err = executeJob(ctx, server, w, j); err != nil {
 				return err
 			}
 		} else {
@@ -116,25 +121,32 @@ func Run(ctx context.Context, params RunParams) error {
 		}
 	}
 
+	color.Blue("🎉 Build finished in %v", time.Now().Sub(timer))
 	return nil
 }
 
-func newBuildLogFormatter() io.Writer {
-	var subtleHeaderRegexp = regexp.MustCompile(`^~~~`)
-	var expandedHeaderRegexp = regexp.MustCompile(`^\+\+\+`)
-	var minimizedHeaderRegexp = regexp.MustCompile(`^---`)
+var subtleHeaderRegexp = regexp.MustCompile(`^~~~`)
+var expandedHeaderRegexp = regexp.MustCompile(`^\+\+\+`)
+var minimizedHeaderRegexp = regexp.MustCompile(`^---`)
+var headerRegexp = regexp.MustCompile(`^(~~~|\+\+\+|---)`)
 
+func newBuildLogFormatter(ejl *emojiLoader) io.Writer {
 	subtle := color.New(color.FgWhite)
 	expanded := color.New(color.FgHiWhite, color.Underline)
 	minimized := color.New(color.FgWhite, color.Faint)
 
 	return newLineWriter(func(line string) {
+		if headerRegexp.MatchString(line) {
+			line = ejl.Render(line)
+		}
 		if subtleHeaderRegexp.MatchString(line) {
 			subtle.Printf("\n%s\n", line)
 		} else if expandedHeaderRegexp.MatchString(line) {
 			expanded.Printf("\n%s\n", line)
 		} else if minimizedHeaderRegexp.MatchString(line) {
 			minimized.Printf("\n%s\n", line)
+		} else if line == "^^^ +++" {
+			// skip this one
 		} else {
 			fmt.Println(line)
 		}
@@ -168,9 +180,7 @@ func processSteps(ctx context.Context, s *stepQueue, server *apiServer) chan ste
 	return ch
 }
 
-func executeJob(ctx context.Context, server *apiServer, w io.Writer, j job) error {
-	debugf("Executing job with command %q", j.Command)
-
+func executeJob(ctx context.Context, server *apiServer, w io.Writer, j Job) error {
 	exitCh := server.Execute(j, w)
 
 	select {
@@ -186,7 +196,12 @@ func executeJob(ctx context.Context, server *apiServer, w io.Writer, j job) erro
 }
 
 func runAgent(ctx context.Context, endpoint string) error {
-	cmd := exec.CommandContext(ctx, "buildkite-agent", "start", "--debug")
+	args := []string{"start"}
+	if Debug {
+		args = append(args, "--debug")
+	}
+
+	cmd := exec.CommandContext(ctx, "buildkite-agent", args...)
 
 	cmd.Stdout = ioutil.Discard
 	cmd.Stderr = ioutil.Discard

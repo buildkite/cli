@@ -18,15 +18,15 @@ import (
 	"github.com/satori/go.uuid"
 )
 
-type build struct {
+type Build struct {
 	ID     string
 	Number int
 	URL    string
 }
 
-type job struct {
+type Job struct {
 	ID               string
-	Build            build
+	Build            Build
 	State            string
 	ProjectSlug      string
 	PipelineSlug     string
@@ -43,7 +43,7 @@ type job struct {
 	Tag              string
 	Message          string
 	RetryCount       int
-	PluginJSON       string
+	Plugins          []Plugin
 
 	exitCh chan int
 	writer io.Writer
@@ -59,18 +59,18 @@ type apiServer struct {
 	pipelineUploads chan pipelineUpload
 
 	sync.Mutex
-	jobs []*job
+	jobs []*Job
 }
 
 func newApiServer(agentPool *agentPool) *apiServer {
 	return &apiServer{
 		agents:          agentPool,
 		pipelineUploads: make(chan pipelineUpload),
-		jobs:            []*job{},
+		jobs:            []*Job{},
 	}
 }
 
-func (s *apiServer) Execute(job job, w io.Writer) chan int {
+func (s *apiServer) Execute(job Job, w io.Writer) chan int {
 	job.exitCh = make(chan int, 1)
 	job.writer = w
 
@@ -81,7 +81,7 @@ func (s *apiServer) Execute(job job, w io.Writer) chan int {
 	return job.exitCh
 }
 
-func (s *apiServer) AddJob(job job) {
+func (s *apiServer) AddJob(job Job) {
 	s.Lock()
 	defer s.Unlock()
 	s.jobs = append(s.jobs, &job)
@@ -98,7 +98,7 @@ func (s *apiServer) HasUnfinishedJobs() bool {
 	return false
 }
 
-func (s *apiServer) changeJobState(jobID string, from, to string) (*job, error) {
+func (s *apiServer) changeJobState(jobID string, from, to string) (*Job, error) {
 	j, err := s.getJobByID(jobID)
 	if err != nil {
 		return nil, err
@@ -111,7 +111,7 @@ func (s *apiServer) changeJobState(jobID string, from, to string) (*job, error) 
 	return j, nil
 }
 
-func (s *apiServer) getJobByID(jobID string) (*job, error) {
+func (s *apiServer) getJobByID(jobID string) (*Job, error) {
 	for idx, j := range s.jobs {
 		if j.ID == jobID {
 			return s.jobs[idx], nil
@@ -121,7 +121,7 @@ func (s *apiServer) getJobByID(jobID string) (*job, error) {
 	return nil, fmt.Errorf("No job with id %q found", jobID)
 }
 
-func (s *apiServer) nextJob() (*job, bool) {
+func (s *apiServer) nextJob() (*Job, bool) {
 	for _, j := range s.jobs {
 		if j.State == "" {
 			j.State = "scheduled"
@@ -296,8 +296,13 @@ func (a *apiServer) handleAcceptJob(w http.ResponseWriter, r *http.Request, jobI
 	}
 
 	pluginJSON := "[]"
-	if job.PluginJSON != "" {
-		pluginJSON = job.PluginJSON
+	if len(job.Plugins) > 0 {
+		var err error
+		pluginJSON, err = marshalPlugins(job.Plugins)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	env := map[string]string{

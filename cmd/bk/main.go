@@ -240,8 +240,12 @@ func run(args []string, exit func(int)) {
 		FileVar(&runLocalCmdCtx.File)
 
 	runLocalCmd.
-		Flag("step", "The name of the step to run").
-		StringVar(&runLocalCmdCtx.Step)
+		Flag("filter", "A regex to filter step labels with").
+		StringVar(&runLocalCmdCtx.StepFilterRegex)
+
+	runLocalCmd.
+		Flag("prompt", "Prompt for each step before executing").
+		BoolVar(&runLocalCmdCtx.Prompt)		
 
 	// --------------------------
 	// run the app, parse args
