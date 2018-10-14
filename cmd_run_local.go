@@ -19,7 +19,7 @@ type RunLocalCommandContext struct {
 	Debug     bool
 	DebugHTTP bool
 
-	File            *os.File
+	Command         string
 	StepFilterRegex string
 	Prompt          bool
 }
@@ -41,23 +41,25 @@ func RunLocalCommand(ctx RunLocalCommandContext) error {
 		cancel()
 	}()
 
+	wd, err := os.Getwd()
+	if err != nil {
+		return NewExitError(err, 1)
+	}
+
 	commit, err := gitCommit()
 	if err != nil {
-		return err
+		log.Printf("Error getting git commit: %v", err)
 	}
 
 	branch, err := gitBranch()
 	if err != nil {
-		return err
-	}
-
-	wd, err := os.Getwd()
-	if err != nil {
-		return err
+		log.Printf("Error getting git branch: %v", err)
 	}
 
 	if err := local.Run(cancelCtx, local.RunParams{
-		Prompt: ctx.Prompt,
+		Command: ctx.Command,
+		Dir:     wd,
+		Prompt:  ctx.Prompt,
 		Filter: func(j local.Job) bool {
 			return true
 		},

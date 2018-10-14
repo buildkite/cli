@@ -18,6 +18,8 @@ import (
 )
 
 type RunParams struct {
+	Dir         string
+	Command     string
 	Prompt      bool
 	Filter      func(Job) bool
 	JobTemplate Job
@@ -46,22 +48,29 @@ func Run(ctx context.Context, params RunParams) error {
 
 	debugf("Serving API on %s", endpoint)
 
-	err = runAgent(ctx, endpoint)
+	err, cleanup := runAgent(ctx, params.Dir, endpoint)
 	if err != nil {
 		return err
 	}
 
-	debugf("Started Agent")
+	headerColor := color.New(color.FgWhite, color.Bold)
+	headerColor.Printf(">>> Starting local agent 🤖\n")
+
+	defer func() {
+		headerColor.Printf(">>> Shutting down agent\n")
+		cleanup()
+	}()
 
 	build := Build{
 		ID:     uuid.NewV4().String(),
 		Number: 1,
 	}
 
-	pipelineUploadJob := params.JobTemplate
-	pipelineUploadJob.ID = uuid.NewV4().String()
-	pipelineUploadJob.Label = ":pipeline"
-	pipelineUploadJob.Build = build
+	initialJob := params.JobTemplate
+	initialJob.ID = uuid.NewV4().String()
+	initialJob.Label = ":pipeline:"
+	initialJob.Build = build
+	initialJob.Command = params.Command
 
 	ejl, err := newEmojiLoader()
 	if err != nil {
@@ -69,27 +78,24 @@ func Run(ctx context.Context, params RunParams) error {
 	}
 
 	w := newBuildLogFormatter(ejl)
-
-	pipelineUploadWriter := ioutil.Discard
-	if Debug {
-		pipelineUploadWriter = w
-	}
-
 	timer := time.Now()
-	headerColor := color.New(color.FgWhite)
 
-	headerColor.Printf("Starting Build 👟\n")
+	headerColor.Printf(">>> Starting Build 👟\n")
+	headerColor.Printf(">>> Executing initial command: %s\n", params.Command)
 
-	err = executeJob(ctx, server, pipelineUploadWriter, pipelineUploadJob)
+	err = executeJob(ctx, server, w, initialJob)
 	if err != nil {
-		return fmt.Errorf("Initial pipeline upload failed: %v", err)
+		return fmt.Errorf("Initial command failed: %v", err)
 	}
 
 	// Process each step that we receive
 	for step := range processSteps(ctx, steps, server) {
+		debugf("Processing step %s", step)
+
 		if params.Prompt {
+			fmt.Println()
 			prompt := promptui.Prompt{
-				Label:     fmt.Sprintf("Run %s", ejl.Render(step.Command.Label)),
+				Label:     fmt.Sprintf("Run %s", ejl.Render(step.Label())),
 				IsConfirm: true,
 				Default:   "y",
 			}
@@ -99,29 +105,39 @@ func Run(ctx context.Context, params RunParams) error {
 				return err
 			}
 
+			fmt.Println()
+
 			if result == "n" {
 				continue
 			}
 		}
 
 		if step.Command != nil {
-			headerColor.Printf("Executing %s\n", ejl.Render(step.Command.Label))
+			headerColor.Printf(">>> Executing step %s\n\n", ejl.Render(step.Command.Label))
 
 			j := params.JobTemplate
+
+			// load the step into a job
 			j.ID = uuid.NewV4().String()
+			j.Build = build
 			j.Command = strings.Join(step.Command.Commands, "\n")
 			j.Label = step.Command.Label
 			j.Plugins = step.Command.Plugins
+			j.Env = step.Command.Env
+			j.ArtifactPaths = step.Command.ArtifactPaths
 
 			if err = executeJob(ctx, server, w, j); err != nil {
+				headerColor.Printf(">>> 🚨 Build failed in %v\n", time.Now().Sub(timer))
 				return err
 			}
+		} else if step.Wait != nil {
+			headerColor.Printf(">>> Wait complete\n")
 		} else {
 			return fmt.Errorf("Unknown step type: %s", step)
 		}
 	}
 
-	color.Blue("🎉 Build finished in %v", time.Now().Sub(timer))
+	headerColor.Printf(">>> 🎉 Build finished in %v\n", time.Now().Sub(timer))
 	return nil
 }
 
@@ -195,23 +211,57 @@ func executeJob(ctx context.Context, server *apiServer, w io.Writer, j Job) erro
 	return nil
 }
 
-func runAgent(ctx context.Context, endpoint string) error {
+func runAgent(ctx context.Context, dir string, endpoint string) (error, func()) {
+	bootstrap, err := createAgentBootstrap(dir)
+	if err != nil {
+		return err, func() {}
+	}
+
 	args := []string{"start"}
 	if Debug {
-		args = append(args, "--debug")
+		args = append(args, "--debug", "--debug-http")
 	}
 
 	cmd := exec.CommandContext(ctx, "buildkite-agent", args...)
-
 	cmd.Stdout = ioutil.Discard
 	cmd.Stderr = ioutil.Discard
+	// cmd.Stdout = os.Stdout
+	// cmd.Stderr = os.Stderr
+
 	cmd.Env = append(os.Environ(),
 		`BUILDKITE_AGENT_ENDPOINT=`+endpoint,
 		`BUILDKITE_AGENT_TOKEN=llamas`,
 		`BUILDKITE_AGENT_NAME=local`,
+		`BUILDKITE_BOOTSTRAP_SCRIPT_PATH=`+bootstrap.Name(),
 	)
 
-	return cmd.Start()
+	return cmd.Start(), func() {
+		defer os.Remove(bootstrap.Name())
+	}
+}
+
+func createAgentBootstrap(checkoutPath string) (*os.File, error) {
+	tmpFile, err := ioutil.TempFile(os.TempDir(), "bootstrap-")
+	if err != nil {
+		return nil, err
+	}
+
+	debugf("Creating bootrap script at %s", tmpFile.Name())
+
+	text := []byte(fmt.Sprintf(`#!/bin/sh
+	export BUILDKITE_BUILD_CHECKOUT_PATH=%s
+	export BUILDKITE_BOOTSTRAP_PHASES=plugin,command
+	buildkite-agent bootstrap`, checkoutPath))
+
+	if _, err = tmpFile.Write(text); err != nil {
+		return nil, err
+	}
+
+	if err = os.Chmod(tmpFile.Name(), 0700); err != nil {
+		return nil, err
+	}
+
+	return tmpFile, nil
 }
 
 type stepWithEnv struct {

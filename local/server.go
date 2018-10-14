@@ -10,11 +10,16 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/bmatcuk/doublestar"
+	"github.com/fatih/color"
+	homedir "github.com/mitchellh/go-homedir"
 	"github.com/satori/go.uuid"
 )
 
@@ -31,7 +36,7 @@ type Job struct {
 	ProjectSlug      string
 	PipelineSlug     string
 	OrganizationSlug string
-	ArtifactPaths    string
+	ArtifactPaths    []string
 	CreatorName      string
 	CreatorEmail     string
 	Command          string
@@ -44,7 +49,26 @@ type Job struct {
 	Message          string
 	RetryCount       int
 	Plugins          []Plugin
+	Env              []string
+	Artifacts        []Artifact
+}
 
+type Artifact struct {
+	ID                string `json:"-"`
+	Path              string `json:"path"`
+	AbsolutePath      string `json:"absolute_path"`
+	GlobPath          string `json:"glob_path"`
+	FileSize          int64  `json:"file_size"`
+	Sha1Sum           string `json:"sha1sum"`
+	URL               string `json:"url,omitempty"`
+	UploadDestination string `json:"upload_destination,omitempty"`
+
+	uploaded  bool
+	localPath string
+}
+
+type jobEnvelope struct {
+	Job
 	exitCh chan int
 	writer io.Writer
 }
@@ -57,34 +81,34 @@ var (
 type apiServer struct {
 	agents          *agentPool
 	pipelineUploads chan pipelineUpload
+	listener        net.Listener
 
 	sync.Mutex
-	jobs []*Job
+	jobs      []*jobEnvelope
+	artifacts sync.Map
+	metadata  sync.Map
 }
 
 func newApiServer(agentPool *agentPool) *apiServer {
 	return &apiServer{
 		agents:          agentPool,
 		pipelineUploads: make(chan pipelineUpload),
-		jobs:            []*Job{},
+		jobs:            []*jobEnvelope{},
 	}
 }
 
 func (s *apiServer) Execute(job Job, w io.Writer) chan int {
-	job.exitCh = make(chan int, 1)
-	job.writer = w
+	js := &jobEnvelope{
+		Job:    job,
+		exitCh: make(chan int, 1),
+		writer: w,
+	}
 
 	s.Lock()
 	defer s.Unlock()
-	s.jobs = append(s.jobs, &job)
+	s.jobs = append(s.jobs, js)
 
-	return job.exitCh
-}
-
-func (s *apiServer) AddJob(job Job) {
-	s.Lock()
-	defer s.Unlock()
-	s.jobs = append(s.jobs, &job)
+	return js.exitCh
 }
 
 func (s *apiServer) HasUnfinishedJobs() bool {
@@ -98,7 +122,7 @@ func (s *apiServer) HasUnfinishedJobs() bool {
 	return false
 }
 
-func (s *apiServer) changeJobState(jobID string, from, to string) (*Job, error) {
+func (s *apiServer) changeJobState(jobID string, from, to string) (*jobEnvelope, error) {
 	j, err := s.getJobByID(jobID)
 	if err != nil {
 		return nil, err
@@ -111,7 +135,7 @@ func (s *apiServer) changeJobState(jobID string, from, to string) (*Job, error) 
 	return j, nil
 }
 
-func (s *apiServer) getJobByID(jobID string) (*Job, error) {
+func (s *apiServer) getJobByID(jobID string) (*jobEnvelope, error) {
 	for idx, j := range s.jobs {
 		if j.ID == jobID {
 			return s.jobs[idx], nil
@@ -121,7 +145,7 @@ func (s *apiServer) getJobByID(jobID string) (*Job, error) {
 	return nil, fmt.Errorf("No job with id %q found", jobID)
 }
 
-func (s *apiServer) nextJob() (*Job, bool) {
+func (s *apiServer) nextJob() (*jobEnvelope, bool) {
 	for _, j := range s.jobs {
 		if j.State == "" {
 			j.State = "scheduled"
@@ -163,9 +187,25 @@ func (a *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.handleMetadataExists(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
 	case `POST /jobs/:uuid/data/set`:
 		a.handleMetadataSet(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
+	case `POST /jobs/:uuid/data/get`:
+		a.handleMetadataGet(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
 	case `POST /jobs/:uuid/pipelines`:
 		a.handlePipelineUpload(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
+	case `POST /jobs/:uuid/artifacts`:
+		a.handleArtifactsUploadInstructions(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
+	case `POST /jobs/:uuid/artifacts/upload`:
+		a.handleArtifactsUpload(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
+	case `PUT /jobs/:uuid/artifacts`:
+		a.handleArtifactsUpdate(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
+	case `GET /builds/:uuid/artifacts/search`:
+		a.handleArtifactsSearch(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
+	case `GET /artifacts/:uuid`:
+		a.handleArtifactDownload(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
 	default:
+		color.Red(">>> 😓 An unknown agent API endpoint was requested (%s).\n"+
+			"File an issue at https://github.com/buildkite/cli/issues and we'll see what we can do!\n",
+			requestPath,
+		)
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 	}
 }
@@ -332,7 +372,7 @@ func (a *apiServer) handleAcceptJob(w http.ResponseWriter, r *http.Request, jobI
 		`BUILDKITE_BUILD_CREATOR`:             job.CreatorName,
 		`BUILDKITE_BUILD_CREATOR_EMAIL`:       job.CreatorEmail,
 		`BUILDKITE_PIPELINE_SLUG`:             job.PipelineSlug,
-		`BUILDKITE_ARTIFACT_PATHS`:            job.ArtifactPaths,
+		`BUILDKITE_ARTIFACT_PATHS`:            strings.Join(job.ArtifactPaths, ","),
 		`BUILDKITE_PROJECT_PROVIDER`:          `local`,
 		`BUILDKITE_ORGANIZATION_SLUG`:         job.OrganizationSlug,
 		`BUILDKITE_PIPELINE_PROVIDER`:         `local`,
@@ -444,12 +484,66 @@ func (a *apiServer) handleFinishJob(w http.ResponseWriter, r *http.Request, jobI
 
 func (a *apiServer) handleMetadataExists(w http.ResponseWriter, r *http.Request, jobID string) {
 	w.Header().Set("Content-Type", "application/json")
+
+	var parsed struct {
+		Key string `json:"key"`
+	}
+	err := readRequestInto(r, &parsed)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	_, ok := a.metadata.Load(parsed.Key)
+	if !ok {
+		http.Error(w, "Not found", http.StatusNotFound)
+		return
+	}
+
 	json.NewEncoder(w).Encode(&struct{}{})
 }
 
 func (a *apiServer) handleMetadataSet(w http.ResponseWriter, r *http.Request, jobID string) {
 	w.Header().Set("Content-Type", "application/json")
+
+	var parsed struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	}
+	err := readRequestInto(r, &parsed)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	a.metadata.Store(parsed.Key, parsed.Value)
 	json.NewEncoder(w).Encode(&struct{}{})
+}
+
+func (a *apiServer) handleMetadataGet(w http.ResponseWriter, r *http.Request, jobID string) {
+	w.Header().Set("Content-Type", "application/json")
+
+	var parsed struct {
+		Key string `json:"key"`
+	}
+	err := readRequestInto(r, &parsed)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	val, ok := a.metadata.Load(parsed.Key)
+	if !ok {
+		http.Error(w, "Not found", http.StatusNotFound)
+		return
+	}
+
+	json.NewEncoder(w).Encode(&struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	}{
+		parsed.Key, val.(string),
+	})
 }
 
 func (a *apiServer) handleHeaderTimes(w http.ResponseWriter, r *http.Request, jobID string) {
@@ -508,6 +602,208 @@ func (a *apiServer) handlePipelineUpload(w http.ResponseWriter, r *http.Request,
 	json.NewEncoder(w).Encode(&struct{}{})
 }
 
+type uploadAction struct {
+	URL       string `json:"url,omitempty"`
+	Method    string `json:"method"`
+	Path      string `json:"path"`
+	FileInput string `json:"file_input"`
+}
+
+type uploadInstructions struct {
+	Data   map[string]string `json:"data"`
+	Action uploadAction      `json:"action"`
+}
+
+func (a *apiServer) handleArtifactsUploadInstructions(w http.ResponseWriter, r *http.Request, jobID string) {
+	var artifactBatch struct {
+		ID                string     `json:"id"`
+		Artifacts         []Artifact `json:"artifacts"`
+		UploadDestination string     `json:"upload_destination"`
+	}
+
+	if err := readRequestInto(r, &artifactBatch); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	a.Lock()
+	defer a.Unlock()
+
+	job, err := a.getJobByID(jobID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var artifactIDs []string
+
+	for idx := range artifactBatch.Artifacts {
+		artifactID := uuid.NewV4().String()
+		artifactIDs = append(artifactIDs, artifactID)
+		artifactBatch.Artifacts[idx].ID = artifactID
+		artifactBatch.Artifacts[idx].URL = fmt.Sprintf("http://%s/artifacts/%s", a.listener.Addr().String(), artifactID)
+	}
+
+	job.Artifacts = artifactBatch.Artifacts
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(&struct {
+		ID                 string             `json:"id"`
+		ArtifactIDs        []string           `json:"artifact_ids"`
+		UploadInstructions uploadInstructions `json:"upload_instructions"`
+	}{
+		uuid.NewV4().String(),
+		artifactIDs,
+		uploadInstructions{
+			Action: uploadAction{
+				fmt.Sprintf("http://%s", a.listener.Addr().String()),
+				"POST",
+				fmt.Sprintf("/jobs/%s/artifacts/upload", jobID),
+				"file",
+			},
+		},
+	})
+}
+
+func (a *apiServer) handleArtifactsUpload(w http.ResponseWriter, r *http.Request, jobID string) {
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		fmt.Fprintln(w, err)
+		return
+	}
+	defer file.Close()
+
+	cacheDir, err := artifactCachePath()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	path := filepath.Join(cacheDir, jobID, header.Filename)
+
+	if err = os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	out, err := os.Create(path)
+	if err != nil {
+		log.Printf("Unable to create %s for writing. Check your write access privilege", path)
+		return
+	}
+
+	defer out.Close()
+
+	// write the content from POST to the file
+	_, err = io.Copy(out, file)
+	if err != nil {
+		fmt.Fprintln(w, err)
+	}
+
+	a.Lock()
+	defer a.Unlock()
+
+	job, err := a.getJobByID(jobID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	for idx := range job.Artifacts {
+		if header.Filename == job.Artifacts[idx].Path {
+			job.Artifacts[idx].uploaded = true
+			job.Artifacts[idx].localPath = path
+		}
+	}
+
+	fmt.Fprintf(w, "File uploaded successfully: %s", header.Filename)
+}
+
+func (a *apiServer) handleArtifactsUpdate(w http.ResponseWriter, r *http.Request, jobID string) {
+	var rr struct {
+		Artifacts []struct {
+			ID    string `json:"id"`
+			State string `json:"state"`
+		} `json:"artifacts"`
+	}
+
+	if err := readRequestInto(r, &rr); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	a.Lock()
+	defer a.Unlock()
+
+	job, err := a.getJobByID(jobID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	for _, updatedArtifact := range rr.Artifacts {
+		for _, jobArtifact := range job.Artifacts {
+			if jobArtifact.ID == updatedArtifact.ID && updatedArtifact.State == `finished` {
+				a.artifacts.Store(jobArtifact.ID, jobArtifact)
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(&struct{}{})
+}
+
+func (a *apiServer) handleArtifactsSearch(w http.ResponseWriter, r *http.Request, buildID string) {
+	query := r.URL.Query().Get("query")
+
+	a.Lock()
+	defer a.Unlock()
+
+	var artifacts []Artifact
+
+	a.artifacts.Range(func(_, value interface{}) bool {
+		artifact := value.(Artifact)
+		match, err := doublestar.PathMatch(query, artifact.Path)
+		if err != nil {
+			log.Printf("Err: %v", err)
+		}
+
+		if match {
+			artifacts = append(artifacts, artifact)
+		}
+
+		return true
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(artifacts)
+}
+
+func (a *apiServer) handleArtifactDownload(w http.ResponseWriter, r *http.Request, artifactID string) {
+	a.Lock()
+	defer a.Unlock()
+
+	artifact, ok := a.artifacts.Load(artifactID)
+	if !ok {
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+	}
+
+	log.Printf("Found: %v", artifact)
+
+	f, err := os.Open(artifact.(Artifact).localPath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+
+	_, err = io.Copy(w, f)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
 func readRequestInto(r *http.Request, into interface{}) error {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -519,19 +815,28 @@ func readRequestInto(r *http.Request, into interface{}) error {
 }
 
 func (a *apiServer) ListenAndServe() (string, error) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	var err error
+	a.listener, err = net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return "", err
 	}
 
 	go func() {
-		_ = http.Serve(listener, a)
+		_ = http.Serve(a.listener, a)
 	}()
 
-	return fmt.Sprintf("http://%s", listener.Addr().String()), nil
+	return fmt.Sprintf("http://%s", a.listener.Addr().String()), nil
 }
 
 func (a *apiServer) authenticateAgentFromHeader(h http.Header) (string, error) {
 	authToken := strings.TrimPrefix(h.Get(`Authorization`), `Token `)
 	return a.agents.Authenticate(authToken)
+}
+
+func artifactCachePath() (string, error) {
+	home, err := homedir.Dir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".buildkite", "local", "artifacts"), nil
 }

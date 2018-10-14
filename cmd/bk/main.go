@@ -6,6 +6,7 @@ import (
 
 	"github.com/buildkite/cli"
 	"github.com/buildkite/cli/graphql"
+	"github.com/fatih/color"
 
 	"github.com/99designs/keyring"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -236,22 +237,23 @@ func run(args []string, exit func(int)) {
 		})
 
 	runLocalCmd.
-		Flag("file", "The pipeline.yml file to run").
-		FileVar(&runLocalCmdCtx.File)
+		Flag("command", "The initial command to execute").
+		Default("buildkite-agent pipeline upload").
+		StringVar(&runLocalCmdCtx.Command)
 
-	runLocalCmd.
-		Flag("filter", "A regex to filter step labels with").
-		StringVar(&runLocalCmdCtx.StepFilterRegex)
+	// runLocalCmd.
+	// 	Flag("filter", "A regex to filter step labels with").
+	// 	StringVar(&runLocalCmdCtx.StepFilterRegex)
 
 	runLocalCmd.
 		Flag("prompt", "Prompt for each step before executing").
-		BoolVar(&runLocalCmdCtx.Prompt)		
+		BoolVar(&runLocalCmdCtx.Prompt)
 
 	// --------------------------
 	// run the app, parse args
 
 	if _, err := app.Parse(args); err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+		fmt.Fprintf(os.Stderr, color.RedString("🚨 %v\n", err))
 
 		if ec, ok := err.(interface{ ExitCode() int }); ok {
 			os.Exit(ec.ExitCode())

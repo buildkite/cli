@@ -53,6 +53,19 @@ func (s *step) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(data, &s.Command)
 }
 
+func (s step) Label() string {
+	if s.Command != nil {
+		return s.Command.Label
+	} else if s.Block != nil {
+		return "Block"
+	} else if s.Wait != nil {
+		return "Wait"
+	} else if s.Trigger != nil {
+		return "Trigger"
+	}
+	return ""
+}
+
 func (s step) String() string {
 	if s.Command != nil {
 		return fmt.Sprintf("{Command: %+v} (JSON: %s)", *s.Command, s.raw)
@@ -80,23 +93,36 @@ type triggerStep struct {
 }
 
 type commandStep struct {
-	Label    string   `json:"label"`
-	Commands []string `json:"-"`
-	Plugins  []Plugin `json:"-"`
+	Label         string            `json:"label"`
+	Commands      []string          `json:"-"`
+	Plugins       []Plugin          `json:"-"`
+	Env           []string          `json:"-"`
+	Agents        map[string]string `json:"agents"`
+	ArtifactPaths []string          `json:"-"`
 }
 
 func (s *commandStep) UnmarshalJSON(data []byte) error {
 	var intermediate struct {
-		Label    string        `json:"label"`
-		Commands stringOrSlice `json:"commands"`
-		Command  stringOrSlice `json:"command"`
+		Label         string        `json:"label"`
+		Name          string        `json:"name"`
+		Commands      stringOrSlice `json:"commands"`
+		Command       stringOrSlice `json:"command"`
+		Env           envMapOrSlice `json:"env"`
+		Environment   envMapOrSlice `json:"environment"`
+		ArtifactPaths stringOrSlice `json:"artifact_paths"`
 	}
 
 	if err := json.Unmarshal(data, &intermediate); err != nil {
 		return err
 	}
 
+	s.ArtifactPaths = []string(intermediate.ArtifactPaths)
+
+	// Normalize name vs label
 	s.Label = intermediate.Label
+	if intermediate.Name != "" {
+		s.Label = intermediate.Name
+	}
 
 	// Normalize command vs commands
 	s.Commands = append(s.Commands, intermediate.Command...)
@@ -104,6 +130,12 @@ func (s *commandStep) UnmarshalJSON(data []byte) error {
 
 	var pluginSlice struct {
 		Plugins []map[string]interface{} `json:"plugins"`
+	}
+
+	// Normalize env vs environment
+	s.Env = []string(intermediate.Env)
+	if len(intermediate.Environment) > 0 {
+		s.Env = []string(intermediate.Environment)
 	}
 
 	if err := json.Unmarshal(data, &pluginSlice); err == nil {
@@ -160,5 +192,27 @@ func (s *stringOrSlice) UnmarshalJSON(data []byte) error {
 	}
 
 	*s = strSlice
+	return nil
+}
+
+type envMapOrSlice []string
+
+func (s *envMapOrSlice) UnmarshalJSON(data []byte) error {
+	var m map[string]string
+
+	if err := json.Unmarshal(data, &m); err == nil {
+		for k, v := range m {
+			*s = append(*s, fmt.Sprintf("%s=%s", k, v))
+		}
+		return nil
+	}
+
+	var envSlice []string
+
+	if err := json.Unmarshal(data, &envSlice); err != nil {
+		return err
+	}
+
+	*s = envSlice
 	return nil
 }

@@ -8,6 +8,8 @@ github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf h1:qet1QNfXsQxTZq
 github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf/go.mod h1:ybxpYRFXyAe+OPACYpWeL0wqObRcbAqCMya13uyzqw0=
 github.com/aulanov/go.dbus v0.0.0-20150729231527-25c3068a42a0 h1:EEDvbomAQ+MFWqJ9FM6RXyJTkc4lckyWsbc5CGQkG1Y=
 github.com/aulanov/go.dbus v0.0.0-20150729231527-25c3068a42a0/go.mod h1:VHvUx+4lTCaJ8zUnEXF4cWEc9c8lnDt4PGLwlZ+3yaM=
+github.com/bmatcuk/doublestar v1.1.1 h1:YroD6BJCZBYx06yYFEWvUuKVWQn3vLLQAVmDmvTSaiQ=
+github.com/bmatcuk/doublestar v1.1.1/go.mod h1:UD6OnuiIn0yFxxA2le/rnRU1G4RaI4UvFv1sNto9p6w=
 github.com/briandowns/spinner v0.0.0-20170614154858-48dbb65d7bd5 h1:osZyZB7J4kE1tKLeaUjV6+uZVBfS835T0I/RxmwWw1w=
 github.com/briandowns/spinner v0.0.0-20170614154858-48dbb65d7bd5/go.mod h1:hw/JEQBIE+c/BLI4aKM8UU8v+ZqrD3h7HC27kKt8JQU=
 github.com/chzyer/logex v1.1.10 h1:Swpa1K6QvQznwJRcfTfQJmTE72DqScAa40E+fbHEXEE=
