@@ -50,7 +50,7 @@ func TestPipelineParsing(t *testing.T) {
 			}
 
 			if !reflect.DeepEqual(tc.Expected, pipeline) {
-				t.Fatalf("Expected %+v, got %+v", tc.Expected, pipeline)
+				t.Fatalf("Expected %v, got %v", tc.Expected, pipeline)
 			}
 		})
 	}

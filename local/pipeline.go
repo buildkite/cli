@@ -10,15 +10,10 @@ type step struct {
 	Wait    *waitStep    `json:"-"`
 	Block   *blockStep   `json:"-"`
 	Trigger *triggerStep `json:"-"`
-
-	raw []byte
 }
 
 func (s *step) UnmarshalJSON(data []byte) error {
 	var stringStep string
-
-	// Store raw bytes for debugging
-	s.raw = data
 
 	// Handle steps that are just strings, e.g "wait"
 	if err := json.Unmarshal(data, &stringStep); err == nil {
@@ -68,15 +63,15 @@ func (s step) Label() string {
 
 func (s step) String() string {
 	if s.Command != nil {
-		return fmt.Sprintf("{Command: %+v} (JSON: %s)", *s.Command, s.raw)
+		return fmt.Sprintf("{Command: %+v}", *s.Command)
 	} else if s.Block != nil {
-		return fmt.Sprintf("{Block: %+v} (JSON:%s)", *s.Block, s.raw)
+		return fmt.Sprintf("{Block: %+v}", *s.Block)
 	} else if s.Wait != nil {
-		return fmt.Sprintf("{Wait: %+v} (JSON: %s)", *s.Wait, s.raw)
+		return fmt.Sprintf("{Wait: %+v}", *s.Wait)
 	} else if s.Trigger != nil {
-		return fmt.Sprintf("{Trigger: %+v} (JSON: %s)", *s.Trigger, s.raw)
+		return fmt.Sprintf("{Trigger: %+v} ", *s.Trigger)
 	}
-	return string(s.raw)
+	return "Unknown"
 }
 
 type blockStep struct {
@@ -124,9 +119,12 @@ func (s *commandStep) UnmarshalJSON(data []byte) error {
 		s.Label = intermediate.Name
 	}
 
-	// Normalize command vs commands
-	s.Commands = append(s.Commands, intermediate.Command...)
-	s.Commands = append(s.Commands, intermediate.Commands...)
+	// Normalize command vs commands (note plural)
+	if len(intermediate.Command) > 0 {
+		s.Commands = append(s.Commands, intermediate.Command...)
+	} else {
+		s.Commands = append(s.Commands, intermediate.Commands...)
+	}
 
 	var pluginSlice struct {
 		Plugins []map[string]interface{} `json:"plugins"`
