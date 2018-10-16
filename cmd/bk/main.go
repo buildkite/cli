@@ -241,13 +241,27 @@ func run(args []string, exit func(int)) {
 		Default("buildkite-agent pipeline upload").
 		StringVar(&runLocalCmdCtx.Command)
 
-	// runLocalCmd.
-	// 	Flag("filter", "A regex to filter step labels with").
-	// 	StringVar(&runLocalCmdCtx.StepFilterRegex)
+	runLocalCmd.
+		Flag("filter", "A regex to filter step labels with").
+		RegexpVar(&runLocalCmdCtx.StepFilterRegex)
+
+	runLocalCmd.
+		Flag("dry-run", "Show what steps will be executed").
+		BoolVar(&runLocalCmdCtx.DryRun)
 
 	runLocalCmd.
 		Flag("prompt", "Prompt for each step before executing").
 		BoolVar(&runLocalCmdCtx.Prompt)
+
+	runLocalCmd.
+		Flag("env", "Environment to pass to the agent").
+		Short('E').
+		StringsVar(&runLocalCmdCtx.Env)
+
+	runLocalCmd.
+		Arg("file", "A specific pipeline file to upload").
+		FileVar(&runLocalCmdCtx.File)
+
 
 	// --------------------------
 	// run the app, parse args

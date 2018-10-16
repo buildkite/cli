@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"regexp"
@@ -18,10 +19,12 @@ import (
 )
 
 type RunParams struct {
+	Env         []string
 	Dir         string
 	Command     string
 	Prompt      bool
-	Filter      func(Job) bool
+	StepFilter  *regexp.Regexp
+	DryRun      bool
 	JobTemplate Job
 }
 
@@ -30,13 +33,27 @@ func Run(ctx context.Context, params RunParams) error {
 	server := newApiServer(agentPool)
 	steps := newStepQueue()
 
-	// consume pipeline uploads from the server
+	// Consume pipeline uploads from the server and apply any filters
 	go func() {
 		for p := range server.pipelineUploads {
+			filtered := p.Pipeline.Filter(func(s step) bool {
+
+				// Apply the step filter to the label
+				if params.StepFilter != nil {
+					return params.StepFilter.MatchString(s.Label())
+				}
+
+				// Apply any branch filters
+				if !s.MatchBranch(params.JobTemplate.Branch) {
+					return false
+				}
+
+				return true
+			})
 			if p.Replace {
-				steps.Replace(p)
+				steps.Replace(filtered)
 			} else {
-				steps.Append(p)
+				steps.Append(filtered)
 			}
 		}
 	}()
@@ -48,18 +65,21 @@ func Run(ctx context.Context, params RunParams) error {
 
 	debugf("Serving API on %s", endpoint)
 
-	err, cleanup := runAgent(ctx, params.Dir, endpoint)
-	if err != nil {
+	agent := Agent{
+		Dir:      params.Dir,
+		Env:      params.Env,
+		Endpoint: endpoint,
+	}
+	if err := agent.Run(ctx); err != nil {
 		return err
 	}
+	defer func() {
+		// this ensures the agent always stops gracefully
+		_ = agent.Stop()
+	}()
 
 	headerColor := color.New(color.FgWhite, color.Bold)
 	headerColor.Printf(">>> Starting local agent 🤖\n")
-
-	defer func() {
-		headerColor.Printf(">>> Shutting down agent\n")
-		cleanup()
-	}()
 
 	build := Build{
 		ID:     uuid.NewV4().String(),
@@ -80,10 +100,17 @@ func Run(ctx context.Context, params RunParams) error {
 	w := newBuildLogFormatter(ejl)
 	timer := time.Now()
 
-	headerColor.Printf(">>> Starting Build 👟\n")
+	headerColor.Printf(">>> Starting build 👟\n")
 	headerColor.Printf(">>> Executing initial command: %s\n", params.Command)
 
-	err = executeJob(ctx, server, w, initialJob)
+	var initialJobWriter io.Writer
+	initialJobWriter = w
+
+	if !Debug {
+		initialJobWriter = ioutil.Discard
+	}
+
+	err = executeJob(ctx, server, initialJobWriter, initialJob)
 	if err != nil {
 		return fmt.Errorf("Initial command failed: %v", err)
 	}
@@ -91,6 +118,10 @@ func Run(ctx context.Context, params RunParams) error {
 	// Process each step that we receive
 	for step := range processSteps(ctx, steps, server) {
 		debugf("Processing step %s", step)
+
+		if step.Wait != nil {
+			continue
+		}
 
 		if params.Prompt {
 			fmt.Println()
@@ -113,31 +144,38 @@ func Run(ctx context.Context, params RunParams) error {
 		}
 
 		if step.Command != nil {
-			headerColor.Printf(">>> Executing step %s\n\n", ejl.Render(step.Command.Label))
-
-			j := params.JobTemplate
-
-			// load the step into a job
-			j.ID = uuid.NewV4().String()
-			j.Build = build
-			j.Command = strings.Join(step.Command.Commands, "\n")
-			j.Label = step.Command.Label
-			j.Plugins = step.Command.Plugins
-			j.Env = step.Command.Env
-			j.ArtifactPaths = step.Command.ArtifactPaths
-
-			if err = executeJob(ctx, server, w, j); err != nil {
-				headerColor.Printf(">>> 🚨 Build failed in %v\n", time.Now().Sub(timer))
-				return err
+			dryRunNote := ""
+			if params.DryRun {
+				dryRunNote = " (dry-run)"
 			}
-		} else if step.Wait != nil {
-			headerColor.Printf(">>> Wait complete\n")
+			headerColor.Printf(">>> Executing command step %s%s\n",
+				ejl.Render(step.Command.Label),
+				dryRunNote)
+
+			if !params.DryRun {
+				// load the step into a job
+				j := params.JobTemplate
+				j.ID = uuid.NewV4().String()
+				j.Build = build
+				j.Command = strings.Join(step.Command.Commands, "\n")
+				j.Label = step.Command.Label
+				j.Plugins = step.Command.Plugins
+				j.Env = step.Command.Env
+				j.ArtifactPaths = step.Command.ArtifactPaths
+
+				if err = executeJob(ctx, server, w, j); err != nil {
+					headerColor.Printf(">>> 🚨 Command failed in %v\n", time.Now().Sub(timer))
+					return err
+				} else {
+					headerColor.Printf(">>> Command succeeded in %v\n", time.Now().Sub(timer))
+				}
+			}
 		} else {
 			return fmt.Errorf("Unknown step type: %s", step)
 		}
 	}
 
-	headerColor.Printf(">>> 🎉 Build finished in %v\n", time.Now().Sub(timer))
+	color.Green(">>> Build finished in %v\n", time.Now().Sub(timer))
 	return nil
 }
 
@@ -199,9 +237,14 @@ func processSteps(ctx context.Context, s *stepQueue, server *apiServer) chan ste
 func executeJob(ctx context.Context, server *apiServer, w io.Writer, j Job) error {
 	exitCh := server.Execute(j, w)
 
+	// add some trailing whitespace
+	defer func() {
+		fmt.Fprintf(w, "\n")
+	}()
+
 	select {
 	case <-ctx.Done():
-		return nil
+		return ctx.Err()
 	case exitCode := <-exitCh:
 		if exitCode != 0 {
 			return fmt.Errorf("Job failed with code %d", exitCode)
@@ -211,33 +254,79 @@ func executeJob(ctx context.Context, server *apiServer, w io.Writer, j Job) erro
 	return nil
 }
 
-func runAgent(ctx context.Context, dir string, endpoint string) (error, func()) {
-	bootstrap, err := createAgentBootstrap(dir)
+type Agent struct {
+	Dir      string
+	Env      []string
+	Endpoint string
+
+	sync.Mutex
+	stopFunc func() error
+	stopping bool
+	stopped  bool
+}
+
+func (a *Agent) Run(ctx context.Context) error {
+	bootstrap, err := createAgentBootstrap(a.Dir)
 	if err != nil {
-		return err, func() {}
+		return err
 	}
 
 	args := []string{"start"}
 	if Debug {
-		args = append(args, "--debug", "--debug-http")
+		args = append(args, "--debug")
 	}
 
-	cmd := exec.CommandContext(ctx, "buildkite-agent", args...)
-	cmd.Stdout = ioutil.Discard
-	cmd.Stderr = ioutil.Discard
-	// cmd.Stdout = os.Stdout
-	// cmd.Stderr = os.Stderr
+	cmd := exec.Command("buildkite-agent", args...)
+	if Debug {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	} else {
+		cmd.Stdout = ioutil.Discard
+		cmd.Stderr = ioutil.Discard
+	}
 
-	cmd.Env = append(os.Environ(),
-		`BUILDKITE_AGENT_ENDPOINT=`+endpoint,
+	cmd.Env = append(a.Env,
+		`HOME=`+os.Getenv(`HOME`),
+		`PATH=`+os.Getenv(`PATH`),
+		`BUILDKITE_AGENT_ENDPOINT=`+a.Endpoint,
 		`BUILDKITE_AGENT_TOKEN=llamas`,
 		`BUILDKITE_AGENT_NAME=local`,
 		`BUILDKITE_BOOTSTRAP_SCRIPT_PATH=`+bootstrap.Name(),
 	)
 
-	return cmd.Start(), func() {
+	// this function is called at the end of Run()
+	// it kills the agent
+	a.stopFunc = func() error {
 		defer os.Remove(bootstrap.Name())
+		_ = cmd.Process.Signal(os.Interrupt)
+		return cmd.Wait()
 	}
+
+	// if the context is cancelled (from ctrl-c)
+	// we need to lock so that the above stopFunc doesn't
+	// send a signal, as the ctrl-c was sent to the process group
+	// which would lead to a double signal
+	go func() {
+		<-ctx.Done()
+		a.Lock()
+		defer a.Unlock()
+		_ = cmd.Wait()
+	}()
+
+	return cmd.Start()
+}
+
+func (a *Agent) Stop() error {
+	a.Lock()
+	defer a.Unlock()
+	if a.stopping || a.stopped {
+		log.Printf("Already stopped or stopping")
+		return nil
+	}
+	a.stopping = true
+	err := a.stopFunc()
+	a.stopped = true
+	return err
 }
 
 func createAgentBootstrap(checkoutPath string) (*os.File, error) {
@@ -287,18 +376,18 @@ func (s *stepQueue) Len() int {
 	return len(s.steps)
 }
 
-func (s *stepQueue) Replace(p pipelineUpload) {
+func (s *stepQueue) Replace(p pipeline) {
 	panic("Replace not implemented")
 }
 
-func (s *stepQueue) Append(p pipelineUpload) {
+func (s *stepQueue) Append(p pipeline) {
 	s.Lock()
 	defer s.Unlock()
 
-	for _, step := range p.Pipeline.Steps {
+	for _, step := range p.Steps {
 		s.steps = append(s.steps, stepWithEnv{
 			step: step,
-			env:  p.Pipeline.Env,
+			env:  p.Env,
 		})
 	}
 }

@@ -3,13 +3,16 @@ package local
 import (
 	"encoding/json"
 	"fmt"
+	"log"
+	"strings"
 )
 
 type step struct {
-	Command *commandStep `json:"-"`
-	Wait    *waitStep    `json:"-"`
-	Block   *blockStep   `json:"-"`
-	Trigger *triggerStep `json:"-"`
+	Branches []string     `json:"-"`
+	Command  *commandStep `json:"-"`
+	Wait     *waitStep    `json:"-"`
+	Block    *blockStep   `json:"-"`
+	Trigger  *triggerStep `json:"-"`
 }
 
 func (s *step) UnmarshalJSON(data []byte) error {
@@ -33,6 +36,25 @@ func (s *step) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	var branches = intermediate["branch"]
+	if b, ok := intermediate["branches"]; ok {
+		branches = b
+	}
+
+	// Handle various types of branch vs branches
+	if branches != nil {
+		switch b := branches.(type) {
+		case []interface{}:
+			for _, bi := range b {
+				s.Branches = append(s.Branches, strings.Split(bi.(string), ",")...)
+			}
+		case string:
+			s.Branches = append(s.Branches, strings.Split(b, ",")...)
+		default:
+			log.Printf("Branches is unhandled type %T", branches)
+		}
+	}
+
 	if _, ok := intermediate["wait"]; ok {
 		return json.Unmarshal(data, &s.Wait)
 	}
@@ -46,6 +68,18 @@ func (s *step) UnmarshalJSON(data []byte) error {
 	}
 
 	return json.Unmarshal(data, &s.Command)
+}
+
+func (s step) MatchBranch(branch string) bool {
+	if len(s.Branches) == 0 {
+		return true
+	}
+	for _, b := range s.Branches {
+		if b == branch {
+			return true
+		}
+	}
+	return false
 }
 
 func (s step) Label() string {
@@ -88,12 +122,11 @@ type triggerStep struct {
 }
 
 type commandStep struct {
-	Label         string            `json:"label"`
-	Commands      []string          `json:"-"`
-	Plugins       []Plugin          `json:"-"`
-	Env           []string          `json:"-"`
-	Agents        map[string]string `json:"agents"`
-	ArtifactPaths []string          `json:"-"`
+	Label         string   `json:"label"`
+	Commands      []string `json:"-"`
+	Plugins       []Plugin `json:"-"`
+	Env           []string `json:"-"`
+	ArtifactPaths []string `json:"-"`
 }
 
 func (s *commandStep) UnmarshalJSON(data []byte) error {
@@ -105,6 +138,8 @@ func (s *commandStep) UnmarshalJSON(data []byte) error {
 		Env           envMapOrSlice `json:"env"`
 		Environment   envMapOrSlice `json:"environment"`
 		ArtifactPaths stringOrSlice `json:"artifact_paths"`
+		Branch        stringOrSlice `json:"branch"`
+		Branches      stringOrSlice `json:"branches"`
 	}
 
 	if err := json.Unmarshal(data, &intermediate); err != nil {
@@ -171,6 +206,17 @@ type pipelineUpload struct {
 type pipeline struct {
 	Steps []step            `json:"steps"`
 	Env   map[string]string `json:"env"`
+}
+
+func (p pipeline) Filter(f func(s step) bool) pipeline {
+	filtered := p
+	filtered.Steps = []step{}
+	for _, s := range p.Steps {
+		if f(s) {
+			filtered.Steps = append(filtered.Steps, s)
+		}
+	}
+	return filtered
 }
 
 type stringOrSlice []string

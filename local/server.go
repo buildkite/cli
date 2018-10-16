@@ -191,6 +191,8 @@ func (a *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.handleMetadataGet(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
 	case `POST /jobs/:uuid/pipelines`:
 		a.handlePipelineUpload(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
+	case `POST /jobs/:uuid/annotations`:
+		a.handleAnnotations(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
 	case `POST /jobs/:uuid/artifacts`:
 		a.handleArtifactsUploadInstructions(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
 	case `POST /jobs/:uuid/artifacts/upload`:
@@ -547,6 +549,11 @@ func (a *apiServer) handleMetadataGet(w http.ResponseWriter, r *http.Request, jo
 }
 
 func (a *apiServer) handleHeaderTimes(w http.ResponseWriter, r *http.Request, jobID string) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(&struct{}{})
+}
+
+func (a *apiServer) handleAnnotations(w http.ResponseWriter, r *http.Request, jobID string) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(&struct{}{})
 }

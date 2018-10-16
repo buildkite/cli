@@ -2,11 +2,13 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/buildkite/cli/local"
@@ -19,9 +21,12 @@ type RunLocalCommandContext struct {
 	Debug     bool
 	DebugHTTP bool
 
+	File            *os.File
+	Env             []string
 	Command         string
-	StepFilterRegex string
+	StepFilterRegex *regexp.Regexp
 	Prompt          bool
+	DryRun          bool
 }
 
 func RunLocalCommand(ctx RunLocalCommandContext) error {
@@ -37,7 +42,7 @@ func RunLocalCommand(ctx RunLocalCommandContext) error {
 
 	go func() {
 		<-quit
-		log.Printf("Shutting down")
+		fmt.Printf("\n>>> Gracefully shutting down...\n")
 		cancel()
 	}()
 
@@ -49,25 +54,30 @@ func RunLocalCommand(ctx RunLocalCommandContext) error {
 	commit, err := gitCommit()
 	if err != nil {
 		log.Printf("Error getting git commit: %v", err)
+		commit = "no_commit_found"
 	}
 
 	branch, err := gitBranch()
 	if err != nil {
 		log.Printf("Error getting git branch: %v", err)
+		branch = "master"
+	}
+
+	command := ctx.Command
+	if ctx.File != nil {
+		command = fmt.Sprintf("buildkite-agent pipeline upload %q", ctx.File.Name())
 	}
 
 	if err := local.Run(cancelCtx, local.RunParams{
-		Command: ctx.Command,
-		Dir:     wd,
-		Prompt:  ctx.Prompt,
-		Filter: func(j local.Job) bool {
-			return true
-		},
+		Env:        ctx.Env,
+		DryRun:     ctx.DryRun,
+		Command:    command,
+		Dir:        wd,
+		Prompt:     ctx.Prompt,
+		StepFilter: ctx.StepFilterRegex,
 		JobTemplate: local.Job{
 			Commit:           commit,
 			Branch:           branch,
-			Command:          "buildkite-agent pipeline upload",
-			Label:            ":pipeline:",
 			Repository:       wd,
 			OrganizationSlug: "local",
 			PipelineSlug:     filepath.Base(wd),
@@ -79,14 +89,15 @@ func RunLocalCommand(ctx RunLocalCommandContext) error {
 	return nil
 }
 
-func gitCommit() (string, error) {
+func gitBranch() (string, error) {
 	out, err := exec.Command(`git`, `rev-parse`, `--abbrev-ref`, `HEAD`).Output()
 	if err != nil {
 		return "", err
 	}
 	return strings.TrimSpace(string(out)), nil
 }
-func gitBranch() (string, error) {
+
+func gitCommit() (string, error) {
 	out, err := exec.Command(`git`, `rev-parse`, `HEAD`).Output()
 	if err != nil {
 		return "", err
