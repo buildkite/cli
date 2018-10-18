@@ -6,6 +6,7 @@ import (
 
 	"github.com/buildkite/cli"
 	"github.com/buildkite/cli/graphql"
+	"github.com/fatih/color"
 
 	"github.com/99designs/keyring"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -219,8 +220,54 @@ func run(args []string, exit func(int)) {
 		Flag("limit", "How many pipelines to output").
 		IntVar(&listPipelinesCtx.Limit)
 
+	// --------------------------
+	// run command
+
+	runCmd := app.Command("run", "Run builds")
+
+	runLocalCmdCtx := cli.RunLocalCommandContext{}
+	runLocalCmd := runCmd.
+		Command("local", "Run a pipeline locally").
+		Default().
+		Action(func(c *kingpin.ParseContext) error {
+			runLocalCmdCtx.Debug = debug
+			runLocalCmdCtx.Keyring = keyringImpl
+			runLocalCmdCtx.TerminalContext = &cli.Terminal{}
+			return cli.RunLocalCommand(runLocalCmdCtx)
+		})
+
+	runLocalCmd.
+		Flag("command", "The initial command to execute").
+		Default("buildkite-agent pipeline upload").
+		StringVar(&runLocalCmdCtx.Command)
+
+	runLocalCmd.
+		Flag("filter", "A regex to filter step labels with").
+		RegexpVar(&runLocalCmdCtx.StepFilterRegex)
+
+	runLocalCmd.
+		Flag("dry-run", "Show what steps will be executed").
+		BoolVar(&runLocalCmdCtx.DryRun)
+
+	runLocalCmd.
+		Flag("prompt", "Prompt for each step before executing").
+		BoolVar(&runLocalCmdCtx.Prompt)
+
+	runLocalCmd.
+		Flag("env", "Environment to pass to the agent").
+		Short('E').
+		StringsVar(&runLocalCmdCtx.Env)
+
+	runLocalCmd.
+		Arg("file", "A specific pipeline file to upload").
+		FileVar(&runLocalCmdCtx.File)
+
+
+	// --------------------------
+	// run the app, parse args
+
 	if _, err := app.Parse(args); err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+		fmt.Fprintf(os.Stderr, color.RedString("🚨 %v\n", err))
 
 		if ec, ok := err.(interface{ ExitCode() int }); ok {
 			os.Exit(ec.ExitCode())
@@ -228,4 +275,5 @@ func run(args []string, exit func(int)) {
 			os.Exit(1)
 		}
 	}
+
 }
