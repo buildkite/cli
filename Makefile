@@ -8,7 +8,7 @@ build: build/bk-windows-amd64-$(VERSION).exe build/bk-linux-amd64-$(VERSION) bui
 
 build/bk-windows-amd64-$(VERSION).exe: $(SRC)
 	mkdir -p build
-	GOOS=windows GOARCH=amd64 go build -o build/$(BINARY)-windows-amd64-$(VERSION) -ldflags="$(LD_FLAGS)" ./cmd/bk
+	GOOS=windows GOARCH=amd64 go build -o build/$(BINARY)-windows-amd64-$(VERSION).exe -ldflags="$(LD_FLAGS)" ./cmd/bk
 
 build/bk-linux-amd64-$(VERSION): $(SRC)
 	mkdir -p build
