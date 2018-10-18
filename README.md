@@ -19,6 +19,9 @@ bk init
 # trigger a build via the cli
 bk create build
 
+# open the current pipeline in your browse
+bk browse
+
 # list pipelines that you have access to
 bk list pipelines
 
