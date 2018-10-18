@@ -1,26 +1,11 @@
 # Buildkite Command-line Interface
 
-A cli for interacting with Buildkite.com to make it easier to create and manage
-pipelines and builds. Integrates seamlessly with Github / Gitlab / Bitbucket.
+A cli for interacting with Buildkite.com to make it easier to create and manage pipelines and builds.
 
 ## Status
 
-This is still (mostly) imaginary.🤔🦄🦑
+This is experimental! 🦄🦑 At this stage support for the `bk` cli is via [issues on this repository](https://github.com/buildkite/cli/issues), but we'd love feedback!
 
- * [x] Configure command
-   * [x] Store Buildkite GraphQL token
-   * [x] OAuth with github.com and store the access token
- * [x] Init command
-   * [x] Creates Buildkite pipeline if missing
-   * [x] Adds Buildkite webhook to Github repository settings
-   * [x] Adds a generic .buildkite/pipeline.yml to the local repository
- * [x] Create Build command
-   * [x] Prompt for which pipeline to create a build in
-   * [x] Create a build on Buildkite, shows a link
- * [x] List Pipelines command
-   * [x] Lists pipelines on Buildkite
- * [x] Browse command
-   * [x] Prompt for which pipeline to open
 ## Usage
 
 ```bash
@@ -33,6 +18,12 @@ bk init
 
 # trigger a build via the cli
 bk create build
+
+# list pipelines that you have access to
+bk list pipelines
+
+# run a build entirely locally for development
+bk run local
 ```
 
 ## Development
