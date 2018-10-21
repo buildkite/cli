@@ -16,7 +16,7 @@ var (
 
 type Plugin struct {
 	Name   string
-	Params map[string]interface{}
+	Params interface{}
 }
 
 func (p Plugin) Repository() string {

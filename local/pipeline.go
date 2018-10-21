@@ -190,7 +190,7 @@ func (s *commandStep) UnmarshalJSON(data []byte) error {
 		for k, v := range pluginMap.Plugins {
 			s.Plugins = append(s.Plugins, Plugin{
 				Name:   k,
-				Params: v.(map[string]interface{}),
+				Params: v,
 			})
 		}
 	}
