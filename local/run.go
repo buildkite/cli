@@ -170,6 +170,10 @@ func Run(ctx context.Context, params RunParams) error {
 					headerColor.Printf(">>> Command succeeded in %v\n", time.Now().Sub(timer))
 				}
 			}
+		} else if step.Trigger != nil {
+			headerColor.Printf(">>> Skipping trigger step\n")
+			continue
+
 		} else {
 			return fmt.Errorf("Unknown step type: %s", step)
 		}
