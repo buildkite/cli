@@ -222,7 +222,7 @@ func processSteps(ctx context.Context, s *stepQueue, server *apiServer) chan ste
 				close(ch)
 				return
 
-			case <-time.NewTimer(time.Second).C:
+			case <-time.NewTimer(time.Millisecond * 5).C:
 				step, ok := s.Next()
 				if ok {
 					ch <- step
