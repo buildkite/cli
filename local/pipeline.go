@@ -204,8 +204,8 @@ type pipelineUpload struct {
 }
 
 type pipeline struct {
-	Steps []step            `json:"steps"`
-	Env   map[string]string `json:"env"`
+	Steps []step                 `json:"steps"`
+	Env   map[string]interface{} `json:"env"`
 }
 
 func (p pipeline) Filter(f func(s step) bool) pipeline {
