@@ -53,7 +53,7 @@ func Run(ctx context.Context, params RunParams) error {
 			if p.Replace {
 				steps.Replace(filtered)
 			} else {
-				steps.Append(filtered)
+				steps.Prepend(filtered)
 			}
 		}
 	}()
@@ -384,16 +384,20 @@ func (s *stepQueue) Replace(p pipeline) {
 	panic("Replace not implemented")
 }
 
-func (s *stepQueue) Append(p pipeline) {
+func (s *stepQueue) Prepend(p pipeline) {
 	s.Lock()
 	defer s.Unlock()
 
+	var newSteps []stepWithEnv
+
 	for _, step := range p.Steps {
-		s.steps = append(s.steps, stepWithEnv{
+		newSteps = append(newSteps, stepWithEnv{
 			step: step,
 			env:  p.Env,
 		})
 	}
+
+	s.steps = append(newSteps, s.steps...)
 }
 
 func (s *stepQueue) Next() (stepWithEnv, bool) {
