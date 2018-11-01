@@ -146,6 +146,11 @@ func ConfigureBuildkiteGraphQLCommand(ctx ConfigureCommandContext) error {
 		return NewExitError(fmt.Errorf("Failed to write config: %v", err), 1)
 	}
 
-	ctx.Printf(color.GreenString("Wrote configuration to %s 📝\n"), config.Path)
+	configPath, err := config.Path()
+	if err != nil {
+		return NewExitError(err, 1)
+	}
+
+	ctx.Printf(color.GreenString("Wrote configuration to %s 📝\n"), configPath)
 	return nil
 }
