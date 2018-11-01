@@ -237,9 +237,9 @@ func (a *apiServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 		ID:                agent.ID,
 		Name:              agent.Name,
 		AccessToken:       agent.AccessToken,
-		PingInterval:      2,
-		JobStatusInterval: 5,
-		HeartbeatInterval: 5,
+		PingInterval:      1,
+		JobStatusInterval: 1,
+		HeartbeatInterval: 1,
 		MetaData:          []string{"queue=default"},
 	})
 }
