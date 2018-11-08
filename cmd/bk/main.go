@@ -193,32 +193,32 @@ func run(args []string, exit func(int)) {
 		StringVar(&browseCtx.Branch)
 
 	// --------------------------
-	// list command
+	// pipeline commands
 
-	listCmd := app.Command("list", "List various things")
+	pipelineCmd := app.Command("pipeline", "Operate on pipeline")
 
-	listPipelinesCtx := cli.ListPipelinesCommandContext{}
-	listPipelinesCmd := listCmd.
-		Command("pipelines", "List buildkite pipelines").
+	pipelineListCtx := cli.PipelineListCommandContext{}
+	pipelineListCmd := pipelineCmd.
+		Command("list", "List buildkite pipelines").
 		Default().
 		Action(func(c *kingpin.ParseContext) error {
-			listPipelinesCtx.Debug = debug
-			listPipelinesCtx.Keyring = keyringImpl
-			listPipelinesCtx.TerminalContext = &cli.Terminal{}
-			return cli.ListPipelinesCommand(listPipelinesCtx)
+			pipelineListCtx.Debug = debug
+			pipelineListCtx.Keyring = keyringImpl
+			pipelineListCtx.TerminalContext = &cli.Terminal{}
+			return cli.PipelineListCommand(pipelineListCtx)
 		})
 
-	listPipelinesCmd.
+	pipelineListCmd.
 		Flag("fuzzy", "Fuzzy filter pipelines based on org and slug").
-		StringVar(&listPipelinesCtx.Fuzzy)
+		StringVar(&pipelineListCtx.Fuzzy)
 
-	listPipelinesCmd.
+	pipelineListCmd.
 		Flag("url", "Show buildkite.com urls for pipelines").
-		BoolVar(&listPipelinesCtx.ShowURL)
+		BoolVar(&pipelineListCtx.ShowURL)
 
-	listPipelinesCmd.
+	pipelineListCmd.
 		Flag("limit", "How many pipelines to output").
-		IntVar(&listPipelinesCtx.Limit)
+		IntVar(&pipelineListCtx.Limit)
 
 	// --------------------------
 	// run command
