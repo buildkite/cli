@@ -130,45 +130,45 @@ func run(args []string, exit func(int)) {
 		StringVar(&initCtx.PipelineSlug)
 
 	// --------------------------
-	// create commands
+	// build commands
 
-	createCmd := app.Command("create", "Create various things")
+	buildCmd := app.Command("build", "Operate on builds")
 
-	createBuildCtx := cli.CreateBuildCommandContext{}
-	createBuildCmd := createCmd.
-		Command("build", "Create a new build in a pipeline").
+	buildCreateCtx := cli.BuildCreateCommandContext{}
+	buildCreateCmd := buildCmd.
+		Command("create", "Create a new build in a pipeline").
 		Action(func(c *kingpin.ParseContext) error {
-			createBuildCtx.Debug = debug
-			createBuildCtx.Keyring = keyringImpl
-			createBuildCtx.TerminalContext = &cli.Terminal{}
+			buildCreateCtx.Debug = debug
+			buildCreateCtx.Keyring = keyringImpl
+			buildCreateCtx.TerminalContext = &cli.Terminal{}
 
 			// Default to the current directory
-			if createBuildCtx.PipelineSlug == "" && createBuildCtx.Dir == "" {
-				createBuildCtx.Dir = "."
+			if buildCreateCtx.PipelineSlug == "" && buildCreateCtx.Dir == "" {
+				buildCreateCtx.Dir = "."
 			}
 
-			return cli.CreateBuildCommand(createBuildCtx)
+			return cli.BuildCreateCommand(buildCreateCtx)
 		})
 
-	createBuildCmd.
+	buildCreateCmd.
 		Flag("dir", "Build a specific directory, defaults to the current").
-		ExistingDirVar(&createBuildCtx.Dir)
+		ExistingDirVar(&buildCreateCtx.Dir)
 
-	createBuildCmd.
+	buildCreateCmd.
 		Flag("pipeline", "Build a specific pipeline rather than a directory").
-		StringVar(&createBuildCtx.PipelineSlug)
+		StringVar(&buildCreateCtx.PipelineSlug)
 
-	createBuildCmd.
+	buildCreateCmd.
 		Flag("message", "The message to use for the build").
-		StringVar(&createBuildCtx.Message)
+		StringVar(&buildCreateCtx.Message)
 
-	createBuildCmd.
+	buildCreateCmd.
 		Flag("commit", "The commit to use for the build").
-		StringVar(&createBuildCtx.Commit)
+		StringVar(&buildCreateCtx.Commit)
 
-	createBuildCmd.
+	buildCreateCmd.
 		Flag("branch", "The branch to use for the build").
-		StringVar(&createBuildCtx.Branch)
+		StringVar(&buildCreateCtx.Branch)
 
 	// --------------------------
 	// browse command

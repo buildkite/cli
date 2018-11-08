@@ -8,7 +8,7 @@ import (
 	"github.com/fatih/color"
 )
 
-type CreateBuildCommandContext struct {
+type BuildCreateCommandContext struct {
 	TerminalContext
 	KeyringContext
 
@@ -23,7 +23,7 @@ type CreateBuildCommandContext struct {
 	Message string
 }
 
-func CreateBuildCommand(ctx CreateBuildCommandContext) error {
+func BuildCreateCommand(ctx BuildCreateCommandContext) error {
 	params := buildkiteBuildParams{
 		Branch:  ctx.Branch,
 		Commit:  ctx.Commit,
