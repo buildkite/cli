@@ -21,6 +21,3 @@ template: |
       assert_match "bk #{version}", shell_output("#{bin}/bk --version 2>&1")
     end
   end
-branches:
-  - master
-  - add-homebrew-tap
