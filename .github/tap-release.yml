@@ -13,7 +13,7 @@ template: |
     sha256 "$STABLE_SHA256"
 
     def install
-      mv prefix/"bk-darwin-amd64-$STABLE_VERSION_NUMBER", "bk"
+      mv "bk-darwin-amd64-$STABLE_VERSION_NUMBER", "bk"
       bin.install "bk"
     end
 
