@@ -223,45 +223,41 @@ func run(args []string, exit func(int)) {
 	// --------------------------
 	// run command
 
-	runCmd := app.Command("run", "Run builds")
-
-	runLocalCmdCtx := cli.RunLocalCommandContext{}
-	runLocalCmd := runCmd.
-		Command("local", "Run a pipeline locally").
+	runCmdCtx := cli.RunCommandContext{}
+	runCmd := app.Command("run", "Run a pipeline locally").
 		Default().
 		Action(func(c *kingpin.ParseContext) error {
-			runLocalCmdCtx.Debug = debug
-			runLocalCmdCtx.Keyring = keyringImpl
-			runLocalCmdCtx.TerminalContext = &cli.Terminal{}
-			return cli.RunLocalCommand(runLocalCmdCtx)
+			runCmdCtx.Debug = debug
+			runCmdCtx.Keyring = keyringImpl
+			runCmdCtx.TerminalContext = &cli.Terminal{}
+			return cli.RunCommand(runCmdCtx)
 		})
 
-	runLocalCmd.
+	runCmd.
 		Flag("command", "The initial command to execute").
 		Default("buildkite-agent pipeline upload").
-		StringVar(&runLocalCmdCtx.Command)
+		StringVar(&runCmdCtx.Command)
 
-	runLocalCmd.
+	runCmd.
 		Flag("filter", "A regex to filter step labels with").
-		RegexpVar(&runLocalCmdCtx.StepFilterRegex)
+		RegexpVar(&runCmdCtx.StepFilterRegex)
 
-	runLocalCmd.
+	runCmd.
 		Flag("dry-run", "Show what steps will be executed").
-		BoolVar(&runLocalCmdCtx.DryRun)
+		BoolVar(&runCmdCtx.DryRun)
 
-	runLocalCmd.
+	runCmd.
 		Flag("prompt", "Prompt for each step before executing").
-		BoolVar(&runLocalCmdCtx.Prompt)
+		BoolVar(&runCmdCtx.Prompt)
 
-	runLocalCmd.
+	runCmd.
 		Flag("env", "Environment to pass to the agent").
 		Short('E').
-		StringsVar(&runLocalCmdCtx.Env)
+		StringsVar(&runCmdCtx.Env)
 
-	runLocalCmd.
+	runCmd.
 		Arg("file", "A specific pipeline file to upload").
-		FileVar(&runLocalCmdCtx.File)
-
+		FileVar(&runCmdCtx.File)
 
 	// --------------------------
 	// run the app, parse args

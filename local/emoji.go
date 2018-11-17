@@ -2,8 +2,6 @@ package local
 
 // This tool implements the iterm2 image support as described here:
 // http://iterm2.com/images.html
-//
-// Be sure to install iterm2 nightly.
 
 import (
 	"encoding/base64"
