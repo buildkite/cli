@@ -14,7 +14,7 @@ import (
 	"github.com/buildkite/cli/local"
 )
 
-type RunCommandContext struct {
+type LocalRunCommandContext struct {
 	TerminalContext
 	KeyringContext
 
@@ -29,7 +29,7 @@ type RunCommandContext struct {
 	DryRun          bool
 }
 
-func RunCommand(ctx RunCommandContext) error {
+func LocalRunCommand(ctx LocalRunCommandContext) error {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt)
 

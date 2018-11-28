@@ -223,14 +223,17 @@ func run(args []string, exit func(int)) {
 	// --------------------------
 	// run command
 
-	runCmdCtx := cli.RunCommandContext{}
-	runCmd := app.Command("run", "Run a pipeline locally").
+	localCmd := app.Command("local", "Operate your local repositories")
+
+	runCmdCtx := cli.LocalRunCommandContext{}
+	runCmd := localCmd.
+		Command("run", "Run a pipeline locally").
 		Default().
 		Action(func(c *kingpin.ParseContext) error {
 			runCmdCtx.Debug = debug
 			runCmdCtx.Keyring = keyringImpl
 			runCmdCtx.TerminalContext = &cli.Terminal{}
-			return cli.RunCommand(runCmdCtx)
+			return cli.LocalRunCommand(runCmdCtx)
 		})
 
 	runCmd.
