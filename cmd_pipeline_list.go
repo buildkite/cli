@@ -6,7 +6,7 @@ import (
 	"github.com/sahilm/fuzzy"
 )
 
-type ListPipelinesCommandContext struct {
+type PipelineListCommandContext struct {
 	TerminalContext
 	KeyringContext
 
@@ -18,7 +18,7 @@ type ListPipelinesCommandContext struct {
 	ShowURL bool
 }
 
-func ListPipelinesCommand(ctx ListPipelinesCommandContext) error {
+func PipelineListCommand(ctx PipelineListCommandContext) error {
 	bk, err := ctx.BuildkiteGraphQLClient()
 	if err != nil {
 		return NewExitError(err, 1)

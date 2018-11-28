@@ -19,16 +19,16 @@ bk configure
 bk init
 
 # Triggers a build via the cli
-bk create build
+bk build create
 
 # Opens the current pipeline in your browse
 bk browse
 
 # Lists pipelines that you have access to
-bk list pipelines
+bk pipelines list
 
 # Runs a build entirely locally for development
-bk run local
+bk local run
 ```
 
 ## Development

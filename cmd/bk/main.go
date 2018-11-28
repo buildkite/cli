@@ -130,45 +130,45 @@ func run(args []string, exit func(int)) {
 		StringVar(&initCtx.PipelineSlug)
 
 	// --------------------------
-	// create commands
+	// build commands
 
-	createCmd := app.Command("create", "Create various things")
+	buildCmd := app.Command("build", "Operate on builds")
 
-	createBuildCtx := cli.CreateBuildCommandContext{}
-	createBuildCmd := createCmd.
-		Command("build", "Create a new build in a pipeline").
+	buildCreateCtx := cli.BuildCreateCommandContext{}
+	buildCreateCmd := buildCmd.
+		Command("create", "Create a new build in a pipeline").
 		Action(func(c *kingpin.ParseContext) error {
-			createBuildCtx.Debug = debug
-			createBuildCtx.Keyring = keyringImpl
-			createBuildCtx.TerminalContext = &cli.Terminal{}
+			buildCreateCtx.Debug = debug
+			buildCreateCtx.Keyring = keyringImpl
+			buildCreateCtx.TerminalContext = &cli.Terminal{}
 
 			// Default to the current directory
-			if createBuildCtx.PipelineSlug == "" && createBuildCtx.Dir == "" {
-				createBuildCtx.Dir = "."
+			if buildCreateCtx.PipelineSlug == "" && buildCreateCtx.Dir == "" {
+				buildCreateCtx.Dir = "."
 			}
 
-			return cli.CreateBuildCommand(createBuildCtx)
+			return cli.BuildCreateCommand(buildCreateCtx)
 		})
 
-	createBuildCmd.
+	buildCreateCmd.
 		Flag("dir", "Build a specific directory, defaults to the current").
-		ExistingDirVar(&createBuildCtx.Dir)
+		ExistingDirVar(&buildCreateCtx.Dir)
 
-	createBuildCmd.
+	buildCreateCmd.
 		Flag("pipeline", "Build a specific pipeline rather than a directory").
-		StringVar(&createBuildCtx.PipelineSlug)
+		StringVar(&buildCreateCtx.PipelineSlug)
 
-	createBuildCmd.
+	buildCreateCmd.
 		Flag("message", "The message to use for the build").
-		StringVar(&createBuildCtx.Message)
+		StringVar(&buildCreateCtx.Message)
 
-	createBuildCmd.
+	buildCreateCmd.
 		Flag("commit", "The commit to use for the build").
-		StringVar(&createBuildCtx.Commit)
+		StringVar(&buildCreateCtx.Commit)
 
-	createBuildCmd.
+	buildCreateCmd.
 		Flag("branch", "The branch to use for the build").
-		StringVar(&createBuildCtx.Branch)
+		StringVar(&buildCreateCtx.Branch)
 
 	// --------------------------
 	// browse command
@@ -193,75 +193,74 @@ func run(args []string, exit func(int)) {
 		StringVar(&browseCtx.Branch)
 
 	// --------------------------
-	// list command
+	// pipeline commands
 
-	listCmd := app.Command("list", "List various things")
+	pipelineCmd := app.Command("pipeline", "Operate on pipeline")
 
-	listPipelinesCtx := cli.ListPipelinesCommandContext{}
-	listPipelinesCmd := listCmd.
-		Command("pipelines", "List buildkite pipelines").
+	pipelineListCtx := cli.PipelineListCommandContext{}
+	pipelineListCmd := pipelineCmd.
+		Command("list", "List buildkite pipelines").
 		Default().
 		Action(func(c *kingpin.ParseContext) error {
-			listPipelinesCtx.Debug = debug
-			listPipelinesCtx.Keyring = keyringImpl
-			listPipelinesCtx.TerminalContext = &cli.Terminal{}
-			return cli.ListPipelinesCommand(listPipelinesCtx)
+			pipelineListCtx.Debug = debug
+			pipelineListCtx.Keyring = keyringImpl
+			pipelineListCtx.TerminalContext = &cli.Terminal{}
+			return cli.PipelineListCommand(pipelineListCtx)
 		})
 
-	listPipelinesCmd.
+	pipelineListCmd.
 		Flag("fuzzy", "Fuzzy filter pipelines based on org and slug").
-		StringVar(&listPipelinesCtx.Fuzzy)
+		StringVar(&pipelineListCtx.Fuzzy)
 
-	listPipelinesCmd.
+	pipelineListCmd.
 		Flag("url", "Show buildkite.com urls for pipelines").
-		BoolVar(&listPipelinesCtx.ShowURL)
+		BoolVar(&pipelineListCtx.ShowURL)
 
-	listPipelinesCmd.
+	pipelineListCmd.
 		Flag("limit", "How many pipelines to output").
-		IntVar(&listPipelinesCtx.Limit)
+		IntVar(&pipelineListCtx.Limit)
 
 	// --------------------------
 	// run command
 
-	runCmd := app.Command("run", "Run builds")
+	localCmd := app.Command("local", "Operate your local repositories")
 
-	runLocalCmdCtx := cli.RunLocalCommandContext{}
-	runLocalCmd := runCmd.
-		Command("local", "Run a pipeline locally").
+	runCmdCtx := cli.LocalRunCommandContext{}
+	runCmd := localCmd.
+		Command("run", "Run a pipeline locally").
 		Default().
 		Action(func(c *kingpin.ParseContext) error {
-			runLocalCmdCtx.Debug = debug
-			runLocalCmdCtx.Keyring = keyringImpl
-			runLocalCmdCtx.TerminalContext = &cli.Terminal{}
-			return cli.RunLocalCommand(runLocalCmdCtx)
+			runCmdCtx.Debug = debug
+			runCmdCtx.Keyring = keyringImpl
+			runCmdCtx.TerminalContext = &cli.Terminal{}
+			return cli.LocalRunCommand(runCmdCtx)
 		})
 
-	runLocalCmd.
+	runCmd.
 		Flag("command", "The initial command to execute").
 		Default("buildkite-agent pipeline upload").
-		StringVar(&runLocalCmdCtx.Command)
+		StringVar(&runCmdCtx.Command)
 
-	runLocalCmd.
+	runCmd.
 		Flag("filter", "A regex to filter step labels with").
-		RegexpVar(&runLocalCmdCtx.StepFilterRegex)
+		RegexpVar(&runCmdCtx.StepFilterRegex)
 
-	runLocalCmd.
+	runCmd.
 		Flag("dry-run", "Show what steps will be executed").
-		BoolVar(&runLocalCmdCtx.DryRun)
+		BoolVar(&runCmdCtx.DryRun)
 
-	runLocalCmd.
+	runCmd.
 		Flag("prompt", "Prompt for each step before executing").
-		BoolVar(&runLocalCmdCtx.Prompt)
+		BoolVar(&runCmdCtx.Prompt)
 
-	runLocalCmd.
+	runCmd.
 		Flag("env", "Environment to pass to the agent").
 		Short('E').
-		StringsVar(&runLocalCmdCtx.Env)
+		StringsVar(&runCmdCtx.Env)
 
-	runLocalCmd.
+	runCmd.
 		Arg("file", "A specific pipeline file to upload").
-		FileVar(&runLocalCmdCtx.File)
-
+		FileVar(&runCmdCtx.File)
 
 	// --------------------------
 	// run the app, parse args
