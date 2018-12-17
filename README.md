@@ -22,21 +22,21 @@ On all other platforms, download a binary from the [latest GitHub releases](http
 # Sets up your credentials
 bk configure
 
-# Creates a .buildkite/pipeline.yml with queue=default and no-op step
-# Also creates a bk pipeline for the current project, and sets up webhooks in GitHub/Bitbucket
-bk init
-
-# Triggers a build via the cli
-bk build create
+# Runs a build entirely locally for development (requires the buildkite-agent to also be installed)
+bk local run
 
 # Opens the current pipeline in your browse
 bk browse
 
+# Triggers a build via the cli
+bk build create
+
 # Lists pipelines that you have access to
 bk pipelines list
 
-# Runs a build entirely locally for development
-bk local run
+# Creates a .buildkite/pipeline.yml with queue=default and no-op step
+# Also creates a bk pipeline for the current project, and sets up webhooks in GitHub/Bitbucket
+bk init
 ```
 
 ## Development
