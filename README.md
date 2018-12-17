@@ -4,9 +4,17 @@ A command line interface for [Buildkite](https://buildkite.com/).
 
 ## Status
 
-This is experimental! 🦄🦑
+This is experimental! 🦄🦑 For any questions, issues of feedback please [file an issue](https://github.com/buildkite/cli/issues) 💖
 
-For any questions, issues of feedback please [file an issue](https://github.com/buildkite/cli/issues) 💖
+## Installation
+
+On macOS you can install with [Homebrew](https://brew.sh):
+
+```
+brew install buildkite/cli/bk
+````
+
+On all other platforms, download a binary from the [latest GitHub releases](https://github.com/buildkite/cli/releases/latest).
 
 ## Usage
 
