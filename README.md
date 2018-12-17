@@ -1,14 +1,16 @@
 # bk - The Buildkite CLI
 
+[![Latest release](https://img.shields.io/github/release/buildkite/cli.svg)](https://github.com/buildkite/cli/releases/latest)
+
 A command line interface for [Buildkite](https://buildkite.com/).
 
-## Status
+## 💬 Pre-Release Feedback
 
-This is experimental! 🦄🦑 For any questions, issues of feedback please [file an issue](https://github.com/buildkite/cli/issues) 💖
+This is currently a pre-release, and we'd love to hear any feedback and questions you might have. Please [file an issue on GitHub](https://github.com/buildkite/cli/issues) and let us know 💖
 
-## Installation
+## ⬇️ Installation
 
-On macOS you can install with [Homebrew](https://brew.sh):
+On macOS, you can install with [Homebrew](https://brew.sh):
 
 ```
 brew install buildkite/cli/bk
@@ -16,10 +18,10 @@ brew install buildkite/cli/bk
 
 On all other platforms, download a binary from the [latest GitHub releases](https://github.com/buildkite/cli/releases/latest).
 
-## Usage
+## 📄 Usage
 
 ```bash
-# Sets up your credentials
+# Sets up your credentials (stored in your operating system's native secure storage, using https://github.com/99designs/keyring)
 bk configure
 
 # Opens the current pipeline in your browser
@@ -38,7 +40,7 @@ bk local run
 bk init
 ```
 
-## Development
+## 🔨 Development
 
 Developed using Golang 1.11+ with modules.
 
@@ -48,9 +50,3 @@ git clone git@github.com:buildkite/cli.git
 cd cli/
 go run ./cmd/bk --help
 ```
-
-## Design
-
-### Secret Storage
-
-`bk` needs several sets of credentials to operate (aws, buildkite, and github/gitlab/bithucket), all of which need to be stored securely on your local machine. We use 99design's [keyring](https://github.com/99designs/keyring) to store the credentials in your operating system's native secure store. On macOS this is Keychain.
