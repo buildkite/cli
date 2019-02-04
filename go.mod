@@ -1,7 +1,7 @@
 module github.com/buildkite/cli
 
 require (
-	github.com/99designs/keyring v0.0.0-20180523072454-ccd0779e6f10
+	github.com/99designs/keyring v0.0.0-20190110203331-82da6802f65f
 	github.com/ahmetb/go-cursor v0.0.0-20131010032410-8136607ea412
 	github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc // indirect
 	github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf // indirect
@@ -12,7 +12,7 @@ require (
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1 // indirect
 	github.com/danieljoos/wincred v1.0.1 // indirect
-	github.com/davecgh/go-spew v1.1.1
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dvsekhvalnov/jose2go v0.0.0-20170216131308-f21a8cedbbae // indirect
 	github.com/fatih/color v1.7.0
 	github.com/godbus/dbus v4.1.0+incompatible // indirect

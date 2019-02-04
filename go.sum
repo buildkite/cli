@@ -1,5 +1,5 @@
-github.com/99designs/keyring v0.0.0-20180523072454-ccd0779e6f10 h1:sQgghNA6oD/MyxmpmgbHX5nNIIPjI3SEJJExf+bsjK0=
-github.com/99designs/keyring v0.0.0-20180523072454-ccd0779e6f10/go.mod h1:aKt8W/yd91/xHY6ixZAJZ2vYbhr3pP8DcrvuGSGNPJk=
+github.com/99designs/keyring v0.0.0-20190110203331-82da6802f65f h1:WXiWWJrYCaOaYimBAXlRdRJ7qOisrYyMLYnCvvhHVms=
+github.com/99designs/keyring v0.0.0-20190110203331-82da6802f65f/go.mod h1:aKt8W/yd91/xHY6ixZAJZ2vYbhr3pP8DcrvuGSGNPJk=
 github.com/ahmetb/go-cursor v0.0.0-20131010032410-8136607ea412 h1:mjEdk5IWaOUyDfmIScVahVtW56YQ1gBv8RMyHl69Z30=
 github.com/ahmetb/go-cursor v0.0.0-20131010032410-8136607ea412/go.mod h1:6/fH+MoHXlGOc3iy8TSNB4eM1oaBDMs1oxPVN40M3h0=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc h1:cAKDfWh5VpdgMhJosfJnn5/FoN2SRZ4p7fJNX58YPaU=
