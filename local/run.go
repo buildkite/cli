@@ -289,6 +289,11 @@ func (a *Agent) Run(ctx context.Context) error {
 		cmd.Stderr = ioutil.Discard
 	}
 
+	buildDir, err := ioutil.TempFile(os.TempDir(), "buildkite-build-")
+	if err != nil {
+		return err
+	}
+
 	cmd.Env = append(a.Env,
 		`HOME=`+os.Getenv(`HOME`),
 		`PATH=`+os.Getenv(`PATH`),
@@ -296,6 +301,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		`BUILDKITE_AGENT_TOKEN=llamas`,
 		`BUILDKITE_AGENT_NAME=local`,
 		`BUILDKITE_BOOTSTRAP_SCRIPT_PATH=`+bootstrap.Name(),
+		`BUILDKITE_BUILD_PATH=`+buildDir.Name(),
 	)
 
 	// this function is called at the end of Run()
@@ -347,6 +353,10 @@ func createAgentBootstrap(checkoutPath string) (*os.File, error) {
 	buildkite-agent bootstrap`, checkoutPath))
 
 	if _, err = tmpFile.Write(text); err != nil {
+		return nil, err
+	}
+
+	if err := tmpFile.Close(); err != nil {
 		return nil, err
 	}
 
