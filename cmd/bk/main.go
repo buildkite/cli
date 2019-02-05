@@ -7,6 +7,7 @@ import (
 	"github.com/buildkite/cli"
 	"github.com/buildkite/cli/graphql"
 	"github.com/fatih/color"
+	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/99designs/keyring"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -39,10 +40,15 @@ func run(args []string, exit func(int)) {
 	}
 
 	var (
-		debug          bool
-		debugGraphQL   bool
-		keyringBackend string
-		keyringImpl    keyring.Keyring
+		debug             bool
+		debugGraphQL      bool
+		keyringBackend    string
+		keyringFileDir    string
+		keyringKeychain   string
+		keyringPassDir    string
+		keyringPassCmd    string
+		keyringPassPrefix string
+		keyringImpl       keyring.Keyring
 	)
 
 	app.Flag("debug", "Show debugging output").
@@ -55,6 +61,26 @@ func run(args []string, exit func(int)) {
 		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_BACKEND").
 		EnumVar(&keyringBackend, backendsAvailable...)
 
+	app.Flag("keyring-file-dir", "Use the file keyring-backend with a specific directory").
+		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_FILE_DIR").
+		StringVar(&keyringFileDir)
+
+	app.Flag("keyring-keychain", "Use the macOS keychain keyring-backend with a specific keychain (defaults to login)").
+		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_KEYCHAIN").
+		StringVar(&keyringKeychain)
+
+	app.Flag("keyring-pass-dir", "Use the pass password manager with a specific directory").
+		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_PASS_DIR").
+		StringVar(&keyringPassDir)
+
+	app.Flag("keyring-pass-cmd", "Name of the pass executable").
+		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_PASS_CMD").
+		StringVar(&keyringPassCmd)
+
+	app.Flag("keyring-pass-prefix", "Prefix to prepend to the item path stored in pass").
+		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_PASS_PREFIX").
+		StringVar(&keyringPassPrefix)
+
 	app.PreAction(func(c *kingpin.ParseContext) (err error) {
 		if debug {
 			keyring.Debug = true
@@ -63,8 +89,52 @@ func run(args []string, exit func(int)) {
 		if debugGraphQL {
 			graphql.DebugHTTP = true
 		}
+
+		// infer keyring backend types if we get certain config
+		if keyringFileDir != "" {
+			keyringBackend = `file`
+		} else if keyringKeychain != "" {
+			keyringBackend = `keychain`
+		} else if keyringPassDir != "" {
+			keyringBackend = `pass`
+		}
+
+		var allowedBackends []keyring.BackendType
+		if keyringBackend != `` {
+			allowedBackends = append(allowedBackends, keyring.BackendType(keyringBackend))
+		}
+
+		// otherwise use one of the defaults
+		if keyringBackend == `` {
+			for _, k := range backendsAvailable {
+				switch keyring.BackendType(k) {
+				// secret-service and kwallet are kind of the worst
+				case keyring.KWalletBackend, keyring.SecretServiceBackend:
+					continue
+				default:
+					allowedBackends = append(allowedBackends, keyring.BackendType(k))
+				}
+			}
+		}
+
+		// default keychain to the login keychain
+		if keyringBackend == `keyring` && keyringKeychain == `` {
+			keyringKeychain = `login`
+		}
+
 		keyringImpl, err = keyring.Open(keyring.Config{
-			ServiceName: "buildkite",
+			ServiceName:              "buildkite",
+			AllowedBackends:          allowedBackends,
+			KeychainName:             keyringKeychain,
+			FileDir:                  "~/.buildkite/keyring/",
+			FilePasswordFunc:         terminalPrompt,
+			PassDir:                  keyringPassDir,
+			PassCmd:                  keyringPassCmd,
+			PassPrefix:               keyringPassPrefix,
+			LibSecretCollectionName:  "buildkite",
+			KWalletAppID:             "buildkite",
+			KWalletFolder:            "buildkite",
+			KeychainTrustApplication: true,
 		})
 		if err != nil {
 			return err
@@ -291,5 +361,14 @@ func run(args []string, exit func(int)) {
 			os.Exit(1)
 		}
 	}
+}
 
+func terminalPrompt(prompt string) (string, error) {
+	fmt.Printf("%s: ", prompt)
+	b, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		return "", err
+	}
+	fmt.Println()
+	return string(b), nil
 }
