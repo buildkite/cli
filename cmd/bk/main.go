@@ -63,6 +63,7 @@ func run(args []string, exit func(int)) {
 
 	app.Flag("keyring-file-dir", "Use the file keyring-backend with a specific directory").
 		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_FILE_DIR").
+		Default("~/.buildkite/keyring/").
 		StringVar(&keyringFileDir)
 
 	app.Flag("keyring-keychain", "Use the macOS keychain keyring-backend with a specific keychain (defaults to login)").
@@ -126,7 +127,7 @@ func run(args []string, exit func(int)) {
 			ServiceName:              "buildkite",
 			AllowedBackends:          allowedBackends,
 			KeychainName:             keyringKeychain,
-			FileDir:                  "~/.buildkite/keyring/",
+			FileDir:                  keyringFileDir,
 			FilePasswordFunc:         terminalPrompt,
 			PassDir:                  keyringPassDir,
 			PassCmd:                  keyringPassCmd,
