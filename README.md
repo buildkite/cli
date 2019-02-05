@@ -14,7 +14,7 @@ On macOS, you can install with [Homebrew](https://brew.sh):
 
 ```
 brew tap buildkite/cli
-brew install buildkite/cli/bk
+brew install bk
 ````
 
 On all other platforms, download a binary from the [latest GitHub releases](https://github.com/buildkite/cli/releases/latest).
