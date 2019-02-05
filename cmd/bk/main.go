@@ -221,13 +221,54 @@ func run(args []string, exit func(int)) {
 		IntVar(&pipelineListCtx.Limit)
 
 	// --------------------------
-	// run command
+	// local command
 
-	localCmd := app.Command("local", "Operate your local repositories")
+	localCmd := app.Command("local", "Operate on your local repositories")
+
+	var setupRunCmd = func(cmd *kingpin.CmdClause, runCmdCtx *cli.LocalRunCommandContext) {
+		cmd.
+			Flag("command", "The initial command to execute").
+			Default("buildkite-agent pipeline upload").
+			StringVar(&runCmdCtx.Command)
+
+		cmd.
+			Flag("filter", "A regex to filter step labels with").
+			RegexpVar(&runCmdCtx.StepFilterRegex)
+
+		cmd.
+			Flag("dry-run", "Show what steps will be executed").
+			BoolVar(&runCmdCtx.DryRun)
+
+		cmd.
+			Flag("prompt", "Prompt for each step before executing").
+			BoolVar(&runCmdCtx.Prompt)
+
+		cmd.
+			Flag("env", "Environment to pass to the agent").
+			Short('E').
+			StringsVar(&runCmdCtx.Env)
+
+		cmd.
+			Arg("file", "A specific pipeline file to upload").
+			FileVar(&runCmdCtx.File)
+	}
+
+	localRunCmdCtx := cli.LocalRunCommandContext{}
+	localRunCmd := localCmd.
+		Command("run", "Run a pipeline locally").
+		Default().
+		Action(func(c *kingpin.ParseContext) error {
+			localRunCmdCtx.Debug = debug
+			localRunCmdCtx.Keyring = keyringImpl
+			localRunCmdCtx.TerminalContext = &cli.Terminal{}
+			return cli.LocalRunCommand(localRunCmdCtx)
+		})
+
+	setupRunCmd(localRunCmd, &localRunCmdCtx)
 
 	runCmdCtx := cli.LocalRunCommandContext{}
-	runCmd := localCmd.
-		Command("run", "Run a pipeline locally").
+	runCmd := app.
+		Command("run", "Run a pipeline locally (alias for local run)").
 		Default().
 		Action(func(c *kingpin.ParseContext) error {
 			runCmdCtx.Debug = debug
@@ -236,31 +277,7 @@ func run(args []string, exit func(int)) {
 			return cli.LocalRunCommand(runCmdCtx)
 		})
 
-	runCmd.
-		Flag("command", "The initial command to execute").
-		Default("buildkite-agent pipeline upload").
-		StringVar(&runCmdCtx.Command)
-
-	runCmd.
-		Flag("filter", "A regex to filter step labels with").
-		RegexpVar(&runCmdCtx.StepFilterRegex)
-
-	runCmd.
-		Flag("dry-run", "Show what steps will be executed").
-		BoolVar(&runCmdCtx.DryRun)
-
-	runCmd.
-		Flag("prompt", "Prompt for each step before executing").
-		BoolVar(&runCmdCtx.Prompt)
-
-	runCmd.
-		Flag("env", "Environment to pass to the agent").
-		Short('E').
-		StringsVar(&runCmdCtx.Env)
-
-	runCmd.
-		Arg("file", "A specific pipeline file to upload").
-		FileVar(&runCmdCtx.File)
+	setupRunCmd(runCmd, &runCmdCtx)
 
 	// --------------------------
 	// run the app, parse args
