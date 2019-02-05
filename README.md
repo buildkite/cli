@@ -13,6 +13,7 @@ This is currently a pre-release, and we'd love to hear any feedback and question
 On macOS, you can install with [Homebrew](https://brew.sh):
 
 ```
+brew tap buildkite/cli
 brew install buildkite/cli/bk
 ````
 
