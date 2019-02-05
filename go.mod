@@ -35,7 +35,7 @@ require (
 	github.com/skratchdot/open-golang v0.0.0-20160302144031-75fb7ed4208c
 	github.com/stretchr/objx v0.1.1 // indirect
 	github.com/stretchr/testify v1.2.2 // indirect
-	golang.org/x/crypto v0.0.0-20180527072434-ab813273cd59
+	golang.org/x/crypto v0.0.0-20190131182504-b8fe1690c613
 	golang.org/x/net v0.0.0-20180530034148-89e543239a64 // indirect
 	golang.org/x/oauth2 v0.0.0-20180529203656-ec22f46f877b
 	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f // indirect
