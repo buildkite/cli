@@ -74,11 +74,11 @@ func run(args []string, exit func(int)) {
 		StringVar(&keyringPassDir)
 
 	app.Flag("keyring-pass-cmd", "Name of the pass executable").
-		OverrideDefaultFromEnvar("AWS_VAULT_PASS_CMD").
+		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_PASS_CMD").
 		StringVar(&keyringPassCmd)
 
 	app.Flag("keyring-pass-prefix", "Prefix to prepend to the item path stored in pass").
-		OverrideDefaultFromEnvar("AWS_VAULT_PASS_PREFIX").
+		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_PASS_PREFIX").
 		StringVar(&keyringPassPrefix)
 
 	app.PreAction(func(c *kingpin.ParseContext) (err error) {
