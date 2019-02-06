@@ -109,8 +109,24 @@ func (s step) String() string {
 	return "Unknown"
 }
 
+type blockField struct {
+	Text     string              `json:"text"`
+	Select   string              `json:"select"`
+	Key      string              `json:"key"`
+	Hint     string              `json:"hint"`
+	Required bool                `json:"required"`
+	Default  string              `json:"default"`
+	Options  []blockSelectOption `json:"options"`
+}
+
+type blockSelectOption struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
 type blockStep struct {
-	Block string `json:"block"`
+	Block  string       `json:"block"`
+	Fields []blockField `json:"fields"`
 }
 
 type waitStep struct {
