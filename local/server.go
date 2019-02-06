@@ -598,8 +598,8 @@ func (a *apiServer) handlePipelineUpload(w http.ResponseWriter, r *http.Request,
 	}
 
 	if err := readRequestInto(r, &pur); err != nil {
-		log.Printf("Failed to parse pipeline: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("Failed to parse pipeline upload: %v", err)
+		http.Error(w, err.Error(), 422)
 		return
 	}
 

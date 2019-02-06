@@ -369,7 +369,7 @@ func createAgentBootstrap(checkoutPath string) (*os.File, error) {
 
 type stepWithEnv struct {
 	step
-	env map[string]interface{}
+	env []string
 }
 
 type stepQueue struct {

@@ -15,6 +15,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dvsekhvalnov/jose2go v0.0.0-20170216131308-f21a8cedbbae // indirect
 	github.com/fatih/color v1.7.0
+	github.com/go-test/deep v1.0.1
 	github.com/godbus/dbus v4.1.0+incompatible // indirect
 	github.com/golang/protobuf v1.1.0 // indirect
 	github.com/google/go-github v15.0.0+incompatible
