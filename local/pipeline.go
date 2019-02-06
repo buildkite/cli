@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 )
 
@@ -143,7 +144,7 @@ func (s *commandStep) UnmarshalJSON(data []byte) error {
 	}
 
 	if err := json.Unmarshal(data, &intermediate); err != nil {
-		return err
+		return fmt.Errorf("invalid command step: %v", err)
 	}
 
 	s.ArtifactPaths = []string(intermediate.ArtifactPaths)
@@ -161,24 +162,42 @@ func (s *commandStep) UnmarshalJSON(data []byte) error {
 		s.Commands = append(s.Commands, intermediate.Commands...)
 	}
 
-	var pluginSlice struct {
-		Plugins []map[string]interface{} `json:"plugins"`
-	}
-
 	// Normalize env vs environment
 	s.Env = []string(intermediate.Env)
 	if len(intermediate.Environment) > 0 {
 		s.Env = []string(intermediate.Environment)
 	}
 
+	s.Plugins = nil
+
+	var pluginSlice struct {
+		Plugins []map[string]interface{} `json:"plugins"`
+	}
+
 	if err := json.Unmarshal(data, &pluginSlice); err == nil {
 		for _, p := range pluginSlice.Plugins {
 			for k, v := range p {
-				s.Plugins = append(s.Plugins, Plugin{
-					Name:   k,
-					Params: v.(map[string]interface{}),
-				})
+				switch vv := v.(type) {
+				case map[string]interface{}:
+					s.Plugins = append(s.Plugins, Plugin{Name: k, Params: vv})
+				case nil:
+					s.Plugins = append(s.Plugins, Plugin{Name: k})
+				default:
+					return fmt.Errorf("Unknown plugin value type %T", v)
+				}
 			}
+		}
+	}
+
+	var pluginStringSlice struct {
+		Plugins []string `json:"plugins"`
+	}
+
+	if err := json.Unmarshal(data, &pluginStringSlice); err == nil {
+		for _, p := range pluginStringSlice.Plugins {
+			s.Plugins = append(s.Plugins, Plugin{
+				Name: p,
+			})
 		}
 	}
 
@@ -204,8 +223,8 @@ type pipelineUpload struct {
 }
 
 type pipeline struct {
-	Steps []step                 `json:"steps"`
-	Env   map[string]interface{} `json:"env"`
+	Steps []step        `json:"steps"`
+	Env   envMapOrSlice `json:"env"`
 }
 
 func (p pipeline) Filter(f func(s step) bool) pipeline {
@@ -219,42 +238,71 @@ func (p pipeline) Filter(f func(s step) bool) pipeline {
 	return filtered
 }
 
+type stringable string
+
+func (s *stringable) UnmarshalJSON(data []byte) error {
+	var target interface{}
+
+	if err := json.Unmarshal(data, &target); err != nil {
+		return err
+	}
+
+	switch target.(type) {
+	case string, int, int64, bool, float32, float64:
+		*s = stringable(fmt.Sprintf("%v", target))
+	default:
+		return fmt.Errorf("Unstringable type of %T", target)
+	}
+
+	return nil
+}
+
 type stringOrSlice []string
 
 func (s *stringOrSlice) UnmarshalJSON(data []byte) error {
-	var str string
+	var str stringable
+	*s = []string{}
 
 	if err := json.Unmarshal(data, &str); err == nil {
-		*s = []string{str}
+		*s = []string{string(str)}
 		return nil
 	}
 
-	var strSlice []string
+	var strSlice []stringable
 
 	if err := json.Unmarshal(data, &strSlice); err != nil {
 		return err
 	}
 
-	*s = strSlice
+	for _, str := range strSlice {
+		*s = append(*s, string(str))
+	}
+
 	return nil
 }
 
 type envMapOrSlice []string
 
 func (s *envMapOrSlice) UnmarshalJSON(data []byte) error {
-	var m map[string]string
+	var m map[string]stringable
+	*s = []string{}
 
 	if err := json.Unmarshal(data, &m); err == nil {
 		for k, v := range m {
 			*s = append(*s, fmt.Sprintf("%s=%s", k, v))
 		}
+
+		// maps are unordered, this makes them predictable
+		sorted := sort.StringSlice(*s)
+		sorted.Sort()
+
 		return nil
 	}
 
 	var envSlice []string
 
 	if err := json.Unmarshal(data, &envSlice); err != nil {
-		return err
+		return fmt.Errorf("env must be a slice or a map: %v", err)
 	}
 
 	*s = envSlice
