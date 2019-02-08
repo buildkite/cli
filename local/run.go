@@ -289,10 +289,19 @@ func (a *Agent) Run(ctx context.Context) error {
 		cmd.Stderr = ioutil.Discard
 	}
 
-	buildDir, err := ioutil.TempFile(os.TempDir(), "buildkite-build-")
+	buildDir, err := ioutil.TempDir(os.TempDir(), "buildkite-build-")
 	if err != nil {
 		return err
 	}
+
+	defer os.RemoveAll(buildDir)
+
+	pluginsDir, err := ioutil.TempDir(os.TempDir(), "buildkite-plugins-")
+	if err != nil {
+		return err
+	}
+
+	defer os.RemoveAll(pluginsDir)
 
 	cmd.Env = append(a.Env,
 		`HOME=`+os.Getenv(`HOME`),
@@ -301,7 +310,8 @@ func (a *Agent) Run(ctx context.Context) error {
 		`BUILDKITE_AGENT_TOKEN=llamas`,
 		`BUILDKITE_AGENT_NAME=local`,
 		`BUILDKITE_BOOTSTRAP_SCRIPT_PATH=`+bootstrap.Name(),
-		`BUILDKITE_BUILD_PATH=`+buildDir.Name(),
+		`BUILDKITE_BUILD_PATH=`+buildDir,
+		`BUILDKITE_PLUGINS_PATH=`+pluginsDir,
 	)
 
 	// this function is called at the end of Run()
