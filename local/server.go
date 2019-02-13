@@ -505,6 +505,10 @@ func (a *apiServer) handleMetadataExists(w http.ResponseWriter, r *http.Request,
 	json.NewEncoder(w).Encode(&struct{}{})
 }
 
+func (a *apiServer) SetMetadata(k, v string) {
+	a.metadata.Store(k, v)
+}
+
 func (a *apiServer) handleMetadataSet(w http.ResponseWriter, r *http.Request, jobID string) {
 	w.Header().Set("Content-Type", "application/json")
 

@@ -2,6 +2,7 @@ package local
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -143,11 +144,12 @@ func Run(ctx context.Context, params RunParams) error {
 			}
 		}
 
+		dryRunNote := ""
+		if params.DryRun {
+			dryRunNote = " (dry-run)"
+		}
+
 		if step.Command != nil {
-			dryRunNote := ""
-			if params.DryRun {
-				dryRunNote = " (dry-run)"
-			}
 			headerColor.Printf(">>> Executing command step %s%s\n",
 				ejl.Render(step.Command.Label),
 				dryRunNote)
@@ -172,6 +174,92 @@ func Run(ctx context.Context, params RunParams) error {
 			}
 		} else if step.Trigger != nil {
 			headerColor.Printf(">>> Skipping trigger step\n")
+			continue
+
+		} else if step.Block != nil {
+			headerColor.Printf(">>> Blocking on %q%s\n", step.Block.Block, dryRunNote)
+
+			if !params.DryRun {
+				for _, field := range step.Block.Fields {
+					switch {
+					case field.Text != "":
+						fmt.Println()
+						prompt := promptui.Prompt{
+							Label:     field.Text,
+							Default:   field.Default,
+							AllowEdit: true,
+						}
+
+						if field.Required {
+							prompt.Label = fmt.Sprintf("%s%s", prompt.Label, " (required)")
+							prompt.Validate = func(input string) error {
+								if input == "" {
+									return errors.New("Value required")
+								}
+								return nil
+							}
+						}
+
+						result, err := prompt.Run()
+
+						if err != nil {
+							fmt.Printf("Prompt failed %v\n", err)
+						}
+
+						server.SetMetadata(field.Key, result)
+
+					case field.Select != "":
+						fmt.Println()
+						templates := &promptui.SelectTemplates{
+							Inactive: "  {{ .Label | cyan }}",
+							Active:   fmt.Sprintf("%s {{ .Label | underline }}", promptui.IconSelect),
+						}
+
+						items := field.Options
+
+						prompt := promptui.Select{
+							Label:     field.Select,
+							Items:     items,
+							Templates: templates,
+						}
+
+						if field.Required {
+							prompt.Label = fmt.Sprintf("%s%s", prompt.Label, " (required)")
+						} else {
+							items = append([]blockSelectOption{{Label: "Empty"}}, field.Options...)
+							prompt.Items = items
+						}
+
+						i, _, err := prompt.Run()
+
+						if err != nil {
+							fmt.Printf("Prompt failed %v\n", err)
+							return err
+						}
+
+						server.SetMetadata(field.Key, items[i].Value)
+					}
+				}
+
+				fmt.Println()
+				prompt := promptui.Prompt{
+					Label:     fmt.Sprintf("Unblock %q", ejl.Render(step.Block.Block)),
+					IsConfirm: true,
+					Default:   "y",
+				}
+
+				result, err := prompt.Run()
+				if err != nil {
+					return err
+				}
+
+				fmt.Println()
+
+				if result == "n" {
+					return fmt.Errorf("Unblock failed")
+				}
+			}
+
 			continue
 
 		} else {
