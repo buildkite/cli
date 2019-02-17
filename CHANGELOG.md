@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [v0.4.0](https://github.com/buildkite/cli/tree/v0.4.0) (2019-02-17)
+[Full Changelog](https://github.com/buildkite/cli/compare/v0.3.0...v0.4.0)
+
+### Changed
+- Implement text and select block steps [#25](https://github.com/buildkite/cli/pull/25) (@lox)
+- Add MIT license [#34](https://github.com/buildkite/cli/pull/34) (@lox)
+- Add plugins-path and switch to temp dirs [#30](https://github.com/buildkite/cli/pull/30) (@toolmantim)
+- Add some more tests and fixes for pipeline parsing [#24](https://github.com/buildkite/cli/pull/24) (@lox)
+
 ## [v0.3.0](https://github.com/buildkite/cli/tree/v0.3.0) (2019-02-04)
 [Full Changelog](https://github.com/buildkite/cli/compare/v0.2.0...v0.3.0)
 
