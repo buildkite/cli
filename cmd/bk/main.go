@@ -119,7 +119,7 @@ func run(args []string, exit func(int)) {
 		}
 
 		// default keychain to the login keychain
-		if keyringBackend == `keyring` && keyringKeychain == `` {
+		if keyringBackend == `keychain` && keyringKeychain == `` {
 			keyringKeychain = `login`
 		}
 
