@@ -386,6 +386,16 @@ func (a *apiServer) handleAcceptJob(w http.ResponseWriter, r *http.Request, jobI
 		`BUILDKITE_PLUGINS`:                   pluginJSON,
 	}
 
+	// append step environment
+	for _, envLine := range job.Env {
+		envFrags := strings.SplitN(envLine, "=", 2)
+
+		// don't overwrite any already set env
+		if _, exists := env[envFrags[0]]; !exists {
+			env[envFrags[0]] = envFrags[1]
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(struct {
 		ID                 string            `json:"id"`
