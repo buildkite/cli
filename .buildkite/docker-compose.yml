@@ -1,0 +1,14 @@
+version: '2.1'
+
+services:
+  app:
+    image: golang:1.12
+    volumes:
+      - go-module-cache:/go/pkg/mod
+      - ../:/cli:cached
+    working_dir: /cli
+    environment:
+      - GO111MODULE=on
+
+volumes:
+  go-module-cache:

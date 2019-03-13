@@ -162,8 +162,12 @@ func Run(ctx context.Context, params RunParams) error {
 				j.Command = strings.Join(step.Command.Commands, "\n")
 				j.Label = step.Command.Label
 				j.Plugins = step.Command.Plugins
-				j.Env = step.Command.Env
 				j.ArtifactPaths = step.Command.ArtifactPaths
+
+				// append global env and then step env
+				j.Env = []string{}
+				j.Env = append(j.Env, step.Env...)
+				j.Env = append(j.Env, step.Command.Env...)
 
 				if err = executeJob(ctx, server, w, j); err != nil {
 					headerColor.Printf(">>> 🚨 Command failed in %v\n", time.Now().Sub(timer))
@@ -467,7 +471,7 @@ func createAgentBootstrap(checkoutPath string) (*os.File, error) {
 
 type stepWithEnv struct {
 	step
-	env []string
+	Env []string
 }
 
 type stepQueue struct {
@@ -501,7 +505,7 @@ func (s *stepQueue) Prepend(p pipeline) {
 	for _, step := range p.Steps {
 		newSteps = append(newSteps, stepWithEnv{
 			step: step,
-			env:  p.Env,
+			Env:  p.Env,
 		})
 	}
 

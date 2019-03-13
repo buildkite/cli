@@ -386,13 +386,20 @@ func (a *apiServer) handleAcceptJob(w http.ResponseWriter, r *http.Request, jobI
 		`BUILDKITE_PLUGINS`:                   pluginJSON,
 	}
 
-	// append step environment
+	jobEnv := map[string]string{}
+
+	// append step environment, letting later ones
+	// overwrite earlier ones
 	for _, envLine := range job.Env {
 		envFrags := strings.SplitN(envLine, "=", 2)
+		jobEnv[envFrags[0]] = envFrags[1]
+	}
 
-		// don't overwrite any already set env
-		if _, exists := env[envFrags[0]]; !exists {
-			env[envFrags[0]] = envFrags[1]
+	// append stepEnv to the job environment but
+	// don't overwrite any already values
+	for k, v := range jobEnv {
+		if _, exists := env[k]; !exists {
+			env[k] = v
 		}
 	}
 
@@ -512,7 +519,11 @@ func (a *apiServer) handleMetadataExists(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	json.NewEncoder(w).Encode(&struct{}{})
+	json.NewEncoder(w).Encode(&struct {
+		Exists bool `json:"exists"`
+	}{
+		Exists: true,
+	})
 }
 
 func (a *apiServer) SetMetadata(k, v string) {
@@ -808,8 +819,6 @@ func (a *apiServer) handleArtifactDownload(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 	}
-
-	log.Printf("Found: %v", artifact)
 
 	f, err := os.Open(artifact.(Artifact).localPath)
 	if err != nil {
