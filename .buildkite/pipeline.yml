@@ -1,4 +1,20 @@
 steps:
+  - name: "Test"
+    command: "go test -v -failfast ./..."
+    plugins:
+      docker-compose#v3.0.0:
+        config: .buildkite/docker-compose.yml
+        run: agent
+
+  - wait
+  - name: "Test with Local Agent"
+    command: ".buildkite/steps/run-local.sh"
+    plugins:
+      docker-compose#v3.0.0:
+        config: .buildkite/docker-compose.yml
+        run: agent
+
+  - wait
   - label: ":golang:"
     plugins:
       golang-cross-compile#v1.3.0:
