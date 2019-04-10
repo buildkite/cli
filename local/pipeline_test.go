@@ -101,6 +101,30 @@ func TestStepParsingCommandSteps(t *testing.T) {
 				},
 			},
 		},
+		{
+			`{
+				"command": "echo foo",
+				"branches": "!foo"
+			}`,
+			step{
+				Command: &commandStep{
+					Commands: []string{`echo foo`},
+				},
+				Branches: []string{`!foo`},
+			},
+		},
+		{
+			`{
+				"command": "echo foo",
+				"branches": "master stable/*"
+			}`,
+			step{
+				Command: &commandStep{
+					Commands: []string{`echo foo`},
+				},
+				Branches: []string{`master`, `stable/*`},
+			},
+		},
 	} {
 		t.Run("", func(t *testing.T) {
 			var step step
@@ -283,4 +307,40 @@ func TestPipelineParsing(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMatchBranch(t *testing.T) {
+	for _, tc := range []struct {
+		Actual   string
+		Branches []string
+		Expected bool
+	}{
+		{`foo`, []string{}, true},
+		{`foo`, []string{`foo`}, true},
+		{`foo`, []string{`llamas`}, false},
+		{`foo`, []string{`!foo`}, false},
+		{`foo`, []string{`!!foo`}, true},
+		{`foo`, []string{`foo*`}, true},
+		{`foo`, []string{`*foo`}, true},
+		{`foo`, []string{`!fo*`}, false},
+		{`foo`, []string{`!*oo`}, false},
+		{`foo`, []string{`!!foo*`}, true},
+		{`foo`, []string{`f*`}, true},
+		{`foo`, []string{`*oo`}, true},
+		{`foo`, []string{`l*`}, false},
+		{`foo`, []string{`*amas`}, false},
+		{`foo`, []string{`foo`, `l*`}, true},
+	} {
+		t.Run("", func(t *testing.T) {
+			s := step{
+				Branches: tc.Branches,
+			}
+
+			if result := s.MatchBranch(tc.Actual); result != tc.Expected {
+				t.Errorf("Expected %v for %v matches %v, got %v",
+					tc.Expected, tc.Actual, tc.Branches, result)
+			}
+		})
+	}
+
 }

@@ -42,15 +42,23 @@ func (s *step) UnmarshalJSON(data []byte) error {
 		branches = b
 	}
 
-	// Handle various types of branch vs branches
 	if branches != nil {
+		// Sometimes branches are space delimited, sometimes comma
+		splitBranches := func(s string) []string {
+			if strings.Contains(",", s) {
+				return strings.Split(s, ",")
+			}
+			return strings.Fields(s)
+		}
+
+		// Handle various types of branch vs branches
 		switch b := branches.(type) {
 		case []interface{}:
 			for _, bi := range b {
-				s.Branches = append(s.Branches, strings.Split(bi.(string), ",")...)
+				s.Branches = append(s.Branches, splitBranches(bi.(string))...)
 			}
 		case string:
-			s.Branches = append(s.Branches, strings.Split(b, ",")...)
+			s.Branches = append(s.Branches, splitBranches(b)...)
 		default:
 			log.Printf("Branches is unhandled type %T", branches)
 		}
@@ -76,8 +84,29 @@ func (s step) MatchBranch(branch string) bool {
 		return true
 	}
 	for _, b := range s.Branches {
-		if b == branch {
-			return true
+		expected := true
+
+		// Handle negation at the start
+		for strings.HasPrefix(b, `!`) {
+			expected = !expected
+			b = strings.TrimPrefix(b, `!`)
+		}
+
+		// Handle trailing star matches
+		trailingStarMatch := strings.HasSuffix(b, `*`)
+		b = strings.TrimRight(b, `*`)
+
+		// Handle leading star matches
+		leadingStarMatch := strings.HasPrefix(b, `*`)
+		b = strings.TrimLeft(b, `*`)
+
+		switch {
+		case trailingStarMatch:
+			return strings.HasPrefix(branch, b) == expected
+		case leadingStarMatch:
+			return strings.HasSuffix(branch, b) == expected
+		default:
+			return (b == branch) == expected
 		}
 	}
 	return false
