@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -43,24 +44,10 @@ func (s *step) UnmarshalJSON(data []byte) error {
 	}
 
 	if branches != nil {
-		// Sometimes branches are space delimited, sometimes comma
-		splitBranches := func(s string) []string {
-			if strings.Contains(",", s) {
-				return strings.Split(s, ",")
-			}
-			return strings.Fields(s)
-		}
-
-		// Handle various types of branch vs branches
-		switch b := branches.(type) {
-		case []interface{}:
-			for _, bi := range b {
-				s.Branches = append(s.Branches, splitBranches(bi.(string))...)
-			}
-		case string:
-			s.Branches = append(s.Branches, splitBranches(b)...)
-		default:
-			log.Printf("Branches is unhandled type %T", branches)
+		var err error
+		s.Branches, err = ParseBranchPattern(branches)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -79,36 +66,79 @@ func (s *step) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(data, &s.Command)
 }
 
+func ParseBranchPattern(branches interface{}) ([]string, error) {
+	var result []string
+
+	switch b := branches.(type) {
+	case []interface{}:
+		for _, bi := range b {
+			result = append(result, strings.Fields(bi.(string))...)
+		}
+	case string:
+		result = append(result, strings.Fields(b)...)
+	default:
+		return nil, fmt.Errorf("Branches is unhandled type %T", branches)
+	}
+
+	return result, nil
+}
+
+func MatchBranchPattern(branch string, pattern string) bool {
+	expected := true
+
+	// Handle negation at the start
+	for strings.HasPrefix(pattern, `!`) {
+		expected = !expected
+		pattern = strings.TrimPrefix(pattern, `!`)
+	}
+
+	// Compile a regex for the rest
+	re, err := regexp.Compile(`^` + strings.Replace(pattern, `*`, `.*?`, -1) + `$`)
+	if err != nil {
+		log.Printf("Failed to compile regex: %v", err)
+		return false
+	}
+
+	// Test it against the branch
+	if re.MatchString(branch) == expected {
+		return true
+	}
+
+	return false
+}
+
 func (s step) MatchBranch(branch string) bool {
 	if len(s.Branches) == 0 {
 		return true
 	}
+
+	// Apply a heuristic, if we have multiple negatives it's AND-ed
+	// otherwise it's OR-d. Gross, but we know what the user meant.
+
+	var negationCount int
 	for _, b := range s.Branches {
-		expected := true
-
-		// Handle negation at the start
-		for strings.HasPrefix(b, `!`) {
-			expected = !expected
-			b = strings.TrimPrefix(b, `!`)
-		}
-
-		// Handle trailing star matches
-		trailingStarMatch := strings.HasSuffix(b, `*`)
-		b = strings.TrimRight(b, `*`)
-
-		// Handle leading star matches
-		leadingStarMatch := strings.HasPrefix(b, `*`)
-		b = strings.TrimLeft(b, `*`)
-
-		switch {
-		case trailingStarMatch:
-			return strings.HasPrefix(branch, b) == expected
-		case leadingStarMatch:
-			return strings.HasSuffix(branch, b) == expected
-		default:
-			return (b == branch) == expected
+		if strings.HasPrefix(b, `!`) {
+			negationCount += 1
 		}
 	}
+
+	if negationCount > 1 {
+		// Has multiple negatives, so the patterns are AND-ed
+		for _, pattern := range s.Branches {
+			if !MatchBranchPattern(branch, pattern) {
+				return false
+			}
+		}
+		return true
+	}
+
+	// Has zero of one negatives, so the patterns are OR-ed
+	for _, pattern := range s.Branches {
+		if MatchBranchPattern(branch, pattern) {
+			return true
+		}
+	}
+
 	return false
 }
 

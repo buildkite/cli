@@ -309,38 +309,101 @@ func TestPipelineParsing(t *testing.T) {
 	}
 }
 
-func TestMatchBranch(t *testing.T) {
+func TestMatchingBranches(t *testing.T) {
 	for _, tc := range []struct {
-		Actual   string
-		Branches []string
-		Expected bool
+		Pattern string
+		Branch  string
 	}{
-		{`foo`, []string{}, true},
-		{`foo`, []string{`foo`}, true},
-		{`foo`, []string{`llamas`}, false},
-		{`foo`, []string{`!foo`}, false},
-		{`foo`, []string{`!!foo`}, true},
-		{`foo`, []string{`foo*`}, true},
-		{`foo`, []string{`*foo`}, true},
-		{`foo`, []string{`!fo*`}, false},
-		{`foo`, []string{`!*oo`}, false},
-		{`foo`, []string{`!!foo*`}, true},
-		{`foo`, []string{`f*`}, true},
-		{`foo`, []string{`*oo`}, true},
-		{`foo`, []string{`l*`}, false},
-		{`foo`, []string{`*amas`}, false},
-		{`foo`, []string{`foo`, `l*`}, true},
+		//  empty branch patterns match all
+		{"", "foo"},
+		{"", ""},
+		{"", "       "},
+
+		//  single name branch matches
+		{"foo bar", "foo"},
+		{"foo             bar", "bar"},
+
+		//  with whitespace
+		{"    master   ", "master"},
+		{"master   ", "master"},
+		{"   master", "master"},
+
+		//  ones with a slash
+		{"feature/authentication", "feature/authentication"},
+
+		//  not-checking
+		{"!foo", "master"},
+		{"!release/production !release/test", "master"},
+
+		//  prefix wildcards
+		{"*-do-the-thing", "can-you-do-the-thing"},
+		{"!*-do-the-thing", "can-you-do-the-thing-please"},
+
+		//  wildcards
+		{"release/*", "release/foo"},
+		{"release/*", "release/bar/bing"},
+		{"release-*", "release-thingy"},
+		{"release-* release/*", "release-thingy"},
+		{"release-* release/*", "release/thingy"},
+		{"this-*-thing-is-the-*", "this-ruby-thing-is-the-worst"},
+		{"this-*-thing-is-the-*", "this-regex-thing-is-the-best"},
+		{"this-*-thing-is-the-*", "this-*-thing-is-the-*"},
+		{"this-*-thing-is-the-*", "this--thing-is-the-best-"},
 	} {
 		t.Run("", func(t *testing.T) {
-			s := step{
-				Branches: tc.Branches,
+			branches, err := ParseBranchPattern(tc.Pattern)
+			if err != nil {
+				t.Fatal(err)
 			}
 
-			if result := s.MatchBranch(tc.Actual); result != tc.Expected {
-				t.Errorf("Expected %v for %v matches %v, got %v",
-					tc.Expected, tc.Actual, tc.Branches, result)
+			s := step{
+				Branches: branches,
+			}
+
+			if !s.MatchBranch(tc.Branch) {
+				t.Errorf("Expected pattern %q to match branch %q", tc.Pattern, tc.Branch)
 			}
 		})
 	}
+}
 
+func TestNotMatchingBranches(t *testing.T) {
+	for _, tc := range []struct {
+		Pattern string
+		Branch  string
+	}{
+		// branch names
+		{"foo         bar", "bang"},
+
+		// not-matchers
+		{"!foo bar", "foo"},
+		{"!release/*", "release/foo"},
+		{"!release/*", "release/bar"},
+		{"!refs/tags/*", "refs/tags/production"},
+		{"!release/production !release/test", "release/production"},
+		{"!release/production !release/test", "release/test"},
+
+		// ones with a slash
+		{"feature/authentication", "update/deployment"},
+
+		// wildcards
+		{"release-*", "release/thingy"},
+		{"release-*", "master"},
+		{"*-do-the-thing", "this-is-not-the-thing"},
+	} {
+		t.Run("", func(t *testing.T) {
+			branches, err := ParseBranchPattern(tc.Pattern)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			s := step{
+				Branches: branches,
+			}
+
+			if s.MatchBranch(tc.Branch) {
+				t.Errorf("Expected pattern %q to NOT match branch %q", tc.Pattern, tc.Branch)
+			}
+		})
+	}
 }
