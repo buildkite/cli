@@ -91,15 +91,6 @@ func run(args []string, exit func(int)) {
 			graphql.DebugHTTP = true
 		}
 
-		// infer keyring backend types if we get certain config
-		if keyringFileDir != "" {
-			keyringBackend = `file`
-		} else if keyringKeychain != "" {
-			keyringBackend = `keychain`
-		} else if keyringPassDir != "" {
-			keyringBackend = `pass`
-		}
-
 		var allowedBackends []keyring.BackendType
 		if keyringBackend != `` {
 			allowedBackends = append(allowedBackends, keyring.BackendType(keyringBackend))
