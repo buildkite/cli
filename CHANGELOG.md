@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 [Full Changelog](https://github.com/buildkite/cli/compare/v0.4.1...v0.5.0)
 
 ### Added
+- Fix bug where file backend is default over keychain [#51](https://github.com/buildkite/cli/pull/51) (@lox)
 - Handle wildcards in branch patterns [#49](https://github.com/buildkite/cli/pull/49) (@lox)
 
 ### Fixed
