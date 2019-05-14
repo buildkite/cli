@@ -23,6 +23,7 @@ type LocalRunCommandContext struct {
 
 	File            *os.File
 	Env             []string
+	Metadata        map[string]string
 	Command         string
 	StepFilterRegex *regexp.Regexp
 	Prompt          bool
@@ -70,6 +71,7 @@ func LocalRunCommand(ctx LocalRunCommandContext) error {
 
 	if err := local.Run(cancelCtx, local.RunParams{
 		Env:        ctx.Env,
+		Metadata:   ctx.Metadata,
 		DryRun:     ctx.DryRun,
 		Command:    command,
 		Dir:        wd,

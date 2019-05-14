@@ -311,11 +311,18 @@ func run(args []string, exit func(int)) {
 			StringsVar(&runCmdCtx.Env)
 
 		cmd.
+			Flag("metadata", "Metadata to pass to the agent").
+			Short('M').
+			StringMapVar(&runCmdCtx.Metadata)
+
+		cmd.
 			Arg("file", "A specific pipeline file to upload").
 			FileVar(&runCmdCtx.File)
 	}
 
-	localRunCmdCtx := cli.LocalRunCommandContext{}
+	localRunCmdCtx := cli.LocalRunCommandContext{
+		Metadata: make(map[string]string),
+	}
 	localRunCmd := localCmd.
 		Command("run", "Run a pipeline locally").
 		Default().
