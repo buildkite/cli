@@ -406,6 +406,19 @@ func (a *Agent) Run(ctx context.Context) error {
 		`BUILDKITE_PLUGINS_PATH=`+pluginsDir,
 	)
 
+	// Windows requires certain env variables to be present
+	if runtime.GOOS == "windows" {
+		cmd.Env = append(cmd.Env,
+			"PATH="+os.Getenv("PATH"),
+			"SystemRoot="+os.Getenv("SystemRoot"),
+			"WINDIR="+os.Getenv("WINDIR"),
+			"COMSPEC="+os.Getenv("COMSPEC"),
+			"PATHEXT="+os.Getenv("PATHEXT"),
+			"TMP="+os.Getenv("TMP"),
+			"TEMP="+os.Getenv("TEMP"),
+		)
+	}
+
 	// this function is called at the end of Run()
 	// it kills the agent
 	a.stopFunc = func() error {
