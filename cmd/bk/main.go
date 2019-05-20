@@ -311,7 +311,7 @@ func run(args []string, exit func(int)) {
 			StringsVar(&runCmdCtx.Env)
 
 		cmd.
-			Flag("metadata", "Metadata to pass to the agent").
+			Flag("meta-data", "Meta-data to pass to the build").
 			Short('M').
 			StringMapVar(&runCmdCtx.Metadata)
 
