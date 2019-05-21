@@ -21,6 +21,7 @@ import (
 
 type RunParams struct {
 	Env         []string
+	Metadata    map[string]string
 	Dir         string
 	Command     string
 	Prompt      bool
@@ -100,6 +101,10 @@ func Run(ctx context.Context, params RunParams) error {
 
 	w := newBuildLogFormatter(ejl)
 	timer := time.Now()
+
+	for mdKey, mdVal := range params.Metadata {
+		server.SetMetadata(mdKey, mdVal)
+	}
 
 	headerColor.Printf(">>> Starting build 👟\n")
 	headerColor.Printf(">>> Executing initial command: %s\n", params.Command)

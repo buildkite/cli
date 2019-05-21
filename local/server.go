@@ -20,7 +20,7 @@ import (
 	"github.com/bmatcuk/doublestar"
 	"github.com/fatih/color"
 	homedir "github.com/mitchellh/go-homedir"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 )
 
 type Build struct {
