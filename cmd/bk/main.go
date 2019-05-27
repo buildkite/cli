@@ -192,6 +192,36 @@ func run(args []string, exit func(int)) {
 		StringVar(&initCtx.PipelineSlug)
 
 	// --------------------------
+	// rotate-webhooks command
+
+	rotateWebhooksCtx := cli.RotateWebhooksCommandContext{}
+
+	rotateWebhooksCmd := app.
+		Command("rotate-webhooks", "Rotates the Buildkite webhooks for all Github projects in an org").
+		Action(func(c *kingpin.ParseContext) error {
+			rotateWebhooksCtx.Debug = debug
+			rotateWebhooksCtx.Keyring = keyringImpl
+			rotateWebhooksCtx.TerminalContext = &cli.Terminal{}
+			return cli.RotateWebhookCommand(rotateWebhooksCtx)
+		})
+
+	rotateWebhooksCmd.
+		Flag("prompt", "Prompt after each pipeline").
+		BoolVar(&rotateWebhooksCtx.Prompt)
+
+	rotateWebhooksCmd.
+		Flag("dry-run", "Show what webhooks would be rotated").
+		BoolVar(&rotateWebhooksCtx.DryRun)
+
+	rotateWebhooksCmd.
+		Flag("org", "Filter to a specific buildkite organization").
+		StringVar(&rotateWebhooksCtx.OrgSlug)
+
+	rotateWebhooksCmd.
+		Flag("pipeline", "Filter to a specific buildkite pipeline").
+		StringVar(&rotateWebhooksCtx.Pipeline)
+
+	// --------------------------
 	// build commands
 
 	buildCmd := app.Command("build", "Operate on builds")

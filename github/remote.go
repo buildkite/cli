@@ -24,3 +24,7 @@ func ParseRemote(gitRemote string) (string, string, error) {
 
 	return org, repo, nil
 }
+
+func IsGistRemote(gitRemote string) bool {
+	return strings.Contains(gitRemote, `gist.github.com`)
+}

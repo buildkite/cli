@@ -30,7 +30,7 @@ func listPipelines(client *graphql.Client) ([]pipeline, error) {
 							url
 							repository {
 								url
-							 }
+							}
 						}
 					  }
 					}

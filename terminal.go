@@ -75,6 +75,7 @@ func (t *Terminal) Spinner() Spinner {
 
 type Tryer interface {
 	Start(msg string)
+	Finish(msg string)
 	Success(msg string)
 	Failure(msg string)
 }
@@ -91,6 +92,13 @@ type tryPrompt struct {
 func (t *tryPrompt) Start(msg string) {
 	t.terminal.Printf(color.WhiteString("%s: "), msg)
 	t.spinner.Start()
+}
+
+func (t *tryPrompt) Finish(msg string) {
+	t.spinner.Stop()
+	cursor.MoveLeft(2)
+	cursor.ClearLineRight()
+	t.terminal.Printf(msg + "\n")
 }
 
 func (t *tryPrompt) Success(msg string) {
