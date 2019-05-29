@@ -137,15 +137,22 @@ func RotateWebhookCommand(ctx RotateWebhooksCommandContext) error {
 		rotateBuildkiteWebhookTry := ctx.Try()
 		rotateBuildkiteWebhookTry.Start("Rotating buildkite webhook")
 
-		details, err := rotateBuildkiteWebhook(bk, pipelineID)
-		if err != nil {
-			rotateBuildkiteWebhookTry.Failure(err.Error())
-			return NewExitError(err, 1)
+		var newWebhookURL string
+
+		if !ctx.DryRun {
+			details, err := rotateBuildkiteWebhook(bk, pipelineID)
+			if err != nil {
+				rotateBuildkiteWebhookTry.Failure(err.Error())
+				return NewExitError(err, 1)
+			}
+			newWebhookURL = details.WebhookURL
+		} else {
+			newWebhookURL = `https://www.example.com`
 		}
 
 		rotateBuildkiteWebhookTry.Finish("Done")
 
-		ctx.Printf("New Buildkite Webhook: %s\n", details.WebhookURL)
+		ctx.Printf("New Buildkite Webhook: %s\n", newWebhookURL)
 
 		deleteWebhookTry := ctx.Try()
 		deleteWebhookTry.Start(fmt.Sprintf("Deleting github webhook #%d", *hook.ID))
@@ -170,7 +177,7 @@ func RotateWebhookCommand(ctx RotateWebhooksCommandContext) error {
 				Name:   githubclient.String(`web`),
 				Events: []string{`push`, `pull_request`, `deployment`},
 				Config: map[string]interface{}{
-					"url":          details.WebhookURL,
+					"url":          newWebhookURL,
 					"content_type": "json",
 				},
 			})
