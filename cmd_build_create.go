@@ -21,6 +21,7 @@ type BuildCreateCommandContext struct {
 	Branch  string
 	Commit  string
 	Message string
+	Env     []string
 }
 
 func BuildCreateCommand(ctx BuildCreateCommandContext) error {
@@ -28,6 +29,7 @@ func BuildCreateCommand(ctx BuildCreateCommandContext) error {
 		Branch:  ctx.Branch,
 		Commit:  ctx.Commit,
 		Message: ctx.Message,
+		Env:     ctx.Env,
 	}
 
 	bk, err := ctx.BuildkiteGraphQLClient()
@@ -164,6 +166,7 @@ type buildkiteBuildParams struct {
 	Commit     string
 	Branch     string
 	Message    string
+	Env        []string
 }
 
 func createBuildkiteBuild(client *graphql.Client, params buildkiteBuildParams) (buildkiteBuildDetails, error) {
@@ -182,6 +185,7 @@ func createBuildkiteBuild(client *graphql.Client, params buildkiteBuildParams) (
 			"message":    params.Message,
 			"commit":     params.Commit,
 			"branch":     params.Branch,
+			"env":        params.Env,
 		}})
 	if err != nil {
 		return buildkiteBuildDetails{}, err
