@@ -232,6 +232,10 @@ func run(args []string, exit func(int)) {
 		Flag("branch", "The branch to use for the build").
 		StringVar(&buildCreateCtx.Branch)
 
+	buildCreateCmd.
+		Flag("env", "Environment to pass to the build").
+		StringsVar(&buildCreateCtx.Env)
+
 	// --------------------------
 	// browse command
 
