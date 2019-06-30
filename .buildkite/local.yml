@@ -18,6 +18,7 @@ steps:
   - label: "set metadata"
     command: |
       buildkite-agent meta-data set "family" "camelids"
+      buildkite-agent meta-data set "size" "large"
 
   - wait
   - label: "get metadata"
@@ -25,6 +26,11 @@ steps:
       buildkite-agent meta-data exists "family"
       family=$(buildkite-agent meta-data get "family")
       [[ \${family} == "camelids" ]]
+
+  - label: "list metadata keys"
+    command: |
+      keys=$$(buildkite-agent meta-data keys --delimiter=".")
+      [[ \${keys} == "family.size" ]]
 
   - wait
   - label: "upload artifact"
