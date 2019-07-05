@@ -85,8 +85,8 @@ type apiServer struct {
 
 	sync.Mutex
 	jobs      []*jobEnvelope
-	artifacts sync.Map
-	metadata  sync.Map
+	artifacts *orderedMap
+	metadata  *orderedMap
 }
 
 func newApiServer(agentPool *agentPool) *apiServer {
@@ -94,6 +94,8 @@ func newApiServer(agentPool *agentPool) *apiServer {
 		agents:          agentPool,
 		pipelineUploads: make(chan pipelineUpload),
 		jobs:            []*jobEnvelope{},
+		artifacts:       newOrderedMap(),
+		metadata:        newOrderedMap(),
 	}
 }
 
@@ -185,6 +187,8 @@ func (a *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.handleHeaderTimes(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
 	case `POST /jobs/:uuid/data/exists`:
 		a.handleMetadataExists(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
+	case `POST /jobs/:uuid/data/keys`:
+		a.handleMetadataKeys(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
 	case `POST /jobs/:uuid/data/set`:
 		a.handleMetadataSet(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
 	case `POST /jobs/:uuid/data/get`:
@@ -501,6 +505,11 @@ func (a *apiServer) handleFinishJob(w http.ResponseWriter, r *http.Request, jobI
 	})
 }
 
+func (a *apiServer) handleMetadataKeys(w http.ResponseWriter, r *http.Request, jobID string) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(a.metadata.Keys())
+}
+
 func (a *apiServer) handleMetadataExists(w http.ResponseWriter, r *http.Request, jobID string) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -513,8 +522,7 @@ func (a *apiServer) handleMetadataExists(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	_, ok := a.metadata.Load(parsed.Key)
-	if !ok {
+	if !a.metadata.Contains(parsed.Key) {
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
 	}
@@ -793,7 +801,12 @@ func (a *apiServer) handleArtifactsSearch(w http.ResponseWriter, r *http.Request
 
 	var artifacts []Artifact
 
-	a.artifacts.Range(func(_, value interface{}) bool {
+	for _, key := range a.artifacts.Keys() {
+		value, ok := a.artifacts.Load(key)
+		if !ok {
+			continue
+		}
+
 		artifact := value.(Artifact)
 		match, err := doublestar.PathMatch(query, artifact.Path)
 		if err != nil {
@@ -803,9 +816,7 @@ func (a *apiServer) handleArtifactsSearch(w http.ResponseWriter, r *http.Request
 		if match {
 			artifacts = append(artifacts, artifact)
 		}
-
-		return true
-	})
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(artifacts)
@@ -869,4 +880,61 @@ func artifactCachePath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(home, ".buildkite", "local", "artifacts"), nil
+}
+
+type orderedMapValue struct {
+	key   string
+	value interface{}
+}
+
+type orderedMap struct {
+	idx  map[string]int
+	vals []orderedMapValue
+	mu   sync.RWMutex
+}
+
+func newOrderedMap() *orderedMap {
+	return &orderedMap{
+		idx:  map[string]int{},
+		vals: []orderedMapValue{},
+	}
+}
+
+func (o *orderedMap) Contains(key string) bool {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	_, ok := o.idx[key]
+	return ok
+}
+
+func (o *orderedMap) Keys() []string {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	keys := []string{}
+	for _, val := range o.vals {
+		keys = append(keys, val.key)
+	}
+	return keys
+}
+
+func (o *orderedMap) Load(key string) (interface{}, bool) {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	idx, ok := o.idx[key]
+	if !ok {
+		return nil, false
+	}
+	return o.vals[idx].value, true
+}
+
+func (o *orderedMap) Store(key string, value interface{}) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	idx, ok := o.idx[key]
+	if !ok {
+		o.vals = append(o.vals, orderedMapValue{key, value})
+		o.idx[key] = len(o.vals) - 1
+	} else {
+		o.vals[idx] = orderedMapValue{key, value}
+	}
 }
