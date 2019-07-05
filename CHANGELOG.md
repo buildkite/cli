@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [v1.0.0](https://github.com/buildkite/cli/tree/v1.0.0) (2019-06-21)
+[Full Changelog](https://github.com/buildkite/cli/compare/v0.5.0...v1.0.0)
+
+### Changed
+- Support listing meta-data keys [#62](https://github.com/buildkite/cli/pull/62) (@lox)
+- Add --env flag to `bk build create` [#61](https://github.com/buildkite/cli/pull/61) (@slam)
+- Add support for passing metadata to bk local run. [#56](https://github.com/buildkite/cli/pull/56) (@stefan-improbable)
+- Fix spelling of GitHub for configure command [#53](https://github.com/buildkite/cli/pull/53) (@JuanitoFatas)
+
 ## [v0.5.0](https://github.com/buildkite/cli/tree/v0.5.0) (2019-04-18)
 [Full Changelog](https://github.com/buildkite/cli/compare/v0.4.1...v0.5.0)
 
