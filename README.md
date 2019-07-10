@@ -4,9 +4,9 @@
 
 A command line interface for [Buildkite](https://buildkite.com/).
 
-## 💬 Pre-Release Feedback
+## 💬 Feedback
 
-This is currently a pre-release, and we'd love to hear any feedback and questions you might have. Please [file an issue on GitHub](https://github.com/buildkite/cli/issues) and let us know 💖
+We'd love to hear any feedback and questions you might have. Please [file an issue on GitHub](https://github.com/buildkite/cli/issues) and let us know 💖
 
 ## ⬇️ Installation
 
