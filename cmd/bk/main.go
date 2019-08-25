@@ -303,8 +303,11 @@ func run(args []string, exit func(int)) {
 		})
 
 	artifactDownloadCmd.
+		Flag("build", "Build to search for artifacts").
+		StringVar(&artifactDownloadCtx.Build)
+
+	artifactDownloadCmd.
 		Flag("job", "Job to search for artifacts").
-		Required().
 		StringVar(&artifactDownloadCtx.Job)
 
 	// --------------------------

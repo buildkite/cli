@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,7 +18,8 @@ type ArtifactDownloadCommandContext struct {
 	Debug     bool
 	DebugHTTP bool
 
-	Job string
+	Build string
+	Job   string
 }
 
 func ArtifactDownloadCommand(ctx ArtifactDownloadCommandContext) error {
@@ -26,13 +28,27 @@ func ArtifactDownloadCommand(ctx ArtifactDownloadCommandContext) error {
 		return NewExitError(err, 1)
 	}
 
+	if ctx.Job == "" && ctx.Build == "" {
+		return NewExitError(errors.New("--job or --build required"), 1)
+	}
+
 	try := ctx.Try()
 	try.Start("Downloading artifacts")
 
-	artifacts, err := findBuildkiteJobArtifacts(bk, ctx.Job)
-	if err != nil {
-		try.Failure(err.Error())
-		return NewExitError(err, 1)
+	var artifacts []artifact
+
+	if ctx.Build != "" {
+		artifacts, err = findBuildkiteBuildArtifacts(bk, ctx.Build)
+		if err != nil {
+			try.Failure("Failed")
+			return NewExitError(err, 1)
+		}
+	} else if ctx.Job != "" {
+		artifacts, err = findBuildkiteJobArtifacts(bk, ctx.Job)
+		if err != nil {
+			try.Failure("Failed")
+			return NewExitError(err, 1)
+		}
 	}
 
 	total := len(artifacts)
@@ -40,7 +56,7 @@ func ArtifactDownloadCommand(ctx ArtifactDownloadCommandContext) error {
 	for _, artifact := range artifacts {
 		err := downloadArtifact(artifact)
 		if err != nil {
-			try.Failure(err.Error())
+			try.Failure("Failed")
 			return NewExitError(err, 1)
 		}
 
@@ -125,6 +141,94 @@ func findBuildkiteJobArtifacts(client *graphql.Client, jobID string) ([]artifact
 			Size:        artifactEdge.Node.Size,
 			DownloadURL: artifactEdge.Node.DownloadURL,
 		})
+	}
+
+	return artifacts, nil
+}
+
+func findBuildkiteBuildArtifacts(client *graphql.Client, buildID string) ([]artifact, error) {
+	resp, err := client.Do(`
+		query($buildID: ID!, $limit: Int!) {
+			build(uuid: $buildID) {
+				jobs(first: $limit) {
+					count
+					edges {
+						node {
+							...on JobTypeCommand {
+								artifacts(first: $limit) {
+									count
+									edges {
+										node {
+											id
+											path
+											size
+											downloadURL
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	`, map[string]interface{}{
+		"buildID": buildID,
+		"limit":   artifactDownloadLimit,
+	})
+	if err != nil {
+		return []artifact{}, fmt.Errorf("Failed perform GraphQL query: %v", err)
+	}
+
+	var parsedResp struct {
+		Data struct {
+			Build struct {
+				Jobs struct {
+					Count int `json:"count"`
+					Edges []struct {
+						Node struct {
+							Artifacts struct {
+								Count int `json:"count"`
+								Edges []struct {
+									Node struct {
+										ID          string `json:"id"`
+										Path        string `json:"path"`
+										Size        int    `json:"size"`
+										DownloadURL string `json:"downloadURL"`
+									} `json:"node"`
+								} `json:"edges"`
+							} `json:"artifacts"`
+						} `json:"node"`
+					} `json:"edges"`
+				} `json:"jobs"`
+			} `json:"build"`
+		} `json:"data"`
+	}
+
+	if err = resp.DecodeInto(&parsedResp); err != nil {
+		return []artifact{}, fmt.Errorf("Failed to parse GraphQL response: %v", err)
+	}
+
+	if parsedResp.Data.Build.Jobs.Count > artifactDownloadLimit {
+		return []artifact{}, fmt.Errorf("Too many jobs\n\nBuild has %d jobs but this tool can only download %d",
+			parsedResp.Data.Build.Jobs.Count, artifactDownloadLimit)
+	}
+
+	var artifacts []artifact
+	for _, jobEdge := range parsedResp.Data.Build.Jobs.Edges {
+		if jobEdge.Node.Artifacts.Count > artifactDownloadLimit {
+			return []artifact{}, fmt.Errorf("Too many artifacts\n\nJob has %d artifacts but this tool can only download %d",
+				jobEdge.Node.Artifacts.Count, artifactDownloadLimit)
+		}
+
+		for _, artifactEdge := range jobEdge.Node.Artifacts.Edges {
+			artifacts = append(artifacts, artifact{
+				ID:          artifactEdge.Node.ID,
+				Path:        artifactEdge.Node.Path,
+				Size:        artifactEdge.Node.Size,
+				DownloadURL: artifactEdge.Node.DownloadURL,
+			})
+		}
 	}
 
 	return artifacts, nil
