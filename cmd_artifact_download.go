@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/buildkite/cli/graphql"
+	zglob "github.com/mattn/go-zglob"
 )
 
 type ArtifactDownloadCommandContext struct {
@@ -18,8 +19,9 @@ type ArtifactDownloadCommandContext struct {
 	Debug     bool
 	DebugHTTP bool
 
-	Build string
-	Job   string
+	Build   string
+	Job     string
+	Pattern string
 }
 
 func ArtifactDownloadCommand(ctx ArtifactDownloadCommandContext) error {
@@ -49,6 +51,23 @@ func ArtifactDownloadCommand(ctx ArtifactDownloadCommandContext) error {
 			try.Failure("Failed")
 			return NewExitError(err, 1)
 		}
+	}
+
+	if ctx.Pattern != "" {
+		glob, err := zglob.New(ctx.Pattern)
+		if err != nil {
+			try.Failure("Failed")
+			return NewExitError(err, 1)
+		}
+
+		var matchingArtifacts []artifact
+		for _, artifact := range artifacts {
+			if glob.Match(artifact.Path) {
+				matchingArtifacts = append(matchingArtifacts, artifact)
+			}
+		}
+
+		artifacts = matchingArtifacts
 	}
 
 	total := len(artifacts)

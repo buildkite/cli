@@ -310,6 +310,10 @@ func run(args []string, exit func(int)) {
 		Flag("job", "Job to search for artifacts").
 		StringVar(&artifactDownloadCtx.Job)
 
+	artifactDownloadCmd.
+		Arg("pattern", "Download only artifacts matching the glob patterm").
+		StringVar(&artifactDownloadCtx.Pattern)
+
 	// --------------------------
 	// local command
 

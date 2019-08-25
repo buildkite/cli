@@ -26,6 +26,8 @@ require (
 	github.com/mattn/go-colorable v0.0.9 // indirect
 	github.com/mattn/go-isatty v0.0.3 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
+	github.com/mattn/go-zglob v0.0.1
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/sahilm/fuzzy v0.0.5
 	github.com/satori/go.uuid v1.2.0
 	github.com/skratchdot/open-golang v0.0.0-20160302144031-75fb7ed4208c
