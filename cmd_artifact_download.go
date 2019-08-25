@@ -87,7 +87,7 @@ func ArtifactDownloadCommand(ctx ArtifactDownloadCommandContext) error {
 	return nil
 }
 
-const artifactDownloadLimit = 100
+const artifactDownloadLimit = 500
 
 type artifact struct {
 	ID          string
