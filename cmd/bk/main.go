@@ -287,6 +287,27 @@ func run(args []string, exit func(int)) {
 		IntVar(&pipelineListCtx.Limit)
 
 	// --------------------------
+	// artifact commands
+
+	artifactCmd := app.Command("artifact", "Operate on artifacts")
+
+	artifactDownloadCtx := cli.ArtifactDownloadCommandContext{}
+	artifactDownloadCmd := artifactCmd.
+		Command("download", "Download buildkite artifacts").
+		Default().
+		Action(func(c *kingpin.ParseContext) error {
+			artifactDownloadCtx.Debug = debug
+			artifactDownloadCtx.Keyring = keyringImpl
+			artifactDownloadCtx.TerminalContext = &cli.Terminal{}
+			return cli.ArtifactDownloadCommand(artifactDownloadCtx)
+		})
+
+	artifactDownloadCmd.
+		Flag("job", "Job to search for artifacts").
+		Required().
+		StringVar(&artifactDownloadCtx.Job)
+
+	// --------------------------
 	// local command
 
 	localCmd := app.Command("local", "Operate on your local repositories")
