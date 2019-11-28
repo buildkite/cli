@@ -28,6 +28,7 @@ type LocalRunCommandContext struct {
 	StepFilterRegex *regexp.Regexp
 	Prompt          bool
 	DryRun          bool
+	ListenPort      int
 }
 
 func LocalRunCommand(ctx LocalRunCommandContext) error {

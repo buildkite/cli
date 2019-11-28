@@ -320,6 +320,10 @@ func run(args []string, exit func(int)) {
 			StringMapVar(&runCmdCtx.Metadata)
 
 		cmd.
+			Flag("listen-port", "A specific port for the local API server to listen on").
+			IntVar(&runCmdCtx.ListenPort)
+
+		cmd.
 			Arg("file", "A specific pipeline file to upload").
 			FileVar(&runCmdCtx.File)
 	}

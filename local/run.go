@@ -28,11 +28,12 @@ type RunParams struct {
 	StepFilter  *regexp.Regexp
 	DryRun      bool
 	JobTemplate Job
+	ListenPort  int
 }
 
 func Run(ctx context.Context, params RunParams) error {
 	agentPool := newAgentPool()
-	server := newApiServer(agentPool)
+	server := newApiServer(agentPool, params.ListenPort)
 	steps := newStepQueue()
 
 	// Consume pipeline uploads from the server and apply any filters
