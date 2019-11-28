@@ -82,6 +82,7 @@ type apiServer struct {
 	agents          *agentPool
 	pipelineUploads chan pipelineUpload
 	listener        net.Listener
+	listenPort      int
 
 	sync.Mutex
 	jobs      []*jobEnvelope
@@ -89,13 +90,14 @@ type apiServer struct {
 	metadata  *orderedMap
 }
 
-func newApiServer(agentPool *agentPool) *apiServer {
+func newApiServer(agentPool *agentPool, listenPort int) *apiServer {
 	return &apiServer{
 		agents:          agentPool,
 		pipelineUploads: make(chan pipelineUpload),
 		jobs:            []*jobEnvelope{},
 		artifacts:       newOrderedMap(),
 		metadata:        newOrderedMap(),
+		listenPort:      listenPort,
 	}
 }
 
@@ -857,7 +859,7 @@ func readRequestInto(r *http.Request, into interface{}) error {
 
 func (a *apiServer) ListenAndServe() (string, error) {
 	var err error
-	a.listener, err = net.Listen("tcp", "127.0.0.1:0")
+	a.listener, err = net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", a.listenPort))
 	if err != nil {
 		return "", err
 	}

@@ -12,7 +12,7 @@ We'd love to hear any feedback and questions you might have. Please [file an iss
 
 On macOS, you can install with [Homebrew](https://brew.sh):
 
-```
+```bash
 brew tap buildkite/cli
 brew install bk
 ````
@@ -45,7 +45,7 @@ bk init
 
 Developed using Golang 1.11+ with modules.
 
-```
+```bash
 export GO111MODULE=on
 git clone git@github.com:buildkite/cli.git
 cd cli/

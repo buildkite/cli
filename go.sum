@@ -98,6 +98,7 @@ golang.org/x/crypto v0.0.0-20191029031824-8986dd9e96cf h1:fnPsqIDRbCSgumaMCRpoIo
 golang.org/x/crypto v0.0.0-20191029031824-8986dd9e96cf/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=
 golang.org/x/net v0.0.0-20180530034148-89e543239a64 h1:otRUcJnCzmletog6NvNtimZZStU31VhmAuuno53i0Nk=
 golang.org/x/net v0.0.0-20180530034148-89e543239a64/go.mod h1:mL1N/T3taQHkDXs73rZJwtUhF3w3ftmwwsq0BUmARs4=
+golang.org/x/net v0.0.0-20190404232315-eb5bcb51f2a3 h1:0GoQqolDA55aaLxZyTzK/Y2ePZzZTUrRacwib7cNsYQ=
 golang.org/x/net v0.0.0-20190404232315-eb5bcb51f2a3/go.mod h1:t9HGtf8HONx5eT2rtn7q6eTqICYqUVnKs3thJo3Qplg=
 golang.org/x/oauth2 v0.0.0-20180529203656-ec22f46f877b h1:nCwwlzLoBQhkY/S3CJ2CGAU4pYfR8+5/TPGEHT+p5Nk=
 golang.org/x/oauth2 v0.0.0-20180529203656-ec22f46f877b/go.mod h1:N/0e6XlmueqKjAGxoOufVs8QHGRruUQn6yWY3a++T0U=
