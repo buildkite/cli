@@ -78,6 +78,7 @@ func LocalRunCommand(ctx LocalRunCommandContext) error {
 		Dir:        wd,
 		Prompt:     ctx.Prompt,
 		StepFilter: ctx.StepFilterRegex,
+		ListenPort: ctx.ListenPort,
 		JobTemplate: local.Job{
 			Commit:           commit,
 			Branch:           branch,
