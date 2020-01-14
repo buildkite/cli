@@ -72,7 +72,6 @@ func Run(ctx context.Context, params RunParams) error {
 		Env:      params.Env,
 		Endpoint: endpoint,
 	}
-
 	if err := agent.Run(ctx); err != nil {
 		return err
 	}
@@ -426,7 +425,13 @@ func (a *Agent) Run(ctx context.Context) error {
 	// it kills the agent
 	a.stopFunc = func() error {
 		defer os.Remove(bootstrap.Name())
-		_ = cmd.Process.Kill()
+
+		switch runtime.GOOS {
+		case "windows":
+			_ = cmd.Process.Kill()
+		default:
+			_ = cmd.Process.Signal(os.Interrupt)
+		}
 		return cmd.Wait()
 	}
 
