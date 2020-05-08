@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -412,11 +413,31 @@ func (a *Agent) Run(ctx context.Context) error {
 		`BUILDKITE_PLUGINS_PATH=`+pluginsDir,
 	)
 
+	// Windows requires certain env variables to be present
+	if runtime.GOOS == "windows" {
+		cmd.Env = append(cmd.Env,
+			"PATH="+os.Getenv("PATH"),
+			"SystemRoot="+os.Getenv("SystemRoot"),
+			"WINDIR="+os.Getenv("WINDIR"),
+			"COMSPEC="+os.Getenv("COMSPEC"),
+			"PATHEXT="+os.Getenv("PATHEXT"),
+			"TMP="+os.Getenv("TMP"),
+			"TEMP="+os.Getenv("TEMP"),
+			"SYSTEMDRIVE="+os.Getenv("SYSTEMDRIVE"),
+		)
+	}
+
 	// this function is called at the end of Run()
 	// it kills the agent
 	a.stopFunc = func() error {
 		defer os.Remove(bootstrap.Name())
-		_ = cmd.Process.Signal(os.Interrupt)
+
+		switch runtime.GOOS {
+		case "windows":
+			_ = cmd.Process.Kill()
+		default:
+			_ = cmd.Process.Signal(os.Interrupt)
+		}
 		return cmd.Wait()
 	}
 
@@ -448,17 +469,29 @@ func (a *Agent) Stop() error {
 }
 
 func createAgentBootstrap(checkoutPath string) (*os.File, error) {
-	tmpFile, err := ioutil.TempFile(os.TempDir(), "bootstrap-")
+	tempFileNamePattern := "bootstrap-"
+	if runtime.GOOS == "windows" {
+		tempFileNamePattern = "bootstrap-*.bat"
+	}
+	tmpFile, err := ioutil.TempFile(os.TempDir(), tempFileNamePattern)
 	if err != nil {
 		return nil, err
 	}
 
 	debugf("Creating bootrap script at %s", tmpFile.Name())
 
-	text := []byte(fmt.Sprintf(`#!/bin/sh
-	export BUILDKITE_BUILD_CHECKOUT_PATH=%s
-	export BUILDKITE_BOOTSTRAP_PHASES=plugin,command
-	buildkite-agent bootstrap`, checkoutPath))
+	var text []byte
+	if runtime.GOOS == "windows" {
+		text = []byte(fmt.Sprintf(`@ECHO OFF
+		SET "BUILDKITE_BUILD_CHECKOUT_PATH=%s"
+		SET "BUILDKITE_BOOTSTRAP_PHASES=plugin,command"
+		buildkite-agent bootstrap`, checkoutPath))
+	} else {
+		text = []byte(fmt.Sprintf(`#!/bin/sh
+		export BUILDKITE_BUILD_CHECKOUT_PATH=%s
+		export BUILDKITE_BOOTSTRAP_PHASES=plugin,command
+		buildkite-agent bootstrap`, checkoutPath))
+	}
 
 	if _, err = tmpFile.Write(text); err != nil {
 		return nil, err
