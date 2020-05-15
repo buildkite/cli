@@ -4,10 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [v1.1.0](https://github.com/buildkite/cli/tree/v1.1.0) (2020-05-08)
+[Full Changelog](https://github.com/buildkite/cli/compare/v1.0.0...v1.1.0)
 
-### Added
-- Add `--listen-port` to `bk local run`.
+### Changed
+- Fix local pipeline running for Windows [#73](https://github.com/buildkite/cli/pull/73) (@crufter)
+- Add --listen-port to allow a stable port to be chosen [#70](https://github.com/buildkite/cli/pull/70) [#71](https://github.com/buildkite/cli/pull/71) (@petemounce)
+- Update github.com/99designs/keyring to v1.1.3 [#69](https://github.com/buildkite/cli/pull/69) (@lox)
+
 
 ## [v1.0.0](https://github.com/buildkite/cli/tree/v1.0.0) (2019-06-21)
 [Full Changelog](https://github.com/buildkite/cli/compare/v0.5.0...v1.0.0)
