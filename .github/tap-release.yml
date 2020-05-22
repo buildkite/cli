@@ -9,8 +9,8 @@ template: |
     homepage "$REPO_WEBSITE"
     desc "$REPO_DESCRIPTION"
     url "$STABLE_ASSET_URL"
-    version "$STABLE_ASSET_SHA256"
-    sha256 "$STABLE_SHA256"
+    version "$STABLE_VERSION"
+    sha256 "$STABLE_ASSET_SHA256"
 
     def install
       mv "bk-darwin-amd64-$STABLE_VERSION_NUMBER", "bk"
