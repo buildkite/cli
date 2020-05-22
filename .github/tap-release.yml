@@ -8,8 +8,8 @@ template: |
   class Bk < Formula
     homepage "$REPO_WEBSITE"
     desc "$REPO_DESCRIPTION"
-    url "$STABLE_URL"
-    version "$STABLE_VERSION"
+    url "$STABLE_ASSET_URL"
+    version "$STABLE_ASSET_SHA256"
     sha256 "$STABLE_SHA256"
 
     def install
