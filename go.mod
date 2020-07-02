@@ -1,5 +1,7 @@
 module github.com/buildkite/cli
 
+go 1.14
+
 require (
 	github.com/99designs/keyring v1.1.3
 	github.com/ahmetb/go-cursor v0.0.0-20131010032410-8136607ea412
@@ -38,5 +40,3 @@ require (
 	google.golang.org/appengine v1.0.0 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 )
-
-go 1.13
