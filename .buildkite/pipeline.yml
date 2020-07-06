@@ -30,4 +30,3 @@ steps:
           - version: "1.14"
             goos: linux
             goarch: amd64
-            gomodule: "on"
