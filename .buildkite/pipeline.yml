@@ -1,4 +1,10 @@
 steps:
+  - name: "Lint"
+    command: ".buildkite/steps/lint.sh"
+    plugins:
+      docker#v3.5.0:
+        image: "golang:1.14"
+
   - name: "Test"
     command: "go test -v -failfast ./..."
     plugins:
