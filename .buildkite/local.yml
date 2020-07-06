@@ -29,8 +29,8 @@ steps:
 
   - label: "list metadata keys"
     command: |
-      keys=$$(buildkite-agent meta-data keys --delimiter=".")
-      [[ \${keys} == "family.size" ]]
+      keys=$$(buildkite-agent meta-data keys | tr "\n" ",")
+      [[ \${keys} == "family,size," ]]
 
   - wait
   - label: "upload artifact"
