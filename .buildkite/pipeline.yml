@@ -21,7 +21,7 @@ steps:
         build: ./cmd/bk
         import: github.com/buildkite/cli
         targets:
-          - version: "1.11"
+          - version: "1.14"
             goos: linux
             goarch: amd64
             gomodule: "on"

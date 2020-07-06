@@ -2,7 +2,7 @@ version: '2.1'
 
 services:
   agent:
-    image: golang:1.12
+    image: golang:1.14
     volumes:
       - go-module-cache:/go/pkg/mod
       - ../:/cli:cached
