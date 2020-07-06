@@ -28,6 +28,11 @@ steps:
         import: github.com/buildkite/cli
         targets:
           - version: "1.14"
+            goos: darwin
+            goarch: amd64
+          - version: "1.14"
             goos: linux
             goarch: amd64
-            gomodule: "on"
+          - version: "1.14"
+            goos: windows
+            goarch: amd64
