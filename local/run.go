@@ -416,6 +416,10 @@ func (a *Agent) Run(ctx context.Context) error {
 	// Windows requires certain env variables to be present
 	if runtime.GOOS == "windows" {
 		cmd.Env = append(cmd.Env,
+			"APPDATA="+os.Getenv("APPDATA"),
+			"LOCALAPPDATA="+os.Getenv("LOCALAPPDATA"),
+			"HOMEPATH="+os.Getenv("HOMEPATH"),
+			"USERPROFILE="+os.Getenv("USERPROFILE"),
 			"PATH="+os.Getenv("PATH"),
 			"SystemRoot="+os.Getenv("SystemRoot"),
 			"WINDIR="+os.Getenv("WINDIR"),
