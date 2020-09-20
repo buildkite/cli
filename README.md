@@ -29,7 +29,7 @@ bk configure
 bk browse
 
 # List the pipelines that you have access to
-bk pipelines list
+bk pipeline list
 
 # Triggers a build for the current directory's commit and branch
 bk build create
