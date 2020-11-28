@@ -8,7 +8,7 @@ import (
 	"github.com/fatih/color"
 )
 
-type CreateBuildCommandContext struct {
+type BuildCreateCommandContext struct {
 	TerminalContext
 	KeyringContext
 
@@ -21,13 +21,15 @@ type CreateBuildCommandContext struct {
 	Branch  string
 	Commit  string
 	Message string
+	Env     []string
 }
 
-func CreateBuildCommand(ctx CreateBuildCommandContext) error {
+func BuildCreateCommand(ctx BuildCreateCommandContext) error {
 	params := buildkiteBuildParams{
 		Branch:  ctx.Branch,
 		Commit:  ctx.Commit,
 		Message: ctx.Message,
+		Env:     ctx.Env,
 	}
 
 	bk, err := ctx.BuildkiteGraphQLClient()
@@ -164,6 +166,7 @@ type buildkiteBuildParams struct {
 	Commit     string
 	Branch     string
 	Message    string
+	Env        []string
 }
 
 func createBuildkiteBuild(client *graphql.Client, params buildkiteBuildParams) (buildkiteBuildDetails, error) {
@@ -182,6 +185,7 @@ func createBuildkiteBuild(client *graphql.Client, params buildkiteBuildParams) (
 			"message":    params.Message,
 			"commit":     params.Commit,
 			"branch":     params.Branch,
+			"env":        params.Env,
 		}})
 	if err != nil {
 		return buildkiteBuildDetails{}, err

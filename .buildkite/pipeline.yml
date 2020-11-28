@@ -1,11 +1,38 @@
 steps:
+  - name: "Lint"
+    command: ".buildkite/steps/lint.sh"
+    plugins:
+      docker#v3.5.0:
+        image: "golang:1.14"
+
+  - name: "Test"
+    command: "go test -v -failfast ./..."
+    plugins:
+      docker-compose#v3.0.0:
+        config: .buildkite/docker-compose.yml
+        run: agent
+
+  - wait
+  - name: "Test with Local Agent"
+    command: ".buildkite/steps/run-local.sh"
+    plugins:
+      docker-compose#v3.0.0:
+        config: .buildkite/docker-compose.yml
+        run: agent
+
+  - wait
   - label: ":golang:"
     plugins:
       golang-cross-compile#v1.3.0:
         build: ./cmd/bk
         import: github.com/buildkite/cli
         targets:
-          - version: "1.11"
+          - version: "1.14"
+            goos: darwin
+            goarch: amd64
+          - version: "1.14"
             goos: linux
             goarch: amd64
-            gomodule: "on"
+          - version: "1.14"
+            goos: windows
+            goarch: amd64

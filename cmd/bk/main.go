@@ -7,6 +7,7 @@ import (
 	"github.com/buildkite/cli"
 	"github.com/buildkite/cli/graphql"
 	"github.com/fatih/color"
+	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/99designs/keyring"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -39,10 +40,15 @@ func run(args []string, exit func(int)) {
 	}
 
 	var (
-		debug          bool
-		debugGraphQL   bool
-		keyringBackend string
-		keyringImpl    keyring.Keyring
+		debug             bool
+		debugGraphQL      bool
+		keyringBackend    string
+		keyringFileDir    string
+		keyringKeychain   string
+		keyringPassDir    string
+		keyringPassCmd    string
+		keyringPassPrefix string
+		keyringImpl       keyring.Keyring
 	)
 
 	app.Flag("debug", "Show debugging output").
@@ -55,6 +61,27 @@ func run(args []string, exit func(int)) {
 		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_BACKEND").
 		EnumVar(&keyringBackend, backendsAvailable...)
 
+	app.Flag("keyring-file-dir", "Use the file keyring-backend with a specific directory").
+		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_FILE_DIR").
+		Default("~/.buildkite/keyring/").
+		StringVar(&keyringFileDir)
+
+	app.Flag("keyring-keychain", "Use the macOS keychain keyring-backend with a specific keychain (defaults to login)").
+		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_KEYCHAIN").
+		StringVar(&keyringKeychain)
+
+	app.Flag("keyring-pass-dir", "Use the pass password manager with a specific directory").
+		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_PASS_DIR").
+		StringVar(&keyringPassDir)
+
+	app.Flag("keyring-pass-cmd", "Name of the pass executable").
+		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_PASS_CMD").
+		StringVar(&keyringPassCmd)
+
+	app.Flag("keyring-pass-prefix", "Prefix to prepend to the item path stored in pass").
+		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_PASS_PREFIX").
+		StringVar(&keyringPassPrefix)
+
 	app.PreAction(func(c *kingpin.ParseContext) (err error) {
 		if debug {
 			keyring.Debug = true
@@ -63,8 +90,43 @@ func run(args []string, exit func(int)) {
 		if debugGraphQL {
 			graphql.DebugHTTP = true
 		}
+
+		var allowedBackends []keyring.BackendType
+		if keyringBackend != `` {
+			allowedBackends = append(allowedBackends, keyring.BackendType(keyringBackend))
+		}
+
+		// otherwise use one of the defaults
+		if keyringBackend == `` {
+			for _, k := range backendsAvailable {
+				switch keyring.BackendType(k) {
+				// secret-service and kwallet are kind of the worst
+				case keyring.KWalletBackend, keyring.SecretServiceBackend:
+					continue
+				default:
+					allowedBackends = append(allowedBackends, keyring.BackendType(k))
+				}
+			}
+		}
+
+		// default keychain to the login keychain
+		if keyringBackend == `keychain` && keyringKeychain == `` {
+			keyringKeychain = `login`
+		}
+
 		keyringImpl, err = keyring.Open(keyring.Config{
-			ServiceName: "buildkite",
+			ServiceName:              "buildkite",
+			AllowedBackends:          allowedBackends,
+			KeychainName:             keyringKeychain,
+			FileDir:                  keyringFileDir,
+			FilePasswordFunc:         terminalPrompt,
+			PassDir:                  keyringPassDir,
+			PassCmd:                  keyringPassCmd,
+			PassPrefix:               keyringPassPrefix,
+			LibSecretCollectionName:  "buildkite",
+			KWalletAppID:             "buildkite",
+			KWalletFolder:            "buildkite",
+			KeychainTrustApplication: true,
 		})
 		if err != nil {
 			return err
@@ -130,45 +192,49 @@ func run(args []string, exit func(int)) {
 		StringVar(&initCtx.PipelineSlug)
 
 	// --------------------------
-	// create commands
+	// build commands
 
-	createCmd := app.Command("create", "Create various things")
+	buildCmd := app.Command("build", "Operate on builds")
 
-	createBuildCtx := cli.CreateBuildCommandContext{}
-	createBuildCmd := createCmd.
-		Command("build", "Create a new build in a pipeline").
+	buildCreateCtx := cli.BuildCreateCommandContext{}
+	buildCreateCmd := buildCmd.
+		Command("create", "Create a new build in a pipeline").
 		Action(func(c *kingpin.ParseContext) error {
-			createBuildCtx.Debug = debug
-			createBuildCtx.Keyring = keyringImpl
-			createBuildCtx.TerminalContext = &cli.Terminal{}
+			buildCreateCtx.Debug = debug
+			buildCreateCtx.Keyring = keyringImpl
+			buildCreateCtx.TerminalContext = &cli.Terminal{}
 
 			// Default to the current directory
-			if createBuildCtx.PipelineSlug == "" && createBuildCtx.Dir == "" {
-				createBuildCtx.Dir = "."
+			if buildCreateCtx.PipelineSlug == "" && buildCreateCtx.Dir == "" {
+				buildCreateCtx.Dir = "."
 			}
 
-			return cli.CreateBuildCommand(createBuildCtx)
+			return cli.BuildCreateCommand(buildCreateCtx)
 		})
 
-	createBuildCmd.
+	buildCreateCmd.
 		Flag("dir", "Build a specific directory, defaults to the current").
-		ExistingDirVar(&createBuildCtx.Dir)
+		ExistingDirVar(&buildCreateCtx.Dir)
 
-	createBuildCmd.
+	buildCreateCmd.
 		Flag("pipeline", "Build a specific pipeline rather than a directory").
-		StringVar(&createBuildCtx.PipelineSlug)
+		StringVar(&buildCreateCtx.PipelineSlug)
 
-	createBuildCmd.
+	buildCreateCmd.
 		Flag("message", "The message to use for the build").
-		StringVar(&createBuildCtx.Message)
+		StringVar(&buildCreateCtx.Message)
 
-	createBuildCmd.
+	buildCreateCmd.
 		Flag("commit", "The commit to use for the build").
-		StringVar(&createBuildCtx.Commit)
+		StringVar(&buildCreateCtx.Commit)
 
-	createBuildCmd.
+	buildCreateCmd.
 		Flag("branch", "The branch to use for the build").
-		StringVar(&createBuildCtx.Branch)
+		StringVar(&buildCreateCtx.Branch)
+
+	buildCreateCmd.
+		Flag("env", "Environment to pass to the build").
+		StringsVar(&buildCreateCtx.Env)
 
 	// --------------------------
 	// browse command
@@ -193,75 +259,130 @@ func run(args []string, exit func(int)) {
 		StringVar(&browseCtx.Branch)
 
 	// --------------------------
-	// list command
+	// pipeline commands
 
-	listCmd := app.Command("list", "List various things")
+	pipelineCmd := app.Command("pipeline", "Operate on pipeline")
 
-	listPipelinesCtx := cli.ListPipelinesCommandContext{}
-	listPipelinesCmd := listCmd.
-		Command("pipelines", "List buildkite pipelines").
+	pipelineListCtx := cli.PipelineListCommandContext{}
+	pipelineListCmd := pipelineCmd.
+		Command("list", "List buildkite pipelines").
 		Default().
 		Action(func(c *kingpin.ParseContext) error {
-			listPipelinesCtx.Debug = debug
-			listPipelinesCtx.Keyring = keyringImpl
-			listPipelinesCtx.TerminalContext = &cli.Terminal{}
-			return cli.ListPipelinesCommand(listPipelinesCtx)
+			pipelineListCtx.Debug = debug
+			pipelineListCtx.Keyring = keyringImpl
+			pipelineListCtx.TerminalContext = &cli.Terminal{}
+			return cli.PipelineListCommand(pipelineListCtx)
 		})
 
-	listPipelinesCmd.
+	pipelineListCmd.
 		Flag("fuzzy", "Fuzzy filter pipelines based on org and slug").
-		StringVar(&listPipelinesCtx.Fuzzy)
+		StringVar(&pipelineListCtx.Fuzzy)
 
-	listPipelinesCmd.
+	pipelineListCmd.
 		Flag("url", "Show buildkite.com urls for pipelines").
-		BoolVar(&listPipelinesCtx.ShowURL)
+		BoolVar(&pipelineListCtx.ShowURL)
 
-	listPipelinesCmd.
+	pipelineListCmd.
 		Flag("limit", "How many pipelines to output").
-		IntVar(&listPipelinesCtx.Limit)
+		IntVar(&pipelineListCtx.Limit)
 
 	// --------------------------
-	// run command
+	// artifact commands
 
-	runCmd := app.Command("run", "Run builds")
+	artifactCmd := app.Command("artifact", "Operate on artifacts")
 
-	runLocalCmdCtx := cli.RunLocalCommandContext{}
-	runLocalCmd := runCmd.
-		Command("local", "Run a pipeline locally").
+	artifactDownloadCtx := cli.ArtifactDownloadCommandContext{}
+	artifactDownloadCmd := artifactCmd.
+		Command("download", "Download buildkite artifacts").
 		Default().
 		Action(func(c *kingpin.ParseContext) error {
-			runLocalCmdCtx.Debug = debug
-			runLocalCmdCtx.Keyring = keyringImpl
-			runLocalCmdCtx.TerminalContext = &cli.Terminal{}
-			return cli.RunLocalCommand(runLocalCmdCtx)
+			artifactDownloadCtx.Debug = debug
+			artifactDownloadCtx.Keyring = keyringImpl
+			artifactDownloadCtx.TerminalContext = &cli.Terminal{}
+			return cli.ArtifactDownloadCommand(artifactDownloadCtx)
 		})
 
-	runLocalCmd.
-		Flag("command", "The initial command to execute").
-		Default("buildkite-agent pipeline upload").
-		StringVar(&runLocalCmdCtx.Command)
+	artifactDownloadCmd.
+		Flag("build", "Build to search for artifacts").
+		StringVar(&artifactDownloadCtx.Build)
 
-	runLocalCmd.
-		Flag("filter", "A regex to filter step labels with").
-		RegexpVar(&runLocalCmdCtx.StepFilterRegex)
+	artifactDownloadCmd.
+		Flag("job", "Job to search for artifacts").
+		StringVar(&artifactDownloadCtx.Job)
 
-	runLocalCmd.
-		Flag("dry-run", "Show what steps will be executed").
-		BoolVar(&runLocalCmdCtx.DryRun)
+	artifactDownloadCmd.
+		Arg("pattern", "Download only artifacts matching the glob patterm").
+		StringVar(&artifactDownloadCtx.Pattern)
 
-	runLocalCmd.
-		Flag("prompt", "Prompt for each step before executing").
-		BoolVar(&runLocalCmdCtx.Prompt)
+	// --------------------------
+	// local command
 
-	runLocalCmd.
-		Flag("env", "Environment to pass to the agent").
-		Short('E').
-		StringsVar(&runLocalCmdCtx.Env)
+	localCmd := app.Command("local", "Operate on your local repositories")
 
-	runLocalCmd.
-		Arg("file", "A specific pipeline file to upload").
-		FileVar(&runLocalCmdCtx.File)
+	var setupRunCmd = func(cmd *kingpin.CmdClause, runCmdCtx *cli.LocalRunCommandContext) {
+		cmd.
+			Flag("command", "The initial command to execute").
+			Default("buildkite-agent pipeline upload").
+			StringVar(&runCmdCtx.Command)
 
+		cmd.
+			Flag("filter", "A regex to filter step labels with").
+			RegexpVar(&runCmdCtx.StepFilterRegex)
+
+		cmd.
+			Flag("dry-run", "Show what steps will be executed").
+			BoolVar(&runCmdCtx.DryRun)
+
+		cmd.
+			Flag("prompt", "Prompt for each step before executing").
+			BoolVar(&runCmdCtx.Prompt)
+
+		cmd.
+			Flag("env", "Environment to pass to the agent").
+			Short('E').
+			StringsVar(&runCmdCtx.Env)
+
+		cmd.
+			Flag("meta-data", "Meta-data to pass to the build").
+			Short('M').
+			StringMapVar(&runCmdCtx.Metadata)
+
+		cmd.
+			Flag("listen-port", "A specific port for the local API server to listen on").
+			IntVar(&runCmdCtx.ListenPort)
+
+		cmd.
+			Arg("file", "A specific pipeline file to upload").
+			FileVar(&runCmdCtx.File)
+	}
+
+	localRunCmdCtx := cli.LocalRunCommandContext{
+		Metadata: make(map[string]string),
+	}
+	localRunCmd := localCmd.
+		Command("run", "Run a pipeline locally").
+		Default().
+		Action(func(c *kingpin.ParseContext) error {
+			localRunCmdCtx.Debug = debug
+			localRunCmdCtx.Keyring = keyringImpl
+			localRunCmdCtx.TerminalContext = &cli.Terminal{}
+			return cli.LocalRunCommand(localRunCmdCtx)
+		})
+
+	setupRunCmd(localRunCmd, &localRunCmdCtx)
+
+	runCmdCtx := cli.LocalRunCommandContext{}
+	runCmd := app.
+		Command("run", "Run a pipeline locally (alias for local run)").
+		Default().
+		Action(func(c *kingpin.ParseContext) error {
+			runCmdCtx.Debug = debug
+			runCmdCtx.Keyring = keyringImpl
+			runCmdCtx.TerminalContext = &cli.Terminal{}
+			return cli.LocalRunCommand(runCmdCtx)
+		})
+
+	setupRunCmd(runCmd, &runCmdCtx)
 
 	// --------------------------
 	// run the app, parse args
@@ -275,5 +396,14 @@ func run(args []string, exit func(int)) {
 			os.Exit(1)
 		}
 	}
+}
 
+func terminalPrompt(prompt string) (string, error) {
+	fmt.Printf("%s: ", prompt)
+	b, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		return "", err
+	}
+	fmt.Println()
+	return string(b), nil
 }

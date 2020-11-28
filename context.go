@@ -40,7 +40,7 @@ func (kc KeyringContext) GithubClient() (*githubclient.Client, error) {
 	// Otherwise load from keyring
 	err := config.RetrieveCredential(kc.Keyring, config.GithubOAuthToken, &token)
 	if err != nil {
-		return nil, fmt.Errorf("Error retriving github oauth credentials: %v", err)
+		return nil, fmt.Errorf("Error retrieving github oauth credentials: %v", err)
 	}
 
 	return github.NewClientFromToken(&token), nil
@@ -57,7 +57,7 @@ func (kc KeyringContext) BuildkiteGraphQLClient() (*graphql.Client, error) {
 	// Otherwise load from keyring
 	err := config.RetrieveCredential(kc.Keyring, config.BuildkiteGraphQLToken, &token)
 	if err != nil {
-		return nil, NewExitError(fmt.Errorf("Error retriving buildkite graphql credentials: %v", err), 1)
+		return nil, NewExitError(fmt.Errorf("Error retrieving buildkite graphql credentials: %v", err), 1)
 	}
 
 	client, err := graphql.NewClient(token)

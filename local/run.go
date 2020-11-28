@@ -2,6 +2,7 @@ package local
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -20,17 +22,19 @@ import (
 
 type RunParams struct {
 	Env         []string
+	Metadata    map[string]string
 	Dir         string
 	Command     string
 	Prompt      bool
 	StepFilter  *regexp.Regexp
 	DryRun      bool
 	JobTemplate Job
+	ListenPort  int
 }
 
 func Run(ctx context.Context, params RunParams) error {
 	agentPool := newAgentPool()
-	server := newApiServer(agentPool)
+	server := newApiServer(agentPool, params.ListenPort)
 	steps := newStepQueue()
 
 	// Consume pipeline uploads from the server and apply any filters
@@ -100,6 +104,10 @@ func Run(ctx context.Context, params RunParams) error {
 	w := newBuildLogFormatter(ejl)
 	timer := time.Now()
 
+	for mdKey, mdVal := range params.Metadata {
+		server.SetMetadata(mdKey, mdVal)
+	}
+
 	headerColor.Printf(">>> Starting build 👟\n")
 	headerColor.Printf(">>> Executing initial command: %s\n", params.Command)
 
@@ -143,11 +151,12 @@ func Run(ctx context.Context, params RunParams) error {
 			}
 		}
 
+		dryRunNote := ""
+		if params.DryRun {
+			dryRunNote = " (dry-run)"
+		}
+
 		if step.Command != nil {
-			dryRunNote := ""
-			if params.DryRun {
-				dryRunNote = " (dry-run)"
-			}
 			headerColor.Printf(">>> Executing command step %s%s\n",
 				ejl.Render(step.Command.Label),
 				dryRunNote)
@@ -160,8 +169,12 @@ func Run(ctx context.Context, params RunParams) error {
 				j.Command = strings.Join(step.Command.Commands, "\n")
 				j.Label = step.Command.Label
 				j.Plugins = step.Command.Plugins
-				j.Env = step.Command.Env
 				j.ArtifactPaths = step.Command.ArtifactPaths
+
+				// append global env and then step env
+				j.Env = []string{}
+				j.Env = append(j.Env, step.Env...)
+				j.Env = append(j.Env, step.Command.Env...)
 
 				if err = executeJob(ctx, server, w, j); err != nil {
 					headerColor.Printf(">>> 🚨 Command failed in %v\n", time.Now().Sub(timer))
@@ -172,6 +185,92 @@ func Run(ctx context.Context, params RunParams) error {
 			}
 		} else if step.Trigger != nil {
 			headerColor.Printf(">>> Skipping trigger step\n")
+			continue
+
+		} else if step.Block != nil {
+			headerColor.Printf(">>> Blocking on %q%s\n", step.Block.Block, dryRunNote)
+
+			if !params.DryRun {
+				for _, field := range step.Block.Fields {
+					switch {
+					case field.Text != "":
+						fmt.Println()
+						prompt := promptui.Prompt{
+							Label:     field.Text,
+							Default:   field.Default,
+							AllowEdit: true,
+						}
+
+						if field.Required {
+							prompt.Label = fmt.Sprintf("%s%s", prompt.Label, " (required)")
+							prompt.Validate = func(input string) error {
+								if input == "" {
+									return errors.New("Value required")
+								}
+								return nil
+							}
+						}
+
+						result, err := prompt.Run()
+
+						if err != nil {
+							fmt.Printf("Prompt failed %v\n", err)
+						}
+
+						server.SetMetadata(field.Key, result)
+
+					case field.Select != "":
+						fmt.Println()
+						templates := &promptui.SelectTemplates{
+							Inactive: "  {{ .Label | cyan }}",
+							Active:   fmt.Sprintf("%s {{ .Label | underline }}", promptui.IconSelect),
+						}
+
+						items := field.Options
+
+						prompt := promptui.Select{
+							Label:     field.Select,
+							Items:     items,
+							Templates: templates,
+						}
+
+						if field.Required {
+							prompt.Label = fmt.Sprintf("%s%s", prompt.Label, " (required)")
+						} else {
+							items = append([]blockSelectOption{{Label: "Empty"}}, field.Options...)
+							prompt.Items = items
+						}
+
+						i, _, err := prompt.Run()
+
+						if err != nil {
+							fmt.Printf("Prompt failed %v\n", err)
+							return err
+						}
+
+						server.SetMetadata(field.Key, items[i].Value)
+					}
+				}
+
+				fmt.Println()
+				prompt := promptui.Prompt{
+					Label:     fmt.Sprintf("Unblock %q", ejl.Render(step.Block.Block)),
+					IsConfirm: true,
+					Default:   "y",
+				}
+
+				result, err := prompt.Run()
+				if err != nil {
+					return err
+				}
+
+				fmt.Println()
+
+				if result == "n" {
+					return fmt.Errorf("Unblock failed")
+				}
+			}
+
 			continue
 
 		} else {
@@ -289,6 +388,20 @@ func (a *Agent) Run(ctx context.Context) error {
 		cmd.Stderr = ioutil.Discard
 	}
 
+	buildDir, err := ioutil.TempDir(os.TempDir(), "buildkite-build-")
+	if err != nil {
+		return err
+	}
+
+	defer os.RemoveAll(buildDir)
+
+	pluginsDir, err := ioutil.TempDir(os.TempDir(), "buildkite-plugins-")
+	if err != nil {
+		return err
+	}
+
+	defer os.RemoveAll(pluginsDir)
+
 	cmd.Env = append(a.Env,
 		`HOME=`+os.Getenv(`HOME`),
 		`PATH=`+os.Getenv(`PATH`),
@@ -296,13 +409,35 @@ func (a *Agent) Run(ctx context.Context) error {
 		`BUILDKITE_AGENT_TOKEN=llamas`,
 		`BUILDKITE_AGENT_NAME=local`,
 		`BUILDKITE_BOOTSTRAP_SCRIPT_PATH=`+bootstrap.Name(),
+		`BUILDKITE_BUILD_PATH=`+buildDir,
+		`BUILDKITE_PLUGINS_PATH=`+pluginsDir,
 	)
+
+	// Windows requires certain env variables to be present
+	if runtime.GOOS == "windows" {
+		cmd.Env = append(cmd.Env,
+			"PATH="+os.Getenv("PATH"),
+			"SystemRoot="+os.Getenv("SystemRoot"),
+			"WINDIR="+os.Getenv("WINDIR"),
+			"COMSPEC="+os.Getenv("COMSPEC"),
+			"PATHEXT="+os.Getenv("PATHEXT"),
+			"TMP="+os.Getenv("TMP"),
+			"TEMP="+os.Getenv("TEMP"),
+			"SYSTEMDRIVE="+os.Getenv("SYSTEMDRIVE"),
+		)
+	}
 
 	// this function is called at the end of Run()
 	// it kills the agent
 	a.stopFunc = func() error {
 		defer os.Remove(bootstrap.Name())
-		_ = cmd.Process.Signal(os.Interrupt)
+
+		switch runtime.GOOS {
+		case "windows":
+			_ = cmd.Process.Kill()
+		default:
+			_ = cmd.Process.Signal(os.Interrupt)
+		}
 		return cmd.Wait()
 	}
 
@@ -334,19 +469,35 @@ func (a *Agent) Stop() error {
 }
 
 func createAgentBootstrap(checkoutPath string) (*os.File, error) {
-	tmpFile, err := ioutil.TempFile(os.TempDir(), "bootstrap-")
+	tempFileNamePattern := "bootstrap-"
+	if runtime.GOOS == "windows" {
+		tempFileNamePattern = "bootstrap-*.bat"
+	}
+	tmpFile, err := ioutil.TempFile(os.TempDir(), tempFileNamePattern)
 	if err != nil {
 		return nil, err
 	}
 
 	debugf("Creating bootrap script at %s", tmpFile.Name())
 
-	text := []byte(fmt.Sprintf(`#!/bin/sh
-	export BUILDKITE_BUILD_CHECKOUT_PATH=%s
-	export BUILDKITE_BOOTSTRAP_PHASES=plugin,command
-	buildkite-agent bootstrap`, checkoutPath))
+	var text []byte
+	if runtime.GOOS == "windows" {
+		text = []byte(fmt.Sprintf(`@ECHO OFF
+		SET "BUILDKITE_BUILD_CHECKOUT_PATH=%s"
+		SET "BUILDKITE_BOOTSTRAP_PHASES=plugin,command"
+		buildkite-agent bootstrap`, checkoutPath))
+	} else {
+		text = []byte(fmt.Sprintf(`#!/bin/sh
+		export BUILDKITE_BUILD_CHECKOUT_PATH=%s
+		export BUILDKITE_BOOTSTRAP_PHASES=plugin,command
+		buildkite-agent bootstrap`, checkoutPath))
+	}
 
 	if _, err = tmpFile.Write(text); err != nil {
+		return nil, err
+	}
+
+	if err := tmpFile.Close(); err != nil {
 		return nil, err
 	}
 
@@ -359,7 +510,7 @@ func createAgentBootstrap(checkoutPath string) (*os.File, error) {
 
 type stepWithEnv struct {
 	step
-	env map[string]interface{}
+	Env []string
 }
 
 type stepQueue struct {
@@ -393,7 +544,7 @@ func (s *stepQueue) Prepend(p pipeline) {
 	for _, step := range p.Steps {
 		newSteps = append(newSteps, stepWithEnv{
 			step: step,
-			env:  p.Env,
+			Env:  p.Env,
 		})
 	}
 

@@ -20,7 +20,7 @@ import (
 	"github.com/bmatcuk/doublestar"
 	"github.com/fatih/color"
 	homedir "github.com/mitchellh/go-homedir"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 )
 
 type Build struct {
@@ -82,18 +82,22 @@ type apiServer struct {
 	agents          *agentPool
 	pipelineUploads chan pipelineUpload
 	listener        net.Listener
+	listenPort      int
 
 	sync.Mutex
 	jobs      []*jobEnvelope
-	artifacts sync.Map
-	metadata  sync.Map
+	artifacts *orderedMap
+	metadata  *orderedMap
 }
 
-func newApiServer(agentPool *agentPool) *apiServer {
+func newApiServer(agentPool *agentPool, listenPort int) *apiServer {
 	return &apiServer{
 		agents:          agentPool,
 		pipelineUploads: make(chan pipelineUpload),
 		jobs:            []*jobEnvelope{},
+		artifacts:       newOrderedMap(),
+		metadata:        newOrderedMap(),
+		listenPort:      listenPort,
 	}
 }
 
@@ -185,6 +189,8 @@ func (a *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.handleHeaderTimes(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
 	case `POST /jobs/:uuid/data/exists`:
 		a.handleMetadataExists(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
+	case `POST /jobs/:uuid/data/keys`:
+		a.handleMetadataKeys(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
 	case `POST /jobs/:uuid/data/set`:
 		a.handleMetadataSet(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
 	case `POST /jobs/:uuid/data/get`:
@@ -386,6 +392,23 @@ func (a *apiServer) handleAcceptJob(w http.ResponseWriter, r *http.Request, jobI
 		`BUILDKITE_PLUGINS`:                   pluginJSON,
 	}
 
+	jobEnv := map[string]string{}
+
+	// append step environment, letting later ones
+	// overwrite earlier ones
+	for _, envLine := range job.Env {
+		envFrags := strings.SplitN(envLine, "=", 2)
+		jobEnv[envFrags[0]] = envFrags[1]
+	}
+
+	// append stepEnv to the job environment but
+	// don't overwrite any already values
+	for k, v := range jobEnv {
+		if _, exists := env[k]; !exists {
+			env[k] = v
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(struct {
 		ID                 string            `json:"id"`
@@ -484,6 +507,11 @@ func (a *apiServer) handleFinishJob(w http.ResponseWriter, r *http.Request, jobI
 	})
 }
 
+func (a *apiServer) handleMetadataKeys(w http.ResponseWriter, r *http.Request, jobID string) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(a.metadata.Keys())
+}
+
 func (a *apiServer) handleMetadataExists(w http.ResponseWriter, r *http.Request, jobID string) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -496,13 +524,20 @@ func (a *apiServer) handleMetadataExists(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	_, ok := a.metadata.Load(parsed.Key)
-	if !ok {
+	if !a.metadata.Contains(parsed.Key) {
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
 	}
 
-	json.NewEncoder(w).Encode(&struct{}{})
+	json.NewEncoder(w).Encode(&struct {
+		Exists bool `json:"exists"`
+	}{
+		Exists: true,
+	})
+}
+
+func (a *apiServer) SetMetadata(k, v string) {
+	a.metadata.Store(k, v)
 }
 
 func (a *apiServer) handleMetadataSet(w http.ResponseWriter, r *http.Request, jobID string) {
@@ -598,8 +633,8 @@ func (a *apiServer) handlePipelineUpload(w http.ResponseWriter, r *http.Request,
 	}
 
 	if err := readRequestInto(r, &pur); err != nil {
-		log.Printf("Failed to parse pipeline: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("Failed to parse pipeline upload: %v", err)
+		http.Error(w, err.Error(), 422)
 		return
 	}
 
@@ -768,7 +803,12 @@ func (a *apiServer) handleArtifactsSearch(w http.ResponseWriter, r *http.Request
 
 	var artifacts []Artifact
 
-	a.artifacts.Range(func(_, value interface{}) bool {
+	for _, key := range a.artifacts.Keys() {
+		value, ok := a.artifacts.Load(key)
+		if !ok {
+			continue
+		}
+
 		artifact := value.(Artifact)
 		match, err := doublestar.PathMatch(query, artifact.Path)
 		if err != nil {
@@ -778,9 +818,7 @@ func (a *apiServer) handleArtifactsSearch(w http.ResponseWriter, r *http.Request
 		if match {
 			artifacts = append(artifacts, artifact)
 		}
-
-		return true
-	})
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(artifacts)
@@ -794,8 +832,6 @@ func (a *apiServer) handleArtifactDownload(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 	}
-
-	log.Printf("Found: %v", artifact)
 
 	f, err := os.Open(artifact.(Artifact).localPath)
 	if err != nil {
@@ -817,13 +853,13 @@ func readRequestInto(r *http.Request, into interface{}) error {
 		panic(err)
 	}
 	defer r.Body.Close()
-	
+
 	return json.Unmarshal(body, &into)
 }
 
 func (a *apiServer) ListenAndServe() (string, error) {
 	var err error
-	a.listener, err = net.Listen("tcp", "127.0.0.1:0")
+	a.listener, err = net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", a.listenPort))
 	if err != nil {
 		return "", err
 	}
@@ -846,4 +882,61 @@ func artifactCachePath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(home, ".buildkite", "local", "artifacts"), nil
+}
+
+type orderedMapValue struct {
+	key   string
+	value interface{}
+}
+
+type orderedMap struct {
+	idx  map[string]int
+	vals []orderedMapValue
+	mu   sync.RWMutex
+}
+
+func newOrderedMap() *orderedMap {
+	return &orderedMap{
+		idx:  map[string]int{},
+		vals: []orderedMapValue{},
+	}
+}
+
+func (o *orderedMap) Contains(key string) bool {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	_, ok := o.idx[key]
+	return ok
+}
+
+func (o *orderedMap) Keys() []string {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	keys := []string{}
+	for _, val := range o.vals {
+		keys = append(keys, val.key)
+	}
+	return keys
+}
+
+func (o *orderedMap) Load(key string) (interface{}, bool) {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	idx, ok := o.idx[key]
+	if !ok {
+		return nil, false
+	}
+	return o.vals[idx].value, true
+}
+
+func (o *orderedMap) Store(key string, value interface{}) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	idx, ok := o.idx[key]
+	if !ok {
+		o.vals = append(o.vals, orderedMapValue{key, value})
+		o.idx[key] = len(o.vals) - 1
+	} else {
+		o.vals[idx] = orderedMapValue{key, value}
+	}
 }

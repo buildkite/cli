@@ -14,7 +14,7 @@ import (
 	"github.com/buildkite/cli/local"
 )
 
-type RunLocalCommandContext struct {
+type LocalRunCommandContext struct {
 	TerminalContext
 	KeyringContext
 
@@ -23,13 +23,15 @@ type RunLocalCommandContext struct {
 
 	File            *os.File
 	Env             []string
+	Metadata        map[string]string
 	Command         string
 	StepFilterRegex *regexp.Regexp
 	Prompt          bool
 	DryRun          bool
+	ListenPort      int
 }
 
-func RunLocalCommand(ctx RunLocalCommandContext) error {
+func LocalRunCommand(ctx LocalRunCommandContext) error {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt)
 
@@ -70,11 +72,13 @@ func RunLocalCommand(ctx RunLocalCommandContext) error {
 
 	if err := local.Run(cancelCtx, local.RunParams{
 		Env:        ctx.Env,
+		Metadata:   ctx.Metadata,
 		DryRun:     ctx.DryRun,
 		Command:    command,
 		Dir:        wd,
 		Prompt:     ctx.Prompt,
 		StepFilter: ctx.StepFilterRegex,
+		ListenPort: ctx.ListenPort,
 		JobTemplate: local.Job{
 			Commit:           commit,
 			Branch:           branch,

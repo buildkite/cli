@@ -26,7 +26,7 @@ func ConfigureDefaultCommand(ctx ConfigureCommandContext) error {
 	}
 
 	ctx.Println()
-	ctx.Printf("For now, we will assume you are using Github. " +
+	ctx.Printf("For now, we will assume you are using GitHub. " +
 		"Support for others is coming soon! 😓\n\n")
 
 	if err := ConfigureGithubCommand(ctx); err != nil {
@@ -69,7 +69,7 @@ func ConfigureGithubCommand(ctx ConfigureCommandContext) error {
 		return NewExitError(err, 1)
 	}
 
-	ctx.Printf(color.GreenString("Securely stored Github token! 💪\n"))
+	ctx.Printf(color.GreenString("Securely stored GitHub token! 💪\n"))
 	return nil
 }
 

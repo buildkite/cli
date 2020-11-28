@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -41,17 +43,11 @@ func (s *step) UnmarshalJSON(data []byte) error {
 		branches = b
 	}
 
-	// Handle various types of branch vs branches
 	if branches != nil {
-		switch b := branches.(type) {
-		case []interface{}:
-			for _, bi := range b {
-				s.Branches = append(s.Branches, strings.Split(bi.(string), ",")...)
-			}
-		case string:
-			s.Branches = append(s.Branches, strings.Split(b, ",")...)
-		default:
-			log.Printf("Branches is unhandled type %T", branches)
+		var err error
+		s.Branches, err = ParseBranchPattern(branches)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -70,15 +66,79 @@ func (s *step) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(data, &s.Command)
 }
 
+func ParseBranchPattern(branches interface{}) ([]string, error) {
+	var result []string
+
+	switch b := branches.(type) {
+	case []interface{}:
+		for _, bi := range b {
+			result = append(result, strings.Fields(bi.(string))...)
+		}
+	case string:
+		result = append(result, strings.Fields(b)...)
+	default:
+		return nil, fmt.Errorf("Branches is unhandled type %T", branches)
+	}
+
+	return result, nil
+}
+
+func MatchBranchPattern(branch string, pattern string) bool {
+	expected := true
+
+	// Handle negation at the start
+	for strings.HasPrefix(pattern, `!`) {
+		expected = !expected
+		pattern = strings.TrimPrefix(pattern, `!`)
+	}
+
+	// Compile a regex for the rest
+	re, err := regexp.Compile(`^` + strings.Replace(pattern, `*`, `.*?`, -1) + `$`)
+	if err != nil {
+		log.Printf("Failed to compile regex: %v", err)
+		return false
+	}
+
+	// Test it against the branch
+	if re.MatchString(branch) == expected {
+		return true
+	}
+
+	return false
+}
+
 func (s step) MatchBranch(branch string) bool {
 	if len(s.Branches) == 0 {
 		return true
 	}
+
+	// Apply a heuristic, if we have multiple negatives it's AND-ed
+	// otherwise it's OR-d. Gross, but we know what the user meant.
+
+	var negationCount int
 	for _, b := range s.Branches {
-		if b == branch {
+		if strings.HasPrefix(b, `!`) {
+			negationCount += 1
+		}
+	}
+
+	if negationCount > 1 {
+		// Has multiple negatives, so the patterns are AND-ed
+		for _, pattern := range s.Branches {
+			if !MatchBranchPattern(branch, pattern) {
+				return false
+			}
+		}
+		return true
+	}
+
+	// Has zero of one negatives, so the patterns are OR-ed
+	for _, pattern := range s.Branches {
+		if MatchBranchPattern(branch, pattern) {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -108,8 +168,24 @@ func (s step) String() string {
 	return "Unknown"
 }
 
+type blockField struct {
+	Text     string              `json:"text"`
+	Select   string              `json:"select"`
+	Key      string              `json:"key"`
+	Hint     string              `json:"hint"`
+	Required bool                `json:"required"`
+	Default  string              `json:"default"`
+	Options  []blockSelectOption `json:"options"`
+}
+
+type blockSelectOption struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
 type blockStep struct {
-	Block string `json:"block"`
+	Block  string       `json:"block"`
+	Fields []blockField `json:"fields"`
 }
 
 type waitStep struct {
@@ -143,7 +219,7 @@ func (s *commandStep) UnmarshalJSON(data []byte) error {
 	}
 
 	if err := json.Unmarshal(data, &intermediate); err != nil {
-		return err
+		return fmt.Errorf("invalid command step: %v", err)
 	}
 
 	s.ArtifactPaths = []string(intermediate.ArtifactPaths)
@@ -161,24 +237,42 @@ func (s *commandStep) UnmarshalJSON(data []byte) error {
 		s.Commands = append(s.Commands, intermediate.Commands...)
 	}
 
-	var pluginSlice struct {
-		Plugins []map[string]interface{} `json:"plugins"`
-	}
-
 	// Normalize env vs environment
 	s.Env = []string(intermediate.Env)
 	if len(intermediate.Environment) > 0 {
 		s.Env = []string(intermediate.Environment)
 	}
 
+	s.Plugins = nil
+
+	var pluginSlice struct {
+		Plugins []map[string]interface{} `json:"plugins"`
+	}
+
 	if err := json.Unmarshal(data, &pluginSlice); err == nil {
 		for _, p := range pluginSlice.Plugins {
 			for k, v := range p {
-				s.Plugins = append(s.Plugins, Plugin{
-					Name:   k,
-					Params: v.(map[string]interface{}),
-				})
+				switch vv := v.(type) {
+				case map[string]interface{}:
+					s.Plugins = append(s.Plugins, Plugin{Name: k, Params: vv})
+				case nil:
+					s.Plugins = append(s.Plugins, Plugin{Name: k})
+				default:
+					return fmt.Errorf("Unknown plugin value type %T", v)
+				}
 			}
+		}
+	}
+
+	var pluginStringSlice struct {
+		Plugins []string `json:"plugins"`
+	}
+
+	if err := json.Unmarshal(data, &pluginStringSlice); err == nil {
+		for _, p := range pluginStringSlice.Plugins {
+			s.Plugins = append(s.Plugins, Plugin{
+				Name: p,
+			})
 		}
 	}
 
@@ -204,8 +298,8 @@ type pipelineUpload struct {
 }
 
 type pipeline struct {
-	Steps []step                 `json:"steps"`
-	Env   map[string]interface{} `json:"env"`
+	Steps []step        `json:"steps"`
+	Env   envMapOrSlice `json:"env"`
 }
 
 func (p pipeline) Filter(f func(s step) bool) pipeline {
@@ -219,42 +313,71 @@ func (p pipeline) Filter(f func(s step) bool) pipeline {
 	return filtered
 }
 
+type stringable string
+
+func (s *stringable) UnmarshalJSON(data []byte) error {
+	var target interface{}
+
+	if err := json.Unmarshal(data, &target); err != nil {
+		return err
+	}
+
+	switch target.(type) {
+	case string, int, int64, bool, float32, float64:
+		*s = stringable(fmt.Sprintf("%v", target))
+	default:
+		return fmt.Errorf("Unstringable type of %T", target)
+	}
+
+	return nil
+}
+
 type stringOrSlice []string
 
 func (s *stringOrSlice) UnmarshalJSON(data []byte) error {
-	var str string
+	var str stringable
+	*s = []string{}
 
 	if err := json.Unmarshal(data, &str); err == nil {
-		*s = []string{str}
+		*s = []string{string(str)}
 		return nil
 	}
 
-	var strSlice []string
+	var strSlice []stringable
 
 	if err := json.Unmarshal(data, &strSlice); err != nil {
 		return err
 	}
 
-	*s = strSlice
+	for _, str := range strSlice {
+		*s = append(*s, string(str))
+	}
+
 	return nil
 }
 
 type envMapOrSlice []string
 
 func (s *envMapOrSlice) UnmarshalJSON(data []byte) error {
-	var m map[string]string
+	var m map[string]stringable
+	*s = []string{}
 
 	if err := json.Unmarshal(data, &m); err == nil {
 		for k, v := range m {
 			*s = append(*s, fmt.Sprintf("%s=%s", k, v))
 		}
+
+		// maps are unordered, this makes them predictable
+		sorted := sort.StringSlice(*s)
+		sorted.Sort()
+
 		return nil
 	}
 
 	var envSlice []string
 
 	if err := json.Unmarshal(data, &envSlice); err != nil {
-		return err
+		return fmt.Errorf("env must be a slice or a map: %v", err)
 	}
 
 	*s = envSlice
