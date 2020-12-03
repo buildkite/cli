@@ -43,13 +43,11 @@ func ConfigureGithubCommand(ctx ConfigureCommandContext) error {
 	ctx.Printf("We need to authorize this app to access your repositories. " +
 		"This authorization is stored securely locally, buildkite.com never gets access to it.\n\n")
 
-	ctx.WaitForKeyPress(color.WhiteString("When you press enter, your default browser will open and authenticate to github.com"))
+	ctx.Printf(color.WhiteString("In a moment, we'll print a unique code and open a github.com URL in your default browser. To authenticate bk, enter the unique code into the browser.\n\n"))
 
-	s := ctx.Spinner()
-	s.Start()
+	ctx.WaitForKeyPress(color.WhiteString("Press enter to continue\n\n"))
 
 	token, err := github.Authenticate()
-	s.Stop()
 
 	if err != nil {
 		ctx.Printf("❌\n\n")
