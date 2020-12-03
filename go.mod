@@ -3,7 +3,7 @@ module github.com/buildkite/cli
 go 1.14
 
 require (
-	github.com/99designs/keyring v1.1.3
+	github.com/99designs/keyring v1.1.6
 	github.com/ahmetb/go-cursor v0.0.0-20131010032410-8136607ea412
 	github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc // indirect
 	github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf // indirect
@@ -37,3 +37,5 @@ require (
 	google.golang.org/appengine v1.0.0 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 )
+
+replace github.com/keybase/go-keychain => github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4
