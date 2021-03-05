@@ -196,7 +196,9 @@ func run(args []string, exit func(int)) {
 
 	buildCmd := app.Command("build", "Operate on builds")
 
-	buildCreateCtx := cli.BuildCreateCommandContext{}
+	buildCreateCtx := cli.BuildCreateCommandContext{
+		Metadata: make(map[string]string),
+	}
 	buildCreateCmd := buildCmd.
 		Command("create", "Create a new build in a pipeline").
 		Action(func(c *kingpin.ParseContext) error {
@@ -235,6 +237,10 @@ func run(args []string, exit func(int)) {
 	buildCreateCmd.
 		Flag("env", "Environment to pass to the build").
 		StringsVar(&buildCreateCtx.Env)
+
+	buildCreateCmd.
+		Flag("meta-data", "Meta-data to pass to the build").
+		StringMapVar(&buildCreateCtx.Metadata)
 
 	// --------------------------
 	// browse command
