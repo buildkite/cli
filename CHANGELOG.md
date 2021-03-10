@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [v1.2.0](https://github.com/buildkite/cli/compare/v1.1.0...v1.2.0) (2021-03-11)
+
+### Changed
+
+* `bk build create` accepts `--meta-data` when creating a remote build [#108](https://github.com/buildkite/cli/pull/108) ([keithpitt](https://github.com/keithpitt)) (👋 @apanzerj)
+* Windows `HOMEPATH` `APPDATA` etc env vars passed to `bk local run` [#92](https://github.com/buildkite/cli/pull/92) ([Helcaraxan](https://github.com/Helcaraxan))
+* GitHub auth uses new-in-2020 "device flow" [#100](https://github.com/buildkite/cli/pull/100) ([yob](https://github.com/yob))
+
+### Added
+
+* Binaries for `darwin/arm64` (Apple Silicon) and `linux/arm64` [#107](https://github.com/buildkite/cli/pull/107) ([sj26](https://github.com/sj26))
+
+### Maintenance
+
+* Go 1.16 [#88](https://github.com/buildkite/cli/pull/88) [#109](https://github.com/buildkite/cli/pull/109) ([pda](https://github.com/pda))
+* CI pipeline maintenance [#89](https://github.com/buildkite/cli/pull/89) [#90](https://github.com/buildkite/cli/pull/90) ([pda](https://github.com/pda)) [#86](https://github.com/buildkite/cli/pull/86) ([Helcaraxan](https://github.com/Helcaraxan))
+* Homebrew tap formula fixes [#85](https://github.com/buildkite/cli/pull/85) ([JuanitoFatas](https://github.com/JuanitoFatas))
+* macOS 11 Big Sur compiler error fix (keyring & go-keychain libs) [#101](https://github.com/buildkite/cli/pull/101) ([pda](https://github.com/pda))
+* README usage example fix [#93](https://github.com/buildkite/cli/pull/93) ([rohansingh](https://github.com/rohansingh))
+
 ## [v1.1.0](https://github.com/buildkite/cli/tree/v1.1.0) (2020-05-08)
 [Full Changelog](https://github.com/buildkite/cli/compare/v1.0.0...v1.1.0)
 
