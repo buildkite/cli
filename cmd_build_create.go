@@ -18,18 +18,20 @@ type BuildCreateCommandContext struct {
 	Dir          string
 	PipelineSlug string
 
-	Branch  string
-	Commit  string
-	Message string
-	Env     []string
+	Branch   string
+	Commit   string
+	Message  string
+	Env      []string
+	Metadata map[string]string
 }
 
 func BuildCreateCommand(ctx BuildCreateCommandContext) error {
 	params := buildkiteBuildParams{
-		Branch:  ctx.Branch,
-		Commit:  ctx.Commit,
-		Message: ctx.Message,
-		Env:     ctx.Env,
+		Branch:   ctx.Branch,
+		Commit:   ctx.Commit,
+		Message:  ctx.Message,
+		Env:      ctx.Env,
+		Metadata: ctx.Metadata,
 	}
 
 	bk, err := ctx.BuildkiteGraphQLClient()
@@ -167,9 +169,18 @@ type buildkiteBuildParams struct {
 	Branch     string
 	Message    string
 	Env        []string
+	Metadata   map[string]string
 }
 
 func createBuildkiteBuild(client *graphql.Client, params buildkiteBuildParams) (buildkiteBuildDetails, error) {
+	var metaData []interface{}
+	for key, value := range params.Metadata {
+		metaData = append(metaData, map[string]interface{}{
+			"key":   key,
+			"value": value,
+		})
+	}
+
 	resp, err := client.Do(`
 		mutation($input: BuildCreateInput!) {
 			buildCreate(input: $input) {
@@ -186,6 +197,7 @@ func createBuildkiteBuild(client *graphql.Client, params buildkiteBuildParams) (
 			"commit":     params.Commit,
 			"branch":     params.Branch,
 			"env":        params.Env,
+			"metaData":   metaData,
 		}})
 	if err != nil {
 		return buildkiteBuildDetails{}, err
