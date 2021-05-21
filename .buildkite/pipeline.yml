@@ -42,3 +42,4 @@ steps:
           - version: "1.16"
             goos: windows
             goarch: amd64
+            
