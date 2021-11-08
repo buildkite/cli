@@ -14,7 +14,7 @@ import (
 
 type ArtifactDownloadCommandContext struct {
 	TerminalContext
-	KeyringContext
+	ConfigContext
 
 	Debug     bool
 	DebugHTTP bool

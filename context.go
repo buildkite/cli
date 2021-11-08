@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/99designs/keyring"
 	"github.com/buildkite/cli/config"
 	"github.com/buildkite/cli/github"
 	"github.com/buildkite/cli/graphql"
@@ -25,11 +24,10 @@ type TerminalContext interface {
 	ReadPassword(prompt string) (string, error)
 }
 
-type KeyringContext struct {
-	Keyring keyring.Keyring
+type ConfigContext struct {
 }
 
-func (kc KeyringContext) GithubClient() (*githubclient.Client, error) {
+func (cc ConfigContext) GithubClient() (*githubclient.Client, error) {
 	var token oauth2.Token
 
 	// Try and load from env first
@@ -37,30 +35,36 @@ func (kc KeyringContext) GithubClient() (*githubclient.Client, error) {
 		return github.NewClientFromToken(&oauth2.Token{AccessToken: envToken}), nil
 	}
 
-	// Otherwise load from keyring
-	err := config.RetrieveCredential(kc.Keyring, config.GithubOAuthToken, &token)
+	// Otherwise load from config
+	cfg, err := config.Open()
 	if err != nil {
-		return nil, fmt.Errorf("Error retrieving github oauth credentials: %v", err)
+		return nil, fmt.Errorf("Error opening config: %v", err)
+	}
+
+	if cfg.GitHubOAuthToken == nil {
+		return nil, fmt.Errorf("No github oauth token found")
 	}
 
 	return github.NewClientFromToken(&token), nil
 }
 
-func (kc KeyringContext) BuildkiteGraphQLClient() (*graphql.Client, error) {
-	var token string
-
+func (cc ConfigContext) BuildkiteGraphQLClient() (*graphql.Client, error) {
 	// Try and load from env first
 	if envToken := os.Getenv(`BUILDKITE_TOKEN`); envToken != "" {
 		return graphql.NewClient(envToken)
 	}
 
-	// Otherwise load from keyring
-	err := config.RetrieveCredential(kc.Keyring, config.BuildkiteGraphQLToken, &token)
+	// Otherwise load from config
+	cfg, err := config.Open()
 	if err != nil {
-		return nil, NewExitError(fmt.Errorf("Error retrieving buildkite graphql credentials: %v", err), 1)
+		return nil, fmt.Errorf("Error opening config: %v", err)
 	}
 
-	client, err := graphql.NewClient(token)
+	if cfg.GraphQLToken == "" {
+		return nil, fmt.Errorf("No buildkite graphql token found")
+	}
+
+	client, err := graphql.NewClient(cfg.GraphQLToken)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create a client: %v", err)
 	}

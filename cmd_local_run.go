@@ -16,7 +16,7 @@ import (
 
 type LocalRunCommandContext struct {
 	TerminalContext
-	KeyringContext
+	ConfigContext
 
 	Debug     bool
 	DebugHTTP bool

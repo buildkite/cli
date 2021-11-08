@@ -7,15 +7,18 @@ import (
 	"path/filepath"
 
 	homedir "github.com/mitchellh/go-homedir"
+	"golang.org/x/oauth2"
 )
 
-const FormatVersion = 1
+const FormatVersion = 2
 
 type Config struct {
-	Path           string `json:"-"`
-	Version        int    `json:"version"`
-	BuildkiteEmail string `json:"email"`
-	BuildkiteUUID  string `json:"uuid"`
+	Path             string        `json:"-"`
+	Version          int           `json:"version"`
+	BuildkiteEmail   string        `json:"email"`
+	BuildkiteUUID    string        `json:"uuid"`
+	GraphQLToken     string        `json:"graphql_token"`
+	GitHubOAuthToken *oauth2.Token `json:"github_oauth_token"`
 }
 
 // Path returns either $BUILDKITE_CLI_CONFIG_FILE or ~/.buildkite/config.json

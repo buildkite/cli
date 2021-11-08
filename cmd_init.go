@@ -25,7 +25,7 @@ steps:
 
 type InitCommandContext struct {
 	TerminalContext
-	KeyringContext
+	ConfigContext
 
 	Debug     bool
 	DebugHTTP bool

@@ -8,7 +8,7 @@ import (
 
 type PipelineListCommandContext struct {
 	TerminalContext
-	KeyringContext
+	ConfigContext
 
 	Debug     bool
 	DebugHTTP bool
