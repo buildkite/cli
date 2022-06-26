@@ -387,7 +387,7 @@ func (a *apiServer) handleAcceptJob(w http.ResponseWriter, r *http.Request, jobI
 		`BUILDKITE_AGENT_META_DATA_QUEUE`:     `default`,
 		`BUILDKITE_REBUILT_FROM_BUILD_ID`:     ``,
 		`BUILDKITE_REBUILT_FROM_BUILD_NUMBER`: ``,
-		`BUILDKITE_PIPELINE_DEFAULT_BRANCH`:   `master`,
+		`BUILDKITE_PIPELINE_DEFAULT_BRANCH`:   getenv("BUILDKITE_CLI_PIPELINE_DEFAULT_BRANCH", "main"),
 		`BUILDKITE_TRIGGERED_FROM_BUILD_ID`:   ``,
 		`BUILDKITE_PLUGINS`:                   pluginJSON,
 	}
@@ -939,4 +939,12 @@ func (o *orderedMap) Store(key string, value interface{}) {
 	} else {
 		o.vals[idx] = orderedMapValue{key, value}
 	}
+}
+
+func getenv(key, def string) string {
+	result := os.Getenv(key)
+	if len(result) == 0 {
+		return def
+	}
+	return result
 }
