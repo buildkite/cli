@@ -20,9 +20,9 @@ import (
 )
 
 const (
-	appleEmojiMapping     = `https://github.com/buildkite/emojis/raw/master/img-apple-64.json`
-	buildkiteEmojiMapping = `https://github.com/buildkite/emojis/raw/master/img-buildkite-64.json`
-	emojiCachePrefix      = `https://github.com/buildkite/emojis/raw/master/`
+	appleEmojiMapping     = `https://github.com/buildkite/emojis/raw/main/img-apple-64.json`
+	buildkiteEmojiMapping = `https://github.com/buildkite/emojis/raw/main/img-buildkite-64.json`
+	emojiCachePrefix      = `https://github.com/buildkite/emojis/raw/main/`
 )
 
 var emojiRegexp = regexp.MustCompile(`:\w+:`)
