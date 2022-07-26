@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/buildkite/cli"
-	"github.com/buildkite/cli/graphql"
+	"github.com/buildkite/cli/v2"
+	"github.com/buildkite/cli/v2/graphql"
 	"github.com/fatih/color"
 	"golang.org/x/crypto/ssh/terminal"
 

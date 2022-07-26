@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/buildkite/cli/config"
-	"github.com/buildkite/cli/github"
-	"github.com/buildkite/cli/graphql"
+	"github.com/buildkite/cli/v2/config"
+	"github.com/buildkite/cli/v2/github"
+	"github.com/buildkite/cli/v2/graphql"
 	"github.com/fatih/color"
 )
 

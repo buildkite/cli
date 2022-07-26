@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/buildkite/cli/graphql"
+	"github.com/buildkite/cli/v2/graphql"
 	zglob "github.com/mattn/go-zglob"
 )
 

@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/buildkite/cli/graphql"
+	"github.com/buildkite/cli/v2/graphql"
 )
 
 type pipeline struct {

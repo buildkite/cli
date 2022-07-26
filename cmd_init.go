@@ -11,9 +11,9 @@ import (
 
 	githubclient "github.com/google/go-github/github"
 
-	"github.com/buildkite/cli/git"
-	"github.com/buildkite/cli/github"
-	"github.com/buildkite/cli/graphql"
+	"github.com/buildkite/cli/v2/git"
+	"github.com/buildkite/cli/v2/github"
+	"github.com/buildkite/cli/v2/graphql"
 	"github.com/fatih/color"
 )
 
