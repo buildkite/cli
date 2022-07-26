@@ -21,7 +21,7 @@ On all other platforms, download a binary from the [latest GitHub releases](http
 ## 📄 Usage
 
 ```bash
-# Sets up your credentials (stored in your operating system's native secure storage, using https://github.com/99designs/keyring)
+# Sets up your credentials (stored in `$HOME/.buildkite/config.json` or `$BUILDKITE_CLI_CONFIG_FILE`)
 bk configure
 
 # Opens the current pipeline in your browser
