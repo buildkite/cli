@@ -10,7 +10,7 @@ import (
 
 type BuildCreateCommandContext struct {
 	TerminalContext
-	KeyringContext
+	ConfigContext
 
 	Debug     bool
 	DebugHTTP bool

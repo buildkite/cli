@@ -12,7 +12,7 @@ import (
 
 type ConfigureCommandContext struct {
 	TerminalContext
-	KeyringContext
+	ConfigContext
 
 	Debug        bool
 	DebugGraphQL bool
@@ -41,7 +41,7 @@ func ConfigureGithubCommand(ctx ConfigureCommandContext) error {
 	ctx.Header("Let's configure your github.com credentials 💻")
 
 	ctx.Printf("We need to authorize this app to access your repositories. " +
-		"This authorization is stored securely locally, buildkite.com never gets access to it.\n\n")
+		"This authorization is stored locally, buildkite.com never gets access to it.\n\n")
 
 	ctx.Printf(color.WhiteString("In a moment, we'll print a unique code and open a github.com URL in your default browser. To authenticate bk, enter the unique code into the browser.\n\n"))
 
@@ -63,11 +63,17 @@ func ConfigureGithubCommand(ctx ConfigureCommandContext) error {
 	ctx.Println()
 	ctx.Printf(color.GreenString("Authenticated as %s ✅\n"), *user.Login)
 
-	if err = config.StoreCredential(ctx.Keyring, config.GithubOAuthToken, token); err != nil {
+	cfg, err := config.Open()
+	if err != nil {
+		return NewExitError(fmt.Errorf("Failed to open config file: %v", err), 1)
+	}
+
+	cfg.GitHubOAuthToken = token
+	if err := cfg.Write(); err != nil {
 		return NewExitError(err, 1)
 	}
 
-	ctx.Printf(color.GreenString("Securely stored GitHub token! 💪\n"))
+	ctx.Printf(color.GreenString("Stored GitHub token! 💪\n"))
 	return nil
 }
 
@@ -131,14 +137,11 @@ func ConfigureBuildkiteGraphQLCommand(ctx ConfigureCommandContext) error {
 	ctx.Printf(color.GreenString("%s ✅\n\n"),
 		userQueryResponse.Data.Viewer.User.Email)
 
-	if err = config.StoreCredential(ctx.Keyring, config.BuildkiteGraphQLToken, token); err != nil {
-		return NewExitError(err, 1)
-	}
-
-	ctx.Printf(color.GreenString("Securely stored GraphQL token! 💪\n"))
-
+	cfg.GraphQLToken = token
 	cfg.BuildkiteEmail = userQueryResponse.Data.Viewer.User.Email
 	cfg.BuildkiteUUID = userQueryResponse.Data.Viewer.User.UUID
+
+	ctx.Printf(color.GreenString("Stored Buildkite configuration! 💪\n"))
 
 	if err = cfg.Write(); err != nil {
 		return NewExitError(fmt.Errorf("Failed to write config: %v", err), 1)

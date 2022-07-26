@@ -9,7 +9,6 @@ import (
 	"github.com/fatih/color"
 	"golang.org/x/crypto/ssh/terminal"
 
-	"github.com/99designs/keyring"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -34,21 +33,9 @@ func run(args []string, exit func(int)) {
 	// --------------------------
 	//  global flags
 
-	backendsAvailable := []string{}
-	for _, backendType := range keyring.AvailableBackends() {
-		backendsAvailable = append(backendsAvailable, string(backendType))
-	}
-
 	var (
-		debug             bool
-		debugGraphQL      bool
-		keyringBackend    string
-		keyringFileDir    string
-		keyringKeychain   string
-		keyringPassDir    string
-		keyringPassCmd    string
-		keyringPassPrefix string
-		keyringImpl       keyring.Keyring
+		debug        bool
+		debugGraphQL bool
 	)
 
 	app.Flag("debug", "Show debugging output").
@@ -57,79 +44,12 @@ func run(args []string, exit func(int)) {
 	app.Flag("debug-graphql", "Show requests and responses for graphql").
 		BoolVar(&debugGraphQL)
 
-	app.Flag("keyring-backend", fmt.Sprintf("Keyring backend to use: %v", backendsAvailable)).
-		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_BACKEND").
-		EnumVar(&keyringBackend, backendsAvailable...)
-
-	app.Flag("keyring-file-dir", "Use the file keyring-backend with a specific directory").
-		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_FILE_DIR").
-		Default("~/.buildkite/keyring/").
-		StringVar(&keyringFileDir)
-
-	app.Flag("keyring-keychain", "Use the macOS keychain keyring-backend with a specific keychain (defaults to login)").
-		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_KEYCHAIN").
-		StringVar(&keyringKeychain)
-
-	app.Flag("keyring-pass-dir", "Use the pass password manager with a specific directory").
-		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_PASS_DIR").
-		StringVar(&keyringPassDir)
-
-	app.Flag("keyring-pass-cmd", "Name of the pass executable").
-		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_PASS_CMD").
-		StringVar(&keyringPassCmd)
-
-	app.Flag("keyring-pass-prefix", "Prefix to prepend to the item path stored in pass").
-		OverrideDefaultFromEnvar("BUILDKITE_CLI_KEYRING_PASS_PREFIX").
-		StringVar(&keyringPassPrefix)
-
 	app.PreAction(func(c *kingpin.ParseContext) (err error) {
 		if debug {
-			keyring.Debug = true
 			cli.Debug = true
 		}
 		if debugGraphQL {
 			graphql.DebugHTTP = true
-		}
-
-		var allowedBackends []keyring.BackendType
-		if keyringBackend != `` {
-			allowedBackends = append(allowedBackends, keyring.BackendType(keyringBackend))
-		}
-
-		// otherwise use one of the defaults
-		if keyringBackend == `` {
-			for _, k := range backendsAvailable {
-				switch keyring.BackendType(k) {
-				// secret-service and kwallet are kind of the worst
-				case keyring.KWalletBackend, keyring.SecretServiceBackend:
-					continue
-				default:
-					allowedBackends = append(allowedBackends, keyring.BackendType(k))
-				}
-			}
-		}
-
-		// default keychain to the login keychain
-		if keyringBackend == `keychain` && keyringKeychain == `` {
-			keyringKeychain = `login`
-		}
-
-		keyringImpl, err = keyring.Open(keyring.Config{
-			ServiceName:              "buildkite",
-			AllowedBackends:          allowedBackends,
-			KeychainName:             keyringKeychain,
-			FileDir:                  keyringFileDir,
-			FilePasswordFunc:         terminalPrompt,
-			PassDir:                  keyringPassDir,
-			PassCmd:                  keyringPassCmd,
-			PassPrefix:               keyringPassPrefix,
-			LibSecretCollectionName:  "buildkite",
-			KWalletAppID:             "buildkite",
-			KWalletFolder:            "buildkite",
-			KeychainTrustApplication: true,
-		})
-		if err != nil {
-			return err
 		}
 		return err
 	})
@@ -146,7 +66,6 @@ func run(args []string, exit func(int)) {
 		Hidden().
 		Action(func(c *kingpin.ParseContext) error {
 			configureCtx.Debug = debug
-			configureCtx.Keyring = keyringImpl
 			configureCtx.TerminalContext = &cli.Terminal{}
 			return cli.ConfigureDefaultCommand(configureCtx)
 		})
@@ -155,7 +74,6 @@ func run(args []string, exit func(int)) {
 		Command("buildkite", "Configure buildkite.com graphql authentication").
 		Action(func(c *kingpin.ParseContext) error {
 			configureCtx.Debug = debug
-			configureCtx.Keyring = keyringImpl
 			configureCtx.TerminalContext = &cli.Terminal{}
 			return cli.ConfigureBuildkiteGraphQLCommand(configureCtx)
 		})
@@ -164,7 +82,6 @@ func run(args []string, exit func(int)) {
 		Command("github", "Configure github authentication").
 		Action(func(c *kingpin.ParseContext) error {
 			configureCtx.Debug = debug
-			configureCtx.Keyring = keyringImpl
 			configureCtx.TerminalContext = &cli.Terminal{}
 			return cli.ConfigureGithubCommand(configureCtx)
 		})
@@ -178,7 +95,6 @@ func run(args []string, exit func(int)) {
 		Command("init", "Initialize a project in your filesystem for use with Buildkite").
 		Action(func(c *kingpin.ParseContext) error {
 			initCtx.Debug = debug
-			initCtx.Keyring = keyringImpl
 			initCtx.TerminalContext = &cli.Terminal{}
 			return cli.InitCommand(initCtx)
 		})
@@ -203,7 +119,6 @@ func run(args []string, exit func(int)) {
 		Command("create", "Create a new build in a pipeline").
 		Action(func(c *kingpin.ParseContext) error {
 			buildCreateCtx.Debug = debug
-			buildCreateCtx.Keyring = keyringImpl
 			buildCreateCtx.TerminalContext = &cli.Terminal{}
 
 			// Default to the current directory
@@ -251,7 +166,6 @@ func run(args []string, exit func(int)) {
 		Command("browse", "Open a pipeline on buildkite.com in your browser").
 		Action(func(c *kingpin.ParseContext) error {
 			browseCtx.Debug = debug
-			browseCtx.Keyring = keyringImpl
 			browseCtx.TerminalContext = &cli.Terminal{}
 			return cli.BrowseCommand(browseCtx)
 		})
@@ -275,7 +189,6 @@ func run(args []string, exit func(int)) {
 		Default().
 		Action(func(c *kingpin.ParseContext) error {
 			pipelineListCtx.Debug = debug
-			pipelineListCtx.Keyring = keyringImpl
 			pipelineListCtx.TerminalContext = &cli.Terminal{}
 			return cli.PipelineListCommand(pipelineListCtx)
 		})
@@ -303,7 +216,6 @@ func run(args []string, exit func(int)) {
 		Default().
 		Action(func(c *kingpin.ParseContext) error {
 			artifactDownloadCtx.Debug = debug
-			artifactDownloadCtx.Keyring = keyringImpl
 			artifactDownloadCtx.TerminalContext = &cli.Terminal{}
 			return cli.ArtifactDownloadCommand(artifactDownloadCtx)
 		})
@@ -370,7 +282,6 @@ func run(args []string, exit func(int)) {
 		Default().
 		Action(func(c *kingpin.ParseContext) error {
 			localRunCmdCtx.Debug = debug
-			localRunCmdCtx.Keyring = keyringImpl
 			localRunCmdCtx.TerminalContext = &cli.Terminal{}
 			return cli.LocalRunCommand(localRunCmdCtx)
 		})
@@ -383,7 +294,6 @@ func run(args []string, exit func(int)) {
 		Default().
 		Action(func(c *kingpin.ParseContext) error {
 			runCmdCtx.Debug = debug
-			runCmdCtx.Keyring = keyringImpl
 			runCmdCtx.TerminalContext = &cli.Terminal{}
 			return cli.LocalRunCommand(runCmdCtx)
 		})

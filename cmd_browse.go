@@ -9,7 +9,7 @@ import (
 
 type BrowseCommandContext struct {
 	TerminalContext
-	KeyringContext
+	ConfigContext
 
 	Debug     bool
 	DebugHTTP bool
