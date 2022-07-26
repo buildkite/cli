@@ -38,14 +38,24 @@ func ConfigureDefaultCommand(ctx ConfigureCommandContext) error {
 }
 
 func ConfigureGithubCommand(ctx ConfigureCommandContext) error {
+	cfg, err := config.Open()
+	if err != nil {
+		return NewExitError(fmt.Errorf("Failed to open config file: %v", err), 1)
+	}
+
 	ctx.Header("Let's configure your github.com credentials 💻")
 
-	ctx.Printf("We need to authorize this app to access your repositories. " +
-		"This authorization is stored locally, buildkite.com never gets access to it.\n\n")
+	ctx.Printf(`We need to authorize this app to access your repositories.
+This authorization is stored locally in ` + cfg.Path + `, buildkite.com never gets access to it.
 
-	ctx.Printf(color.WhiteString("In a moment, we'll print a unique code and open a github.com URL in your default browser. To authenticate bk, enter the unique code into the browser.\n\n"))
+`)
 
-	ctx.WaitForKeyPress(color.WhiteString("Press enter to continue\n\n"))
+	ctx.Printf(color.WhiteString(`In a moment, we'll print a unique code and open a github.com URL in your default browser.
+To authenticate bk, enter the unique code into the browser.
+
+`))
+
+	ctx.WaitForKeyPress(color.WhiteString("Press enter to continue...\n\n"))
 
 	token, err := github.Authenticate()
 
@@ -62,11 +72,6 @@ func ConfigureGithubCommand(ctx ConfigureCommandContext) error {
 
 	ctx.Println()
 	ctx.Printf(color.GreenString("Authenticated as %s ✅\n"), *user.Login)
-
-	cfg, err := config.Open()
-	if err != nil {
-		return NewExitError(fmt.Errorf("Failed to open config file: %v", err), 1)
-	}
 
 	cfg.GitHubOAuthToken = token
 	if err := cfg.Write(); err != nil {
@@ -85,8 +90,10 @@ func ConfigureBuildkiteGraphQLCommand(ctx ConfigureCommandContext) error {
 		return NewExitError(fmt.Errorf("Failed to open config file: %v", err), 1)
 	}
 
-	ctx.Printf("Create a GraphQL token at https://buildkite.com/user/api-access-tokens/new. " +
-		"Make sure to tick the GraphQL scope at the bottom.\n\n")
+	ctx.Printf(`Create a GraphQL token at https://buildkite.com/user/api-access-tokens/new
+Make sure to tick the GraphQL scope at the bottom.
+
+This will be validated and stored in ` + cfg.Path + "\n\n")
 
 	token, err := ctx.ReadPassword(color.WhiteString("GraphQL Token"))
 	if err != nil {
