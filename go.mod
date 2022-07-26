@@ -1,4 +1,4 @@
-module github.com/buildkite/cli
+module github.com/buildkite/cli/v2
 
 go 1.16
 

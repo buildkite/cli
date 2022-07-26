@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/buildkite/cli/local"
+	"github.com/buildkite/cli/v2/local"
 )
 
 type LocalRunCommandContext struct {

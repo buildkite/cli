@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/buildkite/cli/git"
+	"github.com/buildkite/cli/v2/git"
 )
 
 func ParseRemote(gitRemote string) (string, string, error) {

@@ -3,8 +3,8 @@ package cli
 import (
 	"fmt"
 
-	"github.com/buildkite/cli/git"
-	"github.com/buildkite/cli/graphql"
+	"github.com/buildkite/cli/v2/git"
+	"github.com/buildkite/cli/v2/graphql"
 	"github.com/fatih/color"
 )
 

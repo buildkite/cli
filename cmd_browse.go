@@ -3,7 +3,7 @@ package cli
 import (
 	"path/filepath"
 
-	"github.com/buildkite/cli/git"
+	"github.com/buildkite/cli/v2/git"
 	"github.com/skratchdot/open-golang/open"
 )
 
