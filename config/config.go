@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/adrg/xdg"
 	homedir "github.com/mitchellh/go-homedir"
 	"golang.org/x/oauth2"
 )
@@ -21,17 +22,24 @@ type Config struct {
 	GitHubOAuthToken *oauth2.Token `json:"github_oauth_token"`
 }
 
-// Path returns either $BUILDKITE_CLI_CONFIG_FILE or ~/.buildkite/config.json
+// Path returns either $BUILDKITE_CLI_CONFIG_FILE, ~/.buildkite/config.json or $XDG_CONFIG_HOME/buildkite/config.json in that order.
 func Path() (string, error) {
 	file := os.Getenv("BUILDKITE_CLI_CONFIG_FILE")
-	if file == "" {
-		home, err := homedir.Dir()
-		if err != nil {
-			return "", err
-		}
-		file = filepath.Join(home, ".buildkite", "config.json")
+	if file != "" {
+		return file, nil
+
 	}
-	return file, nil
+
+	if home, err := homedir.Dir(); err == nil {
+		file = filepath.Join(home, ".buildkite", "config.json")
+		info, err := os.Stat(file)
+		if err == nil && info.Mode().IsRegular() {
+			return file, nil
+		}
+	}
+
+	// xdg.CacheFile will create buildkite dir if it doesn't exist but does not touch/create config.json
+	return xdg.ConfigFile("buildkite/config.json")
 }
 
 // Open opens and parses the Config, returns a empty Config if one doesn't exist

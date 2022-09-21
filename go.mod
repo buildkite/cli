@@ -3,6 +3,7 @@ module github.com/buildkite/cli/v2
 go 1.16
 
 require (
+	github.com/adrg/xdg v0.4.0
 	github.com/ahmetb/go-cursor v0.0.0-20131010032410-8136607ea412
 	github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc // indirect
 	github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf // indirect
@@ -27,7 +28,6 @@ require (
 	github.com/sahilm/fuzzy v0.0.5
 	github.com/satori/go.uuid v1.2.0
 	github.com/skratchdot/open-golang v0.0.0-20160302144031-75fb7ed4208c
-	github.com/stretchr/testify v1.7.0 // indirect
 	golang.org/x/crypto v0.0.0-20191029031824-8986dd9e96cf
 	golang.org/x/oauth2 v0.0.0-20180529203656-ec22f46f877b
 	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f // indirect
