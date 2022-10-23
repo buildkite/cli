@@ -41,7 +41,7 @@ func NewClientFromToken(token *oauth2.Token) *githubclient.Client {
 }
 
 func Authenticate() (*oauth2.Token, error) {
-	stageOne, err := requestGithubStageOne()
+	stageOne, err := requestGitHubStageOne()
 	if err != nil {
 		return nil, err
 	}
@@ -51,14 +51,14 @@ func Authenticate() (*oauth2.Token, error) {
 		return nil, err
 	}
 
-	token, err := requestGithubStageThree(stageOne)
+	token, err := requestGitHubStageThree(stageOne)
 	if err != nil {
 		return nil, err
 	}
 	return token, nil
 }
 
-func requestGithubStageOne() (*githubStageOneResponse, error) {
+func requestGitHubStageOne() (*githubStageOneResponse, error) {
 	uri := fmt.Sprintf("%s?client_id=%s&scope=%s", githubStageOneURI, oauthClientID, oauthScopes)
 	resp, err := http.Post(uri, "application/json", nil)
 	if err != nil {
@@ -67,7 +67,7 @@ func requestGithubStageOne() (*githubStageOneResponse, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("Github returned non-200 response (%d)", resp.StatusCode)
+		return nil, fmt.Errorf("GitHub returned non-200 response (%d)", resp.StatusCode)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
@@ -109,7 +109,7 @@ func requestGithubStageOne() (*githubStageOneResponse, error) {
 	return &response, nil
 }
 
-func requestGithubStageThree(stageOne *githubStageOneResponse) (*oauth2.Token, error) {
+func requestGitHubStageThree(stageOne *githubStageOneResponse) (*oauth2.Token, error) {
 
 	uri := fmt.Sprintf("%s?client_id=%s&device_code=%s&grant_type=%s", githubStageThreeURI, oauthClientID, stageOne.deviceCode, githubGrantType)
 
@@ -123,7 +123,7 @@ func requestGithubStageThree(stageOne *githubStageOneResponse) (*oauth2.Token, e
 		defer resp.Body.Close()
 
 		if resp.StatusCode != 200 {
-			return nil, fmt.Errorf("Github returned non-200 response (%d)", resp.StatusCode)
+			return nil, fmt.Errorf("GitHub returned non-200 response (%d)", resp.StatusCode)
 		}
 
 		body, err := ioutil.ReadAll(resp.Body)

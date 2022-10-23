@@ -61,13 +61,13 @@ To authenticate bk, enter the unique code into the browser.
 
 	if err != nil {
 		ctx.Printf("❌\n\n")
-		return NewExitError(fmt.Errorf("Github OAuth error: %v", err), 1)
+		return NewExitError(fmt.Errorf("GitHub OAuth error: %v", err), 1)
 	}
 
 	client := github.NewClientFromToken(token)
 	user, _, err := client.Users.Get(context.Background(), "")
 	if err != nil {
-		return NewExitError(fmt.Errorf("Github Users.Get() failed: %v", err), 1)
+		return NewExitError(fmt.Errorf("GitHub Users.Get() failed: %v", err), 1)
 	}
 
 	ctx.Println()
