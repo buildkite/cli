@@ -16,6 +16,12 @@ On macOS, you can install with [Homebrew](https://brew.sh):
 brew install buildkite/cli/bk
 ````
 
+With Apple Silicon, you will need to use the following command:
+
+```bash
+arch -x86_64 brew install buildkite/cli/bk
+```
+
 On all other platforms, download a binary from the [latest GitHub releases](https://github.com/buildkite/cli/releases/latest).
 
 ## 📄 Usage
