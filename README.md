@@ -13,7 +13,7 @@ We'd love to hear any feedback and questions you might have. Please [file an iss
 On macOS, you can install with [Homebrew](https://brew.sh):
 
 ```bash
-brew install buildkite/cli/bk
+brew install buildkite/buildkite/buildkite-cli
 ````
 
 On all other platforms, download a binary from the [latest GitHub releases](https://github.com/buildkite/cli/releases/latest).
