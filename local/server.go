@@ -871,6 +871,7 @@ func (a *apiServer) handleArtifactDownload(w http.ResponseWriter, r *http.Reques
 	artifact, ok := a.artifacts.Load(artifactID)
 	if !ok {
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		return
 	}
 
 	f, err := os.Open(artifact.(Artifact).localPath)
