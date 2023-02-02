@@ -149,19 +149,19 @@ func InitCommand(ctx InitCommandContext) error {
 		return NewExitError(err, 1)
 	}
 
-	isGithubWebhookSetup := false
+	isGitHubWebhookSetup := false
 
 	debugf("[init] Found %d webhooks", len(hooks))
 
 	for _, hook := range hooks {
-		wehookURL, ok := hook.Config["url"].(string)
-		if ok && strings.Contains(wehookURL, "webhook.buildbox.io") || strings.Contains(wehookURL, "webhook.buildkite.com") {
-			isGithubWebhookSetup = true
+		webhookURL, ok := hook.Config["url"].(string)
+		if ok && strings.Contains(webhookURL, "webhook.buildbox.io") || strings.Contains(webhookURL, "webhook.buildkite.com") {
+			isGitHubWebhookSetup = true
 			break
 		}
 	}
 
-	if isGithubWebhookSetup {
+	if isGitHubWebhookSetup {
 		githubWebhooksTry.Success("Webhook exists")
 	} else {
 		debugf("[init] Creating a webhook with %s", pipeline.WebhookURL)

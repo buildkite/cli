@@ -229,7 +229,7 @@ func run(args []string, exit func(int)) {
 		StringVar(&artifactDownloadCtx.Job)
 
 	artifactDownloadCmd.
-		Arg("pattern", "Download only artifacts matching the glob patterm").
+		Arg("pattern", "Download only artifacts matching the glob pattern").
 		StringVar(&artifactDownloadCtx.Pattern)
 
 	// --------------------------

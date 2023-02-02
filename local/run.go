@@ -482,7 +482,7 @@ func createAgentBootstrap(checkoutPath string) (*os.File, error) {
 		return nil, err
 	}
 
-	debugf("Creating bootrap script at %s", tmpFile.Name())
+	debugf("Creating bootstrap script at %s", tmpFile.Name())
 
 	var text []byte
 	if runtime.GOOS == "windows" {
