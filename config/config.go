@@ -42,6 +42,22 @@ func Path() (string, error) {
 	return xdg.ConfigFile("buildkite/config.json")
 }
 
+func EmojiCachePath() (string, error) {
+	if home, err := homedir.Dir(); err == nil {
+		dir := filepath.Join(home, ".buildkite", "emoji")
+		if info, err := os.Stat(dir); err == nil && info.Mode().IsDir() {
+			return dir, nil
+		}
+	}
+
+	relPath := filepath.Join("buildkite", "emoji")
+	if err := os.MkdirAll(relPath, 0755); err != nil {
+		return "", err
+	}
+
+	return filepath.Join(xdg.CacheHome, relPath), nil
+}
+
 // Open opens and parses the Config, returns a empty Config if one doesn't exist
 func Open() (*Config, error) {
 	path, err := Path()
