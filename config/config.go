@@ -24,16 +24,13 @@ type Config struct {
 
 // Path returns either $BUILDKITE_CLI_CONFIG_FILE, ~/.buildkite/config.json or $XDG_CONFIG_HOME/buildkite/config.json in that order.
 func Path() (string, error) {
-	file := os.Getenv("BUILDKITE_CLI_CONFIG_FILE")
-	if file != "" {
+	if file := os.Getenv("BUILDKITE_CLI_CONFIG_FILE"); file != "" {
 		return file, nil
-
 	}
 
 	if home, err := homedir.Dir(); err == nil {
-		file = filepath.Join(home, ".buildkite", "config.json")
-		info, err := os.Stat(file)
-		if err == nil && info.Mode().IsRegular() {
+		file := filepath.Join(home, ".buildkite", "config.json")
+		if info, err := os.Stat(file); err == nil && info.Mode().IsRegular() {
 			return file, nil
 		}
 	}
