@@ -35,8 +35,9 @@ func Path() (string, error) {
 		}
 	}
 
-	// xdg.CacheFile will create buildkite dir if it doesn't exist but does not touch/create config.json
-	return xdg.ConfigFile("buildkite/config.json")
+	// xdg.ConfigFile will create buildkite dir if it doesn't exist but does not touch/create config.json
+	return xdg.ConfigFile(filepath.Join("buildkite", "config.json"))
+}
 }
 
 func EmojiCachePath() (string, error) {
