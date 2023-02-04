@@ -18,8 +18,8 @@ import (
 	"sync"
 
 	"github.com/bmatcuk/doublestar"
+	"github.com/buildkite/cli/v2/config"
 	"github.com/fatih/color"
-	homedir "github.com/mitchellh/go-homedir"
 	uuid "github.com/satori/go.uuid"
 )
 
@@ -723,7 +723,7 @@ func (a *apiServer) handleArtifactsUpload(w http.ResponseWriter, r *http.Request
 	}
 	filename := matches[1]
 
-	cacheDir, err := artifactCachePath()
+	cacheDir, err := config.ArifactStoragePath()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -881,14 +881,6 @@ func (a *apiServer) ListenAndServe() (string, error) {
 func (a *apiServer) authenticateAgentFromHeader(h http.Header) (string, error) {
 	authToken := strings.TrimPrefix(h.Get(`Authorization`), `Token `)
 	return a.agents.Authenticate(authToken)
-}
-
-func artifactCachePath() (string, error) {
-	home, err := homedir.Dir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".buildkite", "local", "artifacts"), nil
 }
 
 type orderedMapValue struct {

@@ -38,6 +38,22 @@ func Path() (string, error) {
 	// xdg.ConfigFile will create buildkite dir if it doesn't exist but does not touch/create config.json
 	return xdg.ConfigFile(filepath.Join("buildkite", "config.json"))
 }
+
+func ArifactStoragePath() (string, error) {
+	if home, err := homedir.Dir(); err == nil {
+		dir := filepath.Join(home, ".buildkite", "local")
+		if info, err := os.Stat(dir); err == nil && info.Mode().IsDir() {
+			return dir, nil
+		}
+	}
+
+	relPath := filepath.Join("buildkite", "artifacts")
+	// artifacts paths should be 700 to prevent access to other users
+	if err := os.MkdirAll(relPath, 0700); err != nil {
+		return "", err
+	}
+
+	return filepath.Join(xdg.DataHome, relPath), nil
 }
 
 func EmojiCachePath() (string, error) {
