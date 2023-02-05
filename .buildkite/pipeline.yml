@@ -25,7 +25,7 @@ steps:
     plugins:
       golang-cross-compile#v1.3.0:
         build: ./cmd/bk
-        import: github.com/buildkite/cli
+        import: github.com/buildkite/cli/v2
         targets:
           - version: "1.20.0"
             goos: darwin
