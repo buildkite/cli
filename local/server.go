@@ -716,7 +716,12 @@ func (a *apiServer) handleArtifactsUpload(w http.ResponseWriter, r *http.Request
 	defer file.Close()
 
 	contentDisposition := header.Header.Get("Content-Disposition")
-	filename := filenameRegexp.FindStringSubmatch(contentDisposition)[1]
+	matches := filenameRegexp.FindStringSubmatch(contentDisposition)
+	if len(matches) < 2 {
+		http.Error(w, "filename missing from Content-Disposition header", http.StatusBadRequest)
+		return
+	}
+	filename := matches[1]
 
 	cacheDir, err := artifactCachePath()
 	if err != nil {
