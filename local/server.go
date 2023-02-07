@@ -74,8 +74,8 @@ type jobEnvelope struct {
 }
 
 var (
-	uuidRegexp = regexp.MustCompile(
-		"([a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12})")
+	uuidRegexp     = regexp.MustCompile("([a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12})")
+	filenameRegexp = regexp.MustCompile(`filename="(.*?)"`)
 )
 
 type apiServer struct {
@@ -715,14 +715,21 @@ func (a *apiServer) handleArtifactsUpload(w http.ResponseWriter, r *http.Request
 	}
 	defer file.Close()
 
+	contentDisposition := header.Header.Get("Content-Disposition")
+	matches := filenameRegexp.FindStringSubmatch(contentDisposition)
+	if len(matches) < 2 {
+		http.Error(w, "filename missing from Content-Disposition header", http.StatusBadRequest)
+		return
+	}
+	filename := matches[1]
+
 	cacheDir, err := artifactCachePath()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	path := filepath.Join(cacheDir, jobID, header.Filename)
-
+	path := filepath.Join(cacheDir, jobID, filename)
 	if err = os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -752,13 +759,13 @@ func (a *apiServer) handleArtifactsUpload(w http.ResponseWriter, r *http.Request
 	}
 
 	for idx := range job.Artifacts {
-		if header.Filename == job.Artifacts[idx].Path {
+		if filename == job.Artifacts[idx].Path {
 			job.Artifacts[idx].uploaded = true
 			job.Artifacts[idx].localPath = path
 		}
 	}
 
-	fmt.Fprintf(w, "File uploaded successfully: %s", header.Filename)
+	fmt.Fprintf(w, "File uploaded successfully: %s", filename)
 }
 
 func (a *apiServer) handleArtifactsUpdate(w http.ResponseWriter, r *http.Request, jobID string) {

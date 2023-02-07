@@ -3,7 +3,7 @@ steps:
     command: ".buildkite/steps/lint.sh"
     plugins:
       docker#v3.5.0:
-        image: "golang:1.16"
+        image: "golang:1.20"
 
   - name: "Test"
     command: "go test -v -failfast ./..."
@@ -25,20 +25,20 @@ steps:
     plugins:
       golang-cross-compile#v1.3.0:
         build: ./cmd/bk
-        import: github.com/buildkite/cli
+        import: github.com/buildkite/cli/v2
         targets:
-          - version: "1.16"
+          - version: "1.20.0"
             goos: darwin
             goarch: amd64
-          - version: "1.16"
+          - version: "1.20.0"
             goos: darwin
             goarch: arm64
-          - version: "1.16"
+          - version: "1.20.0"
             goos: linux
             goarch: amd64
-          - version: "1.16"
+          - version: "1.20.0"
             goos: linux
             goarch: arm64
-          - version: "1.16"
+          - version: "1.20.0"
             goos: windows
             goarch: amd64
