@@ -209,12 +209,12 @@ func TestPipelineParsing(t *testing.T) {
 							"echo hello world",
 							"pwd"
 						],
-						"plugins": {
-							"blah-blah/blah#v0.0.1": null,
-							"blah-blah/another#v0.0.1": {
+						"plugins": [
+							{"blah-blah/blah#v0.0.1": null},
+							{"blah-blah/another#v0.0.1": {
 								"my_config":"totes"
-							}
-						}
+							}}
+						]
 					}
 				]
 			}`,
