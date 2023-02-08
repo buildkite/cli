@@ -39,7 +39,7 @@ func Path() (string, error) {
 	return xdg.ConfigFile(filepath.Join("buildkite", "config.json"))
 }
 
-func ArifactStoragePath() (string, error) {
+func ArtifactStoragePath() (string, error) {
 	if home, err := homedir.Dir(); err == nil {
 		dir := filepath.Join(home, ".buildkite", "local")
 		if info, err := os.Stat(dir); err == nil && info.Mode().IsDir() {

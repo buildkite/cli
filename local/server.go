@@ -723,7 +723,7 @@ func (a *apiServer) handleArtifactsUpload(w http.ResponseWriter, r *http.Request
 	}
 	filename := matches[1]
 
-	cacheDir, err := config.ArifactStoragePath()
+	cacheDir, err := config.ArtifactStoragePath()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
