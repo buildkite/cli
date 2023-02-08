@@ -24,22 +24,52 @@ type Config struct {
 
 // Path returns either $BUILDKITE_CLI_CONFIG_FILE, ~/.buildkite/config.json or $XDG_CONFIG_HOME/buildkite/config.json in that order.
 func Path() (string, error) {
-	file := os.Getenv("BUILDKITE_CLI_CONFIG_FILE")
-	if file != "" {
+	if file := os.Getenv("BUILDKITE_CLI_CONFIG_FILE"); file != "" {
 		return file, nil
-
 	}
 
 	if home, err := homedir.Dir(); err == nil {
-		file = filepath.Join(home, ".buildkite", "config.json")
-		info, err := os.Stat(file)
-		if err == nil && info.Mode().IsRegular() {
+		file := filepath.Join(home, ".buildkite", "config.json")
+		if info, err := os.Stat(file); err == nil && info.Mode().IsRegular() {
 			return file, nil
 		}
 	}
 
-	// xdg.CacheFile will create buildkite dir if it doesn't exist but does not touch/create config.json
-	return xdg.ConfigFile("buildkite/config.json")
+	// xdg.ConfigFile will create buildkite dir if it doesn't exist but does not touch/create config.json
+	return xdg.ConfigFile(filepath.Join("buildkite", "config.json"))
+}
+
+func ArtifactStoragePath() (string, error) {
+	if home, err := homedir.Dir(); err == nil {
+		dir := filepath.Join(home, ".buildkite", "local")
+		if info, err := os.Stat(dir); err == nil && info.Mode().IsDir() {
+			return dir, nil
+		}
+	}
+
+	relPath := filepath.Join("buildkite", "artifacts")
+	// artifacts paths should be 700 to prevent access to other users
+	if err := os.MkdirAll(relPath, 0700); err != nil {
+		return "", err
+	}
+
+	return filepath.Join(xdg.DataHome, relPath), nil
+}
+
+func EmojiCachePath() (string, error) {
+	if home, err := homedir.Dir(); err == nil {
+		dir := filepath.Join(home, ".buildkite", "emoji")
+		if info, err := os.Stat(dir); err == nil && info.Mode().IsDir() {
+			return dir, nil
+		}
+	}
+
+	relPath := filepath.Join("buildkite", "emoji")
+	if err := os.MkdirAll(relPath, 0755); err != nil {
+		return "", err
+	}
+
+	return filepath.Join(xdg.CacheHome, relPath), nil
 }
 
 // Open opens and parses the Config, returns a empty Config if one doesn't exist

@@ -16,8 +16,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/adrg/xdg"
-	homedir "github.com/mitchellh/go-homedir"
+	"github.com/buildkite/cli/v2/config"
 )
 
 const (
@@ -28,25 +27,12 @@ const (
 
 var emojiRegexp = regexp.MustCompile(`:\w+:`)
 
-func emojiCachePath() (string, error) {
-	if home, err := homedir.Dir(); err == nil {
-		file := filepath.Join(home, ".buildkite", "emoji")
-		info, err := os.Stat(file)
-		if err == nil && info.Mode().IsRegular() {
-			return file, nil
-		}
-	}
-
-	// xdg.CacheFile will create buildkite/emoji dir if it doesn't exist but does not touch/create ignored
-	return xdg.CacheFile("buildkite/emoji/ignored")
-}
-
 type emojiLoader struct {
 	cache *emojiCache
 }
 
 func newEmojiLoader() (*emojiLoader, error) {
-	cachePath, err := emojiCachePath()
+	cachePath, err := config.EmojiCachePath()
 	if err != nil {
 		return nil, err
 	}
