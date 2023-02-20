@@ -196,7 +196,11 @@ func (a *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case `POST /jobs/:uuid/data/get`:
 		a.handleMetadataGet(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
 	case `POST /jobs/:uuid/pipelines`:
-		a.handlePipelineUpload(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
+		async, _ := strconv.ParseBool(r.URL.Query().Get("async"))
+		a.handlePipelineUpload(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1], async)
+	case `GET /jobs/:uuid/pipelines/:uuid`:
+		matches := uuidRegexp.FindAllString(r.URL.Path, 2)
+		a.handlePipelineUploadStatus(w, r, matches[0], matches[1])
 	case `POST /jobs/:uuid/annotations`:
 		a.handleAnnotations(w, r, uuidRegexp.FindStringSubmatch(r.URL.Path)[1])
 	case `POST /jobs/:uuid/artifacts`:
@@ -626,7 +630,12 @@ func (a *apiServer) handleLogChunks(w http.ResponseWriter, r *http.Request, jobI
 	})
 }
 
-func (a *apiServer) handlePipelineUpload(w http.ResponseWriter, r *http.Request, jobID string) {
+func (a *apiServer) handlePipelineUpload(
+	w http.ResponseWriter,
+	r *http.Request,
+	jobID string,
+	async bool,
+) {
 	var pur struct {
 		UUID string `json:"uuid"`
 		pipelineUpload
@@ -640,8 +649,32 @@ func (a *apiServer) handlePipelineUpload(w http.ResponseWriter, r *http.Request,
 
 	a.pipelineUploads <- pur.pipelineUpload
 
+	if async {
+		locationURL := r.URL
+		locationURL.RawQuery = ""
+		w.Header().Set("Location", locationURL.JoinPath(pur.UUID).String())
+		w.Header().Set("Retry-After", "0")
+		w.WriteHeader(http.StatusAccepted)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(&struct{}{})
+}
+
+type pipelineUploadStatus struct {
+	State   string `json:"state"`
+	Message string `json:"message"`
+}
+
+func (a *apiServer) handlePipelineUploadStatus(
+	w http.ResponseWriter,
+	r *http.Request,
+	jobID string,
+	uuid string,
+) {
+	json.NewEncoder(w).Encode(&pipelineUploadStatus{
+		State: "applied",
+	})
 }
 
 type uploadAction struct {
@@ -838,6 +871,7 @@ func (a *apiServer) handleArtifactDownload(w http.ResponseWriter, r *http.Reques
 	artifact, ok := a.artifacts.Load(artifactID)
 	if !ok {
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		return
 	}
 
 	f, err := os.Open(artifact.(Artifact).localPath)
