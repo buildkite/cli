@@ -31,16 +31,16 @@ type question struct {
 }
 
 
-type Response struct {
+type response struct {
 	Status    string    `json:"status"`
 	Errors    []string  `json:"errors"`
-	Output    Output    `json:"output"`
-	Credits   []Credit  `json:"credits_used"`
+	Output    output    `json:"output"`
+	Credits   []credit  `json:"credits_used"`
 	ExecTime  int       `json:"executionTime"`
 	Cost      float64   `json:"cost"`
 }
 
-type Output struct {
+type output struct {
 	Answer            string   `json:"answer"`
 	Prompt            string   `json:"prompt"`
 	UserKeyUsed       bool     `json:"user_key_used"`
@@ -48,7 +48,7 @@ type Output struct {
 	CreditsCost       float64  `json:"credits_cost"`
 }
 
-type Credit struct {
+type credit struct {
 	Credits     float64 `json:"credits"`
 	Name        string  `json:"name"`
 	Multiplier  float64 `json:"multiplier,omitempty"`
@@ -108,7 +108,7 @@ func DocsHelp(ctx DocsCommandContext) error {
 		log.Errorf("Unable to read response body %v", err)
 	}
 
-	var responseBody Response
+	var responseBody response
 
 	debugf("Unmarshalling response from Relevance AI")
 	err = json.Unmarshal(responseBytes, &responseBody)
