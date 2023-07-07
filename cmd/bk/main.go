@@ -313,6 +313,10 @@ func run(args []string, exit func(int)) {
 			return cli.DocsHelp(docsCmdCtx)
 		})
 
+	docsCmd.
+		Flag("prompt", "Prompt for the docs command").
+		StringVar(&docsCmdCtx.Prompt)
+
 	// --------------------------
 	// run the app, parse args
 
