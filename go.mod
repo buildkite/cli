@@ -22,21 +22,36 @@ require (
 )
 
 require (
+	github.com/alecthomas/chroma v0.10.0 // indirect
 	github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc // indirect
 	github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf // indirect
+	github.com/aymanbagabas/go-osc52 v1.0.3 // indirect
+	github.com/aymerick/douceur v0.2.0 // indirect
+	github.com/charmbracelet/glamour v0.6.0 // indirect
 	github.com/chzyer/logex v1.1.10 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1 // indirect
+	github.com/dlclark/regexp2 v1.4.0 // indirect
 	github.com/golang/protobuf v1.1.0 // indirect
 	github.com/google/go-querystring v0.0.0-20170111101155-53e6ce116135 // indirect
+	github.com/gorilla/css v1.0.0 // indirect
 	github.com/juju/ansiterm v0.0.0-20180109212912-720a0952cc2a // indirect
 	github.com/kylelemons/godebug v0.0.0-20170820004349-d65d576e9348 // indirect
+	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/lunixbochs/vtclean v0.0.0-20170504063817-d14193dfc626 // indirect
 	github.com/mattn/go-colorable v0.0.9 // indirect
-	github.com/mattn/go-isatty v0.0.3 // indirect
-	golang.org/x/net v0.0.0-20190404232315-eb5bcb51f2a3 // indirect
+	github.com/mattn/go-isatty v0.0.16 // indirect
+	github.com/mattn/go-runewidth v0.0.14 // indirect
+	github.com/microcosm-cc/bluemonday v1.0.21 // indirect
+	github.com/muesli/reflow v0.3.0 // indirect
+	github.com/muesli/termenv v0.13.0 // indirect
+	github.com/olekukonko/tablewriter v0.0.5 // indirect
+	github.com/rivo/uniseg v0.2.0 // indirect
+	github.com/yuin/goldmark v1.5.2 // indirect
+	github.com/yuin/goldmark-emoji v1.0.1 // indirect
+	golang.org/x/net v0.0.0-20221002022538-bcab6841153b // indirect
 	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f // indirect
-	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f // indirect
+	golang.org/x/sys v0.0.0-20220811171246-fbc7d0a398ab // indirect
 	google.golang.org/appengine v1.0.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
