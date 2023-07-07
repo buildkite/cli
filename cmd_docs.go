@@ -22,12 +22,13 @@ type DocsCommandContext struct {
 }
 
 type payload struct{
-	Params  question `json:"params,omitempty"`
+	Params  question `json:"params"`
 	Project string   `json:"project,omitempty"`
 }
 
 type question struct {
-	Question string `json:"question,omitempty"`
+	Question string `json:"question"`
+	ChatHistory []string `json:"chat_history"`
 }
 
 
@@ -41,12 +42,18 @@ type response struct {
 }
 
 type output struct {
-	Answer            string   `json:"answer"`
+	Answer            answer   `json:"answer"`
 	Prompt            string   `json:"prompt"`
 	UserKeyUsed       bool     `json:"user_key_used"`
 	ValidationHistory []string `json:"validation_history"`
 	CreditsCost       float64  `json:"credits_cost"`
 }
+
+type answer struct {
+	Answer     string   `json:"answer,omitempty"`
+	References []string `json:"references,omitempty"`
+}
+
 
 type credit struct {
 	Credits     float64 `json:"credits"`
@@ -75,10 +82,13 @@ func DocsHelp(ctx DocsCommandContext) error {
 		return nil
 	}
 
-
+	// we just want to send an empty string for chat history right now to use the chain
 	payload := payload{
 		Params: question{
 			Question: prompt,
+			ChatHistory: []string{
+				"",
+			},
 		},
 		Project: project,
 	}
@@ -122,8 +132,8 @@ func DocsHelp(ctx DocsCommandContext) error {
 		log.Errorf("Unable to marshal JSON %v", err)
 	}
 
-	debugf("Relevance AI rull returned responseBody:\n %d", responseBody.Output.Answer)
-	in := responseBody.Output.Answer
+	debugf("Relevance AI rull returned responseBody:\n %v", responseBody)
+	in := responseBody.Output.Answer.Answer
 
 	debugf("Rendering Glamour response for output")
 	out, err := glamour.Render(in, "dark")
