@@ -301,6 +301,19 @@ func run(args []string, exit func(int)) {
 	setupRunCmd(runCmd, &runCmdCtx)
 
 	// --------------------------
+	// docs command
+
+	docsCmd := app.Command("docs", "Obtain help from the Buildkite docs powered by")
+	docsCmdCtx := cli.DocsCommandContext{}
+
+	docsCmd.
+		Action(func(c *kingpin.ParseContext) error {
+			docsCmdCtx.Debug = debug
+			docsCmdCtx.TerminalContext = &cli.Terminal{}
+			return cli.DocsHelp(docsCmdCtx)
+		})
+
+	// --------------------------
 	// run the app, parse args
 
 	if _, err := app.Parse(args); err != nil {
