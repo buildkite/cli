@@ -62,10 +62,20 @@ func DocsHelp(ctx DocsCommandContext) error {
 		local.Debug = true
 	}
 
-	// Obrain prompt, setup Project, URL, Payload
+	// Obtain prompt, setup Project, URL, Payload
 	prompt := ctx.Prompt
-	project := os.Getenv("RELEVANCE_PROJECT")
-	url := os.Getenv("RELEVANCE_API_URL")
+	//Check for Project and API URL, fail if no value set
+	project, exists := os.LookupEnv("RELEVANCE_PROJECT")
+	if !exists {
+		log.Errorf("🚨 Error: RELEVANCE_PROJECT is not set")
+	}
+	url, exists := os.LookupEnv("RELEVANCE_API_URL")
+	if !exists {
+		log.Errorf("🚨 Error: RELEVANCE_URL is not set")
+		return nil
+	}
+
+
 	payload := payload{
 		Params: question{
 			Question: prompt,
@@ -73,10 +83,6 @@ func DocsHelp(ctx DocsCommandContext) error {
 		Project: project,
 	}
 
-	// If the project is not setup, error 
-	if project == "" {
-		log.Errorf("🚨 Error: RELEVANCE_PROJECT is not set")
-	}
 
 	debugf("Are we sending the question properly?\n %s \n what about the payload:\n %v", payload.Params.Question, payload)
 	payloadBytes, err := json.Marshal(payload)
@@ -127,7 +133,5 @@ func DocsHelp(ctx DocsCommandContext) error {
 	}
 
 	fmt.Print(out)
-	fmt.Print("> ")	
-	
 	return nil
 }

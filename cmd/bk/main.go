@@ -303,7 +303,7 @@ func run(args []string, exit func(int)) {
 	// --------------------------
 	// docs command
 
-	docsCmd := app.Command("docs", "Obtain help from the Buildkite docs powered by")
+	docsCmd := app.Command("docs", "Obtain help from the Buildkite docs powered by AI")
 	docsCmdCtx := cli.DocsCommandContext{}
 
 	docsCmd.
@@ -314,12 +314,8 @@ func run(args []string, exit func(int)) {
 		})
 
 	docsCmd.
-		Flag("prompt", "Prompt for the docs command").
+		Arg("prompt", "Prompt for the docs command").
 		StringVar(&docsCmdCtx.Prompt)
-
-	// --------------------------
-	// run the app, parse args
-
 	if _, err := app.Parse(args); err != nil {
 		fmt.Fprintf(os.Stderr, color.RedString("🚨 %v\n", err))
 
