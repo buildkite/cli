@@ -65,7 +65,7 @@ func DocsHelp(ctx DocsCommandContext) error {
 	// Obrain prompt, setup Project, URL, Payload
 	prompt := ctx.Prompt
 	project := os.Getenv("RELEVANCE_PROJECT")
-	url := "https://api-f1db6c.stack.tryrelevance.com/latest/studios/4dd12ab5-b49b-483f-8896-04cdf3d7091c/trigger_limited"
+	url := os.Getenv("RELEVANCE_API_URL")
 	payload := payload{
 		Params: question{
 			Question: prompt,
