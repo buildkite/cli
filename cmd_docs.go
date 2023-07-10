@@ -33,33 +33,11 @@ type question struct {
 
 
 type response struct {
-	Status    string    `json:"status"`
-	Errors    []string  `json:"errors"`
 	Output    output    `json:"output"`
-	Credits   []credit  `json:"credits_used"`
-	ExecTime  int       `json:"executionTime"`
-	Cost      float64   `json:"cost"`
 }
 
 type output struct {
-	Answer            answer   `json:"answer"`
-	Prompt            string   `json:"prompt"`
-	UserKeyUsed       bool     `json:"user_key_used"`
-	ValidationHistory []string `json:"validation_history"`
-	CreditsCost       float64  `json:"credits_cost"`
-}
-
-type answer struct {
-	Answer     string   `json:"answer,omitempty"`
-	References []string `json:"references,omitempty"`
-}
-
-
-type credit struct {
-	Credits     float64 `json:"credits"`
-	Name        string  `json:"name"`
-	Multiplier  float64 `json:"multiplier,omitempty"`
-	NumUnits    float64 `json:"num_units,omitempty"`
+	Answer            string   `json:"answer"`
 }
 
 func DocsHelp(ctx DocsCommandContext) error {
@@ -132,8 +110,8 @@ func DocsHelp(ctx DocsCommandContext) error {
 		log.Errorf("Unable to marshal JSON %v", err)
 	}
 
-	debugf("Relevance AI full returned responseBody:\n %v", responseBody)
-	in := responseBody.Output.Answer.Answer
+	debugf("Relevance AI full returned responseBody:\n %s", responseBody.Output.Answer)
+	in := responseBody.Output.Answer
 
 	debugf("Rendering Glamour response for output")
 	out, err := glamour.Render(in, "dark")
