@@ -22,23 +22,12 @@ steps:
 
   - wait
   - label: ":golang:"
+    command: make build
     plugins:
-      golang-cross-compile#v1.4.0:
-        build: ./cmd/bk
-        import: github.com/buildkite/cli/v2
-        targets:
-          - version: "1.20.0"
-            goos: darwin
-            goarch: amd64
-          - version: "1.20.0"
-            goos: darwin
-            goarch: arm64
-          - version: "1.20.0"
-            goos: linux
-            goarch: amd64
-          - version: "1.20.0"
-            goos: linux
-            goarch: arm64
-          - version: "1.20.0"
-            goos: windows
-            goarch: amd64
+      golang@v2.0.0:
+        version: 1.20.0
+        environment:
+          - RELEVANCE_API_URL
+          - RELEVANCE_PROJECT
+    artifact_paths:
+      - "build/*"
