@@ -7,6 +7,8 @@ require (
 	github.com/ahmetb/go-cursor v0.0.0-20131010032410-8136607ea412
 	github.com/bmatcuk/doublestar v1.1.1
 	github.com/briandowns/spinner v0.0.0-20170614154858-48dbb65d7bd5
+	github.com/charmbracelet/glamour v0.6.0
+	github.com/charmbracelet/log v0.2.2
 	github.com/fatih/color v1.7.0
 	github.com/go-test/deep v1.0.1
 	github.com/google/go-github v15.0.0+incompatible
@@ -25,12 +27,9 @@ require (
 	github.com/alecthomas/chroma v0.10.0 // indirect
 	github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc // indirect
 	github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf // indirect
-	github.com/aymanbagabas/go-osc52 v1.0.3 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
-	github.com/charmbracelet/glamour v0.6.0 // indirect
 	github.com/charmbracelet/lipgloss v0.7.1 // indirect
-	github.com/charmbracelet/log v0.2.2 // indirect
 	github.com/chzyer/logex v1.1.10 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1 // indirect
