@@ -1,7 +1,7 @@
 SRC := $(shell find . -name '*.go')
 BINARY := bk
 VERSION := $(shell awk -F\" '/Version = / {print $$2}' version.go)
-LD_FLAGS=-s -w -X cli.projectUUID=${RELEVANCE_PROJECT} -X cli.apiEndpoint=${RELEVANCE_API_URL}
+LD_FLAGS=-X github.com/buildkite/cli/v2.projectUUID=$${RELEVANCE_PROJECT} -X github.com/buildkite/cli/v2.apiEndpoint=$${RELEVANCE_API_URL}
 
 .PHONY: build
 build: build/bk-windows-amd64-$(VERSION).exe build/bk-linux-amd64-$(VERSION) build/bk-linux-arm64-$(VERSION) build/bk-darwin-amd64-$(VERSION) build/bk-darwin-arm64-$(VERSION)
