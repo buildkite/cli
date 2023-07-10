@@ -22,12 +22,13 @@ type DocsCommandContext struct {
 }
 
 type payload struct{
-	Params  question `json:"params,omitempty"`
+	Params  question `json:"params"`
 	Project string   `json:"project,omitempty"`
 }
 
 type question struct {
-	Question string `json:"question,omitempty"`
+	Question string `json:"question"`
+	ChatHistory []string `json:"chat_history"`
 }
 
 
@@ -41,12 +42,18 @@ type response struct {
 }
 
 type output struct {
-	Answer            string   `json:"answer"`
+	Answer            answer   `json:"answer"`
 	Prompt            string   `json:"prompt"`
 	UserKeyUsed       bool     `json:"user_key_used"`
 	ValidationHistory []string `json:"validation_history"`
 	CreditsCost       float64  `json:"credits_cost"`
 }
+
+type answer struct {
+	Answer     string   `json:"answer,omitempty"`
+	References []string `json:"references,omitempty"`
+}
+
 
 type credit struct {
 	Credits     float64 `json:"credits"`
@@ -62,21 +69,30 @@ func DocsHelp(ctx DocsCommandContext) error {
 		local.Debug = true
 	}
 
-	// Obrain prompt, setup Project, URL, Payload
+	// Obtain prompt, setup Project, URL, Payload
 	prompt := ctx.Prompt
-	project := os.Getenv("RELEVANCE_PROJECT")
-	url := os.Getenv("RELEVANCE_API_URL")
+	//Check for Project and API URL, fail if no value set
+	project, exists := os.LookupEnv("RELEVANCE_PROJECT")
+	if !exists {
+		log.Errorf("🚨 Error: RELEVANCE_PROJECT is not set")
+	}
+	url, exists := os.LookupEnv("RELEVANCE_API_URL")
+	if !exists {
+		log.Errorf("🚨 Error: RELEVANCE_URL is not set")
+		return nil
+	}
+
+	// we just want to send an empty string for chat history right now to use the chain
 	payload := payload{
 		Params: question{
 			Question: prompt,
+			ChatHistory: []string{
+				"",
+			},
 		},
 		Project: project,
 	}
 
-	// If the project is not setup, error 
-	if project == "" {
-		log.Errorf("🚨 Error: RELEVANCE_PROJECT is not set")
-	}
 
 	debugf("Are we sending the question properly?\n %s \n what about the payload:\n %v", payload.Params.Question, payload)
 	payloadBytes, err := json.Marshal(payload)
@@ -116,8 +132,8 @@ func DocsHelp(ctx DocsCommandContext) error {
 		log.Errorf("Unable to marshal JSON %v", err)
 	}
 
-	debugf("Relevance AI rull returned responseBody:\n %d", responseBody.Output.Answer)
-	in := responseBody.Output.Answer
+	debugf("Relevance AI full returned responseBody:\n %v", responseBody)
+	in := responseBody.Output.Answer.Answer
 
 	debugf("Rendering Glamour response for output")
 	out, err := glamour.Render(in, "dark")
@@ -127,7 +143,5 @@ func DocsHelp(ctx DocsCommandContext) error {
 	}
 
 	fmt.Print(out)
-	fmt.Print("> ")	
-	
 	return nil
 }
