@@ -87,15 +87,14 @@ func DocsHelp(ctx DocsCommandContext) error {
 		Params: question{
 			Question: prompt,
 			ChatHistory: []string{
-				"",
 			},
 		},
 		Project: project,
 	}
 
 
-	debugf("Are we sending the question properly?\n %s \n what about the payload:\n %v", payload.Params.Question, payload)
 	payloadBytes, err := json.Marshal(payload)
+	debugf("Are we sending the question properly?\n %s \n what about the payload:\n %s", payload.Params.Question, payloadBytes)
 	if err != nil {
 		log.Errorf("🚨 Error %v", err)
 	}
@@ -114,12 +113,13 @@ func DocsHelp(ctx DocsCommandContext) error {
 	if err != nil {
 		log.Errorf("🚨 Error %v", err)
 	}
-	debugf("Obtained response %v", resp.Body)
 
 	defer resp.Body.Close()
 
 	debugf("Attempting to read response bytes from Relevance AI")
 	responseBytes, err := ioutil.ReadAll(resp.Body)
+	debugf("Status code %s", resp.Status)
+	debugf("Obtained response %s", responseBytes)
 	if err != nil {
 		log.Errorf("Unable to read response body %v", err)
 	}
@@ -137,7 +137,7 @@ func DocsHelp(ctx DocsCommandContext) error {
 
 	debugf("Rendering Glamour response for output")
 	out, err := glamour.Render(in, "dark")
-	
+
 	if err != nil{
 		log.Errorf("Error rendering markdown %v", err)
 	}
