@@ -24,7 +24,7 @@ steps:
   - label: ":golang:"
     command: make build
     plugins:
-      golang@v2.0.0:
+      golang#v2.0.0:
         version: 1.20.0
         environment:
           - RELEVANCE_API_URL
