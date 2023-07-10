@@ -13,6 +13,9 @@ import (
 	"github.com/buildkite/cli/v2/local"
 )
 
+var projectUUID string
+var apiEndpoint string
+
 type DocsCommandContext struct {
 	TerminalContext
 	ConfigContext
@@ -50,14 +53,11 @@ func DocsHelp(ctx DocsCommandContext) error {
 	// Obtain prompt, setup Project, URL, Payload
 	prompt := ctx.Prompt
 	//Check for Project and API URL, fail if no value set
-	project, exists := os.LookupEnv("RELEVANCE_PROJECT")
-	if !exists {
-		log.Errorf("🚨 Error: RELEVANCE_PROJECT is not set")
+	if project, exists := os.LookupEnv("RELEVANCE_PROJECT"); exists {
+		projectUUID = project
 	}
-	url, exists := os.LookupEnv("RELEVANCE_API_URL")
-	if !exists {
-		log.Errorf("🚨 Error: RELEVANCE_API_URL is not set")
-		return nil
+	if url, exists := os.LookupEnv("RELEVANCE_API_URL"); exists {
+		apiEndpoint = url
 	}
 
 	// we just want to send an empty string for chat history right now to use the chain
@@ -67,7 +67,7 @@ func DocsHelp(ctx DocsCommandContext) error {
 			ChatHistory: []string{
 			},
 		},
-		Project: project,
+		Project: projectUUID,
 	}
 
 
@@ -77,7 +77,7 @@ func DocsHelp(ctx DocsCommandContext) error {
 		log.Errorf("🚨 Error %v", err)
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payloadBytes))
+	req, err := http.NewRequest("POST", apiEndpoint, bytes.NewBuffer(payloadBytes))
 	if err != nil {
 		log.Errorf("🚨 Error %v", err)
 	}
