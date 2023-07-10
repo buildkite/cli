@@ -132,7 +132,7 @@ func DocsHelp(ctx DocsCommandContext) error {
 		log.Errorf("Unable to marshal JSON %v", err)
 	}
 
-	debugf("Relevance AI rull returned responseBody:\n %v", responseBody)
+	debugf("Relevance AI full returned responseBody:\n %v", responseBody)
 	in := responseBody.Output.Answer.Answer
 
 	debugf("Rendering Glamour response for output")
