@@ -78,7 +78,7 @@ func DocsHelp(ctx DocsCommandContext) error {
 	}
 	url, exists := os.LookupEnv("RELEVANCE_API_URL")
 	if !exists {
-		log.Errorf("🚨 Error: RELEVANCE_URL is not set")
+		log.Errorf("🚨 Error: RELEVANCE_API_URL is not set")
 		return nil
 	}
 
