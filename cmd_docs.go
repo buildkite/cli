@@ -40,7 +40,7 @@ type Model struct {
 	err      error
 	reason   string
 	markdown markdown
-	cmd   DocsCommandContext
+	cmd      DocsCommandContext
 }
 
 type payload struct {
@@ -121,9 +121,9 @@ func DocsHelp(ctx DocsCommandContext) error {
 	s.Spinner = spinner.Line
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	m := Model{
-		reason: loadReason(),
+		reason:  loadReason(),
 		spinner: s,
-		cmd: ctx,
+		cmd:     ctx,
 	}
 	p := tea.NewProgram(m)
 
