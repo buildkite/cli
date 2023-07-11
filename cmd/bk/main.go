@@ -316,6 +316,10 @@ func run(args []string, exit func(int)) {
 	docsCmd.
 		Arg("prompt", "Prompt for the docs command").
 		StringVar(&docsCmdCtx.Prompt)
+
+	docsCmd.
+		Flag("fun", "Get a more creative response from the AI!").
+		BoolVar(&docsCmdCtx.Fun)
 	if _, err := app.Parse(args); err != nil {
 		fmt.Fprintf(os.Stderr, color.RedString("🚨 %v\n", err))
 
