@@ -5,14 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"os"
+	"time"
 
-	"github.com/buildkite/cli/v2/clirenderer"
 	"github.com/buildkite/cli/v2/local"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/log"
 )
 
@@ -25,6 +28,19 @@ type DocsCommandContext struct {
 
 	Debug  bool
 	Prompt string
+}
+
+type errMsg error
+
+type markdown string
+
+type Model struct {
+	spinner  spinner.Model
+	quitting bool
+	err      error
+	reason   string
+	markdown markdown
+	cmd   DocsCommandContext
 }
 
 type payload struct {
@@ -45,14 +61,77 @@ type output struct {
 	Answer string `json:"answer"`
 }
 
-func DocsHelp(ctx DocsCommandContext) error {
+func waitForActivity(m Model) tea.Cmd {
+	return func() tea.Msg {
+		response, err := LoadDocsCmd(m.cmd)
+		if err != nil {
+			return err
+		}
+		if response == "" {
+			response = "Something went wrong getting a response"
+		}
+		return markdown(response)
+	}
+}
 
-	m := clirenderer.Create()
+func (m Model) Init() tea.Cmd {
+	return tea.Batch(m.spinner.Tick, waitForActivity(m))
+}
+
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "esc", "ctrl+c":
+			m.quitting = true
+			return m, tea.Quit
+		default:
+			return m, nil
+		}
+	case markdown:
+		m.markdown = msg
+		m.quitting = true
+		return m, tea.Quit
+
+	case errMsg:
+		m.err = msg
+		return m, nil
+
+	default:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+	}
+}
+
+func (m Model) View() string {
+	if m.err != nil {
+		return m.err.Error()
+	}
+
+	if m.quitting {
+		return string(m.markdown)
+	} else {
+		return fmt.Sprintf("%s %s...\n", m.spinner.View(), m.reason)
+	}
+}
+
+func DocsHelp(ctx DocsCommandContext) error {
+	s := spinner.New()
+	s.Spinner = spinner.Line
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	m := Model{
+		reason: loadReason(),
+		spinner: s,
+		cmd: ctx,
+	}
 	p := tea.NewProgram(m)
-	go p.Run()
-	out, _ := LoadDocsCmd(ctx)
-	m.Quit()
-	fmt.Print(out)
+
+	if _, err := p.Run(); err != nil {
+		fmt.Println("Could not start program: ", err)
+		return err
+	}
+
 	return nil
 }
 
@@ -85,11 +164,13 @@ func LoadDocsCmd(ctx DocsCommandContext) (string, error) {
 	debugf("Are we sending the question properly?\n %s \n what about the payload:\n %s", payload.Params.Question, payloadBytes)
 	if err != nil {
 		log.Errorf("🚨 Error %v", err)
+		return "", err
 	}
 
 	req, err := http.NewRequest("POST", apiEndpoint, bytes.NewBuffer(payloadBytes))
 	if err != nil {
 		log.Errorf("🚨 Error %v", err)
+		return "", err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -100,6 +181,7 @@ func LoadDocsCmd(ctx DocsCommandContext) (string, error) {
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Errorf("🚨 Error %v", err)
+		return "", err
 	}
 
 	defer resp.Body.Close()
@@ -110,6 +192,7 @@ func LoadDocsCmd(ctx DocsCommandContext) (string, error) {
 	debugf("Obtained response %s", responseBytes)
 	if err != nil {
 		log.Errorf("Unable to read response body %v", err)
+		return "", err
 	}
 
 	var responseBody response
@@ -118,6 +201,7 @@ func LoadDocsCmd(ctx DocsCommandContext) (string, error) {
 	err = json.Unmarshal(responseBytes, &responseBody)
 	if err != nil {
 		log.Errorf("Unable to marshal JSON %v", err)
+		return "", err
 	}
 
 	debugf("Relevance AI full returned responseBody:\n %s", responseBody.Output.Answer)
@@ -128,6 +212,23 @@ func LoadDocsCmd(ctx DocsCommandContext) (string, error) {
 
 	if err != nil {
 		log.Errorf("Error rendering markdown %v", err)
+		return "", err
 	}
-	return out, err
+	return out, nil
+}
+
+func loadReason() string {
+	//create the reasons slice and append reasons to it
+	reasons := make([]string, 0)
+	reasons = append(reasons,
+		"Counting bobcats",
+		"Buying helicopters",
+		"Spending keithbucks",
+		"Chasing cars",
+		"Calling JJ",
+	)
+	rand.Seed(time.Now().Unix())
+	n := rand.Int() % len(reasons)
+	return reasons[n]
+
 }
