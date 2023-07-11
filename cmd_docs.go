@@ -8,9 +8,12 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/buildkite/cli/v2/clirenderer"
+	"github.com/buildkite/cli/v2/local"
+
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/log"
-	"github.com/buildkite/cli/v2/local"
 )
 
 var projectUUID string
@@ -20,31 +23,40 @@ type DocsCommandContext struct {
 	TerminalContext
 	ConfigContext
 
-	Debug        bool
-	Prompt     	 string
+	Debug  bool
+	Prompt string
 }
 
-type payload struct{
+type payload struct {
 	Params  question `json:"params"`
 	Project string   `json:"project,omitempty"`
 }
 
 type question struct {
-	Question string `json:"question"`
+	Question    string   `json:"question"`
 	ChatHistory []string `json:"chat_history"`
 }
 
-
 type response struct {
-	Output    output    `json:"output"`
+	Output output `json:"output"`
 }
 
 type output struct {
-	Answer            string   `json:"answer"`
+	Answer string `json:"answer"`
 }
 
 func DocsHelp(ctx DocsCommandContext) error {
 
+	m := clirenderer.Create()
+	p := tea.NewProgram(m)
+	go p.Run()
+	out, _ := LoadDocsCmd(ctx)
+	m.Quit()
+	fmt.Print(out)
+	return nil
+}
+
+func LoadDocsCmd(ctx DocsCommandContext) (string, error) {
 	// Enable debug if the --debug flag is enabled
 	if ctx.Debug {
 		local.Debug = true
@@ -63,13 +75,11 @@ func DocsHelp(ctx DocsCommandContext) error {
 	// we just want to send an empty string for chat history right now to use the chain
 	payload := payload{
 		Params: question{
-			Question: prompt,
-			ChatHistory: []string{
-			},
+			Question:    prompt,
+			ChatHistory: []string{},
 		},
 		Project: projectUUID,
 	}
-
 
 	payloadBytes, err := json.Marshal(payload)
 	debugf("Are we sending the question properly?\n %s \n what about the payload:\n %s", payload.Params.Question, payloadBytes)
@@ -116,10 +126,8 @@ func DocsHelp(ctx DocsCommandContext) error {
 	debugf("Rendering Glamour response for output")
 	out, err := glamour.Render(in, "dark")
 
-	if err != nil{
+	if err != nil {
 		log.Errorf("Error rendering markdown %v", err)
 	}
-
-	fmt.Print(out)
-	return nil
+	return out, err
 }
