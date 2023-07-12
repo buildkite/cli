@@ -154,11 +154,11 @@ func requestGitHubStageThree(stageOne *githubStageOneResponse) (*oauth2.Token, e
 
 // Takes a query string like:
 //
-//    foo=bar&baz=1
+//	foo=bar&baz=1
 //
 // .. and returns a map[string]string
 //
-//    {"foo" => "bar", "baz" => "1"}
+//	{"foo" => "bar", "baz" => "1"}
 //
 // Query strings can have duplicate keys and the values are merged into an array,
 // however this assumes there's only a single value and ignores any extras.
