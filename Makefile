@@ -2,9 +2,9 @@ SRC := $(shell find . -name '*.go')
 BINARY := bk
 VERSION := $(shell awk -F\" '/Version = / {print $$2}' version.go)
 LD_FLAGS=
--X github.com/buildkite/cli/v2.projectUUID=$${RELEVANCE_PROJECT}
--X github.com/buildkite/cli/v2.apiEndpoint=$${RELEVANCE_API_URL}
--X github.com/buildkite/cli/v2.funProjectUUID=$${FUN_RELEVANCE_PROJECT}
+-X github.com/buildkite/cli/v2.projectUUID=$${RELEVANCE_PROJECT} 
+-X github.com/buildkite/cli/v2.apiEndpoint=$${RELEVANCE_API_URL} 
+-X github.com/buildkite/cli/v2.funProjectUUID=$${FUN_RELEVANCE_PROJECT} 
 -X github.com/buildkite/cli/v2.funApiEndpoint=$${FUN_RELEVANCE_API_URL}
 
 .PHONY: build
