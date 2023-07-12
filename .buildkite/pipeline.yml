@@ -29,5 +29,7 @@ steps:
         environment:
           - RELEVANCE_API_URL
           - RELEVANCE_PROJECT
+          - FUN_RELEVANT_PROJECT
+          - FUN_RELEVANCE_API_URL
     artifact_paths:
       - "build/*"
