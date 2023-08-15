@@ -1,0 +1,25 @@
+project_name: bk
+
+release:
+  name_template: Buildkite CLI {{.Version}}
+
+builds:
+  - id: macos
+    goos: [darwin]
+    goarch: [amd64, arm64]
+    binary: bin/bk
+    main: ./cmd/bk
+    ldflags:
+      - -s -w -X github.com/buildkite/cli/v3/internal/build.Version={{.Version}}
+
+archives:
+  - id: macos-archive
+    builds: [macos]
+    name_template: "bk_{{ .Version }}_macOS_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    wrap_in_directory: true
+    format: zip
+    rlcp: true
+    files:
+      - LICENSE
+
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
