@@ -2,11 +2,11 @@ package root
 
 import (
 	"github.com/MakeNowJust/heredoc"
-	"github.com/buildkite/cli/v3/pkg/cmd/version"
+	versionCmd "github.com/buildkite/cli/v3/pkg/cmd/version"
 	"github.com/spf13/cobra"
 )
 
-func NewCmdRoot() (*cobra.Command, error) {
+func NewCmdRoot(version string) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use: "bk <command> <subcommand> [flags]",
 		Short: "Buildkite CLI",
@@ -14,11 +14,12 @@ func NewCmdRoot() (*cobra.Command, error) {
 		Example: heredoc.Doc(`
 			$ bk build view
 		`),
+		Annotations: map[string]string{
+			"versionInfo": versionCmd.Format(version),
+		},
 	}
 
-	cmd.PersistentFlags().Bool("help", false, "Show help for a command")
-
-	cmd.AddCommand(version.NewCmdVersion())
+	cmd.AddCommand(versionCmd.NewCmdVersion())
 
 	return cmd, nil
 }
