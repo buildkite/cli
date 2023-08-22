@@ -1,10 +1,9 @@
 steps:
   - name: ":golangci-lint:"
-    command: gofmt -l .
     plugins:
       docker-compose#v4.14.0:
         config: .buildkite/docker-compose.yaml
-        run: go
+        run: lint
 
   - name: "Test"
     command: "go test -v -failfast ./..."

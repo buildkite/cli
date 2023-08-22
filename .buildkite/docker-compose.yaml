@@ -1,11 +1,15 @@
 version: '3.5'
 
 services:
-  go:
-    image: golang:1.21
-    working_dir: /go/src/github.com/buildkite/cli
+  lint:
+    image: golangci/golangci-lint:v1.54.1
+    working_dir: /app
     volumes:
-      - .:/go/src/github.com/buildkite/cli
+      - ..:/app
+      - ~/.cache/golangci-lint/v1.54.1:/root/.cache
+    command:
+      - golangci-lint
+      - run
   release:
     image: goreleaser/goreleaser:v1.20.0
     working_dir: /go/src/github.com/buildkite/cli
