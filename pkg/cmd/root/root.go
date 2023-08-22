@@ -1,9 +1,6 @@
 package root
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/config"
 	authCmd "github.com/buildkite/cli/v3/pkg/cmd/auth"
@@ -13,7 +10,7 @@ import (
 )
 
 func NewCmdRoot(viper *viper.Viper, version string) (*cobra.Command, error) {
-	cobra.OnInitialize(initConfig)
+	cobra.OnInitialize(initConfig(viper))
 
 	cmd := &cobra.Command{
 		Use:   "bk <command> <subcommand> [flags]",
@@ -34,13 +31,13 @@ func NewCmdRoot(viper *viper.Viper, version string) (*cobra.Command, error) {
 }
 
 // initConfig reads in config file and ENV variables if set.
-func initConfig() {
-	viper.SetConfigFile(config.ConfigFile())
+func initConfig(viper *viper.Viper) func() {
+	return func() {
+		viper.SetConfigFile(config.ConfigFile())
 
-	viper.AutomaticEnv() // read in environment variables that match
+		viper.AutomaticEnv() // read in environment variables that match
 
-	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
+		// If a config file is found, read it in.
+		viper.ReadInConfig()
 	}
 }

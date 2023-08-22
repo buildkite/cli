@@ -17,8 +17,9 @@ func main() {
 
 func mainRun() int {
 	ctx := context.Background()
+	viper := viper.New()
 
-	rootCmd, err := root.NewCmdRoot(viper.GetViper(), build.Version)
+	rootCmd, err := root.NewCmdRoot(viper, build.Version)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to create root command: %s\n", err)
 		return 1
