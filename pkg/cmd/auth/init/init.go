@@ -19,7 +19,7 @@ func NewCmdInit(viper *viper.Viper) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// if the token already exists and --force is not used
 			if !force && viper.IsSet(config.APIToken) {
-				return errors.New("API token already configured. You mused use --force.")
+				return errors.New("API token already configured. You must use --force.")
 			}
 
 			var token string
