@@ -18,8 +18,7 @@ archives:
     name_template: "bk_{{ .Version }}_macOS_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
     wrap_in_directory: true
     format: zip
-    rlcp: true
     files:
-      - LICENSE
+      - LICENSE.md
 
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj
