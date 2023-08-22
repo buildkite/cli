@@ -21,4 +21,4 @@ steps:
     plugins:
       docker-compose#v4.14.0:
         config: .buildkite/docker-compose.yaml
-        run: release
+        run: build
