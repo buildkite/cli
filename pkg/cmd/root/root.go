@@ -10,7 +10,10 @@ import (
 )
 
 func NewCmdRoot(viper *viper.Viper, version string) (*cobra.Command, error) {
-	cobra.OnInitialize(initConfig(viper))
+	err := initConfig(viper)
+	if err != nil {
+		return nil, err
+	}
 
 	cmd := &cobra.Command{
 		Use:   "bk <command> <subcommand> [flags]",
@@ -31,13 +34,11 @@ func NewCmdRoot(viper *viper.Viper, version string) (*cobra.Command, error) {
 }
 
 // initConfig reads in config file and ENV variables if set.
-func initConfig(viper *viper.Viper) func() {
-	return func() {
-		viper.SetConfigFile(config.ConfigFile())
+func initConfig(viper *viper.Viper) error {
+	viper.SetConfigFile(config.ConfigFile())
 
-		viper.AutomaticEnv() // read in environment variables that match
+	viper.AutomaticEnv() // read in environment variables that match
 
-		// If a config file is found, read it in.
-		viper.ReadInConfig()
-	}
+	// If a config file is found, read it in.
+	return viper.ReadInConfig()
 }
