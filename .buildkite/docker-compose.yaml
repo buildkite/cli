@@ -1,0 +1,13 @@
+version: '3.5'
+
+services:
+  go:
+    image: golang:1.21
+    working_dir: /go/src/github.com/buildkite/cli
+    volumes:
+      - .:/go/src/github.com/buildkite/cli
+  release:
+    image: goreleaser/goreleaser:v1.20.0
+    working_dir: /go/src/github.com/buildkite/cli
+    volumes:
+      - .:/go/src/github.com/buildkite/cli

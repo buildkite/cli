@@ -1,10 +1,10 @@
 steps:
-  - name: "Lint"
-    command: ".buildkite/steps/lint.sh"
-    skip: true
+  - name: ":golangci-lint:"
+    command: gofmt -l .
     plugins:
-      docker#v3.5.0:
-        image: "golang:1.16"
+      docker-compose#v4.14.0:
+        config: .buildkite/docker-compose.yaml
+        run: go
 
   - name: "Test"
     command: "go test -v -failfast ./..."
