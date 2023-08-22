@@ -7,6 +7,7 @@ import (
 
 	"github.com/buildkite/cli/v3/internal/build"
 	"github.com/buildkite/cli/v3/pkg/cmd/root"
+	"github.com/spf13/viper"
 )
 
 func main() {
@@ -17,7 +18,7 @@ func main() {
 func mainRun() int {
 	ctx := context.Background()
 
-	rootCmd, err := root.NewCmdRoot(build.Version)
+	rootCmd, err := root.NewCmdRoot(viper.GetViper(), build.Version)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to create root command: %s\n", err)
 		return 1

@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func NewCmdRoot(version string) (*cobra.Command, error) {
+func NewCmdRoot(viper *viper.Viper, version string) (*cobra.Command, error) {
 	cobra.OnInitialize(initConfig)
 
 	cmd := &cobra.Command{
@@ -28,7 +28,7 @@ func NewCmdRoot(version string) (*cobra.Command, error) {
 	}
 
 	cmd.AddCommand(versionCmd.NewCmdVersion())
-	cmd.AddCommand(authCmd.NewCmdAuth())
+	cmd.AddCommand(authCmd.NewCmdAuth(viper))
 
 	return cmd, nil
 }

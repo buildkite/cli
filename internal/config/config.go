@@ -9,6 +9,7 @@ import (
 const (
 	appData       = "AppData"
 	xdgConfigHome = "XDG_CONFIG_HOME"
+	APIToken      = "api_token"
 )
 
 // Config path precedence: XDG_CONFIG_HOME, AppData (windows only), HOME.
