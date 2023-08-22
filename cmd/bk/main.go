@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/buildkite/cli/v3/internal/build"
+	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/pkg/cmd/root"
 	"github.com/spf13/viper"
 )
@@ -18,6 +19,10 @@ func main() {
 func mainRun() int {
 	ctx := context.Background()
 	viper := viper.New()
+	viper.SetConfigFile(config.ConfigFile())
+	viper.AutomaticEnv()
+	// attempt to read in config file but it might not exist
+	_ = viper.ReadInConfig()
 
 	rootCmd, err := root.NewCmdRoot(viper, build.Version)
 	if err != nil {
