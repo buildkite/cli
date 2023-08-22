@@ -15,25 +15,10 @@ steps:
 
   - wait
 
-  - label: ":golang:"
-    skip: true
+  - label: ":buildkite: build"
+    artifact_paths:
+      - dist/**/*
     plugins:
-      golang-cross-compile#v1.3.0:
-        build: ./cmd/bk
-        import: github.com/buildkite/cli
-        targets:
-          - version: "1.16"
-            goos: darwin
-            goarch: amd64
-          - version: "1.16"
-            goos: darwin
-            goarch: arm64
-          - version: "1.16"
-            goos: linux
-            goarch: amd64
-          - version: "1.16"
-            goos: linux
-            goarch: arm64
-          - version: "1.16"
-            goos: windows
-            goarch: amd64
+      docker-compose#v4.14.0:
+        config: .buildkite/docker-compose.yaml
+        run: release
