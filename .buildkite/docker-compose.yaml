@@ -14,7 +14,7 @@ services:
     image: goreleaser/goreleaser:v1.20.0
     working_dir: /go/src/github.com/buildkite/cli
     volumes:
-      - .:/go/src/github.com/buildkite/cli
+      - ..:/go/src/github.com/buildkite/cli
     command:
       - build
       - --snapshot
