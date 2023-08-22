@@ -10,7 +10,7 @@ import (
 
 func NewCmdVersion() *cobra.Command {
 	return &cobra.Command{
-		Use: "version",
+		Use:    "version",
 		Hidden: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Fprintf(os.Stdout, cmd.Root().Annotations["versionInfo"])

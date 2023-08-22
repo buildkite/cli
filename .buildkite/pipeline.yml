@@ -1,5 +1,5 @@
 steps:
-  - name: ":golangci-lint:"
+  - name: ":golangci-lint: lint"
     plugins:
       docker-compose#v4.14.0:
         config: .buildkite/docker-compose.yaml
