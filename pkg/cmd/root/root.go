@@ -2,8 +2,8 @@ package root
 
 import (
 	"github.com/MakeNowJust/heredoc"
-	versionCmd "github.com/buildkite/cli/v3/pkg/cmd/version"
 	configureCmd "github.com/buildkite/cli/v3/pkg/cmd/configure"
+	versionCmd "github.com/buildkite/cli/v3/pkg/cmd/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
