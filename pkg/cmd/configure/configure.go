@@ -15,7 +15,7 @@ func NewCmdConfigure(v *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "configure",
 		Args:  cobra.ExactArgs(0),
-		Short: "Configure Buildkite authentication token",
+		Short: "Configure Buildkite API token",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// if the token already exists and --force is not used
 			if !force && viper.IsSet(config.APIToken) {
