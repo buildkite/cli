@@ -3,6 +3,7 @@ package root
 import (
 	"github.com/MakeNowJust/heredoc"
 	configureCmd "github.com/buildkite/cli/v3/pkg/cmd/configure"
+	initCmd "github.com/buildkite/cli/v3/pkg/cmd/init"
 	versionCmd "github.com/buildkite/cli/v3/pkg/cmd/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -21,8 +22,9 @@ func NewCmdRoot(viper *viper.Viper, version string) (*cobra.Command, error) {
 		},
 	}
 
-	cmd.AddCommand(versionCmd.NewCmdVersion())
 	cmd.AddCommand(configureCmd.NewCmdConfigure(viper))
+	cmd.AddCommand(initCmd.NewCmdInit(viper))
+	cmd.AddCommand(versionCmd.NewCmdVersion())
 
 	return cmd, nil
 }
