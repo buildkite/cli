@@ -2,54 +2,67 @@ package init
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"log"
-	"os"
 )
 
-var (
-	yamlContent = []byte(
-		`steps:
+const (
+	defaultPipelineYAML = `steps:
   - label: "Hello, world! 👋"
-    command: echo "Hello, world!"`,
-	)
-
-	pipelineFile = ".buildkite/pipeline.yaml"
+    command: echo "Hello, world!"`
 )
 
 func NewCmdInit(v *viper.Viper) *cobra.Command {
-	if _, err := os.Stat(pipelineFile); err == nil {
-		fmt.Println("🕵️  pipeline.yaml found at .buildkite/pipeline.yaml. You're already good to go!")
-	} else {
-		file, err := os.Create(pipelineFile)
-
-		if err != nil {
-			log.Fatalf("failed creating file: %s", err)
-		}
-
-		defer file.Close()
-		_, err = file.Write(yamlContent)
-
-		if err != nil {
-			log.Fatalf("failed to write to file: %f", err)
-		}
-
-		fmt.Println("✨ Buildkite pipeline successfully initialized 🎉")
-	}
-
-	cmd := &cobra.Command{
+	return &cobra.Command{
 		Use:   "init",
 		Args:  cobra.ExactArgs(0),
-		Short: "Initialize Buildkite pipeline directory",
+		Short: "Initialize a pipeline.yaml file",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := os.MkdirAll(".buildkite", 0755)
+			if found, path := findExistingPipelineFile(); found {
+				fmt.Printf("✨ File found at %s. You're good to go!\n", path)
+				return nil
+			}
+
+			pipelineFile := filepath.Join(".buildkite", "pipeline.yaml")
+			err := os.MkdirAll(filepath.Dir(pipelineFile), 0755)
 			if err != nil {
 				return err
 			}
+
+			err = os.WriteFile(pipelineFile, []byte(defaultPipelineYAML), 0660)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("✨ File created at %s. You're good to go!\n", pipelineFile)
+
 			return nil
 		},
 	}
+}
 
-	return cmd
+func findExistingPipelineFile() (bool, string) {
+	// the order in which buildkite-agent checks for files
+	paths := []string{
+		"buildkite.yml",
+		"buildkite.yaml",
+		"buildkite.json",
+		filepath.FromSlash(".buildkite/pipeline.yml"),
+		filepath.FromSlash(".buildkite/pipeline.yaml"),
+		filepath.FromSlash(".buildkite/pipeline.json"),
+		filepath.FromSlash("buildkite/pipeline.yml"),
+		filepath.FromSlash("buildkite/pipeline.yaml"),
+		filepath.FromSlash("buildkite/pipeline.json"),
+	}
+
+	for _, path := range paths {
+		if _, err := os.Stat(path); err == nil {
+			return true, path
+		}
+	}
+
+	return false, ""
 }
