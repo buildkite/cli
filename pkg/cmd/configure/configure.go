@@ -1,4 +1,4 @@
-package init
+package configure
 
 import (
 	"errors"
@@ -9,13 +9,13 @@ import (
 	"github.com/spf13/viper"
 )
 
-func NewCmdInit(viper *viper.Viper) *cobra.Command {
+func NewCmdConfigure(v *viper.Viper) *cobra.Command {
 	var force bool
 
 	cmd := &cobra.Command{
-		Use:   "init",
+		Use:   "configure",
 		Args:  cobra.ExactArgs(0),
-		Short: "Initialise authentication token",
+		Short: "Configure Buildkite API token",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// if the token already exists and --force is not used
 			if !force && viper.IsSet(config.APIToken) {
@@ -32,12 +32,11 @@ func NewCmdInit(viper *viper.Viper) *cobra.Command {
 				return err
 			}
 
-			viper.Set(config.APIToken, token)
-			return viper.WriteConfig()
+			v.Set(config.APIToken, token)
+			return v.WriteConfig()
 		},
 	}
 
 	cmd.Flags().BoolVar(&force, "force", false, "Force setting a new token")
-
 	return cmd
 }

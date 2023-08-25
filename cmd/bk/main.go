@@ -18,13 +18,13 @@ func main() {
 
 func mainRun() int {
 	ctx := context.Background()
-	viper := viper.New()
-	viper.SetConfigFile(config.ConfigFile())
-	viper.AutomaticEnv()
+	v := viper.New()
+	v.SetConfigFile(config.ConfigFile())
+	v.AutomaticEnv()
 	// attempt to read in config file but it might not exist
-	_ = viper.ReadInConfig()
+	_ = v.ReadInConfig()
 
-	rootCmd, err := root.NewCmdRoot(viper, build.Version)
+	rootCmd, err := root.NewCmdRoot(v, build.Version)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to create root command: %s\n", err)
 		return 1
