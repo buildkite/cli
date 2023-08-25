@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func NewCmdRoot(viper *viper.Viper, version string) (*cobra.Command, error) {
+func NewCmdRoot(v *viper.Viper, version string) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "bk <command> <subcommand> [flags]",
 		Short: "Buildkite CLI",
@@ -22,8 +22,8 @@ func NewCmdRoot(viper *viper.Viper, version string) (*cobra.Command, error) {
 		},
 	}
 
-	cmd.AddCommand(configureCmd.NewCmdConfigure(viper))
-	cmd.AddCommand(initCmd.NewCmdInit(viper))
+	cmd.AddCommand(configureCmd.NewCmdConfigure(v))
+	cmd.AddCommand(initCmd.NewCmdInit(v))
 	cmd.AddCommand(versionCmd.NewCmdVersion())
 
 	return cmd, nil
