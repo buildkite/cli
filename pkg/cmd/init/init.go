@@ -21,7 +21,7 @@ func NewCmdInit(v *viper.Viper) *cobra.Command {
 		Args:  cobra.ExactArgs(0),
 		Short: "Initialize a pipeline.yaml file",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if found, path := findExistingPipelineFile(); found {
+			if found, path := findExistingPipelineFile(""); found {
 				fmt.Printf("✨ File found at %s. You're good to go!\n", path)
 				return nil
 			}
@@ -44,7 +44,7 @@ func NewCmdInit(v *viper.Viper) *cobra.Command {
 	}
 }
 
-func findExistingPipelineFile() (bool, string) {
+func findExistingPipelineFile(base string) (bool, string) {
 	// the order in which buildkite-agent checks for files
 	paths := []string{
 		"buildkite.yml",
@@ -59,6 +59,7 @@ func findExistingPipelineFile() (bool, string) {
 	}
 
 	for _, path := range paths {
+		path = filepath.Join(base, path)
 		if _, err := os.Stat(path); err == nil {
 			return true, path
 		}
