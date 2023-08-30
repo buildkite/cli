@@ -5,11 +5,11 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/buildkite/cli/v3/internal/config"
+	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
-func NewCmdConfigure(v *viper.Viper) *cobra.Command {
+func NewCmdConfigure(f *factory.Factory) *cobra.Command {
 	var force bool
 
 	cmd := &cobra.Command{
@@ -18,7 +18,7 @@ func NewCmdConfigure(v *viper.Viper) *cobra.Command {
 		Short: "Configure Buildkite API token",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// if the token already exists and --force is not used
-			if !force && v.IsSet(config.APIToken) {
+			if !force && f.Config.IsSet(config.APITokenConfigKey) {
 				return errors.New("API token already configured. You must use --force.")
 			}
 
@@ -32,8 +32,8 @@ func NewCmdConfigure(v *viper.Viper) *cobra.Command {
 				return err
 			}
 
-			v.Set(config.APIToken, token)
-			return v.WriteConfig()
+			f.Config.Set(config.APITokenConfigKey, token)
+			return f.Config.WriteConfig()
 		},
 	}
 

@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 const (
@@ -15,7 +15,7 @@ const (
     command: echo "Hello, world!"`
 )
 
-func NewCmdInit(v *viper.Viper) *cobra.Command {
+func NewCmdInit(f *factory.Factory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "init",
 		Args:  cobra.ExactArgs(0),
