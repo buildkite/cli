@@ -24,7 +24,7 @@ func TestFindExistingPipelineFile(t *testing.T) {
 		t.Error(err)
 	}
 	defer os.RemoveAll(dir)
-	os.MkdirAll(filepath.Join(dir, ".buildkite"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, ".buildkite"), 0755)
 	f, _ := os.Create(filepath.Join(dir, ".buildkite", "pipeline.yml"))
 	defer f.Close()
 
