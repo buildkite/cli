@@ -14,7 +14,7 @@ func NewCmdConfigure(f *factory.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "configure",
-		Args:  cobra.ExactArgs(0),
+		Args:  cobra.NoArgs,
 		Short: "Configure Buildkite API token",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// if the token already exists and --force is not used
