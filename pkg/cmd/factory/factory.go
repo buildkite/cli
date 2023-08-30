@@ -12,7 +12,7 @@ import (
 
 type Factory struct {
 	Config     *viper.Viper
-	HttpClient func() (*http.Client, error)
+	HttpClient func() *http.Client
 	Version    string
 }
 
@@ -34,13 +34,13 @@ func loadViper() *viper.Viper {
 	return v
 }
 
-func httpClientFunc(version string, v *viper.Viper) func() (*http.Client, error) {
+func httpClientFunc(version string, v *viper.Viper) func() *http.Client {
 	headers := map[string]string{
 		"Authorization": fmt.Sprintf("Bearer %s", v.GetString(config.APITokenConfigKey)),
 		"User-Agent":    fmt.Sprintf("Buildkite CLI/%s (%s/%s)", version, runtime.GOOS, runtime.GOARCH),
 	}
 
-	return func() (*http.Client, error) {
-		return api.NewHTTPClient(headers), nil
+	return func() *http.Client {
+		return api.NewHTTPClient(headers)
 	}
 }
