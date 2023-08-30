@@ -1,8 +1,11 @@
 package factory
 
 import (
+	"fmt"
 	"net/http"
+	"runtime"
 
+	"github.com/buildkite/cli/v3/internal/api"
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/spf13/viper"
 )
@@ -14,9 +17,10 @@ type Factory struct {
 }
 
 func New(version string) *Factory {
+	config := loadViper()
 	return &Factory{
-		Config:     loadViper(),
-		HttpClient: httpClientFunc,
+		Config:     config,
+		HttpClient: httpClientFunc(version, config),
 		Version:    version,
 	}
 }
@@ -30,6 +34,13 @@ func loadViper() *viper.Viper {
 	return v
 }
 
-func httpClientFunc() (*http.Client, error) {
-	return nil, nil
+func httpClientFunc(version string, v *viper.Viper) func() (*http.Client, error) {
+	headers := map[string]string{
+		"Authorization": fmt.Sprintf("Bearer %s", v.GetString(config.APITokenConfigKey)),
+		"User-Agent":    fmt.Sprintf("Buildkite CLI/%s (%s/%s)", version, runtime.GOOS, runtime.GOARCH),
+	}
+
+	return func() (*http.Client, error) {
+		return api.NewHTTPClient(headers), nil
+	}
 }
