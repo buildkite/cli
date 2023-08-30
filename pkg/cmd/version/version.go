@@ -5,15 +5,16 @@ import (
 	"os"
 	"strings"
 
+	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/spf13/cobra"
 )
 
-func NewCmdVersion() *cobra.Command {
+func NewCmdVersion(f *factory.Factory) *cobra.Command {
 	return &cobra.Command{
 		Use:    "version",
 		Hidden: true,
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Fprintf(os.Stdout, cmd.Root().Annotations["versionInfo"])
+			fmt.Fprintf(os.Stdout, f.Version)
 		},
 	}
 }

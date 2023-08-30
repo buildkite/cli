@@ -24,7 +24,7 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 
 	cmd.AddCommand(configureCmd.NewCmdConfigure(f))
 	cmd.AddCommand(initCmd.NewCmdInit(f))
-	cmd.AddCommand(versionCmd.NewCmdVersion())
+	cmd.AddCommand(versionCmd.NewCmdVersion(f))
 
 	return cmd, nil
 }
