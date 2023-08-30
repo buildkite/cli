@@ -14,7 +14,7 @@ func NewCmdVersion(f *factory.Factory) *cobra.Command {
 		Use:    "version",
 		Hidden: true,
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Fprintf(os.Stdout, f.Version)
+			fmt.Fprintf(os.Stdout, "%s\n", f.Version)
 		},
 	}
 }
