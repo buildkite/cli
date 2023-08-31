@@ -1,6 +1,15 @@
 version: '3.5'
 
 services:
+  test:
+    image: golangci/golangci-lint:v1.54.1
+    working_dir: /app
+    volumes:
+      - ..:/app
+    command:
+      - go
+      - test
+      - ./...
   lint:
     image: golangci/golangci-lint:v1.54.1
     working_dir: /app
