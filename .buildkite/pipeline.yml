@@ -5,13 +5,11 @@ steps:
         config: .buildkite/docker-compose.yaml
         run: lint
 
-  - name: "Test"
-    command: "go test -v -failfast ./..."
-    skip: true
+  - name: ":go: test"
     plugins:
-      docker-compose#v3.0.0:
-        config: .buildkite/docker-compose.yml
-        run: agent
+      docker-compose#v4.14.0:
+        config: .buildkite/docker-compose.yaml
+        run: test
 
   - wait
 

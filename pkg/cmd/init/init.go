@@ -18,7 +18,7 @@ const (
 func NewCmdInit(f *factory.Factory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "init",
-		Args:  cobra.ExactArgs(0),
+		Args:  cobra.NoArgs,
 		Short: "Initialize a pipeline.yaml file",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if found, path := findExistingPipelineFile(""); found {
