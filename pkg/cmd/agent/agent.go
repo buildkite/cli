@@ -46,7 +46,7 @@ func parseAgentArg(agent string, v *viper.Viper) (string, string) {
 		}
 		// eg: url.Path = organizations/buildkite/agents/018a2b90-ba7f-4220-94ca-4903fa0ba410
 		part := strings.Split(url.Path, "/")
-		org, id = part[1], part[3]
+		org, id = part[2], part[4]
 	} else {
 		if agentIsSlug {
 			part := strings.Split(agent, "/")
