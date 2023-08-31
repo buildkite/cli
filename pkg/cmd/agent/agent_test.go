@@ -34,7 +34,7 @@ func TestParseAgentArg(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			v := viper.GetViper()
+			v := viper.New()
 			v.Set("organization", "testing")
 			org, agent := parseAgentArg(testcase.url, v)
 
