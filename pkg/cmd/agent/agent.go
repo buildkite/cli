@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"strings"
+
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/spf13/cobra"
@@ -27,4 +29,9 @@ func NewCmdAgent(f *factory.Factory) *cobra.Command {
 	cmd.AddCommand(NewCmdAgentStop(f))
 
 	return &cmd
+}
+
+func parseAgentArg(agent string) (string, string) {
+	part := strings.Split(agent, "/")
+	return part[0], part[1]
 }
