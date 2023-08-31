@@ -23,11 +23,9 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 			If the agent is already stopped the command returns an error.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			org, agent := parseAgentArg(args[0])
+			org, agent := parseAgentArg(args[0], f.Config)
 
 			_, err := f.RestAPIClient.Agents.Stop(org, agent, force)
-			// TODO: this can return 422 if agent is already disconnected. should we report that as an error or treat
-			// this command declaratively where we want to stop the agent so if its already stopped then we dont care
 
 			return err
 		},
