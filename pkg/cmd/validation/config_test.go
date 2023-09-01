@@ -4,17 +4,18 @@ import (
 	"testing"
 
 	"github.com/buildkite/cli/v3/internal/config"
-	"github.com/spf13/viper"
 )
 
 func TestCheckValidConfiguration(t *testing.T) {
 	t.Parallel()
 
 	t.Run("API token is configured", func(t *testing.T) {
-		v := viper.New()
-		v.Set(config.APITokenConfigKey, "testing")
+		c := config.Config{
+			Organization: "testing",
+			APIToken:     "testing",
+		}
 
-		f := CheckValidConfiguration(v)
+		f := CheckValidConfiguration(&c)
 		err := f(nil, nil)
 
 		if err != nil {
@@ -23,9 +24,9 @@ func TestCheckValidConfiguration(t *testing.T) {
 	})
 
 	t.Run("API token is not configured", func(t *testing.T) {
-		v := viper.New()
+		c := config.Config{}
 
-		f := CheckValidConfiguration(v)
+		f := CheckValidConfiguration(&c)
 		err := f(nil, nil)
 
 		if err == nil {

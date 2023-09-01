@@ -3,7 +3,7 @@ package agent
 import (
 	"testing"
 
-	"github.com/spf13/viper"
+	"github.com/buildkite/cli/v3/internal/config"
 )
 
 func TestParseAgentArg(t *testing.T) {
@@ -34,9 +34,10 @@ func TestParseAgentArg(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			v := viper.New()
-			v.Set("organization", "testing")
-			org, agent := parseAgentArg(testcase.url, v)
+			c := config.Config{
+				Organization: "testing",
+			}
+			org, agent := parseAgentArg(testcase.url, &c)
 
 			if org != testcase.org {
 				t.Error("parsed organization slug did not match expected")
