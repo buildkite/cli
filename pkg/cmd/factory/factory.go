@@ -12,14 +12,14 @@ import (
 )
 
 type Factory struct {
-	Config        *viper.Viper
+	Config        *config.Config
 	HttpClient    *http.Client
 	RestAPIClient *buildkite.Client
 	Version       string
 }
 
 func New(version string) *Factory {
-	config := loadViper()
+	config := loadFromViper()
 	client := httpClient(version, config)
 	return &Factory{
 		Config:        config,
@@ -29,18 +29,32 @@ func New(version string) *Factory {
 	}
 }
 
-func loadViper() *viper.Viper {
+func loadFromViper() *config.Config {
 	v := viper.New()
 	v.SetConfigFile(config.ConfigFile())
 	v.AutomaticEnv()
 	// attempt to read in config file but it might not exist
 	_ = v.ReadInConfig()
-	return v
+
+	selected := v.GetString(config.SelectedOrgKey)
+	orgs := v.GetStringMap(config.OrganizationsSlugConfigKey)
+
+	if org, ok := orgs[selected]; ok {
+		return &config.Config{
+			Organization: selected,
+			APIToken:     org.(map[string]interface{})[config.APITokenConfigKey].(string),
+			V:            v,
+		}
+	}
+
+	// if there is no matching org selected, return an empty config
+	// this will be validated elsewhere before a command actually runs
+	return &config.Config{V: v}
 }
 
-func httpClient(version string, v *viper.Viper) *http.Client {
+func httpClient(version string, conf *config.Config) *http.Client {
 	headers := map[string]string{
-		"Authorization": fmt.Sprintf("Bearer %s", v.GetString(config.APITokenConfigKey)),
+		"Authorization": fmt.Sprintf("Bearer %s", conf.APIToken),
 		"User-Agent":    fmt.Sprintf("Buildkite CLI/%s (%s/%s)", version, runtime.GOOS, runtime.GOARCH),
 	}
 

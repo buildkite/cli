@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	apiTokenConfigKey          = "api_token"
-	organizationsSlugConfigKey = "organizations"
-	selectedOrgKey             = "selected_org"
+	APITokenConfigKey          = "api_token"
+	OrganizationsSlugConfigKey = "organizations"
+	SelectedOrgKey             = "selected_org"
 )
 
 const (
@@ -38,16 +38,16 @@ type Config struct {
 }
 
 func (conf *Config) merge() {
-	orgs := conf.V.GetStringMap(organizationsSlugConfigKey)
+	orgs := conf.V.GetStringMap(OrganizationsSlugConfigKey)
 	orgs[conf.Organization] = map[string]string{
-		apiTokenConfigKey: conf.APIToken,
+		APITokenConfigKey: conf.APIToken,
 	}
-	conf.V.Set(organizationsSlugConfigKey, orgs)
+	conf.V.Set(OrganizationsSlugConfigKey, orgs)
 }
 
 // Save sets the current config values into viper and writes the config file
 func (conf *Config) Save() error {
-	conf.V.Set(selectedOrgKey, conf.Organization)
+	conf.V.Set(SelectedOrgKey, conf.Organization)
 	conf.merge()
 
 	return conf.V.WriteConfig()

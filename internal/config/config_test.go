@@ -22,7 +22,7 @@ func TestConfigMergeOrganizations(t *testing.T) {
 
 		c.merge()
 
-		m := v.GetStringMap(organizationsSlugConfigKey)
+		m := v.GetStringMap(OrganizationsSlugConfigKey)
 		if len(m) != 1 {
 			t.Error("should have config items present")
 		}
@@ -54,7 +54,7 @@ func TestConfigMergeOrganizations(t *testing.T) {
 		c.Organization = "extra"
 		c.merge()
 
-		m := v.GetStringMap(organizationsSlugConfigKey)
+		m := v.GetStringMap(OrganizationsSlugConfigKey)
 		if len(m) != 2 {
 			t.Error("should have config items present")
 		}
@@ -86,13 +86,13 @@ func TestConfigMergeOrganizations(t *testing.T) {
 		c.APIToken = "extra"
 		c.merge()
 
-		m := v.GetStringMap(organizationsSlugConfigKey)
+		m := v.GetStringMap(OrganizationsSlugConfigKey)
 		if len(m) != 1 {
 			t.Error("should have config items present")
 		}
 		if org, ok := m["testing"]; ok {
 			o := org.(map[string]string)
-			if o[apiTokenConfigKey] != "extra" {
+			if o[APITokenConfigKey] != "extra" {
 				t.Error("api token is not updated")
 			}
 		} else {
