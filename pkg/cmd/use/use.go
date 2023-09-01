@@ -34,7 +34,7 @@ func useRun(selected string, conf *config.Config) error {
 	m := conf.V.GetStringMap(config.OrganizationsSlugConfigKey)
 	if org, ok := m[selected]; ok {
 		conf.Organization = selected
-		conf.APIToken = org.(map[string]string)[config.APITokenConfigKey]
+		conf.APIToken = org.(map[string]interface{})[config.APITokenConfigKey].(string)
 		fmt.Printf("Using configuration for `%s`\n", selected)
 		return conf.Save()
 	}

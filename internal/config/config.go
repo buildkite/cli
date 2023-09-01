@@ -43,7 +43,7 @@ type ViperConfig interface {
 
 func (conf *Config) merge() {
 	orgs := conf.V.GetStringMap(OrganizationsSlugConfigKey)
-	orgs[conf.Organization] = map[string]string{
+	orgs[conf.Organization] = map[string]interface{}{
 		APITokenConfigKey: conf.APIToken,
 	}
 	conf.V.Set(OrganizationsSlugConfigKey, orgs)

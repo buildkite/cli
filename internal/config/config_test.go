@@ -28,7 +28,7 @@ func TestConfigMergeOrganizations(t *testing.T) {
 		}
 		if _, ok := m["testing"]; ok {
 			switch m["testing"].(type) {
-			case map[string]string:
+			case map[string]interface{}:
 				return
 			default:
 				t.Error("incorrect type in config")
@@ -60,7 +60,7 @@ func TestConfigMergeOrganizations(t *testing.T) {
 		}
 		if _, ok := m["extra"]; ok {
 			switch m["extra"].(type) {
-			case map[string]string:
+			case map[string]interface{}:
 				return
 			default:
 				t.Error("incorrect type in config")
@@ -91,7 +91,7 @@ func TestConfigMergeOrganizations(t *testing.T) {
 			t.Error("should have config items present")
 		}
 		if org, ok := m["testing"]; ok {
-			o := org.(map[string]string)
+			o := org.(map[string]interface{})
 			if o[APITokenConfigKey] != "extra" {
 				t.Error("api token is not updated")
 			}
