@@ -3,7 +3,7 @@ package configure
 import (
 	"errors"
 
-	"github.com/AlecAivazis/survey/v2"
+	addCmd "github.com/buildkite/cli/v3/pkg/cmd/configure/add"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/spf13/cobra"
 )
@@ -22,33 +22,13 @@ func NewCmdConfigure(f *factory.Factory) *cobra.Command {
 				return errors.New("API token already configured. You must use --force.")
 			}
 
-			qs := []*survey.Question{
-				{
-					Name:     "org",
-					Prompt:   &survey.Input{Message: "What is your organization slug?"},
-					Validate: survey.Required,
-				},
-				{
-					Name:     "token",
-					Prompt:   &survey.Password{Message: "Paste your API token:"},
-					Validate: survey.Required,
-				},
-			}
-			answers := struct{ Org, Token string }{}
-
-			err := survey.Ask(qs, &answers)
-			if err != nil {
-				return err
-			}
-
-			f.Config.APIToken = answers.Token
-			f.Config.Organization = answers.Org
-
-			return f.Config.Save()
+			return addCmd.ConfigureRun(f)
 		},
 	}
 
 	cmd.Flags().BoolVar(&force, "force", false, "Force setting a new token")
+
+	cmd.AddCommand(addCmd.NewCmdAdd(f))
 
 	return cmd
 }
