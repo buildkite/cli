@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-
-	"github.com/spf13/viper"
 )
 
 const (
@@ -34,7 +32,13 @@ const (
 type Config struct {
 	Organization string
 	APIToken     string
-	V            *viper.Viper
+	V            ViperConfig
+}
+
+type ViperConfig interface {
+	Set(string, interface{})
+	GetStringMap(string) map[string]interface{}
+	WriteConfig() error
 }
 
 func (conf *Config) merge() {
