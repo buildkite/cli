@@ -9,7 +9,6 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 func NewCmdAgent(f *factory.Factory) *cobra.Command {
@@ -36,7 +35,7 @@ func NewCmdAgent(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-func parseAgentArg(agent string, v *viper.Viper) (string, string) {
+func parseAgentArg(agent string, conf *config.Config) (string, string) {
 	var org, id string
 	agentIsURL := strings.Contains(agent, ":")
 	agentIsSlug := !agentIsURL && strings.Contains(agent, "/")
@@ -54,7 +53,7 @@ func parseAgentArg(agent string, v *viper.Viper) (string, string) {
 			part := strings.Split(agent, "/")
 			org, id = part[0], part[1]
 		} else {
-			org = v.GetString(config.OrganizationSlugConfigKey)
+			org = conf.Organization
 			id = agent
 		}
 	}

@@ -2,10 +2,11 @@ package root
 
 import (
 	"github.com/MakeNowJust/heredoc"
-	"github.com/buildkite/cli/v3/pkg/cmd/agent"
+	agentCmd "github.com/buildkite/cli/v3/pkg/cmd/agent"
 	configureCmd "github.com/buildkite/cli/v3/pkg/cmd/configure"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	initCmd "github.com/buildkite/cli/v3/pkg/cmd/init"
+	useCmd "github.com/buildkite/cli/v3/pkg/cmd/use"
 	versionCmd "github.com/buildkite/cli/v3/pkg/cmd/version"
 	"github.com/spf13/cobra"
 )
@@ -24,8 +25,9 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 	}
 
 	cmd.AddCommand(configureCmd.NewCmdConfigure(f))
+	cmd.AddCommand(useCmd.NewCmdUse(f))
 	cmd.AddCommand(initCmd.NewCmdInit(f))
-	cmd.AddCommand(agent.NewCmdAgent(f))
+	cmd.AddCommand(agentCmd.NewCmdAgent(f))
 	cmd.AddCommand(versionCmd.NewCmdVersion(f))
 
 	return cmd, nil
