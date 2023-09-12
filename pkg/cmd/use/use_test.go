@@ -30,7 +30,8 @@ func TestCmdUse(t *testing.T) {
 		c := config.Config{
 			Organization: "testing",
 		}
-		err := useRun("testing", &c)
+		selected := "testing"
+		err := useRun(&selected, &c)
 		if err != nil {
 			t.Error("expected no error")
 		}
@@ -61,7 +62,8 @@ func TestCmdUse(t *testing.T) {
 		c = config.Config{
 			V: v,
 		}
-		err := useRun("testing", &c)
+		selected := "testing"
+		err := useRun(&selected, &c)
 		if err != nil {
 			t.Errorf("expected no error: %s", err)
 		}
@@ -72,7 +74,8 @@ func TestCmdUse(t *testing.T) {
 
 	t.Run("errors if missing org", func(t *testing.T) {
 		t.Parallel()
-		err := useRun("testing", &config.Config{V: viper.New()})
+		selected := "testing"
+		err := useRun(&selected, &config.Config{V: viper.New()})
 		if err == nil {
 			t.Error("expected an error")
 		}
