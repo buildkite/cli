@@ -79,7 +79,10 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printOutput(Output(output), agents)
+			err = printOutput(Output(output), agents)
+			if err != nil {
+				return err
+			}
 			return err
 		},
 	}
