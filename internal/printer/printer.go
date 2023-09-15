@@ -15,6 +15,9 @@ const (
 	YAML Output = "yaml"
 )
 
+// It would be great to make this either generic or accepting of things that
+// implement a suitable interface.
+
 func PrintOutput(output Output, agents []buildkite.Agent) error {
 	switch output {
 	case JSON:
