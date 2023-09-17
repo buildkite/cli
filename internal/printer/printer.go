@@ -3,8 +3,8 @@ package printer
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/buildkite/go-buildkite/v3/buildkite"
-	"github.com/jedib0t/go-pretty/v6/table"
 	"gopkg.in/yaml.v3"
 )
 
@@ -25,7 +25,7 @@ func PrintOutput(output Output, agents []buildkite.Agent) error {
 	case YAML:
 		return printYAML(agents)
 	default:
-		return printTable(agents)
+		return printJSON(agents)
 	}
 }
 
@@ -44,15 +44,5 @@ func printYAML(agents []buildkite.Agent) error {
 		return err
 	}
 	fmt.Println(string(data))
-	return nil
-}
-
-func printTable(agents []buildkite.Agent) error {
-	t := table.NewWriter()
-	t.AppendHeader(table.Row{"#", "Name", "ID", "State"})
-	for i, agent := range agents {
-		t.AppendRow(table.Row{i + 1, *agent.Name, *agent.ID, *agent.ConnectedState})
-	}
-	fmt.Println(t.Render())
 	return nil
 }

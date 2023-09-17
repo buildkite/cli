@@ -17,7 +17,6 @@ func TestCheckValidConfiguration(t *testing.T) {
 
 		f := CheckValidConfiguration(&c)
 		err := f(nil, nil)
-
 		if err != nil {
 			t.Error("expected no error returned")
 		}
