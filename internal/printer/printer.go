@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/buildkite/go-buildkite/v3/buildkite"
 	"gopkg.in/yaml.v3"
 )
 
@@ -15,22 +14,19 @@ const (
 	YAML Output = "yaml"
 )
 
-// It would be great to make this either generic or accepting of things that
-// implement a suitable interface.
-
-func PrintOutput(output Output, agents []buildkite.Agent) error {
+func PrintOutput(output Output, p any ) error {
 	switch output {
 	case JSON:
-		return printJSON(agents)
+		return printJSON(p)
 	case YAML:
-		return printYAML(agents)
+		return printYAML(p)
 	default:
-		return printJSON(agents)
+		return printJSON(p)
 	}
 }
 
-func printJSON(agents []buildkite.Agent) error {
-	data, err := json.MarshalIndent(agents, "", "  ")
+func printJSON(p any) error {
+	data, err := json.MarshalIndent(p, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -38,8 +34,8 @@ func printJSON(agents []buildkite.Agent) error {
 	return nil
 }
 
-func printYAML(agents []buildkite.Agent) error {
-	data, err := yaml.Marshal(agents)
+func printYAML(p any) error {
+	data, err := yaml.Marshal(p)
 	if err != nil {
 		return err
 	}

@@ -6,10 +6,17 @@ import (
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/config"
+	"github.com/buildkite/cli/v3/internal/printer"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
+	"github.com/buildkite/go-buildkite/v3/buildkite"
 	"github.com/spf13/cobra"
 )
+
+type Agent buildkite.Agent
+
+func (a Agent) Print(output printer.Output) {
+}
 
 func NewCmdAgent(f *factory.Factory) *cobra.Command {
 	cmd := cobra.Command{
@@ -32,6 +39,7 @@ func NewCmdAgent(f *factory.Factory) *cobra.Command {
 
 	cmd.AddCommand(NewCmdAgentStop(f))
 	cmd.AddCommand(NewCmdAgentList(f))
+    cmd.AddCommand(NewCmdAgentView(f))
 
 	return &cmd
 }
