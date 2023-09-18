@@ -14,7 +14,7 @@ const (
 	YAML Output = "yaml"
 )
 
-func PrintOutput(output Output, p any ) error {
+func PrintOutput(output Output, p any) error {
 	switch output {
 	case JSON:
 		return printJSON(p)

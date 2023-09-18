@@ -10,25 +10,25 @@ import (
 )
 
 func NewCmdAgentView(f *factory.Factory) *cobra.Command {
-    cmd := cobra.Command{
-        Use:                   "view",
-        Args:  cobra.NoArgs,
-        Short: "View an agent",
-        RunE: func(cmd *cobra.Command, args []string) error {
-            id, _ := cmd.Flags().GetString("id")
-            if id == "" {
-                return fmt.Errorf("id is required")
-            }
-            validation.ValidateUUID(id)
-            agent, _,  err := f.RestAPIClient.Agents.Get(f.Config.Organization, id)
-            if err != nil {
-                return err
-            }
-            printer.PrintOutput("", agent)
-            return nil
-        },
-    }
+	cmd := cobra.Command{
+		Use:   "view",
+		Args:  cobra.NoArgs,
+		Short: "View an agent",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id, _ := cmd.Flags().GetString("id")
+			if id == "" {
+				return fmt.Errorf("id is required")
+			}
+			validation.ValidateUUID(id)
+			agent, _, err := f.RestAPIClient.Agents.Get(f.Config.Organization, id)
+			if err != nil {
+				return err
+			}
+			printer.PrintOutput("", agent)
+			return nil
+		},
+	}
 
-    cmd.Flags().String("id", "", "The ID of the agent")
-    return &cmd
+	cmd.Flags().String("id", "", "The ID of the agent")
+	return &cmd
 }

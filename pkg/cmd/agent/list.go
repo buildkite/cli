@@ -30,7 +30,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 			if err != nil {
 				return err
 			}
-            printer.PrintOutput("json", agents)
+			printer.PrintOutput("json", agents)
 			if err != nil {
 				return err
 			}
