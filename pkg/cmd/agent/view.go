@@ -25,10 +25,10 @@ func NewCmdAgentView(f *factory.Factory) *cobra.Command {
 			if output == "" {
 				output = "json"
 			}
-            err := validation.ValidateUUID(id)
-            if err != nil {
-                return err
-            }
+			err := validation.ValidateUUID(id)
+			if err != nil {
+				return err
+			}
 			agent, _, err := f.RestAPIClient.Agents.Get(f.Config.Organization, id)
 			if err != nil {
 				return err
