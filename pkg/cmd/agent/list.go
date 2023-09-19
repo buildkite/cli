@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"fmt"
+
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/printer"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -30,10 +32,11 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			err = printer.PrintOutput(printer.Output(output), agents)
+			data, err := printer.PrintOutput(printer.Output(output), agents)
 			if err != nil {
 				return err
 			}
+			fmt.Println(data)
 			return err
 		},
 	}

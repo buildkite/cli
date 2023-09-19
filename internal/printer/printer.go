@@ -2,7 +2,6 @@ package printer
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"gopkg.in/yaml.v3"
 )
@@ -14,7 +13,7 @@ const (
 	YAML Output = "yaml"
 )
 
-func PrintOutput(output Output, p any) error {
+func PrintOutput(output Output, p any) (string, error) {
 	switch output {
 	case JSON:
 		return printJSON(p)
@@ -25,20 +24,18 @@ func PrintOutput(output Output, p any) error {
 	}
 }
 
-func printJSON(p any) error {
+func printJSON(p any) (string, error) {
 	data, err := json.MarshalIndent(p, "", "  ")
 	if err != nil {
-		return err
+		return "", err
 	}
-	fmt.Println(string(data))
-	return nil
+	return string(data), nil
 }
 
-func printYAML(p any) error {
+func printYAML(p any) (string, error) {
 	data, err := yaml.Marshal(p)
 	if err != nil {
-		return err
+		return "", err
 	}
-	fmt.Println(string(data))
-	return nil
+	return string(data), nil
 }

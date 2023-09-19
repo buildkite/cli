@@ -33,10 +33,11 @@ func NewCmdAgentView(f *factory.Factory) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			err = printer.PrintOutput(printer.Output(output), agent)
+			data, err := printer.PrintOutput(printer.Output(output), agent)
 			if err != nil {
 				return err
 			}
+			fmt.Println(data)
 			return nil
 		},
 	}
