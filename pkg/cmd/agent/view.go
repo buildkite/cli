@@ -3,6 +3,7 @@ package agent
 import (
 	"fmt"
 
+	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/printer"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
@@ -10,18 +11,19 @@ import (
 )
 
 func NewCmdAgentView(f *factory.Factory) *cobra.Command {
-	var id string
 	var output string
 	cmd := cobra.Command{
 		Use:   "view",
-		Args:  cobra.NoArgs,
+		Args:  cobra.ExactArgs(1),
 		Short: "View an agent",
+		Long:  "View an agent by passing in its UUID",
+		Example: heredoc.Doc(`
+            $ buildkite-agent view 9df48c7e-21d1-4a8e-b862-4b9decb70abd
+        `),
+
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, _ = cmd.Flags().GetString("id")
+			id := args[0]
 			output, _ = cmd.Flags().GetString("output")
-			if id == "" {
-				return fmt.Errorf("id is required")
-			}
 			if output == "" {
 				output = "json"
 			}
