@@ -44,8 +44,8 @@ github.com/MakeNowJust/heredoc v1.0.0 h1:cXCdzVdstXyiTqTvfqk9SDHpKNjxuom+DOlyEeQ
 github.com/MakeNowJust/heredoc v1.0.0/go.mod h1:mG5amYoWBHf8vpLOuehzbGGw0EHxpZZ6lCpQ4fNJ8LE=
 github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2 h1:+vx7roKuyA63nhn5WAunQHLTznkw5W8b1Xc0dNjp83s=
 github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2/go.mod h1:HBCaDeC1lPdgDeDbhX8XFpy1jqjK0IBG8W5K+xYqA0w=
-github.com/buildkite/go-buildkite/v3 v3.5.0 h1:qybBB+ClS/GM9BIODdA7eeJoMi6Ar0yduInYkcV6K2Y=
-github.com/buildkite/go-buildkite/v3 v3.5.0/go.mod h1:kOV63JYogve+mA+hEYS10LfI6sRYZaTVImZvZ4Kv4Ks=
+github.com/buildkite/go-buildkite/v3 v3.6.0 h1:vqirmJm2J2wTcq/LCp8FNlB+rmqBydWukXxth7nDa64=
+github.com/buildkite/go-buildkite/v3 v3.6.0/go.mod h1:kOV63JYogve+mA+hEYS10LfI6sRYZaTVImZvZ4Kv4Ks=
 github.com/cenkalti/backoff v1.1.1-0.20171020064038-309aa717adbf h1:yxlp0s+Sge9UsKEK0Bsvjiopb9XRk+vxylmZ9eGBfm8=
 github.com/cenkalti/backoff v1.1.1-0.20171020064038-309aa717adbf/go.mod h1:90ReRw6GdpyfrHakVjL/QHaoyV4aDUVVkXQJJJ3NXXM=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
