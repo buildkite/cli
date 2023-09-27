@@ -2,6 +2,9 @@
 
 [![Latest release](https://img.shields.io/github/release/buildkite/cli.svg)](https://github.com/buildkite/cli/releases/latest)
 
+> [!NOTE]  
+> The `3.x` (default) branch is under current active development. If you'd like to use the most recent released version of the Buildkite CLI, please refer to the `main` [branch](https://github.com/buildkite/cli/tree/main) and [releases](https://github.com/buildkite/cli/releases) page for details and installation instructions.
+
 A command line interface for [Buildkite](https://buildkite.com/).
 
 ## 💬 Feedback
