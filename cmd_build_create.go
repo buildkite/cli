@@ -43,14 +43,16 @@ func BuildCreateCommand(ctx BuildCreateCommandContext) error {
 	pipelineSlug := ctx.PipelineSlug
 
 	if pipelineSlug == "" {
+		suggestion := "We couldn't automatically find your pipeline.\n\nPlease specify a pipeline using `--pipeline=\"<organization>/<pipeline>\"`"
+
 		gitRemote, err := git.Remote(ctx.Dir)
 		if err != nil {
-			return err
+			return NewExitErrorSuggestion(err, 1, suggestion)
 		}
 
 		allPipelines, err := listPipelines(bk)
 		if err != nil {
-			return NewExitError(err, 1)
+			return NewExitErrorSuggestion(err, 1, suggestion)
 		}
 
 		ps := pipelineSelect{
@@ -62,7 +64,7 @@ func BuildCreateCommand(ctx BuildCreateCommandContext) error {
 
 		pipeline, err := ps.Run()
 		if err != nil {
-			return NewExitError(err, 1)
+			return NewExitErrorSuggestion(err, 1, suggestion)
 		}
 
 		params.PipelineID = pipeline.ID
@@ -71,21 +73,21 @@ func BuildCreateCommand(ctx BuildCreateCommandContext) error {
 		if params.Branch == "" {
 			params.Branch, err = git.Branch(ctx.Dir)
 			if err != nil {
-				return NewExitError(err, 1)
+				return NewExitErrorSuggestion(err, 1, suggestion)
 			}
 		}
 
 		if params.Commit == "" {
 			params.Commit, err = git.Commit(ctx.Dir)
 			if err != nil {
-				return NewExitError(err, 1)
+				return NewExitErrorSuggestion(err, 1, suggestion)
 			}
 		}
 
 		if params.Message == "" {
 			params.Message, err = git.Message(ctx.Dir)
 			if err != nil {
-				return NewExitError(err, 1)
+				return NewExitErrorSuggestion(err, 1, suggestion)
 			}
 		}
 	} else {
