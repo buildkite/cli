@@ -124,16 +124,25 @@ type ExitCoder interface {
 }
 
 type ExitError struct {
-	err      error
-	exitCode int
+	err        error
+	exitCode   int
+	suggestion string
 }
 
 func NewExitError(err error, exitCode int) ExitError {
 	return ExitError{err: err, exitCode: exitCode}
 }
 
+func NewExitErrorSuggestion(err error, exitCode int, suggestion string) ExitError {
+	return ExitError{err: err, exitCode: exitCode, suggestion: suggestion}
+}
+
 func NewExitErrorString(msg string, exitCode int) ExitError {
 	return NewExitError(errors.New(msg), exitCode)
+}
+
+func NewExitErrorStringSuggestion(msg string, exitCode int, suggestion string) ExitError {
+	return NewExitErrorSuggestion(errors.New(msg), exitCode, suggestion)
 }
 
 func (ex ExitError) ExitCode() int {
@@ -142,4 +151,12 @@ func (ex ExitError) ExitCode() int {
 
 func (ex ExitError) Error() string {
 	return ex.err.Error()
+}
+
+func (ex ExitError) HasSuggestion() bool {
+	return ex.suggestion != ""
+}
+
+func (ex ExitError) Suggestion() string {
+	return ex.suggestion
 }

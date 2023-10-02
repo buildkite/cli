@@ -105,6 +105,7 @@ func InitCommand(ctx InitCommandContext) error {
 	isPipelineCreated, err := isBuildkitePipelineCreated(bk, pipelineOrg, pipelineRepo)
 	if err != nil {
 		pipelineTry.Failure(err.Error())
+		ctx.Println("\nPlease specify your pipeline using `--pipeline \"<org>/<pipeline>\"`")
 		return NewExitError(err, 1)
 	}
 

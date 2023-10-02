@@ -306,6 +306,15 @@ func run(args []string, exit func(int)) {
 	if _, err := app.Parse(args); err != nil {
 		fmt.Fprintf(os.Stderr, color.RedString("🚨 %v\n", err))
 
+		if ec, ok := err.(interface {
+			HasSuggestion() bool
+			Suggestion() string
+		}); ok {
+			if ec.HasSuggestion() {
+				fmt.Fprintf(os.Stderr, "\n%s\n", ec.Suggestion())
+			}
+		}
+
 		if ec, ok := err.(interface{ ExitCode() int }); ok {
 			os.Exit(ec.ExitCode())
 		} else {
