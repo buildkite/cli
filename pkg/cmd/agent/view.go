@@ -10,15 +10,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewCmdAgentView(f *factory.Factory) *cobra.Command {
+func NewCmdAgentGet(f *factory.Factory) *cobra.Command {
 	var output string
 	cmd := cobra.Command{
-		Use:   "view",
+		Use:   "get",
 		Args:  cobra.ExactArgs(1),
-		Short: "View an agent",
-		Long:  "View an agent by passing in its UUID",
+		Short: "Get an agent",
+		Long:  "Get an agent by passing in its UUID",
 		Example: heredoc.Doc(`
-            $ buildkite-agent view 9df48c7e-21d1-4a8e-b862-4b9decb70abd
+            $ buildkite-agent get 9df48c7e-21d1-4a8e-b862-4b9decb70abd
         `),
 
 		RunE: func(cmd *cobra.Command, args []string) error {
