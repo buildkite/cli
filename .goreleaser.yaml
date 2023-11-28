@@ -12,6 +12,24 @@ builds:
     ldflags:
       - -s -w -X github.com/buildkite/cli/v3/internal/build.Version={{.Version}}
 
+  - id: linux
+    goos: [linux]
+    goarch: ['386', arm, amd64, arm64]
+    env:
+      - CGO_ENABLED=0
+    binary: bin/bk
+    main: ./cmd/bk
+    ldflags:
+      - -s -w -X github.com/buildkite/cli/v3/internal/build.Version={{.Version}}
+
+  - id: windows
+    goos: [windows]
+    goarch: ['386', amd64, arm64]
+    binary: bin/bk
+    main: ./cmd/bk
+    ldflags:
+      - -s -w -X github.com/buildkite/cli/v3/internal/build.Version={{.Version}}
+
 archives:
   - id: macos-archive
     builds: [macos]
@@ -20,5 +38,24 @@ archives:
     format: zip
     files:
       - LICENSE.md
+      - README.md
+
+  - id: linux-archive
+    builds: [linux]
+    name_template: "bk_{{ .Version }}_linux_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    wrap_in_directory: true
+    format: tar.gz
+    files:
+      - LICENSE.md
+      - README.md
+
+  - id: windows-archive
+    builds: [windows]
+    name_template: "bk_{{ .Version }}_windows_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    wrap_in_directory: false
+    format: zip
+    files:
+      - LICENSE.md
+      - README.md
 
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj
