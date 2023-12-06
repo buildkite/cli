@@ -27,6 +27,11 @@ func TestParseAgentArg(t *testing.T) {
 			org:   "buildkite",
 			agent: "018a4a65-bfdb-4841-831a-ff7c1ddbad99",
 		},
+		"clustered url": {
+			url:   "https://buildkite.com/organizations/buildkite/clusters/0b7c9944-10ba-434d-9dbb-b332431252de/queues/3d039cf8-9862-4cb0-82cd-fc5c497a265a/agents/018c3d31-1b4a-454a-87f6-190b206e3759",
+			org:   "buildkite",
+			agent: "018c3d31-1b4a-454a-87f6-190b206e3759",
+		},
 	}
 
 	for name, testcase := range testcases {
