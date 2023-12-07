@@ -30,6 +30,7 @@ func (p Pending) Init() tea.Cmd {
 func (p Pending) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// if a key is pressed, ignore everything except for common quitting
 		switch msg.String() {
 		case "q", "esc", "ctrl+c":
 			p.quitting = true
@@ -38,22 +39,19 @@ func (p Pending) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			return p, nil
 		}
-	case spinner.TickMsg:
-		var cmd tea.Cmd
-		p.spinner, cmd = p.spinner.Update(msg)
-		return p, cmd
-	case PendingOutput:
+	case PendingOutput: // this signals that p.fn has finished executing and ready to send final output
 		p.quitting = true
 		p.output = string(msg)
 		return p, tea.Quit
-	case error:
+	case error: // an error occurred somewhere. show the error and exit
 		p.quitting = true
 		p.output = "Error: " + msg.Error()
 		return p, tea.Quit
+	default: // start/update the spinner
+		var cmd tea.Cmd
+		p.spinner, cmd = p.spinner.Update(msg)
+		return p, cmd
 	}
-	var cmd tea.Cmd
-	p.spinner, cmd = p.spinner.Update(msg)
-	return p, cmd
 }
 
 // View implements tea.Model.
