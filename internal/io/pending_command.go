@@ -59,7 +59,7 @@ func (p Pending) View() string {
 	if !p.quitting {
 		return fmt.Sprintf("%s %s", p.spinner.View(), p.output)
 	}
-	return p.output + "\n"
+	return p.output
 }
 
 // NewPendingCommand is used to show a loading spinner while a long running function runs to perform some action and
