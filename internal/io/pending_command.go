@@ -1,0 +1,78 @@
+package io
+
+import (
+	"fmt"
+
+	"github.com/charmbracelet/bubbles/spinner"
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+type PendingOutput string
+
+// Pending is used to show a loading spinner while a long running function runs to perform some action and output
+// information
+type Pending struct {
+	spinner  spinner.Model
+	quitting bool
+	fn       tea.Cmd
+	output   string
+}
+
+// Init implements tea.Model.
+func (p Pending) Init() tea.Cmd {
+	return tea.Batch(
+		p.spinner.Tick,
+		p.fn,
+	)
+}
+
+// Update implements tea.Model.
+func (p Pending) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "esc", "ctrl+c":
+			p.quitting = true
+			p.output = "Cancelled"
+			return p, tea.Quit
+		default:
+			return p, nil
+		}
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		p.spinner, cmd = p.spinner.Update(msg)
+		return p, cmd
+	case PendingOutput:
+		p.quitting = true
+		p.output = string(msg)
+		return p, tea.Quit
+	case error:
+		p.quitting = true
+		p.output = "Error: " + msg.Error()
+		return p, tea.Quit
+	}
+	var cmd tea.Cmd
+	p.spinner, cmd = p.spinner.Update(msg)
+	return p, cmd
+}
+
+// View implements tea.Model.
+func (p Pending) View() string {
+	if !p.quitting {
+		return fmt.Sprintf("%s %s", p.spinner.View(), p.output)
+	}
+	return p.output + "\n"
+}
+
+// NewPendingCommand is used to show a loading spinner while a long running function runs to perform some action and
+// output information.
+// fn is a function run to perform the action. It should return a PendingOutput if to update the output after the action
+// is complete. It can also return an error instance.
+// loadingText is the text shown while the function is running
+func NewPendingCommand(fn tea.Cmd, loadingText string) Pending {
+	return Pending{
+		spinner: spinner.New(spinner.WithSpinner(spinner.Points)),
+		fn:      fn,
+		output:  loadingText,
+	}
+}

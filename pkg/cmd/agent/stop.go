@@ -2,7 +2,9 @@ package agent
 
 import (
 	"github.com/MakeNowJust/heredoc"
+	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
 
@@ -23,9 +25,18 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 			If the agent is already stopped the command returns an error.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			org, agent := parseAgentArg(args[0], f.Config)
+			// create a bubbletea program to manage the output of this command
+			l := io.NewPendingCommand(func() tea.Msg {
+				org, agent := parseAgentArg(args[0], f.Config)
+				_, err := f.RestAPIClient.Agents.Stop(org, agent, force)
+				if err != nil {
+					return err
+				}
+				return io.PendingOutput("Agent stopped")
+			}, "Stopping agent")
 
-			_, err := f.RestAPIClient.Agents.Stop(org, agent, force)
+			p := tea.NewProgram(l)
+			_, err := p.Run()
 
 			return err
 		},
