@@ -46,8 +46,13 @@ func parseAgentArg(agent string, conf *config.Config) (string, string) {
 			return "", ""
 		}
 		// eg: url.Path = organizations/buildkite/agents/018a2b90-ba7f-4220-94ca-4903fa0ba410
+		// or for clustered agents, url.Path = organizations/buildkite/clusters/840b09eb-d325-482f-9ff4-0c3abf38560b/queues/fb85c9e4-5531-47a2-90f3-5540dc698811/agents/018c3d27-147b-4faa-94d0-f4c8ce613e5c
 		part := strings.Split(url.Path, "/")
-		org, id = part[2], part[4]
+		if part[3] == "agents" {
+			org, id = part[2], part[4]
+		} else {
+			org, id = part[2], part[len(part)-1]
+		}
 	} else {
 		if agentIsSlug {
 			part := strings.Split(agent, "/")
