@@ -32,7 +32,7 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				return io.PendingOutput("Agent stopped\n")
+				return io.PendingOutput("Agent stopped")
 			}, "Stopping agent")
 
 			p := tea.NewProgram(l)

@@ -59,6 +59,11 @@ func (p Pending) View() string {
 	if !p.quitting {
 		return fmt.Sprintf("%s %s", p.spinner.View(), p.output)
 	}
+
+	// add a newline to the output if not present, otherwise the last output gets swallowed
+	if last := p.output[len(p.output)-1]; last != '\n' {
+		p.output += "\n"
+	}
 	return p.output
 }
 
