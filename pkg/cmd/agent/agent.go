@@ -17,7 +17,10 @@ func NewCmdAgent(f *factory.Factory) *cobra.Command {
 		Short: "Manage agents",
 		Long:  "Work with Buildkite agents.",
 		Example: heredoc.Doc(`
+			# To stop an agent
 			$ bk agent stop buildkite/018a2b90-ba7f-4220-94ca-4903fa0ba410
+			# To view agent details
+			$ bk agent view 018a2b90-ba7f-4220-94ca-4903fa0ba410
 		`),
 		PersistentPreRunE: validation.CheckValidConfiguration(f.Config),
 		Annotations: map[string]string{
@@ -31,6 +34,7 @@ func NewCmdAgent(f *factory.Factory) *cobra.Command {
 	}
 
 	cmd.AddCommand(NewCmdAgentStop(f))
+	cmd.AddCommand(NewCmdAgentView(f))
 
 	return &cmd
 }
