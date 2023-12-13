@@ -12,10 +12,13 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
+	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 )
 
 func NewCmdAgentView(f *factory.Factory) *cobra.Command {
+	var web bool
+
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
 		Use:                   "view <agent>",
@@ -28,8 +31,15 @@ func NewCmdAgentView(f *factory.Factory) *cobra.Command {
 			is omitted, it uses the currently selected organization.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			org, id := parseAgentArg(args[0], f.Config)
+
+			if web {
+				url := fmt.Sprintf("https://buildkite.com/organizations/%s/agents/%s", org, id)
+				fmt.Printf("Opening %s in your browser\n", url)
+				return browser.OpenURL(url)
+			}
+
 			l := io.NewPendingCommand(func() tea.Msg {
-				org, id := parseAgentArg(args[0], f.Config)
 				agent, _, err := f.RestAPIClient.Agents.Get(org, id)
 				if err != nil {
 					return err
@@ -63,6 +73,8 @@ func NewCmdAgentView(f *factory.Factory) *cobra.Command {
 			return err
 		},
 	}
+
+	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open agent in a browser")
 
 	return &cmd
 }
