@@ -1,12 +1,14 @@
 package agent
 
 import (
-	"fmt"
+	"strings"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
 
@@ -25,12 +27,48 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				fmt.Printf("%+v\n", agents)
-				return tea.Quit()
+
+				if len(agents) == 0 {
+					return io.PendingOutput("No connected agents")
+				}
+
+				var rows []table.Row
+				maxID, maxName, maxStatus, maxTags := 0, 0, 0, 0
+				for _, agent := range agents {
+					if max := len(*agent.ID); max > maxID {
+						maxID = max
+					}
+					if max := len(*agent.Name); max > maxName {
+						maxName = max
+					}
+					if max := len(*agent.ConnectedState); max > maxStatus {
+						maxStatus = max
+					}
+					tags := strings.Join(agent.Metadata, ", ")
+					if max := len(tags); max > maxTags {
+						maxTags = max
+					}
+					row := []string{
+						*agent.ID, *agent.Name, *agent.ConnectedState, tags,
+					}
+
+					rows = append(rows, row)
+				}
+				columns := []table.Column{
+					{Title: "ID", Width: maxID},
+					{Title: "Name", Width: maxName},
+					{Title: "Status", Width: maxStatus},
+					{Title: "Tags", Width: maxTags},
+				}
+				// set the selected style to default
+				styles := table.DefaultStyles()
+				styles.Selected = lipgloss.NewStyle()
+				table := table.New(table.WithColumns(columns), table.WithRows(rows), table.WithHeight(len(rows)), table.WithStyles(styles))
+
+				return io.PendingOutput(table.View())
 			}, "Loading agents")
 
-			p := tea.NewProgram(l)
-			_, err := p.Run()
+			_, err := tea.NewProgram(l).Run()
 			return err
 		},
 	}
