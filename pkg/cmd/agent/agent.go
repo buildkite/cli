@@ -33,6 +33,7 @@ func NewCmdAgent(f *factory.Factory) *cobra.Command {
 		},
 	}
 
+	cmd.AddCommand(NewCmdAgentList(f))
 	cmd.AddCommand(NewCmdAgentStop(f))
 	cmd.AddCommand(NewCmdAgentView(f))
 
