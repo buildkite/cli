@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"fmt"
+
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -14,7 +16,7 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
 		Use:                   "stop <agent> [--force]",
-		Args:                  cobra.ExactArgs(1),
+		Args:                  cobra.ArbitraryArgs,
 		Short:                 "Stop an agent",
 		Long: heredoc.Doc(`
 			Instruct an agent to stop accepting new build jobs and shut itself down.
@@ -25,20 +27,33 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 			If the agent is already stopped the command returns an error.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// create a bubbletea program to manage the output of this command
-			l := io.NewPendingCommand(func() tea.Msg {
-				org, agent := parseAgentArg(args[0], f.Config)
-				_, err := f.RestAPIClient.Agents.Stop(org, agent, force)
-				if err != nil {
-					return err
+			if len(args) == 1 {
+				// create a bubbletea program to manage the output of this command
+				l := io.NewPendingCommand(func() tea.Msg {
+					org, agent := parseAgentArg(args[0], f.Config)
+					_, err := f.RestAPIClient.Agents.Stop(org, agent, force)
+					if err != nil {
+						return err
+					}
+					return io.PendingOutput("Agent stopped")
+				}, "Stopping agent")
+
+				p := tea.NewProgram(l)
+				_, err := p.Run()
+
+				return err
+			} else {
+				// Loop over the agents passed through the >1 args
+				for _, agent := range(args){
+					org, agentParsed := parseAgentArg(agent, f.Config)
+					_, err := f.RestAPIClient.Agents.Stop(org, agentParsed, force)
+					if err != nil {
+						return err
+					}
+					fmt.Println(fmt.Sprintf("Agent %s stopped", agentParsed))
 				}
-				return io.PendingOutput("Agent stopped")
-			}, "Stopping agent")
-
-			p := tea.NewProgram(l)
-			_, err := p.Run()
-
-			return err
+				return nil
+			}
 		},
 	}
 
