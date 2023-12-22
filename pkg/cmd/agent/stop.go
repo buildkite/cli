@@ -30,34 +30,19 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			switch agents := len(args); {
 			case agents == 0:
-				// No agents passed in, return an error
+				// No agents slug/UUID passed in, return an error
 				return errors.New("Please specify at least one agent to stop.")
 			case agents == 1:
-				// create a bubbletea program to manage the output of this command
-				l := io.NewPendingCommand(func() tea.Msg {
-					org, agent := parseAgentArg(args[0], f.Config)
-					_, err := f.RestAPIClient.Agents.Stop(org, agent, force)
-					if err != nil {
-						return err
-					}
-					return io.PendingOutput("Agent stopped")
-				}, "Stopping agent")
-
-				p := tea.NewProgram(l)
-				_, err := p.Run()
-
+				err := stopAgent(args[0], f, force)
+				//fmt.Println("a", err)
 				return err
 			case agents >= 2:
-				// Loop over the agents passed through the >1 args
+				// Construct an errors variable to append agent stop errors
+				var errors error
 				for _, agent := range(args){
-					org, agentParsed := parseAgentArg(agent, f.Config)
-					_, err := f.RestAPIClient.Agents.Stop(org, agentParsed, force)
-					if err != nil {
-						return err
-					}
-					fmt.Println(fmt.Sprintf("Agent %s stopped", agentParsed))
+					_ = stopAgent(agent, f, force) // Stop singular agent
 				}
-				return nil
+				return errors
 			}
 			return nil
 		},	
@@ -66,4 +51,20 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 	cmd.Flags().BoolVar(&force, "force", false, "Force stop the agent. Terminating any jobs in progress")
 
 	return &cmd
+}
+
+func stopAgent(agent string, f *factory.Factory, force bool) error {
+	l := io.NewPendingCommand(func() tea.Msg {
+		org, agent := parseAgentArg(agent, f.Config)
+		_, err := f.RestAPIClient.Agents.Stop(org, agent, force)
+		if err != nil {
+			return err
+		}
+		return io.PendingOutput(fmt.Sprintf("Stopped agent %s", agent))
+	}, fmt.Sprintf("Stopping agent %s", agent))
+
+	p := tea.NewProgram(l)
+	_, err := p.Run()
+
+	return err
 }
