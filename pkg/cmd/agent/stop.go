@@ -32,10 +32,7 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 			case agents == 0:
 				// No agents slug/UUID passed in, return an error
 				return errors.New("Please specify at least one agent to stop.")
-			case agents == 1:
-				// Stop the given agent from args[0]
-				return stopAgent(args[0], f, force)
-			case agents >= 2:
+			case agents >= 1:
 				// Construct an agentStopErrors variable to construct errors
 				var agentStopErrors error
 				for _, agent := range args {
