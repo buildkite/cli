@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc"
@@ -27,7 +28,11 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 			If the agent is already stopped the command returns an error.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 1 {
+			switch agents := len(args); {
+			case agents == 0:
+				// No agents passed in, return an error
+				return errors.New("Please specify at least one agent to stop.")
+			case agents == 1:
 				// create a bubbletea program to manage the output of this command
 				l := io.NewPendingCommand(func() tea.Msg {
 					org, agent := parseAgentArg(args[0], f.Config)
@@ -42,7 +47,7 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 				_, err := p.Run()
 
 				return err
-			} else {
+			case agents >= 2:
 				// Loop over the agents passed through the >1 args
 				for _, agent := range(args){
 					org, agentParsed := parseAgentArg(agent, f.Config)
@@ -54,7 +59,8 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 				}
 				return nil
 			}
-		},
+			return nil
+		},	
 	}
 
 	cmd.Flags().BoolVar(&force, "force", false, "Force stop the agent. Terminating any jobs in progress")
