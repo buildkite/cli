@@ -1,6 +1,9 @@
 package agent
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -14,7 +17,7 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
 		Use:                   "stop <agent> [--force]",
-		Args:                  cobra.ExactArgs(1),
+		Args:                  cobra.ArbitraryArgs,
 		Short:                 "Stop an agent",
 		Long: heredoc.Doc(`
 			Instruct an agent to stop accepting new build jobs and shut itself down.
@@ -25,24 +28,43 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 			If the agent is already stopped the command returns an error.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// create a bubbletea program to manage the output of this command
-			l := io.NewPendingCommand(func() tea.Msg {
-				org, agent := parseAgentArg(args[0], f.Config)
-				_, err := f.RestAPIClient.Agents.Stop(org, agent, force)
-				if err != nil {
-					return err
+			switch agents := len(args); {
+			case agents == 0:
+				// No agents slug/UUID passed in, return an error
+				return errors.New("Please specify at least one agent to stop.")
+			case agents >= 1:
+				// Construct an agentStopErrors variable to construct errors
+				var agentStopErrors error
+				for _, agent := range args {
+					err := stopAgent(agent, f, force)
+					// Append to agentStopErrors if there was an error stopping an agent
+					if err != nil {
+						agentStopErrors = errors.Join(agentStopErrors, err)
+					}
 				}
-				return io.PendingOutput("Agent stopped")
-			}, "Stopping agent")
-
-			p := tea.NewProgram(l)
-			_, err := p.Run()
-
-			return err
+				return agentStopErrors
+			}
+			return nil
 		},
 	}
 
 	cmd.Flags().BoolVar(&force, "force", false, "Force stop the agent. Terminating any jobs in progress")
 
 	return &cmd
+}
+
+func stopAgent(agent string, f *factory.Factory, force bool) error {
+	l := io.NewPendingCommand(func() tea.Msg {
+		org, agent := parseAgentArg(agent, f.Config)
+		_, err := f.RestAPIClient.Agents.Stop(org, agent, force)
+		if err != nil {
+			return err
+		}
+		return io.PendingOutput(fmt.Sprintf("Stopped agent %s", agent))
+	}, fmt.Sprintf("Stopping agent %s", agent))
+
+	p := tea.NewProgram(l)
+	_, err := p.Run()
+
+	return err
 }
