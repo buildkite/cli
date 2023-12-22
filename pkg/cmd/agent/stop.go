@@ -40,8 +40,8 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 				var agentStopErrors error
 				for _, agent := range args {
 					err := stopAgent(agent, f, force)
-					// Append to agentStopErrors if there was an error stopping an agent 
-					if (err != nil) {
+					// Append to agentStopErrors if there was an error stopping an agent
+					if err != nil {
 						agentStopErrors = errors.Join(agentStopErrors, err)
 					}
 				}
