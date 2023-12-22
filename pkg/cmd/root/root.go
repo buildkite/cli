@@ -22,6 +22,7 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 		Annotations: map[string]string{
 			"versionInfo": versionCmd.Format(f.Version),
 		},
+		SilenceUsage: true,
 	}
 
 	cmd.AddCommand(configureCmd.NewCmdConfigure(f))
