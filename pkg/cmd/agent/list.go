@@ -6,6 +6,7 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/go-buildkite/v3/buildkite"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -13,6 +14,8 @@ import (
 )
 
 func NewCmdAgentList(f *factory.Factory) *cobra.Command {
+	var name, version, hostname string
+
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
 		Use:                   "list",
@@ -23,7 +26,17 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			l := io.NewPendingCommand(func() tea.Msg {
-				agents, _, err := f.RestAPIClient.Agents.List(f.Config.Organization, nil)
+				var alo buildkite.AgentListOptions
+
+				if name != "" || version != "" || hostname != "" {
+					alo = buildkite.AgentListOptions{
+						Name:     name,
+						Version:  version,
+						Hostname: hostname,
+					}
+				}
+
+				agents, _, err := f.RestAPIClient.Agents.List(f.Config.Organization, &alo)
 				if err != nil {
 					return err
 				}
@@ -72,6 +85,10 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 			return err
 		},
 	}
+
+	cmd.Flags().StringVar(&name, "name", "", "Filter agents by their name")
+	cmd.Flags().StringVar(&version, "version", "", "Filter agents by their agent version")
+	cmd.Flags().StringVar(&version, "hostname", "", "Filter agents by their hostname")
 
 	return &cmd
 }
