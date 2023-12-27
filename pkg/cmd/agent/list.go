@@ -36,6 +36,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 					}
 				}
 
+				// Obtain agent list
 				agents, _, err := f.RestAPIClient.Agents.List(f.Config.Organization, &alo)
 				if err != nil {
 					return err
@@ -46,34 +47,39 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 				}
 
 				var rows []table.Row
-				maxID, maxName, maxStatus, maxTags := 0, 0, 0, 0
+				maxLengths := map[string]int{"ID": 0, "Name": 0, "Hostname": 0, "Status": 0, "Tags": 0, "Version": 0}
+
 				for _, agent := range agents {
-					if max := len(*agent.ID); max > maxID {
-						maxID = max
-					}
-					if max := len(*agent.Name); max > maxName {
-						maxName = max
-					}
-					if max := len(*agent.ConnectedState); max > maxStatus {
-						maxStatus = max
-					}
-					tags := strings.Join(agent.Metadata, ", ")
-					if max := len(tags); max > maxTags {
-						maxTags = max
-					}
-					row := []string{
-						*agent.ID, *agent.Name, *agent.ConnectedState, tags,
+					agentRowData := map[string]string{
+						"ID":       *agent.ID,
+						"Name":     *agent.Name,
+						"Hostname": *agent.Hostname,
+						"Status":   *agent.ConnectedState,
+						"Tags":     strings.Join(agent.Metadata, ", "),
+						"Version":  *agent.Version,
 					}
 
-					rows = append(rows, row)
+					// If any length of an agents values are longer than its current maximum length, update it
+					for key, value := range agentRowData {
+						if len(value) > maxLengths[key] {
+							maxLengths[key] = len(value)
+						}
+					}
+
+					// Append row to table.Row list
+					rows = append(rows, []string{agentRowData["ID"], agentRowData["Name"], agentRowData["Hostname"], agentRowData["Status"], agentRowData["Tags"], agentRowData["Version"]})
 				}
+
 				columns := []table.Column{
-					{Title: "ID", Width: maxID},
-					{Title: "Name", Width: maxName},
-					{Title: "Status", Width: maxStatus},
-					{Title: "Tags", Width: maxTags},
+					{Title: "ID", Width: maxLengths["ID"]},
+					{Title: "Name", Width: maxLengths["Name"]},
+					{Title: "Hostname", Width: maxLengths["Hostname"]},
+					{Title: "Status", Width: maxLengths["Status"]},
+					{Title: "Tags", Width: maxLengths["Tags"]},
+					{Title: "Version", Width: maxLengths["Version"] + 1},
 				}
-				// set the selected style to default
+
+				// Set the selected style to default
 				styles := table.DefaultStyles()
 				styles.Selected = lipgloss.NewStyle()
 				table := table.New(table.WithColumns(columns), table.WithRows(rows), table.WithHeight(len(rows)), table.WithStyles(styles))
