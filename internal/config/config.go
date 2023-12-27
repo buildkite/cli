@@ -35,6 +35,10 @@ type Config struct {
 	V            ViperConfig
 }
 
+type ProjectConfig struct {
+	Pipeline string `yaml:"pipeline"`
+}
+
 type ViperConfig interface {
 	Set(string, interface{})
 	GetStringMap(string) map[string]interface{}
@@ -69,4 +73,29 @@ func ConfigFile() string {
 		path = filepath.Join(c, ".config", configFilePath)
 	}
 	return path
+}
+
+func LoadProjectConfig() (*ProjectConfig, error) {
+	var configFile string
+	// Check for both .yaml and .yml extensions
+	if _, err := os.Stat("bk.yaml"); err == nil {
+		configFile = "bk.yaml"
+	} else if _, err := os.Stat("bk.yml"); err == nil {
+		configFile = "bk.yml"
+	} else {
+		return nil, err
+	}
+
+	yamlFile, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		return nil, err
+	}
+
+	var config Config
+	err = yaml.Unmarshal(yamlFile, &config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &config, nil
 }
