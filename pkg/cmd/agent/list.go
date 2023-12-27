@@ -94,7 +94,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 
 	cmd.Flags().StringVar(&name, "name", "", "Filter agents by their name")
 	cmd.Flags().StringVar(&version, "version", "", "Filter agents by their agent version")
-	cmd.Flags().StringVar(&version, "hostname", "", "Filter agents by their hostname")
+	cmd.Flags().StringVar(&hostname, "hostname", "", "Filter agents by their hostname")
 
 	return &cmd
 }
