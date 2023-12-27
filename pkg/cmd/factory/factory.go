@@ -13,19 +13,21 @@ import (
 
 type Factory struct {
 	Config        *config.Config
+	ProjectConfig *config.ProjectConfig
 	HttpClient    *http.Client
 	RestAPIClient *buildkite.Client
 	Version       string
 }
 
 func New(version string) *Factory {
-	config := loadFromViper()
-	client := httpClient(version, config)
+	factoryConfig := loadFromViper()
+	client := httpClient(version, factoryConfig)
 	return &Factory{
-		Config:        config,
+		Config:        factoryConfig,
 		HttpClient:    client,
 		RestAPIClient: buildkite.NewClient(client),
 		Version:       version,
+		ProjectConfig: config.LoadProjectConfig(),
 	}
 }
 

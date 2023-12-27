@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -75,27 +76,38 @@ func ConfigFile() string {
 	return path
 }
 
-func LoadProjectConfig() (*ProjectConfig, error) {
+func LoadProjectConfig() *ProjectConfig {
 	var configFile string
+	projectConfig := &ProjectConfig{}
+
 	// Check for both .yaml and .yml extensions
 	if _, err := os.Stat("bk.yaml"); err == nil {
 		configFile = "bk.yaml"
 	} else if _, err := os.Stat("bk.yml"); err == nil {
 		configFile = "bk.yml"
+	}
+
+	if configFile != "" {
+		yamlFile, err := os.ReadFile(configFile)
+		if err != nil {
+			// Unable to read the file, return nil or handle as needed
+			return nil
+		}
+
+		err = yaml.Unmarshal(yamlFile, projectConfig)
+		if err != nil {
+			// Unable to parse the file, return nil or handle as needed
+			return nil
+		}
 	} else {
-		return nil, err
+		// No configuration file found, set the pipeline to the current directory
+		dir, err := os.Getwd()
+		if err != nil {
+			// Unable to get current directory, return nil or handle as needed
+			return nil
+		}
+		projectConfig.Pipeline = filepath.Base(dir) // Successfully set the current directory
 	}
 
-	yamlFile, err := ioutil.ReadFile(configFile)
-	if err != nil {
-		return nil, err
-	}
-
-	var config Config
-	err = yaml.Unmarshal(yamlFile, &config)
-	if err != nil {
-		return nil, err
-	}
-
-	return &config, nil
+	return projectConfig
 }
