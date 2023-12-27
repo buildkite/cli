@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"errors"
 	"gopkg.in/yaml.v2"
 )
 
@@ -76,7 +77,7 @@ func ConfigFile() string {
 	return path
 }
 
-func LoadProjectConfig() *ProjectConfig {
+func LoadProjectConfig() (*ProjectConfig, error) {
 	var configFile string
 	projectConfig := &ProjectConfig{}
 
@@ -90,24 +91,28 @@ func LoadProjectConfig() *ProjectConfig {
 	if configFile != "" {
 		yamlFile, err := os.ReadFile(configFile)
 		if err != nil {
-			// Unable to read the file, return nil or handle as needed
-			return nil
+			return nil, err
 		}
 
 		err = yaml.Unmarshal(yamlFile, projectConfig)
 		if err != nil {
-			// Unable to parse the file, return nil or handle as needed
-			return nil
+			return nil, err
 		}
 	} else {
-		// No configuration file found, set the pipeline to the current directory
+		// No configuration file found, get the current directory
 		dir, err := os.Getwd()
 		if err != nil {
 			// Unable to get current directory, return nil or handle as needed
-			return nil
+			return nil, err
 		}
-		projectConfig.Pipeline = filepath.Base(dir) // Successfully set the current directory
+
+		if _, err := os.Stat(filepath.Join(dir, ".buildkite")); os.IsNotExist(err) {
+			// .buildkite directory not found in current dir, so assume not in a Buildkite project
+			return nil, errors.New("No `.buildkite` directory found. Are you in a valid Buildkite project? 🤔")
+		}
+
+		projectConfig.Pipeline = filepath.Base(dir)
 	}
 
-	return projectConfig
+	return projectConfig, nil
 }
