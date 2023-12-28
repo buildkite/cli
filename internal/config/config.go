@@ -82,10 +82,10 @@ func LoadProjectConfig() (*ProjectConfig, error) {
 	projectConfig := &ProjectConfig{}
 
 	// Check for both .yaml and .yml extensions
-	if _, err := os.Stat("bk.yaml"); err == nil {
-		configFile = "bk.yaml"
-	} else if _, err := os.Stat("bk.yml"); err == nil {
-		configFile = "bk.yml"
+	if _, err := os.Stat("buildkite.yaml"); err == nil {
+		configFile = "buildkite.yaml"
+	} else if _, err := os.Stat("buildkite.yml"); err == nil {
+		configFile = "buildkite.yml"
 	}
 
 	if configFile != "" {
@@ -112,7 +112,34 @@ func LoadProjectConfig() (*ProjectConfig, error) {
 		}
 
 		projectConfig.Pipeline = filepath.Base(dir)
+
+		return writePipelineToBuildkiteYAML(projectConfig)
 	}
+
+	return projectConfig, nil
+}
+
+func writePipelineToBuildkiteYAML(projectConfig *ProjectConfig) (*ProjectConfig, error) {
+	configFilePath := "buildkite.yaml"
+
+	// Check if buildkite.yaml already exists
+	if _, err := os.Stat(configFilePath); os.IsNotExist(err) {
+		// The file does not exist; proceed to create and write to it
+		configData := map[string]interface{}{
+			"pipeline": projectConfig.Pipeline,
+		}
+
+		data, err := yaml.Marshal(&configData)
+		if err != nil {
+			return projectConfig, err
+		}
+
+		err = os.WriteFile(configFilePath, data, 0644)
+		if err != nil {
+			return projectConfig, err
+		}
+	}
+	// If the file exists, do nothing
 
 	return projectConfig, nil
 }

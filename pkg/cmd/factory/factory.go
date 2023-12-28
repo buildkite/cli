@@ -22,7 +22,11 @@ type Factory struct {
 func New(version string) *Factory {
 	factoryConfig := loadFromViper()
 	client := httpClient(version, factoryConfig)
-	projectConfig, _ := config.LoadProjectConfig()
+	projectConfig, err := config.LoadProjectConfig()
+	
+	if err != nil {
+		fmt.Printf("Error loading project config: %s", err)
+	}
 
 	return &Factory{
 		Config:        factoryConfig,
