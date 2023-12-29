@@ -18,6 +18,7 @@ func (v viperMock) Set(k string, val interface{}) {
 func (v viperMock) GetStringMap(k string) map[string]interface{} {
 	return v.v.GetStringMap(k)
 }
+
 func (viperMock) WriteConfig() error {
 	return nil
 }
