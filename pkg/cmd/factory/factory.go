@@ -23,7 +23,6 @@ func New(version string) *Factory {
 	factoryConfig := loadFromViper()
 	client := httpClient(version, factoryConfig)
 	projectConfig, err := config.LoadProjectConfig()
-	
 	if err != nil {
 		fmt.Printf("Error loading project config: %s", err)
 	}

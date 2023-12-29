@@ -27,12 +27,12 @@ func NewCmdInit(f *factory.Factory) *cobra.Command {
 			}
 
 			pipelineFile := filepath.Join(".buildkite", "pipeline.yaml")
-			err := os.MkdirAll(filepath.Dir(pipelineFile), 0755)
+			err := os.MkdirAll(filepath.Dir(pipelineFile), 0o755)
 			if err != nil {
 				return err
 			}
 
-			err = os.WriteFile(pipelineFile, []byte(defaultPipelineYAML), 0660)
+			err = os.WriteFile(pipelineFile, []byte(defaultPipelineYAML), 0o660)
 			if err != nil {
 				return err
 			}

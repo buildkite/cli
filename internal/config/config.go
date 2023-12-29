@@ -143,7 +143,7 @@ func writePipelineToBuildkiteYAML(projectConfig *ProjectConfig) (*ProjectConfig,
 	}
 
 	// Write or overwrite the buildkite.yaml file with the updated content
-	err = os.WriteFile(configFilePath, data, 0644)
+	err = os.WriteFile(configFilePath, data, 0o644)
 	if err != nil {
 		return nil, err
 	}
