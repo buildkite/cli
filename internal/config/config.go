@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"errors"
+
 	"gopkg.in/yaml.v2"
 )
 
@@ -78,16 +78,23 @@ func ConfigFile() string {
 }
 
 func LoadProjectConfig() (*ProjectConfig, error) {
-	var configFile string
 	projectConfig := &ProjectConfig{}
 
-	// Check for both .yaml and .yml extensions
+	// Determine the current directory name for fallback
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil, err // Unable to get current directory
+	}
+	currentDirName := filepath.Base(dir)
+
+	var configFile string
 	if _, err := os.Stat("buildkite.yaml"); err == nil {
 		configFile = "buildkite.yaml"
 	} else if _, err := os.Stat("buildkite.yml"); err == nil {
 		configFile = "buildkite.yml"
 	}
 
+	// If a configuration file is found, try to read and parse it
 	if configFile != "" {
 		yamlFile, err := os.ReadFile(configFile)
 		if err != nil {
@@ -98,48 +105,48 @@ func LoadProjectConfig() (*ProjectConfig, error) {
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		// No configuration file found, get the current directory
-		dir, err := os.Getwd()
-		if err != nil {
-			// Unable to get current directory, return nil or handle as needed
-			return nil, err
+
+		// Check if the "pipeline" key is already set
+		if projectConfig.Pipeline != "" {
+			return projectConfig, nil // Pipeline is already defined
 		}
-
-		if _, err := os.Stat(filepath.Join(dir, ".buildkite")); os.IsNotExist(err) {
-			// .buildkite directory not found in current dir, so assume not in a Buildkite project
-			return nil, errors.New("No `.buildkite` directory found. Are you in a valid Buildkite project? 🤔")
-		}
-
-		projectConfig.Pipeline = filepath.Base(dir)
-
-		return writePipelineToBuildkiteYAML(projectConfig)
 	}
 
-	return projectConfig, nil
+	projectConfig.Pipeline = currentDirName
+	return writePipelineToBuildkiteYAML(projectConfig)
 }
 
 func writePipelineToBuildkiteYAML(projectConfig *ProjectConfig) (*ProjectConfig, error) {
 	configFilePath := "buildkite.yaml"
 
-	// Check if buildkite.yaml already exists
-	if _, err := os.Stat(configFilePath); os.IsNotExist(err) {
-		// The file does not exist; proceed to create and write to it
-		configData := map[string]interface{}{
-			"pipeline": projectConfig.Pipeline,
-		}
-
-		data, err := yaml.Marshal(&configData)
+	configData := make(map[string]interface{})
+	// Attempt to read the existing buildkite.yaml file
+	if fileData, err := os.ReadFile(configFilePath); err == nil {
+		// File exists, try to parse it
+		err := yaml.Unmarshal(fileData, &configData)
 		if err != nil {
-			return projectConfig, err
-		}
-
-		err = os.WriteFile(configFilePath, data, 0644)
-		if err != nil {
-			return projectConfig, err
+			return nil, err // Return error if unable to parse the file
 		}
 	}
-	// If the file exists, do nothing
+
+	// Add or update the "pipeline" key only if it's not set or empty
+	if _, exists := configData["pipeline"]; !exists || configData["pipeline"] == "" {
+		configData["pipeline"] = projectConfig.Pipeline
+	} else {
+		return projectConfig, nil // If "pipeline" is already set, don't modify the file
+	}
+
+	// Marshal the data back into YAML format
+	data, err := yaml.Marshal(&configData)
+	if err != nil {
+		return nil, err
+	}
+
+	// Write or overwrite the buildkite.yaml file with the updated content
+	err = os.WriteFile(configFilePath, data, 0644)
+	if err != nil {
+		return nil, err
+	}
 
 	return projectConfig, nil
 }
