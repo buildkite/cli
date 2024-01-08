@@ -45,9 +45,9 @@ func parsePipelineArg(arg string, conf *config.Config) (string, string) {
 		if err != nil {
 			return "", ""
 		}
-		// eg: url.Path = buildkite/buildkite-cli
+		// eg: url.Path = /buildkite/buildkite-cli
 		part := strings.Split(url.Path, "/")
-		org, pipeline = part[0], part[1]
+		org, pipeline = part[1], part[2]
 	} else if pipelineIsSlug {
 		part := strings.Split(arg, "/")
 		org, pipeline = part[0], part[1]
