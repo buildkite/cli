@@ -1,7 +1,6 @@
 package build
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc"
@@ -23,20 +22,15 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Use:                   "new <pipeline> [flags]",
 		Short:                 "Creates a new pipeline build",
-		Args:                  cobra.ArbitraryArgs,
+		Args:                  cobra.ExactArgs(1),
 		Long: heredoc.Doc(`
 			Creates a new build for the specified pipeline and output the URL to the build.
 
 			It accepts {pipeline_slug}, {org_slug}/{pipeline_slug} or a full URL to the pipeline as an argument.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("build new command args here: ", args)
-			if len(args) == 1 {
-				org, pipeline := parsePipelineArg(args[0], f.Config)
-				return newBuild(org, pipeline, f, message, commit, branch, web)
-			} else {
-				return errors.New("a pipeline name must be specified")
-			}
+			org, pipeline := parsePipelineArg(args[0], f.Config)
+			return newBuild(org, pipeline, f, message, commit, branch, web)
 		},
 	}
 
