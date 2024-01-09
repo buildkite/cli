@@ -12,12 +12,12 @@ func TestParsePipelineArg(t *testing.T) {
 	testcases := map[string]struct {
 		url, org, pipeline string
 	}{
-		"slug": {
+		"org_pipeline_slug": {
 			url:      "buildkite/cli",
 			org:      "buildkite",
 			pipeline: "cli",
 		},
-		"id": {
+		"pipeline_slug": {
 			url:      "abcd",
 			org:      "testing",
 			pipeline: "abcd",
