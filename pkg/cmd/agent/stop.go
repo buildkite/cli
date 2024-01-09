@@ -17,7 +17,7 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
 		Use:                   "stop <agent> [--force]",
-		Args:                  cobra.ArbitraryArgs,
+		Args:                  cobra.MinimumNArgs(1),
 		Short:                 "Stop an agent",
 		Long: heredoc.Doc(`
 			Instruct an agent to stop accepting new build jobs and shut itself down.
@@ -29,9 +29,6 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			switch agents := len(args); {
-			case agents == 0:
-				// No agents slug/UUID passed in, return an error
-				return errors.New("Please specify at least one agent to stop.")
 			case agents >= 1:
 				// Construct an agentStopErrors variable to construct errors
 				var agentStopErrors error
