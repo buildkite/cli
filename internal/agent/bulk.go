@@ -25,9 +25,8 @@ func (bulkAgent BulkAgent) Init() tea.Cmd {
 // Update implements tea.Model.
 // It handles cancelling the whole operation and passing through updates to each StoppableAgent to update the UI.
 func (bulkAgent BulkAgent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		// if a key is pressed, ignore everything except for common quitting
+	// if a key is pressed, ignore everything except for common quitting
+	if msg, ok := msg.(tea.KeyMsg); ok {
 		switch msg.String() {
 		case "q", "esc", "ctrl+c":
 			return bulkAgent, tea.Quit
@@ -35,6 +34,8 @@ func (bulkAgent BulkAgent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return bulkAgent, nil
 		}
 	}
+
+	// otherwise pass the message through to all agents to allow them to update
 	cmds := make([]tea.Cmd, len(bulkAgent.Agents))
 	for i, agent := range bulkAgent.Agents {
 		agent, cmd := agent.Update(msg)
