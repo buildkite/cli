@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"sync"
+
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/agent"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -25,27 +27,50 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 			The --force flag applies to all agents that are stopped.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			model := agent.NewStoppableAgent(args[0], func() agent.StatusUpdate {
-				org, agentID := parseAgentArg(args[0], f.Config)
+			// use a wait group to ensure we exit the program after all agents have finished
+			var wg sync.WaitGroup
+			wg.Add(len(args))
 
-				return agent.StatusUpdate{
-					Status: agent.Stopping,
-					Cmd: func() tea.Msg {
-						_, err := f.RestAPIClient.Agents.Stop(org, agentID, force)
-						if err != nil {
-							return agent.StatusUpdate{
-								Err: err,
-								Cmd: tea.Quit,
+			var stopFn = func(id string) func() agent.StatusUpdate {
+				org, agentID := parseAgentArg(id, f.Config)
+				return func() agent.StatusUpdate {
+					return agent.StatusUpdate{
+						ID:     id,
+						Status: agent.Stopping,
+						Cmd: func() tea.Msg {
+							defer wg.Done()
+							_, err := f.RestAPIClient.Agents.Stop(org, agentID, force)
+							if err != nil {
+								return agent.StatusUpdate{
+									ID:  id,
+									Err: err,
+								}
 							}
-						}
-						return agent.StatusUpdate{
-							Status: agent.Succeeded,
-							Cmd:    tea.Quit,
-						}
-					},
+							return agent.StatusUpdate{
+								ID:     id,
+								Status: agent.Succeeded,
+							}
+						},
+					}
 				}
-			})
-			p := tea.NewProgram(model)
+			}
+
+			agents := make([]agent.StoppableAgent, len(args))
+			for i, id := range args {
+				agents[i] = agent.NewStoppableAgent(id, stopFn(id))
+			}
+			bulkAgent := agent.BulkAgent{
+				Agents: agents,
+			}
+
+			p := tea.NewProgram(bulkAgent)
+
+			// send a quit message after all agents have stopped
+			go func() {
+				wg.Wait()
+				p.Send(tea.Quit())
+			}()
+
 			_, err := p.Run()
 			return err
 		},
