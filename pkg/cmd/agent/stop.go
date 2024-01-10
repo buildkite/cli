@@ -31,6 +31,12 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 			var wg sync.WaitGroup
 			wg.Add(len(args))
 
+			// here we want to allow each agent to transition through from a waiting state to stopping and ending at
+			// success/failure. so we need to wrap up multiple tea.Cmds, the first one marking it as "stopping". after
+			// that, another Cmd is started to make the API request to stop it. After that request we return a status to
+			// indicate success/failure
+			// the sync.WaitGroup also needs to be marked as done so we can stop the entire application after all agents
+			// are stopped
 			var stopFn = func(id string) func() agent.StatusUpdate {
 				org, agentID := parseAgentArg(id, f.Config)
 				return func() agent.StatusUpdate {
