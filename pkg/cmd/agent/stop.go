@@ -37,7 +37,7 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 			// indicate success/failure
 			// the sync.WaitGroup also needs to be marked as done so we can stop the entire application after all agents
 			// are stopped
-			var stopFn = func(id string) func() agent.StatusUpdate {
+			var stopFn = func(id string) agent.StopFn {
 				org, agentID := parseAgentArg(id, f.Config)
 				return func() agent.StatusUpdate {
 					return agent.StatusUpdate{
