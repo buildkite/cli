@@ -75,14 +75,14 @@ func TestStoppableAgentOutput(t *testing.T) {
 			return bytes.Contains(bts, []byte("Waiting to stop agent 123"))
 		})
 		testModel.Send(StatusUpdate{
-			status: Stopping,
+			Status: Stopping,
 		})
 		teatest.WaitFor(t, testModel.Output(), func(bts []byte) bool {
 			return bytes.Contains(bts, []byte("Stopping agent 123"))
 		})
 		testModel.Send(StatusUpdate{
-			status: Succeeded,
-			cmd:    tea.Quit,
+			Status: Succeeded,
+			Cmd:    tea.Quit,
 		})
 		teatest.WaitFor(t, testModel.Output(), func(bts []byte) bool {
 			return bytes.Contains(bts, []byte("Stopped agent 123"))
@@ -100,7 +100,7 @@ func TestStoppableAgentOutput(t *testing.T) {
 			return bytes.Contains(bts, []byte("Waiting to stop agent 123"))
 		})
 		testModel.Send(StatusUpdate{
-			err: errors.New("Could not stop"),
+			Err: errors.New("Could not stop"),
 		})
 		teatest.WaitFor(t, testModel.Output(), func(bts []byte) bool {
 			return bytes.Contains(bts, []byte("Failed to stop agent 123 (error: Could not stop)"))

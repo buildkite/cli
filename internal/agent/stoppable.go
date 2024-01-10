@@ -18,9 +18,9 @@ const (
 
 // StatusUpdate is used to update the internal state of a StoppableAgent
 type StatusUpdate struct {
-	cmd    tea.Cmd
-	err    error
-	status Status
+	Cmd    tea.Cmd
+	Err    error
+	Status Status
 }
 
 // StopFn represents a function that returns a StatusUpdate
@@ -66,18 +66,20 @@ func (agent StoppableAgent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return agent, cmd
 	case StatusUpdate:
 		// if the status update contains an error, deal with that first
-		if msg.err != nil {
-			agent.err = msg.err
+		if msg.Err != nil {
+			agent.err = msg.Err
 			agent.status = Failed
-			return agent, msg.cmd
+			return agent, msg.Cmd
 		}
 		// only update the spinner if status is Stopping
 		var spinCmd tea.Cmd
-		if msg.status == Stopping {
+		if msg.Status == Stopping {
 			agent.spinner, spinCmd = agent.spinner.Update(msg)
 		}
-		agent.status = msg.status
-		return agent, tea.Batch(msg.cmd, spinCmd)
+		agent.status = msg.Status
+		return agent, tea.Batch(msg.Cmd, spinCmd)
+	default:
+		return agent, nil
 	}
 
 	return agent, tea.Quit
@@ -93,9 +95,9 @@ func (agent StoppableAgent) View() string {
 	case Stopping:
 		out = fmt.Sprintf("%s Stopping agent %s\n", agent.spinner.View(), agent.id)
 	case Succeeded:
-		out = fmt.Sprintf("✓  Stopped agent %s\n", agent.id)
+		out = fmt.Sprintf("✓   Stopped agent %s\n", agent.id)
 	case Failed:
-		out = fmt.Sprintf("✗  Failed to stop agent %s (error: %s)\n", agent.id, agent.err.Error())
+		out = fmt.Sprintf("✗   Failed to stop agent %s (error: %s)\n", agent.id, agent.err.Error())
 	}
 
 	return out
