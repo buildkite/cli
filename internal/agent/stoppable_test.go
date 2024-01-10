@@ -105,7 +105,7 @@ func TestStoppableAgentOutput(t *testing.T) {
 		teatest.WaitFor(t, testModel.Output(), func(bts []byte) bool {
 			return bytes.Contains(bts, []byte("Failed to stop agent 123 (error: Could not stop)"))
 		})
-		testModel.Send(tea.Quit)
+		testModel.Send(tea.Quit())
 
 		testModel.WaitFinished(t, teatest.WithFinalTimeout(time.Second))
 	})
