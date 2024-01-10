@@ -81,8 +81,6 @@ func (agent StoppableAgent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	default:
 		return agent, nil
 	}
-
-	return agent, tea.Quit
 }
 
 // View implements tea.Model.
