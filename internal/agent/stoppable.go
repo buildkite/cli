@@ -20,6 +20,7 @@ const (
 type StatusUpdate struct {
 	Cmd    tea.Cmd
 	Err    error
+	ID     string
 	Status Status
 }
 
@@ -65,6 +66,10 @@ func (agent StoppableAgent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		agent.spinner, cmd = agent.spinner.Update(msg)
 		return agent, cmd
 	case StatusUpdate:
+		// if the msg ID doesn't match this agent, do nothing as it doesnt apply to this instance
+		if msg.ID != agent.id {
+			return agent, nil
+		}
 		// if the status update contains an error, deal with that first
 		if msg.Err != nil {
 			agent.err = msg.Err

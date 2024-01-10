@@ -16,7 +16,7 @@ func TestStoppableAgentOutput(t *testing.T) {
 
 	t.Run("starts in waiting state", func(t *testing.T) {
 		// use a StopFn that quits straight away
-		model := NewStoppableAgent("123", func() StatusUpdate { return StatusUpdate{tea.Quit, nil, Waiting} })
+		model := NewStoppableAgent("123", func() StatusUpdate { return StatusUpdate{tea.Quit, nil, "123", Waiting} })
 		testModel := teatest.NewTestModel(t, model)
 		out, err := io.ReadAll(testModel.FinalOutput(t))
 		if err != nil {
@@ -29,7 +29,7 @@ func TestStoppableAgentOutput(t *testing.T) {
 
 	t.Run("stopping state", func(t *testing.T) {
 		// use a StopFn that quits straight away
-		model := NewStoppableAgent("123", func() StatusUpdate { return StatusUpdate{tea.Quit, nil, Stopping} })
+		model := NewStoppableAgent("123", func() StatusUpdate { return StatusUpdate{tea.Quit, nil, "123", Stopping} })
 		testModel := teatest.NewTestModel(t, model)
 		out, err := io.ReadAll(testModel.FinalOutput(t))
 		if err != nil {
@@ -42,7 +42,7 @@ func TestStoppableAgentOutput(t *testing.T) {
 
 	t.Run("success state", func(t *testing.T) {
 		// use a StopFn that quits straight away
-		model := NewStoppableAgent("123", func() StatusUpdate { return StatusUpdate{tea.Quit, nil, Succeeded} })
+		model := NewStoppableAgent("123", func() StatusUpdate { return StatusUpdate{tea.Quit, nil, "123", Succeeded} })
 		testModel := teatest.NewTestModel(t, model)
 		out, err := io.ReadAll(testModel.FinalOutput(t))
 		if err != nil {
@@ -55,7 +55,7 @@ func TestStoppableAgentOutput(t *testing.T) {
 
 	t.Run("failed state", func(t *testing.T) {
 		// use a StopFn that quits straight away
-		model := NewStoppableAgent("123", func() StatusUpdate { return StatusUpdate{tea.Quit, errors.New("error"), Failed} })
+		model := NewStoppableAgent("123", func() StatusUpdate { return StatusUpdate{tea.Quit, errors.New("error"), "123", Failed} })
 		testModel := teatest.NewTestModel(t, model)
 		out, err := io.ReadAll(testModel.FinalOutput(t))
 		if err != nil {
@@ -68,38 +68,41 @@ func TestStoppableAgentOutput(t *testing.T) {
 
 	t.Run("transitions through waiting-stopping-succeeded", func(t *testing.T) {
 		// use a StopFn that quits straight away
-		model := NewStoppableAgent("123", func() StatusUpdate { return StatusUpdate{nil, nil, Waiting} })
+		model := NewStoppableAgent("123", func() StatusUpdate { return StatusUpdate{nil, nil, "123", Waiting} })
 		testModel := teatest.NewTestModel(t, model)
 
 		teatest.WaitFor(t, testModel.Output(), func(bts []byte) bool {
 			return bytes.Contains(bts, []byte("Waiting to stop agent 123"))
 		})
 		testModel.Send(StatusUpdate{
+			ID:     "123",
 			Status: Stopping,
 		})
 		teatest.WaitFor(t, testModel.Output(), func(bts []byte) bool {
 			return bytes.Contains(bts, []byte("Stopping agent 123"))
 		})
 		testModel.Send(StatusUpdate{
+			ID:     "123",
 			Status: Succeeded,
 			Cmd:    tea.Quit,
 		})
 		teatest.WaitFor(t, testModel.Output(), func(bts []byte) bool {
 			return bytes.Contains(bts, []byte("Stopped agent 123"))
-		}, teatest.WithCheckInterval(time.Millisecond*100))
+		})
 
-		testModel.WaitFinished(t, teatest.WithFinalTimeout(time.Second*5))
+		testModel.WaitFinished(t, teatest.WithFinalTimeout(time.Second))
 	})
 
 	t.Run("shows error state", func(t *testing.T) {
 		// use a StopFn that quits straight away
-		model := NewStoppableAgent("123", func() StatusUpdate { return StatusUpdate{nil, nil, Waiting} })
+		model := NewStoppableAgent("123", func() StatusUpdate { return StatusUpdate{nil, nil, "123", Waiting} })
 		testModel := teatest.NewTestModel(t, model)
 
 		teatest.WaitFor(t, testModel.Output(), func(bts []byte) bool {
 			return bytes.Contains(bts, []byte("Waiting to stop agent 123"))
 		})
 		testModel.Send(StatusUpdate{
+			ID:  "123",
 			Err: errors.New("Could not stop"),
 		})
 		teatest.WaitFor(t, testModel.Output(), func(bts []byte) bool {
