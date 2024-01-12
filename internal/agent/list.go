@@ -20,13 +20,13 @@ func (ali agentListItem) Title() string       { return ali.title }
 func (ali agentListItem) Description() string { return ali.metadata }
 func (ali agentListItem) FilterValue() string { return ali.title }
 
-type AgentListModel struct {
+type agentListModel struct {
 	agentList list.Model
 	agents    []buildkite.Agent
 	quitting  bool
 }
 
-func ObtainAgents(f *factory.Factory, args ...string) (*AgentListModel, error) {
+func ObtainAgents(f *factory.Factory, args ...string) (*agentListModel, error) {
 	var alo buildkite.AgentListOptions
 	var items []list.Item
 
@@ -52,7 +52,7 @@ func ObtainAgents(f *factory.Factory, args ...string) (*AgentListModel, error) {
 		})
 	}
 
-	m := AgentListModel{
+	m := agentListModel{
 		agentList: list.New(items, list.NewDefaultDelegate(), 20, 0),
 		agents:    agents,
 	}
@@ -63,11 +63,11 @@ func ObtainAgents(f *factory.Factory, args ...string) (*AgentListModel, error) {
 	return &m, nil
 }
 
-func (m AgentListModel) Init() tea.Cmd {
+func (m agentListModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m agentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -85,7 +85,7 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m AgentListModel) View() string {
+func (m agentListModel) View() string {
 	if m.quitting {
 		return ""
 	} else {
