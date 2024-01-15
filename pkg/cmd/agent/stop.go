@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/MakeNowJust/heredoc"
@@ -89,7 +90,16 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 			}()
 
 			_, err := p.Run()
-			return err
+			if err != nil {
+				return err
+			}
+
+			for _, agent := range agents {
+				if agent.Errored() {
+					return errors.New("At least one agent failed to stop")
+				}
+			}
+			return nil
 		},
 	}
 

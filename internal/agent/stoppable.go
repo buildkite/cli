@@ -105,3 +105,7 @@ func (agent StoppableAgent) View() string {
 
 	return out
 }
+
+func (agent StoppableAgent) Errored() bool {
+	return agent.err != nil
+}
