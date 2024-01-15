@@ -47,13 +47,14 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 				return func() agent.StatusUpdate {
 					// before attempting to stop the agent, acquire a semaphore lock to limit parallelisation
 					_ = sem.Acquire(context.Background(), 1)
-					defer sem.Release(1)
 
 					return agent.StatusUpdate{
 						ID:     id,
 						Status: agent.Stopping,
 						// return an new command to actually stop the agent in the api and return the status of that
 						Cmd: func() tea.Msg {
+							// defer the semaphore and waitgroup release until the whole operation is completed
+							defer sem.Release(1)
 							defer wg.Done()
 							_, err := f.RestAPIClient.Agents.Stop(org, agentID, force)
 							if err != nil {
