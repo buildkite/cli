@@ -71,7 +71,7 @@ func (m agentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "esc":
+		case "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
 		}
