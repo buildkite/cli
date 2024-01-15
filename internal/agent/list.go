@@ -26,15 +26,15 @@ type agentListModel struct {
 	quitting  bool
 }
 
-func ObtainAgents(f *factory.Factory, args ...string) (*agentListModel, error) {
+func ObtainAgents(f *factory.Factory, name, version, hostname string) (*agentListModel, error) {
 	var alo buildkite.AgentListOptions
 	var items []list.Item
 
-	if args[0] != "" || args[1] != "" || args[2] != "" {
+	if name != "" || version != "" || hostname != "" {
 		alo = buildkite.AgentListOptions{
-			Name:     args[0],
-			Version:  args[1],
-			Hostname: args[2],
+			Name:     name,
+			Version:  version,
+			Hostname: hostname,
 		}
 	}
 
