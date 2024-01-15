@@ -40,9 +40,11 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 			var stopFn = func(id string) agent.StopFn {
 				org, agentID := parseAgentArg(id, f.Config)
 				return func() agent.StatusUpdate {
+					// immediately return a status update to indicate that the agent is "stopping"
 					return agent.StatusUpdate{
 						ID:     id,
 						Status: agent.Stopping,
+						// return an new command to actually stop the agent in the api and return the status of that
 						Cmd: func() tea.Msg {
 							defer wg.Done()
 							_, err := f.RestAPIClient.Agents.Stop(org, agentID, force)
