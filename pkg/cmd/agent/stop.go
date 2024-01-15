@@ -46,12 +46,7 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 				org, agentID := parseAgentArg(id, f.Config)
 				return func() agent.StatusUpdate {
 					// before attempting to stop the agent, acquire a semaphore lock to limit parallelisation
-					if err := sem.Acquire(context.Background(), 1); err != nil {
-						return agent.StatusUpdate{
-							ID:  id,
-							Err: err,
-						}
-					}
+					_ = sem.Acquire(context.Background(), 1)
 					defer sem.Release(1)
 
 					return agent.StatusUpdate{
