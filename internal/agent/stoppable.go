@@ -94,7 +94,7 @@ func (agent StoppableAgent) View() string {
 
 	switch agent.status {
 	case Waiting:
-		out = fmt.Sprintf("%s Waiting to stop agent %s\n", agent.spinner.View(), agent.id)
+		out = fmt.Sprintf("%s Waiting to stop agent %s\n", agent.spinner.Spinner.Frames[0], agent.id)
 	case Stopping:
 		out = fmt.Sprintf("%s Stopping agent %s\n", agent.spinner.View(), agent.id)
 	case Succeeded:
