@@ -12,14 +12,6 @@ import (
 
 var agentListStyle = lipgloss.NewStyle().Margin(1, 2)
 
-type agentListItem struct {
-	title, metadata string
-}
-
-func (ali agentListItem) Title() string       { return ali.title }
-func (ali agentListItem) Description() string { return ali.metadata }
-func (ali agentListItem) FilterValue() string { return ali.title }
-
 type agentListModel struct {
 	agentList list.Model
 	agents    []buildkite.Agent
@@ -28,7 +20,6 @@ type agentListModel struct {
 
 func ObtainAgents(f *factory.Factory, name, version, hostname string) (*agentListModel, error) {
 	var alo buildkite.AgentListOptions
-	var items []list.Item
 
 	if name != "" || version != "" || hostname != "" {
 		alo = buildkite.AgentListOptions{
@@ -40,16 +31,16 @@ func ObtainAgents(f *factory.Factory, name, version, hostname string) (*agentLis
 
 	// Obtain agent list
 	agents, _, err := f.RestAPIClient.Agents.List(f.Config.Organization, &alo)
+	items := make([]list.Item, len(agents))
 
 	if err != nil {
 		return nil, err
 	}
 
-	for _, agent := range agents {
-		items = append(items, agentListItem{
-			title:    *agent.Name,
-			metadata: fmt.Sprintf("%s | v%s | %s", *agent.ID, *agent.Version, *agent.ConnectedState),
-		})
+	for i, agent := range agents {
+		items[i] = agentListItem{
+			Agent: &agent,
+		}
 	}
 
 	m := agentListModel{
