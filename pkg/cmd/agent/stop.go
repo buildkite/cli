@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"sync"
 
 	"github.com/MakeNowJust/heredoc"
@@ -8,10 +9,12 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/semaphore"
 )
 
 func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 	var force bool
+	var limit int64
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
@@ -30,6 +33,8 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 			// use a wait group to ensure we exit the program after all agents have finished
 			var wg sync.WaitGroup
 			wg.Add(len(args))
+			// this semaphore is used to limit how many concurrent API requests can be sent
+			var sem = semaphore.NewWeighted(limit)
 
 			// here we want to allow each agent to transition through from a waiting state to stopping and ending at
 			// success/failure. so we need to wrap up multiple tea.Cmds, the first one marking it as "stopping". after
@@ -40,7 +45,15 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 			var stopFn = func(id string) agent.StopFn {
 				org, agentID := parseAgentArg(id, f.Config)
 				return func() agent.StatusUpdate {
-					// immediately return a status update to indicate that the agent is "stopping"
+					// before attempting to stop the agent, acquire a semaphore lock to limit parallelisation
+					if err := sem.Acquire(context.Background(), 1); err != nil {
+						return agent.StatusUpdate{
+							ID:  id,
+							Err: err,
+						}
+					}
+					defer sem.Release(1)
+
 					return agent.StatusUpdate{
 						ID:     id,
 						Status: agent.Stopping,
@@ -85,6 +98,7 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&force, "force", false, "Force stop the agent. Terminating any jobs in progress")
+	cmd.Flags().Int64VarP(&limit, "limit", "l", 5, "Limit parallel API requests")
 
 	return &cmd
 }
