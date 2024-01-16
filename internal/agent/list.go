@@ -41,7 +41,7 @@ func ObtainAgents(f *factory.Factory, name, version, hostname string) (*agentLis
 	}
 
 	m := agentListModel{
-		agentList: list.New(items, list.NewDefaultDelegate(), 20, 0),
+		agentList: list.New(items, NewDelegate(), 20, 0),
 	}
 
 	// Set Title
