@@ -11,7 +11,8 @@ import (
 var agentListStyle = lipgloss.NewStyle().Margin(1, 2)
 
 type agentListModel struct {
-	agentList list.Model
+	agentList   list.Model
+	agentLoader tea.Cmd
 }
 
 func ObtainAgents(f *factory.Factory, name, version, hostname string) (*agentListModel, error) {
@@ -26,21 +27,24 @@ func ObtainAgents(f *factory.Factory, name, version, hostname string) (*agentLis
 	}
 
 	// Obtain agent list
-	agents, _, err := f.RestAPIClient.Agents.List(f.Config.Organization, &alo)
-	items := make([]list.Item, len(agents))
-
-	if err != nil {
-		return nil, err
-	}
-
-	for i, agent := range agents {
-		items[i] = agentListItem{
-			Agent: &agent,
-		}
-	}
 
 	m := agentListModel{
-		agentList: list.New(items, NewDelegate(), 0, 0),
+		agentList: list.New(nil, NewDelegate(), 0, 0),
+		agentLoader: func() tea.Msg {
+			agents, _, err := f.RestAPIClient.Agents.List(f.Config.Organization, &alo)
+			items := make(NewAgentItemsMsg, len(agents))
+
+			if err != nil {
+				return err
+			}
+
+			for i, agent := range agents {
+				items[i] = agentListItem{
+					Agent: &agent,
+				}
+			}
+			return items
+		},
 	}
 
 	// Set Title
@@ -50,19 +54,30 @@ func ObtainAgents(f *factory.Factory, name, version, hostname string) (*agentLis
 }
 
 func (m agentListModel) Init() tea.Cmd {
-	return nil
+	return m.agentLoader
 }
 
 func (m agentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		// when viewport size is reported, start a spinner and show a message to the user indicating agents are loading
 		h, v := agentListStyle.GetFrameSize()
 		m.agentList.SetSize(msg.Width-h, msg.Height-v)
+		return m, tea.Batch(m.agentList.StartSpinner(), m.agentList.NewStatusMessage("Loading agents"))
+	case NewAgentItemsMsg:
+		// when a new page of agents is received, append them to existing agents in the list and stop the loading
+		// spinner
+		allItems := append(m.agentList.Items(), msg.Items()...)
+		cmds = append(cmds, m.agentList.SetItems(allItems))
+		m.agentList.StopSpinner()
 	}
 
 	var cmd tea.Cmd
 	m.agentList, cmd = m.agentList.Update(msg)
-	return m, cmd
+	cmds = append(cmds, cmd)
+
+	return m, tea.Batch(cmds...)
 }
 
 func (m agentListModel) View() string {
