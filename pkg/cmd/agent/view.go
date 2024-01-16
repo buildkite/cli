@@ -3,10 +3,10 @@ package agent
 import (
 	"bytes"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/MakeNowJust/heredoc"
+	"github.com/buildkite/cli/v3/internal/agent"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	tea "github.com/charmbracelet/bubbletea"
@@ -40,30 +40,30 @@ func NewCmdAgentView(f *factory.Factory) *cobra.Command {
 			}
 
 			l := io.NewPendingCommand(func() tea.Msg {
-				agent, _, err := f.RestAPIClient.Agents.Get(org, id)
+				agentData, _, err := f.RestAPIClient.Agents.Get(org, id)
 				if err != nil {
 					return err
 				}
 
 				// Parse metadata and queue name from returned REST API Metadata list
-				metadata, queue := parseMetadata(agent.Metadata)
+				metadata, queue := agent.ParseMetadata(agentData.Metadata)
 
 				tableOut := &bytes.Buffer{}
 				bold := lipgloss.NewStyle().Bold(true)
-				fmt.Fprint(tableOut, bold.Render(*agent.Name))
+				fmt.Fprint(tableOut, bold.Render(*agentData.Name))
 				t := table.New().Border(lipgloss.HiddenBorder()).StyleFunc(func(row, col int) lipgloss.Style {
 					return lipgloss.NewStyle().PaddingRight(2)
 				})
-				t.Row("ID", *agent.ID)
-				t.Row("State", bold.Render(*agent.ConnectedState))
+				t.Row("ID", *agentData.ID)
+				t.Row("State", bold.Render(*agentData.ConnectedState))
 				t.Row("Queue", queue)
-				t.Row("Version", *agent.Version)
-				t.Row("Hostname", *agent.Hostname)
+				t.Row("Version", *agentData.Version)
+				t.Row("Hostname", *agentData.Hostname)
 				// t.Row("PID", *agent.)
-				t.Row("User Agent", *agent.UserAgent)
-				t.Row("IP Address", *agent.IPAddress)
+				t.Row("User Agent", *agentData.UserAgent)
+				t.Row("IP Address", *agentData.IPAddress)
 				// t.Row("OS", *agent.)
-				t.Row("Connected", agent.CreatedAt.UTC().Format(time.RFC1123Z))
+				t.Row("Connected", agentData.CreatedAt.UTC().Format(time.RFC1123Z))
 				// t.Row("Stopped By", *agent.CreatedAt)
 				t.Row("Metadata", metadata)
 
@@ -81,19 +81,4 @@ func NewCmdAgentView(f *factory.Factory) *cobra.Command {
 	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open agent in a browser")
 
 	return &cmd
-}
-
-func parseMetadata(metadataList []string) (string, string) {
-	var metadata, queue string
-
-	for _, v := range metadataList {
-		metadataStr := strings.Split(v, "=")
-		if metadataStr[0] == "queue" {
-			queue = metadataStr[1]
-		} else {
-			metadata += fmt.Sprintf("%s\n", v)
-		}
-	}
-
-	return metadata, queue
 }
