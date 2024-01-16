@@ -1,6 +1,9 @@
 package agent
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	"github.com/charmbracelet/bubbles/list"
@@ -71,6 +74,11 @@ func (m agentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		allItems := append(m.agentList.Items(), msg.Items()...)
 		cmds = append(cmds, m.agentList.SetItems(allItems))
 		m.agentList.StopSpinner()
+	case error:
+		m.agentList.StopSpinner()
+		// show a status message for a long time
+		m.agentList.StatusMessageLifetime = time.Duration(time.Hour)
+		return m, m.agentList.NewStatusMessage(fmt.Sprintf("Failed loading agents: %s", msg.Error()))
 	}
 
 	var cmd tea.Cmd
