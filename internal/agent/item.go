@@ -21,5 +21,5 @@ func (ali agentListItem) QueueName() string {
 			return strings.Split(m, "=")[1]
 		}
 	}
-	return ""
+	return "default"
 }
