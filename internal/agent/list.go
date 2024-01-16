@@ -12,7 +12,6 @@ var agentListStyle = lipgloss.NewStyle().Margin(1, 2)
 
 type agentListModel struct {
 	agentList list.Model
-	quitting  bool
 }
 
 func ObtainAgents(f *factory.Factory, name, version, hostname string) (*agentListModel, error) {
@@ -41,7 +40,7 @@ func ObtainAgents(f *factory.Factory, name, version, hostname string) (*agentLis
 	}
 
 	m := agentListModel{
-		agentList: list.New(items, NewDelegate(), 20, 0),
+		agentList: list.New(items, NewDelegate(), 0, 0),
 	}
 
 	// Set Title
@@ -56,12 +55,6 @@ func (m agentListModel) Init() tea.Cmd {
 
 func (m agentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c":
-			m.quitting = true
-			return m, tea.Quit
-		}
 	case tea.WindowSizeMsg:
 		h, v := agentListStyle.GetFrameSize()
 		m.agentList.SetSize(msg.Width-h, msg.Height-v)
@@ -73,9 +66,5 @@ func (m agentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m agentListModel) View() string {
-	if m.quitting {
-		return ""
-	} else {
-		return agentListStyle.Render(m.agentList.View())
-	}
+	return agentListStyle.Render(m.agentList.View())
 }
