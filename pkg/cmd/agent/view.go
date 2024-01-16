@@ -45,6 +45,9 @@ func NewCmdAgentView(f *factory.Factory) *cobra.Command {
 					return err
 				}
 
+				// Parse metadata and queue name from returned REST API Metadata list
+				metadata, queue := parseMetadata(agent.Metadata)
+
 				tableOut := &bytes.Buffer{}
 				bold := lipgloss.NewStyle().Bold(true)
 				fmt.Fprint(tableOut, bold.Render(*agent.Name))
@@ -53,6 +56,7 @@ func NewCmdAgentView(f *factory.Factory) *cobra.Command {
 				})
 				t.Row("ID", *agent.ID)
 				t.Row("State", bold.Render(*agent.ConnectedState))
+				t.Row("Queue", queue)
 				t.Row("Version", *agent.Version)
 				t.Row("Hostname", *agent.Hostname)
 				// t.Row("PID", *agent.)
@@ -61,7 +65,7 @@ func NewCmdAgentView(f *factory.Factory) *cobra.Command {
 				// t.Row("OS", *agent.)
 				t.Row("Connected", agent.CreatedAt.UTC().Format(time.RFC1123Z))
 				// t.Row("Stopped By", *agent.CreatedAt)
-				t.Row("Metadata", strings.Join(agent.Metadata, ","))
+				t.Row("Metadata", metadata)
 
 				fmt.Fprint(tableOut, t.Render())
 				return io.PendingOutput(tableOut.String())
@@ -77,4 +81,19 @@ func NewCmdAgentView(f *factory.Factory) *cobra.Command {
 	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open agent in a browser")
 
 	return &cmd
+}
+
+func parseMetadata(metadataList []string) (string, string) {
+	var metadata, queue string
+
+	for _, v := range metadataList {
+		metadataStr := strings.Split(v, "=")
+		if metadataStr[0] == "queue" {
+			queue = metadataStr[1]
+		} else {
+			metadata += fmt.Sprintf("%s\n", v)
+		}
+	}
+
+	return metadata, queue
 }
