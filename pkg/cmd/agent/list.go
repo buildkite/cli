@@ -6,6 +6,7 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/agent"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/go-buildkite/v3/buildkite"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
@@ -22,11 +23,28 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 			List all connected agents for the current organization.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			model, err := agent.ObtainAgents(f, name, version, hostname)
-
-			if err != nil {
-				return err
+			opts := buildkite.AgentListOptions{
+				Name:     name,
+				Hostname: hostname,
+				Version:  version,
 			}
+			loader := func() tea.Msg {
+				agents, _, err := f.RestAPIClient.Agents.List(f.Config.Organization, &opts)
+				items := make(agent.NewAgentItemsMsg, len(agents))
+
+				if err != nil {
+					return err
+				}
+
+				for i, a := range agents {
+					items[i] = agent.AgentListItem{
+						Agent: &a,
+					}
+				}
+				return items
+			}
+
+			model := agent.NewAgentList(loader)
 
 			p := tea.NewProgram(model, tea.WithAltScreen())
 

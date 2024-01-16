@@ -79,7 +79,7 @@ func (d listAgentDelegate) Render(w io.Writer, m list.Model, index int, item lis
 		matchedRunes                 []int
 		s                            = &d.Styles
 	)
-	if agent, ok := item.(agentListItem); ok {
+	if agent, ok := item.(AgentListItem); ok {
 		name = *agent.Name
 		status = *agent.ConnectedState
 		version = *agent.Version

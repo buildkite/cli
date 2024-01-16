@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v3/buildkite"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -13,54 +11,26 @@ import (
 
 var agentListStyle = lipgloss.NewStyle().Margin(1, 2)
 
-type agentListModel struct {
+type AgentListModel struct {
 	agentList   list.Model
 	agentLoader tea.Cmd
 }
 
-func ObtainAgents(f *factory.Factory, name, version, hostname string) (*agentListModel, error) {
-	var alo buildkite.AgentListOptions
+func NewAgentList(loader tea.Cmd) AgentListModel {
+	l := list.New(nil, NewDelegate(), 0, 0)
+	l.Title = "Buildkite Agents"
 
-	if name != "" || version != "" || hostname != "" {
-		alo = buildkite.AgentListOptions{
-			Name:     name,
-			Version:  version,
-			Hostname: hostname,
-		}
+	return AgentListModel{
+		agentList:   l,
+		agentLoader: loader,
 	}
-
-	// Obtain agent list
-
-	m := agentListModel{
-		agentList: list.New(nil, NewDelegate(), 0, 0),
-		agentLoader: func() tea.Msg {
-			agents, _, err := f.RestAPIClient.Agents.List(f.Config.Organization, &alo)
-			items := make(NewAgentItemsMsg, len(agents))
-
-			if err != nil {
-				return err
-			}
-
-			for i, agent := range agents {
-				items[i] = agentListItem{
-					Agent: &agent,
-				}
-			}
-			return items
-		},
-	}
-
-	// Set Title
-	m.agentList.Title = "Buildkite Agents"
-
-	return &m, nil
 }
 
-func (m agentListModel) Init() tea.Cmd {
+func (m AgentListModel) Init() tea.Cmd {
 	return m.agentLoader
 }
 
-func (m agentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -88,6 +58,6 @@ func (m agentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m agentListModel) View() string {
+func (m AgentListModel) View() string {
 	return agentListStyle.Render(m.agentList.View())
 }

@@ -4,7 +4,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 )
 
-type NewAgentItemsMsg []agentListItem
+type NewAgentItemsMsg []AgentListItem
 
 func (a NewAgentItemsMsg) Items() []list.Item {
 	agg := make([]list.Item, len(a))
