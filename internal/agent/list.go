@@ -1,8 +1,6 @@
 package agent
 
 import (
-	"fmt"
-
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	"github.com/charmbracelet/bubbles/list"
@@ -14,7 +12,6 @@ var agentListStyle = lipgloss.NewStyle().Margin(1, 2)
 
 type agentListModel struct {
 	agentList list.Model
-	agents    []buildkite.Agent
 	quitting  bool
 }
 
@@ -45,7 +42,6 @@ func ObtainAgents(f *factory.Factory, name, version, hostname string) (*agentLis
 
 	m := agentListModel{
 		agentList: list.New(items, list.NewDefaultDelegate(), 20, 0),
-		agents:    agents,
 	}
 
 	// Set Title
