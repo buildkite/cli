@@ -13,3 +13,7 @@ func (a NewAgentItemsMsg) Items() []list.Item {
 	}
 	return agg
 }
+
+type AgentStopped struct {
+	Agent AgentListItem
+}

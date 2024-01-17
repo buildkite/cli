@@ -36,6 +36,33 @@ func (m AgentListModel) Init() tea.Cmd {
 func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "s": // stop an agent gracefully
+			if agent, ok := m.agentList.SelectedItem().(AgentListItem); ok {
+				m.agentList.ResetSelected()
+				var cmds []tea.Cmd
+				// set a status message and start the loading spinner
+				cmds = append(cmds, m.agentList.NewStatusMessage(fmt.Sprintf("Stopping %s (gracefully)", *agent.Name)))
+				cmds = append(cmds, m.agentList.StartSpinner())
+				// stop the agent and update the UI
+				cmds = append(cmds, func() tea.Msg {
+					err := m.agentStopper(*agent.ID, false)
+					if err != nil {
+						return err
+					}
+					m.agentList.RemoveItem(m.agentList.Index())
+					return AgentStopped{
+						Agent: agent,
+					}
+				})
+				return m, tea.Batch(cmds...)
+			}
+			return m, nil
+		}
+	case AgentStopped:
+		m.agentList.StopSpinner()
+		return m, nil
 	case tea.WindowSizeMsg:
 		// when viewport size is reported, start a spinner and show a message to the user indicating agents are loading
 		h, v := agentListStyle.GetFrameSize()
