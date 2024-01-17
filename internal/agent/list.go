@@ -19,6 +19,7 @@ type AgentListModel struct {
 func NewAgentList(loader tea.Cmd) AgentListModel {
 	l := list.New(nil, NewDelegate(), 0, 0)
 	l.Title = "Buildkite Agents"
+	l.SetFilteringEnabled(false)
 
 	return AgentListModel{
 		agentList:   l,
