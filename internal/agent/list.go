@@ -21,6 +21,7 @@ type AgentListModel struct {
 func NewAgentList(agentLoader tea.Cmd, agentStopper func(string, bool) error) AgentListModel {
 	l := list.New(nil, NewDelegate(), 0, 0)
 	l.Title = "Buildkite Agents"
+	l.SetStatusBarItemName("agent", "agents")
 	l.SetFilteringEnabled(false)
 	l.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
@@ -41,32 +42,42 @@ func (m AgentListModel) Init() tea.Cmd {
 	return m.agentLoader
 }
 
+func (m *AgentListModel) stopAgent(force bool) tea.Cmd {
+	if agent, ok := m.agentList.SelectedItem().(AgentListItem); ok {
+		index := m.agentList.Index()
+		statusMessage := fmt.Sprintf("Stopping %s (gracefully)", *agent.Name)
+		if force {
+			statusMessage = fmt.Sprintf("Stopping %s (forcefully)", *agent.Name)
+		}
+		// set a status message and start the loading spinner
+		setStatus := m.agentList.NewStatusMessage(statusMessage)
+		startSpinner := m.agentList.StartSpinner()
+		// stop the agent and update the UI
+		stopAgent := func() tea.Msg {
+			err := m.agentStopper(*agent.ID, force)
+			if err != nil {
+				return err
+			}
+			m.agentList.RemoveItem(index)
+			m.agentList.ResetSelected()
+			return AgentStopped{
+				Agent: agent,
+			}
+		}
+		return tea.Sequence(tea.Batch(startSpinner, setStatus), stopAgent)
+	}
+	return nil
+}
+
 func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "s": // stop an agent gracefully
-			if agent, ok := m.agentList.SelectedItem().(AgentListItem); ok {
-				m.agentList.ResetSelected()
-				var cmds []tea.Cmd
-				// set a status message and start the loading spinner
-				cmds = append(cmds, m.agentList.NewStatusMessage(fmt.Sprintf("Stopping %s (gracefully)", *agent.Name)))
-				cmds = append(cmds, m.agentList.StartSpinner())
-				// stop the agent and update the UI
-				cmds = append(cmds, func() tea.Msg {
-					err := m.agentStopper(*agent.ID, false)
-					if err != nil {
-						return err
-					}
-					m.agentList.RemoveItem(m.agentList.Index())
-					return AgentStopped{
-						Agent: agent,
-					}
-				})
-				return m, tea.Batch(cmds...)
-			}
-			return m, nil
+			return m, m.stopAgent(false)
+		case "S": // stop an agent forcefully
+			return m, m.stopAgent(true)
 		}
 	case AgentStopped:
 		m.agentList.StopSpinner()
