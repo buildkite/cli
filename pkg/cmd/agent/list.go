@@ -44,7 +44,12 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 				return items
 			}
 
-			model := agent.NewAgentList(loader)
+			stopper := func(id string, force bool) error {
+				_, err := f.RestAPIClient.Agents.Stop(f.Config.Organization, id, force)
+				return err
+			}
+
+			model := agent.NewAgentList(loader, stopper)
 
 			p := tea.NewProgram(model, tea.WithAltScreen())
 

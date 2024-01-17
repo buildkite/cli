@@ -12,18 +12,20 @@ import (
 var agentListStyle = lipgloss.NewStyle().Margin(1, 2)
 
 type AgentListModel struct {
-	agentList   list.Model
-	agentLoader tea.Cmd
+	agentList    list.Model
+	agentLoader  tea.Cmd
+	agentStopper func(string, bool) error
 }
 
-func NewAgentList(loader tea.Cmd) AgentListModel {
+func NewAgentList(agentLoader tea.Cmd, agentStopper func(string, bool) error) AgentListModel {
 	l := list.New(nil, NewDelegate(), 0, 0)
 	l.Title = "Buildkite Agents"
 	l.SetFilteringEnabled(false)
 
 	return AgentListModel{
-		agentList:   l,
-		agentLoader: loader,
+		agentList:    l,
+		agentLoader:  agentLoader,
+		agentStopper: agentStopper,
 	}
 }
 
