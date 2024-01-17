@@ -35,19 +35,19 @@ type itemStyles struct {
 func defaultItemStyles() (s itemStyles) {
 	// apply a width of the longest expected string
 	s.normalStatus = lipgloss.NewStyle().Width(len("connected"))
-	s.selectedStatus = s.normalStatus.Copy()
+	s.selectedStatus = s.normalStatus.Copy().Background(style.Black)
 	s.dimmedStatus = s.normalStatus.Copy()
 
 	s.normalName = lipgloss.NewStyle().PaddingLeft(2)
-	s.selectedName = s.normalName.Copy()
+	s.selectedName = s.normalName.Copy().Background(style.Black)
 	s.dimmedName = s.normalName.Copy()
 
-	s.normalVersion = s.normalName.Copy().Foreground(style.Grey) //.Width(len("v0.00.00"))
-	s.selectedVersion = s.normalVersion.Copy()
+	s.normalVersion = s.normalName.Copy().Foreground(style.Grey)
+	s.selectedVersion = s.normalVersion.Copy().Background(style.Black)
 	s.dimmedVersion = s.normalVersion.Copy()
 
 	s.normalQueue = s.normalName.Copy().Foreground(style.Teal)
-	s.selectedQueue = s.normalQueue.Copy()
+	s.selectedQueue = s.normalQueue.Copy().Background(style.Black)
 	s.dimmedQueue = s.normalQueue.Copy()
 
 	s.filterMatch = lipgloss.NewStyle().Underline(true)
@@ -82,7 +82,7 @@ func (d listAgentDelegate) Render(w io.Writer, m list.Model, index int, item lis
 	if agent, ok := item.(AgentListItem); ok {
 		name = *agent.Name
 		status = *agent.ConnectedState
-		version = *agent.Version
+		version = fmt.Sprintf("(v%s)", *agent.Version)
 		queue = agent.QueueName()
 	} else {
 		return
@@ -137,7 +137,7 @@ func (d listAgentDelegate) Render(w io.Writer, m list.Model, index int, item lis
 		queue = s.normalQueue.Render(queue)
 	}
 
-	fmt.Fprintf(w, "%s %s %s %s", status, name, version, queue)
+	fmt.Fprintf(w, "%s%s%s%s", status, name, version, queue)
 }
 
 // Spacing implements list.ItemDelegate.
