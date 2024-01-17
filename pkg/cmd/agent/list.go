@@ -37,6 +37,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 				}
 
 				for i, a := range agents {
+					a := a
 					items[i] = agent.AgentListItem{
 						Agent: &a,
 					}
