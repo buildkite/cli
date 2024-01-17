@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -21,6 +22,13 @@ func NewAgentList(agentLoader tea.Cmd, agentStopper func(string, bool) error) Ag
 	l := list.New(nil, NewDelegate(), 0, 0)
 	l.Title = "Buildkite Agents"
 	l.SetFilteringEnabled(false)
+	l.AdditionalShortHelpKeys = func() []key.Binding {
+		return []key.Binding{
+			key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "stop")),
+			key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "force stop")),
+		}
+	}
+	l.AdditionalFullHelpKeys = l.AdditionalShortHelpKeys
 
 	return AgentListModel{
 		agentList:    l,
