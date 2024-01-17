@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"errors"
 	"os"
 
 	"github.com/MakeNowJust/heredoc"
@@ -33,7 +34,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 				items := make(agent.NewAgentItemsMsg, len(agents))
 
 				if err != nil {
-					return err
+					return errors.Join(errors.New("Failed loading agents"), err)
 				}
 
 				for i, a := range agents {

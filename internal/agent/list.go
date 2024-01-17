@@ -86,7 +86,7 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.agentList.StopSpinner()
 		// show a status message for a long time
 		m.agentList.StatusMessageLifetime = time.Duration(time.Hour)
-		return m, m.agentList.NewStatusMessage(fmt.Sprintf("Failed loading agents: %s", msg.Error()))
+		return m, m.agentList.NewStatusMessage(msg.Error())
 	}
 
 	var cmd tea.Cmd
