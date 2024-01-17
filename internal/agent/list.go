@@ -7,10 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
-
-var agentListStyle = lipgloss.NewStyle().Margin(1, 2)
 
 type AgentListModel struct {
 	agentList    list.Model
@@ -84,8 +81,7 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.WindowSizeMsg:
 		// when viewport size is reported, start a spinner and show a message to the user indicating agents are loading
-		h, v := agentListStyle.GetFrameSize()
-		m.agentList.SetSize(msg.Width-h, msg.Height-v)
+		m.agentList.SetSize(msg.Width, msg.Height)
 		return m, tea.Batch(m.agentList.StartSpinner(), m.agentList.NewStatusMessage("Loading agents"))
 	case NewAgentItemsMsg:
 		// when a new page of agents is received, append them to existing agents in the list and stop the loading
@@ -108,5 +104,5 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m AgentListModel) View() string {
-	return agentListStyle.Render(m.agentList.View())
+	return m.agentList.View()
 }
