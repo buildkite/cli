@@ -9,6 +9,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/agent"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/pkg/style"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
@@ -50,14 +51,21 @@ func NewCmdAgentView(f *factory.Factory) *cobra.Command {
 
 				tableOut := &bytes.Buffer{}
 				bold := lipgloss.NewStyle().Bold(true)
+				agentStateStyle := lipgloss.NewStyle().Bold(true).Foreground(agent.MapStatusToColour(*agentData.ConnectedState))
+				queueStyle := lipgloss.NewStyle().Foreground(style.Teal)
+				versionStyle := lipgloss.NewStyle().Foreground(style.Grey)
+
 				fmt.Fprint(tableOut, bold.Render(*agentData.Name))
+
 				t := table.New().Border(lipgloss.HiddenBorder()).StyleFunc(func(row, col int) lipgloss.Style {
 					return lipgloss.NewStyle().PaddingRight(2)
 				})
+
+				// Construct table row data
 				t.Row("ID", *agentData.ID)
-				t.Row("State", bold.Render(*agentData.ConnectedState))
-				t.Row("Queue", queue)
-				t.Row("Version", *agentData.Version)
+				t.Row("State", agentStateStyle.Render(*agentData.ConnectedState))
+				t.Row("Queue", queueStyle.Render(queue))
+				t.Row("Version", versionStyle.Render(*agentData.Version))
 				t.Row("Hostname", *agentData.Hostname)
 				// t.Row("PID", *agent.)
 				t.Row("User Agent", *agentData.UserAgent)
