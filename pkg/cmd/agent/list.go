@@ -27,6 +27,10 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 				Name:     name,
 				Hostname: hostname,
 				Version:  version,
+				ListOptions: buildkite.ListOptions{
+					Page:    1,
+					PerPage: 5,
+				},
 			}
 			loader := func() tea.Msg {
 				agents, _, err := f.RestAPIClient.Agents.List(f.Config.Organization, &opts)
@@ -37,6 +41,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 				}
 
 				for i, a := range agents {
+					a := a
 					items[i] = agent.AgentListItem{
 						Agent: &a,
 					}
@@ -44,7 +49,31 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 				return items
 			}
 
-			model := agent.NewAgentList(loader)
+			appender := func(page int) (tea.Msg, *buildkite.Response) {
+				opts := buildkite.AgentListOptions{
+					ListOptions: buildkite.ListOptions{
+						Page:    page,
+						PerPage: 5,
+					},
+				}
+
+				agents, resp, err := f.RestAPIClient.Agents.List(f.Config.Organization, &opts)
+				items := make(agent.NewAgentAppendItemsMsg, len(agents))
+				if err != nil {
+					return err, resp
+				}
+
+				for i, a := range agents {
+					a := a
+					items[i] = agent.AgentListItem{
+						Agent: &a,
+					}
+				}
+
+				return items, resp
+			}
+
+			model := agent.NewAgentList(loader, appender)
 
 			p := tea.NewProgram(model, tea.WithAltScreen())
 
