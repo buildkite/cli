@@ -33,7 +33,7 @@ func NewAgentList(loader tea.Cmd, appender func(page int) (tea.Msg, *buildkite.R
 
 func (m *AgentListModel) appendAgents(page int) tea.Cmd {
 	// Increment to next page
-	m.agentPage++ 
+	m.agentPage++
 	// Set a status message and start the agentList's spinner
 	startSpiner := m.agentList.StartSpinner()
 	setStatus := m.agentList.NewStatusMessage(("Fetching more agents..."))
@@ -63,7 +63,9 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "down":
-			if m.agentList.Index() == len(m.agentList.Items())-1 && m.agentList.FilterState() == list.Unfiltered {
+			lastListElement := m.agentList.Index() == len(m.agentList.Items())-1
+			unfilteredState := m.agentList.FilterState() == list.Unfiltered
+			if lastListElement && unfilteredState {
 				return m, m.appendAgents(m.agentPage)
 			}
 		}
