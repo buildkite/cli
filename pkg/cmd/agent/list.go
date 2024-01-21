@@ -13,6 +13,7 @@ import (
 
 func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 	var name, version, hostname string
+	var perpage int
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
@@ -29,7 +30,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 				Version:  version,
 				ListOptions: buildkite.ListOptions{
 					Page:    1,
-					PerPage: 5,
+					PerPage: perpage,
 				},
 			}
 			loader := func() tea.Msg {
@@ -88,6 +89,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "Filter agents by their name")
 	cmd.Flags().StringVar(&version, "version", "", "Filter agents by their agent version")
 	cmd.Flags().StringVar(&hostname, "hostname", "", "Filter agents by their hostname")
+	cmd.Flags().IntVar(&perpage, "per-page", 30, "Number of agents to fetch per API call")
 
 	return &cmd
 }
