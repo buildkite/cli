@@ -24,57 +24,49 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 			List all connected agents for the current organization.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			opts := buildkite.AgentListOptions{
-				Name:     name,
-				Hostname: hostname,
-				Version:  version,
-				ListOptions: buildkite.ListOptions{
-					Page:    1,
-					PerPage: perpage,
-				},
-			}
-			loader := func() tea.Msg {
-				agents, _, err := f.RestAPIClient.Agents.List(f.Config.Organization, &opts)
-				items := make(agent.NewAgentItemsMsg, len(agents))
+			loader := func(page, perpage int) tea.Cmd {
+				return func() tea.Msg {
+					opts := buildkite.AgentListOptions{
+						Name:     name,
+						Hostname: hostname,
+						Version:  version,
+						ListOptions: buildkite.ListOptions{
+							Page:    1,
+							PerPage: perpage,
+						},
+					}
 
-				if err != nil {
-					return err
-				}
+					agents, resp, err := f.RestAPIClient.Agents.List(f.Config.Organization, &opts)
+					items := make([]agent.AgentListItem, len(agents))
 
-				for i, a := range agents {
-					a := a
-					items[i] = agent.AgentListItem{
-						Agent: &a,
+					if err != nil {
+						return err
+					}
+
+					for i, a := range agents {
+						a := a
+						items[i] = agent.AgentListItem{
+							Agent: &a,
+						}
+					}
+
+					// If initial load, return agents with page info
+					if page == 1 {
+						return agent.NewAgentItemsMsg{
+							Items:    items,
+							NextPage: resp.NextPage,
+							LastPage: resp.LastPage,
+						}
+					} else {
+						return agent.NewAgentItemsMsg{
+							Items:    items,
+							NextPage: resp.NextPage,
+						}
 					}
 				}
-				return items
 			}
 
-			appender := func(page int) (tea.Msg, *buildkite.Response) {
-				opts := buildkite.AgentListOptions{
-					ListOptions: buildkite.ListOptions{
-						Page:    page,
-						PerPage: 5,
-					},
-				}
-
-				agents, resp, err := f.RestAPIClient.Agents.List(f.Config.Organization, &opts)
-				items := make(agent.NewAgentAppendItemsMsg, len(agents))
-				if err != nil {
-					return err, resp
-				}
-
-				for i, a := range agents {
-					a := a
-					items[i] = agent.AgentListItem{
-						Agent: &a,
-					}
-				}
-
-				return items, resp
-			}
-
-			model := agent.NewAgentList(loader, appender)
+			model := agent.NewAgentList(loader, 1, perpage)
 
 			p := tea.NewProgram(model, tea.WithAltScreen())
 

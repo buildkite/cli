@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/buildkite/go-buildkite/v3/buildkite"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -13,73 +12,79 @@ import (
 var agentListStyle = lipgloss.NewStyle().Margin(1, 2)
 
 type AgentListModel struct {
-	agentList     list.Model
-	agentPage     int
-	agentLoader   tea.Cmd
-	agentAppender func(page int) (tea.Msg, *buildkite.Response)
+	agentList        list.Model
+	agentCurrentPage int
+	agentPerPage     int
+	agentLastPage    int
+	agentLoader      func(int, int) tea.Cmd
 }
 
-func NewAgentList(loader tea.Cmd, appender func(page int) (tea.Msg, *buildkite.Response)) AgentListModel {
+func NewAgentList(loader func(int, int) tea.Cmd, page, perpage int) AgentListModel {
 	l := list.New(nil, NewDelegate(), 0, 0)
 	l.Title = "Buildkite Agents"
 
 	return AgentListModel{
-		agentList:     l,
-		agentPage:     1,
-		agentLoader:   loader,
-		agentAppender: appender,
+		agentList:        l,
+		agentCurrentPage: page,
+		agentPerPage:     perpage,
+		agentLoader:      loader,
 	}
 }
 
-func (m *AgentListModel) appendAgents(page int) tea.Cmd {
-	// Increment to next page
-	m.agentPage++
+func (m *AgentListModel) appendAgents() tea.Cmd {
 	// Set a status message and start the agentList's spinner
 	startSpiner := m.agentList.StartSpinner()
 	setStatus := m.agentList.NewStatusMessage(("Fetching more agents..."))
 	// Fetch and append more agents
 	appendAgents := func() tea.Msg {
-		err, _ := m.agentAppender(m.agentPage)
+		err := m.agentLoader(m.agentCurrentPage, m.agentPerPage)
 		if err != nil {
 			return err
 		}
 		return nil
 	}
-	return tea.Sequence(tea.Batch(startSpiner, appendAgents), setStatus)
+	return tea.Sequence(appendAgents, tea.Batch(startSpiner, setStatus))
 }
 
 func (m AgentListModel) Init() tea.Cmd {
-	return m.agentLoader
+	startSpiner := m.agentList.StartSpinner()
+	setStatus := m.agentList.NewStatusMessage(("Loading agents"))
+	agentInitLoader := m.agentLoader(m.agentCurrentPage, m.agentPerPage)
+	return tea.Sequence(agentInitLoader, tea.Batch(startSpiner, setStatus))
 }
 
 func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		// when viewport size is reported, start a spinner and show a message to the user indicating agents are loading
+		// When viewport size is reported, start a spinner and show a message to the user indicating agents are loading
 		h, v := agentListStyle.GetFrameSize()
 		m.agentList.SetSize(msg.Width-h, msg.Height-v)
-		return m, tea.Batch(m.agentList.StartSpinner(), m.agentList.NewStatusMessage("Loading agents"))
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "down":
 			lastListElement := m.agentList.Index() == len(m.agentList.Items())-1
 			unfilteredState := m.agentList.FilterState() == list.Unfiltered
-			if lastListElement && unfilteredState {
-				return m, m.appendAgents(m.agentPage)
+			lastPageReached := m.agentCurrentPage > m.agentLastPage
+			// If down is pressed on the last agent item, list state is unfiltered and more agents are available by the API
+			if lastListElement && unfilteredState && !lastPageReached {
+				return m, m.appendAgents()
 			}
 		}
 	// Custom messages
 	case NewAgentItemsMsg:
 		// when a new page of agents is received, append them to existing agents in the list and stop the loading
 		// spinner
-		allItems := append(m.agentList.Items(), msg.Items()...)
+		allItems := append(m.agentList.Items(), msg.ListItems()...)
 		cmds = append(cmds, m.agentList.SetItems(allItems))
+		// Stop the loading spinner
 		m.agentList.StopSpinner()
-	case NewAgentAppendItemsMsg:
-		allItems := append(m.agentList.Items(), msg.Items()...)
-		cmds = append(cmds, m.agentList.SetItems(allItems))
-		m.agentList.StopSpinner()
+		// If the message from the initial agent load, set the last page
+		if m.agentCurrentPage == 1 {
+			m.agentLastPage = msg.LastPage
+		}
+		// Update the page to the next
+		m.agentCurrentPage = msg.NextPage
 	case error:
 		m.agentList.StopSpinner()
 		// show a status message for a long time
