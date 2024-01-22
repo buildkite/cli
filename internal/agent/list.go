@@ -33,6 +33,7 @@ func NewAgentList(loader func(int, int) tea.Cmd, page, perpage int) AgentListMod
 }
 
 func (m *AgentListModel) appendAgents() tea.Cmd {
+	// Set agentsLoading
 	m.agentsLoading = true
 	// Set a status message and start the agentList's spinner
 	startSpiner := m.agentList.StartSpinner()
@@ -57,15 +58,17 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "down":
-			if !m.agentsLoading {
-				// Calculate last element, unfiltered and if the last agent page via the API has been reached
-				lastListElement := m.agentList.Index() == len(m.agentList.Items())-1
-				unfilteredState := m.agentList.FilterState() == list.Unfiltered
+			// Calculate last element, unfiltered and if the last agent page via the API has been reached
+			lastListItem := m.agentList.Index() == len(m.agentList.Items())-1
+			unfilteredState := m.agentList.FilterState() == list.Unfiltered
+			if !m.agentsLoading && lastListItem && unfilteredState {
 				lastPageReached := m.agentCurrentPage > m.agentLastPage
-				// If down is pressed on the last agent item, list state is unfiltered and more agents are available by the API
-				if lastListElement && unfilteredState && !lastPageReached {
+				// If down is pressed on the last agent item, list state is unfiltered and more agents are available
+				// to load the API
+				if !lastPageReached {
 					return m, m.appendAgents()
-				} else if lastListElement && unfilteredState && lastPageReached {
+				} else {
+					// Append a status message to alert that no more agents are available to load from the API
 					setStatus := m.agentList.NewStatusMessage("No more agents to load!")
 					cmds = append(cmds, setStatus)
 				}
