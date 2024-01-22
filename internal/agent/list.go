@@ -36,21 +36,12 @@ func (m *AgentListModel) appendAgents() tea.Cmd {
 	startSpiner := m.agentList.StartSpinner()
 	setStatus := m.agentList.NewStatusMessage(("Fetching more agents..."))
 	// Fetch and append more agents
-	appendAgents := func() tea.Msg {
-		err := m.agentLoader(m.agentCurrentPage, m.agentPerPage)
-		if err != nil {
-			return err
-		}
-		return nil
-	}
+	appendAgents := m.agentLoader(m.agentCurrentPage, m.agentPerPage)
 	return tea.Sequence(appendAgents, tea.Batch(startSpiner, setStatus))
 }
 
 func (m AgentListModel) Init() tea.Cmd {
-	startSpiner := m.agentList.StartSpinner()
-	setStatus := m.agentList.NewStatusMessage(("Loading agents"))
-	agentInitLoader := m.agentLoader(m.agentCurrentPage, m.agentPerPage)
-	return tea.Sequence(agentInitLoader, tea.Batch(startSpiner, setStatus))
+	return m.agentLoader(m.agentCurrentPage, m.agentPerPage)
 }
 
 func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -60,6 +51,7 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// When viewport size is reported, start a spinner and show a message to the user indicating agents are loading
 		h, v := agentListStyle.GetFrameSize()
 		m.agentList.SetSize(msg.Width-h, msg.Height-v)
+		return m, tea.Batch(m.agentList.StartSpinner(), m.agentList.NewStatusMessage("Loading agents"))
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "down":
@@ -69,6 +61,9 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// If down is pressed on the last agent item, list state is unfiltered and more agents are available by the API
 			if lastListElement && unfilteredState && !lastPageReached {
 				return m, m.appendAgents()
+			} else if lastListElement && unfilteredState && lastPageReached {
+				setStatus := m.agentList.NewStatusMessage("No more agents to load!")
+				cmds = append(cmds, setStatus)
 			}
 		}
 	// Custom messages
@@ -83,8 +78,8 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.agentCurrentPage == 1 {
 			m.agentLastPage = msg.LastPage
 		}
-		// Update the page to the next
-		m.agentCurrentPage = msg.NextPage
+		// Increment the models' current agent page
+		m.agentCurrentPage++
 	case error:
 		m.agentList.StopSpinner()
 		// show a status message for a long time

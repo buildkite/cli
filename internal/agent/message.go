@@ -6,7 +6,6 @@ import (
 
 type NewAgentItemsMsg struct {
 	Items    []AgentListItem
-	NextPage int
 	LastPage int
 }
 

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	//"fmt"
 	"os"
 
 	"github.com/MakeNowJust/heredoc"
@@ -31,7 +32,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 						Hostname: hostname,
 						Version:  version,
 						ListOptions: buildkite.ListOptions{
-							Page:    1,
+							Page:    page,
 							PerPage: perpage,
 						},
 					}
@@ -51,24 +52,16 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 					}
 
 					// If initial load, return agents with page info
-					if page == 1 {
-						return agent.NewAgentItemsMsg{
-							Items:    items,
-							NextPage: resp.NextPage,
-							LastPage: resp.LastPage,
-						}
-					} else {
-						return agent.NewAgentItemsMsg{
-							Items:    items,
-							NextPage: resp.NextPage,
-						}
+					return agent.NewAgentItemsMsg{
+						Items:    items,
+						LastPage: resp.LastPage,
 					}
 				}
 			}
 
 			model := agent.NewAgentList(loader, 1, perpage)
 
-			p := tea.NewProgram(model, tea.WithAltScreen())
+			p := tea.NewProgram(model)
 
 			if _, err := p.Run(); err != nil {
 				os.Exit(1)
