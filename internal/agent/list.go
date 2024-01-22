@@ -37,7 +37,7 @@ func (m *AgentListModel) appendAgents() tea.Cmd {
 	m.agentsLoading = true
 	// Set a status message and start the agentList's spinner
 	startSpiner := m.agentList.StartSpinner()
-	setStatus := m.agentList.NewStatusMessage(("Fetching more agents..."))
+	setStatus := m.agentList.NewStatusMessage(("Fetching more agents"))
 	// Fetch and append more agents
 	appendAgents := m.agentLoader(m.agentCurrentPage, m.agentPerPage)
 	return tea.Sequence(appendAgents, tea.Batch(startSpiner, setStatus))
