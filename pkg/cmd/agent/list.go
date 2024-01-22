@@ -1,7 +1,6 @@
 package agent
 
 import (
-	//"fmt"
 	"os"
 
 	"github.com/MakeNowJust/heredoc"
