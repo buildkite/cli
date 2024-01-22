@@ -16,6 +16,7 @@ type AgentListModel struct {
 	agentCurrentPage int
 	agentPerPage     int
 	agentLastPage    int
+	agentsLoading    bool
 	agentLoader      func(int, int) tea.Cmd
 }
 
@@ -32,6 +33,7 @@ func NewAgentList(loader func(int, int) tea.Cmd, page, perpage int) AgentListMod
 }
 
 func (m *AgentListModel) appendAgents() tea.Cmd {
+	m.agentsLoading = true
 	// Set a status message and start the agentList's spinner
 	startSpiner := m.agentList.StartSpinner()
 	setStatus := m.agentList.NewStatusMessage(("Fetching more agents..."))
@@ -55,20 +57,23 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "down":
-			lastListElement := m.agentList.Index() == len(m.agentList.Items())-1
-			unfilteredState := m.agentList.FilterState() == list.Unfiltered
-			lastPageReached := m.agentCurrentPage > m.agentLastPage
-			// If down is pressed on the last agent item, list state is unfiltered and more agents are available by the API
-			if lastListElement && unfilteredState && !lastPageReached {
-				return m, m.appendAgents()
-			} else if lastListElement && unfilteredState && lastPageReached {
-				setStatus := m.agentList.NewStatusMessage("No more agents to load!")
-				cmds = append(cmds, setStatus)
+			if !m.agentsLoading {
+				// Calculate last element, unfiltered and if the last agent page via the API has been reached
+				lastListElement := m.agentList.Index() == len(m.agentList.Items())-1
+				unfilteredState := m.agentList.FilterState() == list.Unfiltered
+				lastPageReached := m.agentCurrentPage > m.agentLastPage
+				// If down is pressed on the last agent item, list state is unfiltered and more agents are available by the API
+				if lastListElement && unfilteredState && !lastPageReached {
+					return m, m.appendAgents()
+				} else if lastListElement && unfilteredState && lastPageReached {
+					setStatus := m.agentList.NewStatusMessage("No more agents to load!")
+					cmds = append(cmds, setStatus)
+				}
 			}
 		}
 	// Custom messages
 	case NewAgentItemsMsg:
-		// when a new page of agents is received, append them to existing agents in the list and stop the loading
+		// When a new page of agents is received, append them to existing agents in the list and stop the loading
 		// spinner
 		allItems := append(m.agentList.Items(), msg.ListItems()...)
 		cmds = append(cmds, m.agentList.SetItems(allItems))
@@ -78,11 +83,12 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.agentCurrentPage == 1 {
 			m.agentLastPage = msg.LastPage
 		}
-		// Increment the models' current agent page
+		// Increment the models' current agent page, set agentsLoading to false
 		m.agentCurrentPage++
+		m.agentsLoading = false
 	case error:
 		m.agentList.StopSpinner()
-		// show a status message for a long time
+		// Show a status message for a long time
 		m.agentList.StatusMessageLifetime = time.Duration(time.Hour)
 		return m, m.agentList.NewStatusMessage(fmt.Sprintf("Failed loading agents: %s", msg.Error()))
 	}

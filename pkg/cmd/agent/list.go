@@ -51,7 +51,6 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 						}
 					}
 
-					// If initial load, return agents with page info
 					return agent.NewAgentItemsMsg{
 						Items:    items,
 						LastPage: resp.LastPage,
