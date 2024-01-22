@@ -46,7 +46,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 				return items
 			}
 
-			stopper := func(id string, force bool) error {
+			stopper := func(id string, force bool) any {
 				_, err := f.RestAPIClient.Agents.Stop(f.Config.Organization, id, force)
 				return err
 			}

@@ -24,7 +24,7 @@ func TestAgentListModel(t *testing.T) {
 			return NewAgentItemsMsg{
 				AgentListItem{Agent: &buildkite.Agent{Name: buildkite.String("test agent"), ConnectedState: buildkite.String("connected"), Version: buildkite.String("0.0.0")}},
 			}
-		}, func(s string, b bool) error { return nil })
+		}, func(s string, b bool) any { return nil })
 
 		testModel := teatest.NewTestModel(t, model)
 		timer := time.NewTimer(time.Millisecond * 100)

@@ -9,13 +9,16 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+type AgentStopFn func(string, bool) any
+type AgentLoadFn func() any
+
 type AgentListModel struct {
 	agentList    list.Model
 	agentLoader  tea.Cmd
-	agentStopper func(string, bool) error
+	agentStopper AgentStopFn
 }
 
-func NewAgentList(agentLoader tea.Cmd, agentStopper func(string, bool) error) AgentListModel {
+func NewAgentList(agentLoader tea.Cmd, agentStopper AgentStopFn) AgentListModel {
 	l := list.New(nil, NewDelegate(), 0, 0)
 	l.Title = "Buildkite Agents"
 	l.SetStatusBarItemName("agent", "agents")
