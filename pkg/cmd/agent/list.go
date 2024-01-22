@@ -59,7 +59,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 
 			model := agent.NewAgentList(loader, 1, perpage)
 
-			p := tea.NewProgram(model)
+			p := tea.NewProgram(model, tea.WithAltScreen())
 
 			if _, err := p.Run(); err != nil {
 				os.Exit(1)

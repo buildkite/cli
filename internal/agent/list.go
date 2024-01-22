@@ -40,7 +40,7 @@ func (m *AgentListModel) appendAgents() tea.Cmd {
 	setStatus := m.agentList.NewStatusMessage(("Fetching more agents"))
 	// Fetch and append more agents
 	appendAgents := m.agentLoader(m.agentCurrentPage, m.agentPerPage)
-	return tea.Sequence(appendAgents, tea.Batch(startSpiner, setStatus))
+	return tea.Sequence(tea.Batch(startSpiner, setStatus), appendAgents)
 }
 
 func (m AgentListModel) Init() tea.Cmd {
@@ -80,7 +80,6 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// spinner
 		allItems := append(m.agentList.Items(), msg.ListItems()...)
 		cmds = append(cmds, m.agentList.SetItems(allItems))
-		// Stop the loading spinner
 		m.agentList.StopSpinner()
 		// If the message from the initial agent load, set the last page
 		if m.agentCurrentPage == 1 {
