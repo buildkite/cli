@@ -4,14 +4,18 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 )
 
-type NewAgentItemsMsg struct {
-	Items    []AgentListItem
-	LastPage int
+type AgentItemsMsg struct {
+	items    []AgentListItem
+	lastPage int
 }
 
-func (a NewAgentItemsMsg) ListItems() []list.Item {
-	agg := make([]list.Item, len(a.Items))
-	for i, v := range a.Items {
+func NewAgentItemsMsg(items []AgentListItem, page int) AgentItemsMsg {
+	return AgentItemsMsg{items, page}
+}
+
+func (a AgentItemsMsg) ListItems() []list.Item {
+	agg := make([]list.Item, len(a.items))
+	for i, v := range a.items {
 		agg[i] = v
 	}
 	return agg

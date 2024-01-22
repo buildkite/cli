@@ -24,7 +24,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 			List all connected agents for the current organization.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			loader := func(page, perpage int) tea.Cmd {
+			loader := func(page int) tea.Cmd {
 				return func() tea.Msg {
 					opts := buildkite.AgentListOptions{
 						Name:     name,
@@ -50,10 +50,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 						}
 					}
 
-					return agent.NewAgentItemsMsg{
-						Items:    items,
-						LastPage: resp.LastPage,
-					}
+					return agent.NewAgentItemsMsg(items, resp.LastPage)
 				}
 			}
 

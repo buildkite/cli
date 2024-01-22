@@ -17,10 +17,10 @@ type AgentListModel struct {
 	agentPerPage     int
 	agentLastPage    int
 	agentsLoading    bool
-	agentLoader      func(int, int) tea.Cmd
+	agentLoader      func(int) tea.Cmd
 }
 
-func NewAgentList(loader func(int, int) tea.Cmd, page, perpage int) AgentListModel {
+func NewAgentList(loader func(int) tea.Cmd, page, perpage int) AgentListModel {
 	l := list.New(nil, NewDelegate(), 0, 0)
 	l.Title = "Buildkite Agents"
 
@@ -37,14 +37,15 @@ func (m *AgentListModel) appendAgents() tea.Cmd {
 	m.agentsLoading = true
 	// Set a status message and start the agentList's spinner
 	startSpiner := m.agentList.StartSpinner()
-	setStatus := m.agentList.NewStatusMessage(("Fetching more agents"))
+	statusMessage := fmt.Sprintf("Loading more agents: page %d of %d", m.agentCurrentPage, m.agentLastPage)
+	setStatus := m.agentList.NewStatusMessage(statusMessage)
 	// Fetch and append more agents
-	appendAgents := m.agentLoader(m.agentCurrentPage, m.agentPerPage)
+	appendAgents := m.agentLoader(m.agentCurrentPage)
 	return tea.Sequence(tea.Batch(startSpiner, setStatus), appendAgents)
 }
 
 func (m AgentListModel) Init() tea.Cmd {
-	return m.agentLoader(m.agentCurrentPage, m.agentPerPage)
+	return m.appendAgents()
 }
 
 func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -75,7 +76,7 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	// Custom messages
-	case NewAgentItemsMsg:
+	case AgentItemsMsg:
 		// When a new page of agents is received, append them to existing agents in the list and stop the loading
 		// spinner
 		allItems := append(m.agentList.Items(), msg.ListItems()...)
@@ -83,7 +84,7 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.agentList.StopSpinner()
 		// If the message from the initial agent load, set the last page
 		if m.agentCurrentPage == 1 {
-			m.agentLastPage = msg.LastPage
+			m.agentLastPage = msg.lastPage
 		}
 		// Increment the models' current agent page, set agentsLoading to false
 		m.agentCurrentPage++
