@@ -23,7 +23,6 @@ func NewAgentList(loader tea.Cmd) AgentListModel {
 	l := list.New(nil, NewDelegate(), 0, 0)
 	l.Title = "Buildkite Agents"
 	l.SetStatusBarItemName("agent", "agents")
-	l.SetFilteringEnabled(false)
 
 	v := viewport.New(80, 30)
 
