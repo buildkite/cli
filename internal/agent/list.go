@@ -14,9 +14,10 @@ import (
 var agentListStyle = lipgloss.NewStyle().Margin(1, 2)
 
 type AgentListModel struct {
-	agentList     list.Model
-	agentViewPort viewport.Model
-	agentLoader   tea.Cmd
+	agentList          list.Model
+	agentViewPort      viewport.Model
+	agentDataDisplayed bool
+	agentLoader        tea.Cmd
 }
 
 func NewAgentList(loader tea.Cmd) AgentListModel {
@@ -35,9 +36,10 @@ func NewAgentList(loader tea.Cmd) AgentListModel {
 	l.AdditionalFullHelpKeys = l.AdditionalShortHelpKeys
 
 	return AgentListModel{
-		agentList:     l,
-		agentViewPort: v,
-		agentLoader:   loader,
+		agentList:          l,
+		agentViewPort:      v,
+		agentDataDisplayed: false,
+		agentLoader:        loader,
 	}
 }
 
@@ -57,16 +59,20 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "v":
-			if agent, ok := m.agentList.SelectedItem().(AgentListItem); ok {
-				tableContext := AgentDataTable(agent.Agent)
-				m.agentViewPort.SetContent(tableContext)
+			if !m.agentDataDisplayed {
+				if agent, ok := m.agentList.SelectedItem().(AgentListItem); ok {
+					tableContext := AgentDataTable(agent.Agent)
+					m.agentViewPort.SetContent(tableContext)
+					m.agentDataDisplayed = true
+				}
+			} else {
+				m.agentViewPort.SetContent("")
+				m.agentDataDisplayed = false
 			}
-		case "up":
+		case "up", "down":
 			// Clear the viewports' data
 			m.agentViewPort.SetContent("")
-		case "down":
-			// Clear the viewports' data
-			m.agentViewPort.SetContent("")
+			m.agentDataDisplayed = false
 		}
 	case NewAgentItemsMsg:
 		// when a new page of agents is received, append them to existing agents in the list and stop the loading
