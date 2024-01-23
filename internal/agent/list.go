@@ -12,41 +12,86 @@ import (
 var agentListStyle = lipgloss.NewStyle().Margin(1, 2)
 
 type AgentListModel struct {
-	agentList   list.Model
-	agentLoader tea.Cmd
+	agentList        list.Model
+	agentCurrentPage int
+	agentPerPage     int
+	agentLastPage    int
+	agentsLoading    bool
+	agentLoader      func(int) tea.Cmd
 }
 
-func NewAgentList(loader tea.Cmd) AgentListModel {
+func NewAgentList(loader func(int) tea.Cmd, page, perpage int) AgentListModel {
 	l := list.New(nil, NewDelegate(), 0, 0)
 	l.Title = "Buildkite Agents"
 
 	return AgentListModel{
-		agentList:   l,
-		agentLoader: loader,
+		agentList:        l,
+		agentCurrentPage: page,
+		agentPerPage:     perpage,
+		agentLoader:      loader,
 	}
 }
 
+func (m *AgentListModel) appendAgents() tea.Cmd {
+	// Set agentsLoading
+	m.agentsLoading = true
+	// Set a status message and start the agentList's spinner
+	startSpiner := m.agentList.StartSpinner()
+	statusMessage := fmt.Sprintf("Loading more agents: page %d of %d", m.agentCurrentPage, m.agentLastPage)
+	setStatus := m.agentList.NewStatusMessage(statusMessage)
+	// Fetch and append more agents
+	appendAgents := m.agentLoader(m.agentCurrentPage)
+	return tea.Sequence(tea.Batch(startSpiner, setStatus), appendAgents)
+}
+
 func (m AgentListModel) Init() tea.Cmd {
-	return m.agentLoader
+	return m.appendAgents()
 }
 
 func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		// when viewport size is reported, start a spinner and show a message to the user indicating agents are loading
+		// When viewport size is reported, start a spinner and show a message to the user indicating agents are loading
 		h, v := agentListStyle.GetFrameSize()
 		m.agentList.SetSize(msg.Width-h, msg.Height-v)
 		return m, tea.Batch(m.agentList.StartSpinner(), m.agentList.NewStatusMessage("Loading agents"))
-	case NewAgentItemsMsg:
-		// when a new page of agents is received, append them to existing agents in the list and stop the loading
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "down":
+			// Calculate last element, unfiltered and if the last agent page via the API has been reached
+			lastListItem := m.agentList.Index() == len(m.agentList.Items())-1
+			unfilteredState := m.agentList.FilterState() == list.Unfiltered
+			if !m.agentsLoading && lastListItem && unfilteredState {
+				lastPageReached := m.agentCurrentPage > m.agentLastPage
+				// If down is pressed on the last agent item, list state is unfiltered and more agents are available
+				// to load the API
+				if !lastPageReached {
+					return m, m.appendAgents()
+				} else {
+					// Append a status message to alert that no more agents are available to load from the API
+					setStatus := m.agentList.NewStatusMessage("No more agents to load!")
+					cmds = append(cmds, setStatus)
+				}
+			}
+		}
+	// Custom messages
+	case AgentItemsMsg:
+		// When a new page of agents is received, append them to existing agents in the list and stop the loading
 		// spinner
-		allItems := append(m.agentList.Items(), msg.Items()...)
+		allItems := append(m.agentList.Items(), msg.ListItems()...)
 		cmds = append(cmds, m.agentList.SetItems(allItems))
 		m.agentList.StopSpinner()
+		// If the message from the initial agent load, set the last page
+		if m.agentCurrentPage == 1 {
+			m.agentLastPage = msg.lastPage
+		}
+		// Increment the models' current agent page, set agentsLoading to false
+		m.agentCurrentPage++
+		m.agentsLoading = false
 	case error:
 		m.agentList.StopSpinner()
-		// show a status message for a long time
+		// Show a status message for a long time
 		m.agentList.StatusMessageLifetime = time.Duration(time.Hour)
 		return m, m.agentList.NewStatusMessage(fmt.Sprintf("Failed loading agents: %s", msg.Error()))
 	}
