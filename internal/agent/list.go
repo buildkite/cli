@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/pkg/browser"
 )
 
 var agentListStyle = lipgloss.NewStyle().Margin(1, 2)
@@ -23,6 +25,14 @@ type AgentListModel struct {
 func NewAgentList(loader func(int) tea.Cmd, page, perpage int) AgentListModel {
 	l := list.New(nil, NewDelegate(), 0, 0)
 	l.Title = "Buildkite Agents"
+
+	l.AdditionalShortHelpKeys = func() []key.Binding {
+		return []key.Binding{
+			key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "web")),
+		}
+	}
+
+	l.AdditionalFullHelpKeys = l.AdditionalShortHelpKeys
 
 	return AgentListModel{
 		agentList:        l,
@@ -73,6 +83,11 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					setStatus := m.agentList.NewStatusMessage("No more agents to load!")
 					cmds = append(cmds, setStatus)
 				}
+			}
+		case "w":
+			if agent, ok := m.agentList.SelectedItem().(AgentListItem); ok {
+				err := browser.OpenURL(*agent.WebURL)
+				return m, m.agentList.NewStatusMessage(fmt.Sprintf("Failed opening agent web url: %s", err.Error()))
 			}
 		}
 	// Custom messages
