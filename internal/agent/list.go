@@ -86,7 +86,8 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "w":
 			if agent, ok := m.agentList.SelectedItem().(AgentListItem); ok {
-				browser.OpenURL(*agent.WebURL)
+				err := browser.OpenURL(*agent.WebURL)
+				return m, m.agentList.NewStatusMessage(fmt.Sprintf("Failed opening agent web url: %s", err.Error()))
 			}
 		}
 	// Custom messages
