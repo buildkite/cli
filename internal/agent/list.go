@@ -12,7 +12,8 @@ import (
 	"github.com/pkg/browser"
 )
 
-var agentListStyle = lipgloss.NewStyle().Margin(1, 2)
+var agentListStyle = lipgloss.NewStyle().Padding(1, 2)
+var viewPortStyle = agentListStyle.Copy()
 
 type AgentListModel struct {
 	agentList          list.Model
@@ -30,7 +31,8 @@ func NewAgentList(loader func(int) tea.Cmd, page, perpage int) AgentListModel {
 	l.Title = "Buildkite Agents"
 	l.SetStatusBarItemName("agent", "agents")
 
-	v := viewport.New(80, 30)
+	v := viewport.New(0, 0)
+	v.SetContent("")
 
 	l.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
@@ -63,6 +65,23 @@ func (m *AgentListModel) appendAgents() tea.Cmd {
 	return tea.Sequence(tea.Batch(startSpiner, setStatus), appendAgents)
 }
 
+func (m *AgentListModel) setComponentSizing(width, height int) {
+	h, v := agentListStyle.GetFrameSize()
+	// Set component size
+	m.agentList.SetSize(width-h, height-v)
+	m.agentViewPort.Height = height - v
+	m.agentViewPort.Width = (width - h) / 2
+
+	// Set styles width
+	viewPortStyle.Width((width - h/2))
+	agentListStyle.Width((width - h) / 2)
+}
+
+func (m *AgentListModel) clearAgentViewPort() {
+	m.agentViewPort.SetContent("")
+	m.agentDataDisplayed = false
+}
+
 func (m AgentListModel) Init() tea.Cmd {
 	return m.appendAgents()
 }
@@ -72,9 +91,7 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		// When viewport size is reported, start a spinner and show a message to the user indicating agents are loading
-		h, v := agentListStyle.GetFrameSize()
-		m.agentList.SetSize(msg.Width-h, msg.Height-v)
-		m.agentViewPort.SetContent("")
+		m.setComponentSizing(msg.Width, msg.Height)
 		return m, tea.Batch(m.agentList.StartSpinner(), m.agentList.NewStatusMessage("Loading agents"))
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -86,17 +103,12 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.agentDataDisplayed = true
 				}
 			} else {
-				m.agentViewPort.SetContent("")
-				m.agentDataDisplayed = false
+				m.clearAgentViewPort()
 			}
 		case "up":
-			// Clear the viewports' data
-			m.agentViewPort.SetContent("")
-			m.agentDataDisplayed = false
+			m.clearAgentViewPort()
 		case "down":
-			// Clear the viewports' data
-			m.agentViewPort.SetContent("")
-			m.agentDataDisplayed = false
+			m.clearAgentViewPort()
 			// Calculate last element, unfiltered and if the last agent page via the API has been reached
 			lastListItem := m.agentList.Index() == len(m.agentList.Items())-1
 			unfilteredState := m.agentList.FilterState() == list.Unfiltered
@@ -120,7 +132,7 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case AgentItemsMsg:
-		// when a new page of agents is received, append them to existing agents in the list and stop the loading
+		// When a new page of agents is received, append them to existing agents in the list and stop the loading
 		// spinner
 		allItems := append(m.agentList.Items(), msg.ListItems()...)
 		cmds = append(cmds, m.agentList.SetItems(allItems))
@@ -152,8 +164,7 @@ func (m AgentListModel) View() string {
 		agentListStyle.Render(m.agentList.View()),
 		lipgloss.JoinVertical(
 			lipgloss.Top,
-			//	m.agentStyle.Title.Render(m.agentList.SelectedItem().FilterValue()),
-			fmt.Sprintf("%4s", m.agentViewPort.View()),
+			viewPortStyle.Render(m.agentViewPort.View()),
 		),
 	)
 }
