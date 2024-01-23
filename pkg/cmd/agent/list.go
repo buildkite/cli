@@ -13,6 +13,7 @@ import (
 
 func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 	var name, version, hostname string
+	var perpage int
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
@@ -23,29 +24,37 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 			List all connected agents for the current organization.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			opts := buildkite.AgentListOptions{
-				Name:     name,
-				Hostname: hostname,
-				Version:  version,
-			}
-			loader := func() tea.Msg {
-				agents, _, err := f.RestAPIClient.Agents.List(f.Config.Organization, &opts)
-				items := make(agent.NewAgentItemsMsg, len(agents))
-
-				if err != nil {
-					return err
-				}
-
-				for i, a := range agents {
-					a := a
-					items[i] = agent.AgentListItem{
-						Agent: &a,
+			loader := func(page int) tea.Cmd {
+				return func() tea.Msg {
+					opts := buildkite.AgentListOptions{
+						Name:     name,
+						Hostname: hostname,
+						Version:  version,
+						ListOptions: buildkite.ListOptions{
+							Page:    page,
+							PerPage: perpage,
+						},
 					}
+
+					agents, resp, err := f.RestAPIClient.Agents.List(f.Config.Organization, &opts)
+					items := make([]agent.AgentListItem, len(agents))
+
+					if err != nil {
+						return err
+					}
+
+					for i, a := range agents {
+						a := a
+						items[i] = agent.AgentListItem{
+							Agent: &a,
+						}
+					}
+
+					return agent.NewAgentItemsMsg(items, resp.LastPage)
 				}
-				return items
 			}
 
-			model := agent.NewAgentList(loader)
+			model := agent.NewAgentList(loader, 1, perpage)
 
 			p := tea.NewProgram(model, tea.WithAltScreen())
 
@@ -60,6 +69,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "Filter agents by their name")
 	cmd.Flags().StringVar(&version, "version", "", "Filter agents by their agent version")
 	cmd.Flags().StringVar(&hostname, "hostname", "", "Filter agents by their hostname")
+	cmd.Flags().IntVar(&perpage, "per-page", 30, "Number of agents to fetch per API call")
 
 	return &cmd
 }
