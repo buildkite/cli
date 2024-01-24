@@ -69,14 +69,14 @@ func (m *AgentListModel) setComponentSizing(width, height int) {
 	h, v := agentListStyle.GetFrameSize()
 	// Set component size
 	m.agentList.SetSize(width-h, height-v)
-	m.agentViewPort.Height = height-v
-	m.agentViewPort.Width = width-h
+	m.agentViewPort.Height = height - v
+	m.agentViewPort.Width = width - h
 
 	// Set styles width
-	viewPortStyle.Width((width-h)/2)
- 	viewPortStyle.Height(height-v)
-	agentListStyle.Width((width-h)/2)
-	agentListStyle.Height(height-v)
+	viewPortStyle.Width((width - h) / 2)
+	viewPortStyle.Height(height - v)
+	agentListStyle.Width((width - h) / 2)
+	agentListStyle.Height(height - v)
 }
 
 func (m *AgentListModel) clearAgentViewPort() {
@@ -125,7 +125,7 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					setStatus := m.agentList.NewStatusMessage("No more agents to load!")
 					cmds = append(cmds, setStatus)
 				}
-			} 
+			}
 		case "w":
 			if agent, ok := m.agentList.SelectedItem().(AgentListItem); ok {
 				if err := browser.OpenURL(*agent.WebURL); err != nil {
