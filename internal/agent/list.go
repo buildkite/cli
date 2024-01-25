@@ -72,7 +72,7 @@ func (m *AgentListModel) setComponentSizing(width, height int) {
 	m.agentViewPort.Height = height - v
 	m.agentViewPort.Width = width - h
 
-	// Set styles width
+	// Set styles width/height for resizing upon a tea.WindowSizeMsg
 	viewPortStyle.Width((width - h) / 2)
 	viewPortStyle.Height(height - v)
 	agentListStyle.Width((width - h) / 2)
@@ -133,6 +133,7 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
+	// Custom messages
 	case AgentItemsMsg:
 		// When a new page of agents is received, append them to existing agents in the list and stop the loading
 		// spinner
