@@ -86,8 +86,8 @@ func TestAgentListModel(t *testing.T) {
 		}
 
 		// there should only be 1 agent after stopping one of them
-		if len(finalModel.(AgentListModel).agentList.Items()) != 1 {
-			t.Error("model does not have an agent")
+		if size := len(finalModel.(AgentListModel).agentList.Items()); size != 1 {
+			t.Errorf("model does not have correct number of agents: %d", size)
 		}
 		teatest.RequireEqualOutput(t, finalOutput)
 	})
