@@ -24,8 +24,8 @@ func simpleAgentLoader(wg *sync.WaitGroup) func(int) tea.Cmd {
 			wg.Done()
 			return NewAgentItemsMsg(
 				[]AgentListItem{
-					{Agent: &buildkite.Agent{Name: buildkite.String("test agent"), ConnectedState: buildkite.String("connected"), Version: buildkite.String("0.0.0")}},
-					{Agent: &buildkite.Agent{Name: buildkite.String("test agent 2"), ConnectedState: buildkite.String("connected"), Version: buildkite.String("0.0.0")}},
+					{Agent: &buildkite.Agent{ID: buildkite.String("abcd"), Name: buildkite.String("test agent"), ConnectedState: buildkite.String("connected"), Version: buildkite.String("0.0.0")}},
+					{Agent: &buildkite.Agent{ID: buildkite.String("xxx"), Name: buildkite.String("test agent 2"), ConnectedState: buildkite.String("connected"), Version: buildkite.String("0.0.0")}},
 				},
 				1,
 			)
@@ -37,6 +37,7 @@ func TestAgentListModel(t *testing.T) {
 	t.Parallel()
 
 	t.Run("agents are added and rendered", func(t *testing.T) {
+		t.Parallel()
 		var wg sync.WaitGroup
 		wg.Add(1)
 		model := NewAgentList(simpleAgentLoader(&wg), 1, 1, func(s string, b bool) any { return nil })
@@ -55,6 +56,37 @@ func TestAgentListModel(t *testing.T) {
 		}
 
 		if len(finalModel.(AgentListModel).agentList.Items()) != 2 {
+			t.Error("model does not have an agent")
+		}
+		teatest.RequireEqualOutput(t, finalOutput)
+	})
+
+	t.Run("agent is stopped and removed", func(t *testing.T) {
+		t.Parallel()
+		var wg sync.WaitGroup
+		wg.Add(1)
+		model := NewAgentList(simpleAgentLoader(&wg), 1, 1, func(s string, b bool) any { wg.Done(); return nil })
+
+		// disable spinner for testing (it causes flaky time-sensitive results)
+		model.agentList.SetSpinner(spinner.Spinner{Frames: []string{}})
+		testModel := teatest.NewTestModel(t, model, teatest.WithInitialTermSize(100, 100))
+
+		// wait to load in the agents
+		wg.Wait()
+		// then add another delta and wait for agents to stop
+		wg.Add(1)
+		testModel.Type("s")
+		wg.Wait()
+		testModel.Type("q")
+
+		finalModel := testModel.FinalModel(t, teatest.WithFinalTimeout(5*time.Second))
+		finalOutput, err := io.ReadAll(testModel.FinalOutput(t))
+		if err != nil {
+			t.Error(err)
+		}
+
+		// there should only be 1 agent after stopping one of them
+		if len(finalModel.(AgentListModel).agentList.Items()) != 1 {
 			t.Error("model does not have an agent")
 		}
 		teatest.RequireEqualOutput(t, finalOutput)
