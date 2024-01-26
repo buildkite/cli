@@ -32,7 +32,7 @@ type itemStyles struct {
 	filterMatch lipgloss.Style
 }
 
-func defaultItemStyles() (s itemStyles) {
+func DefaultItemStyles() (s itemStyles) {
 	// apply a width of the longest expected string
 	s.normalStatus = lipgloss.NewStyle().Width(len("connected"))
 	s.selectedStatus = s.normalStatus.Copy().Background(style.Black)
@@ -57,7 +57,7 @@ func defaultItemStyles() (s itemStyles) {
 
 func NewDelegate() listAgentDelegate {
 	return listAgentDelegate{
-		Styles: defaultItemStyles(),
+		Styles: DefaultItemStyles(),
 	}
 }
 
@@ -92,7 +92,7 @@ func (d listAgentDelegate) Render(w io.Writer, m list.Model, index int, item lis
 	// TODO: add more truncation to name so other colums are displayed fully
 	nameWidth := uint(m.Width() - s.normalName.GetPaddingLeft() - s.normalName.GetPaddingRight())
 	name = truncate.StringWithTail(name, nameWidth, style.Ellipsis)
-	status = s.normalStatus.Foreground(mapStatusToColour(status)).Render(status)
+	status = s.normalStatus.Foreground(MapStatusToColour(status)).Render(status)
 	version = s.normalVersion.Render(version)
 	queue = s.normalQueue.Render(queue)
 
@@ -150,7 +150,7 @@ func (listAgentDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd {
 	return nil
 }
 
-func mapStatusToColour(s string) lipgloss.Color {
+func MapStatusToColour(s string) lipgloss.Color {
 	switch strings.ToLower(s) {
 	case "connected":
 		return style.Green
