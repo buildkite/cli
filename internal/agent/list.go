@@ -13,7 +13,7 @@ import (
 type AgentStopFn func(string, bool) any
 
 type AgentListModel struct {
-	agentList        list.Model
+	agentList        *list.Model
 	agentCurrentPage int
 	agentPerPage     int
 	agentLastPage    int
@@ -44,7 +44,7 @@ func NewAgentList(loader func(int) tea.Cmd, page, perpage int, agentStopper Agen
 	l.AdditionalFullHelpKeys = l.AdditionalShortHelpKeys
 
 	return AgentListModel{
-		agentList:        l,
+		agentList:        &l,
 		agentCurrentPage: page,
 		agentPerPage:     perpage,
 		agentLoader:      loader,
@@ -68,7 +68,7 @@ func (m AgentListModel) Init() tea.Cmd {
 	return m.appendAgents()
 }
 
-func (m AgentListModel) stopAgent(force bool) tea.Cmd {
+func stopAgent(m *AgentListModel, force bool) tea.Cmd {
 	if agent, ok := m.agentList.SelectedItem().(AgentListItem); ok {
 		index := m.agentList.Index()
 		// stop the agent and update the UI
@@ -93,9 +93,9 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "s": // stop an agent gracefully
-			cmds = append(cmds, m.stopAgent(false))
+			cmds = append(cmds, stopAgent(&m, false))
 		case "S": // stop an agent forcefully
-			cmds = append(cmds, m.stopAgent(true))
+			cmds = append(cmds, stopAgent(&m, true))
 		case "down":
 			// Calculate last element, unfiltered and if the last agent page via the API has been reached
 			lastListItem := m.agentList.Index() == len(m.agentList.Items())-1
@@ -145,8 +145,8 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.agentList.NewStatusMessage(msg.Error())
 	}
 
-	var cmd tea.Cmd
-	m.agentList, cmd = m.agentList.Update(msg)
+	agentList, cmd := m.agentList.Update(msg)
+	m.agentList = &agentList
 	cmds = append(cmds, cmd)
 
 	if m, ok := msg.(Cmder); ok {
