@@ -68,18 +68,11 @@ func (m AgentListModel) Init() tea.Cmd {
 	return m.appendAgents()
 }
 
-func (m *AgentListModel) stopAgent(force bool) tea.Cmd {
+func (m AgentListModel) stopAgent(force bool) tea.Cmd {
 	if agent, ok := m.agentList.SelectedItem().(AgentListItem); ok {
 		index := m.agentList.Index()
-		statusMessage := fmt.Sprintf("Stopping %s (gracefully)", *agent.Name)
-		if force {
-			statusMessage = fmt.Sprintf("Stopping %s (forcefully)", *agent.Name)
-		}
-		// set a status message and start the loading spinner
-		setStatus := m.agentList.NewStatusMessage(statusMessage)
-		startSpinner := m.agentList.StartSpinner()
 		// stop the agent and update the UI
-		stopAgent := func() tea.Msg {
+		return func() tea.Msg {
 			err := m.agentStopper(*agent.ID, force)
 			if err != nil {
 				return err
@@ -90,7 +83,6 @@ func (m *AgentListModel) stopAgent(force bool) tea.Cmd {
 				Agent: agent,
 			}
 		}
-		return tea.Sequence(tea.Batch(startSpinner, setStatus), stopAgent)
 	}
 	return nil
 }
@@ -101,9 +93,9 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "s": // stop an agent gracefully
-			return m, m.stopAgent(false)
+			cmds = append(cmds, m.stopAgent(false))
 		case "S": // stop an agent forcefully
-			return m, m.stopAgent(true)
+			cmds = append(cmds, m.stopAgent(true))
 		case "down":
 			// Calculate last element, unfiltered and if the last agent page via the API has been reached
 			lastListItem := m.agentList.Index() == len(m.agentList.Items())-1
@@ -129,12 +121,10 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case AgentStopped:
 		m.agentList.StopSpinner()
-		return m, nil
 	case tea.WindowSizeMsg:
 		// when viewport size is reported, start a spinner and show a message to the user indicating agents are loading
 		m.agentList.SetSize(msg.Width, msg.Height)
 		return m, tea.Batch(m.agentList.StartSpinner(), m.agentList.NewStatusMessage("Loading agents"))
-	// Custom messages
 	case AgentItemsMsg:
 		// When a new page of agents is received, append them to existing agents in the list and stop the loading
 		// spinner
@@ -158,6 +148,10 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.agentList, cmd = m.agentList.Update(msg)
 	cmds = append(cmds, cmd)
+
+	if m, ok := msg.(Cmder); ok {
+		cmds = append(cmds, m.Cmd())
+	}
 
 	return m, tea.Batch(cmds...)
 }
