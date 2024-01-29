@@ -6,20 +6,27 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/pkg/browser"
 )
 
 type AgentStopFn func(string, bool) any
 
+var agentListStyle = lipgloss.NewStyle().Padding(1, 2)
+var viewPortStyle = agentListStyle.Copy()
+
 type AgentListModel struct {
-	agentList        *list.Model
-	agentCurrentPage int
-	agentPerPage     int
-	agentLastPage    int
-	agentsLoading    bool
-	agentLoader      func(int) tea.Cmd
-	agentStopper     AgentStopFn
+	agentList          *list.Model
+	agentViewPort      viewport.Model
+	agentDataDisplayed bool
+	agentCurrentPage   int
+	agentPerPage       int
+	agentLastPage      int
+	agentsLoading      bool
+	agentLoader        func(int) tea.Cmd
+	agentStopper       AgentStopFn
 }
 
 func NewAgentList(loader func(int) tea.Cmd, page, perpage int, agentStopper AgentStopFn) AgentListModel {
@@ -27,16 +34,15 @@ func NewAgentList(loader func(int) tea.Cmd, page, perpage int, agentStopper Agen
 	l.Title = "Buildkite Agents"
 	l.SetStatusBarItemName("agent", "agents")
 	l.SetFilteringEnabled(false)
-	l.AdditionalShortHelpKeys = func() []key.Binding {
-		return []key.Binding{
-			key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "stop")),
-			key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "force stop")),
-		}
-	}
-	l.AdditionalFullHelpKeys = l.AdditionalShortHelpKeys
+
+	v := viewport.New(0, 0)
+	v.SetContent("")
 
 	l.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
+			key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "force stop")),
+			key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "stop")),
+			key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "view")),
 			key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "web")),
 		}
 	}
@@ -44,11 +50,13 @@ func NewAgentList(loader func(int) tea.Cmd, page, perpage int, agentStopper Agen
 	l.AdditionalFullHelpKeys = l.AdditionalShortHelpKeys
 
 	return AgentListModel{
-		agentList:        &l,
-		agentCurrentPage: page,
-		agentPerPage:     perpage,
-		agentLoader:      loader,
-		agentStopper:     agentStopper,
+		agentList:          &l,
+		agentViewPort:      v,
+		agentDataDisplayed: false,
+		agentCurrentPage:   page,
+		agentPerPage:       perpage,
+		agentLoader:        loader,
+		agentStopper:       agentStopper,
 	}
 }
 
@@ -62,6 +70,11 @@ func (m *AgentListModel) appendAgents() tea.Cmd {
 	// Fetch and append more agents
 	appendAgents := m.agentLoader(m.agentCurrentPage)
 	return tea.Sequence(tea.Batch(startSpiner, setStatus), appendAgents)
+}
+
+func (m *AgentListModel) clearAgentViewPort() {
+	m.agentViewPort.SetContent("")
+	m.agentDataDisplayed = false
 }
 
 func (m AgentListModel) Init() tea.Cmd {
@@ -90,13 +103,31 @@ func stopAgent(m *AgentListModel, force bool) tea.Cmd {
 func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		// When viewport size is reported, start a spinner and show a message to the user indicating agents are loading
+		h, v := agentListStyle.GetFrameSize()
+		m.agentList.SetSize(msg.Width-h, msg.Height-v)
+		return m, tea.Batch(m.agentList.StartSpinner(), m.agentList.NewStatusMessage("Loading agents"))
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "s": // stop an agent gracefully
 			cmds = append(cmds, stopAgent(&m, false))
 		case "S": // stop an agent forcefully
 			cmds = append(cmds, stopAgent(&m, true))
+		case "v":
+			if !m.agentDataDisplayed {
+				if agent, ok := m.agentList.SelectedItem().(AgentListItem); ok {
+					tableContext := AgentDataTable(agent.Agent)
+					m.agentViewPort.SetContent(tableContext)
+					m.agentDataDisplayed = true
+				}
+			} else {
+				m.clearAgentViewPort()
+			}
+		case "up":
+			m.clearAgentViewPort()
 		case "down":
+			m.clearAgentViewPort()
 			// Calculate last element, unfiltered and if the last agent page via the API has been reached
 			lastListItem := m.agentList.Index() == len(m.agentList.Items())-1
 			unfilteredState := m.agentList.FilterState() == list.Unfiltered
@@ -121,10 +152,6 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case AgentStopped:
 		m.agentList.StopSpinner()
-	case tea.WindowSizeMsg:
-		// when viewport size is reported, start a spinner and show a message to the user indicating agents are loading
-		m.agentList.SetSize(msg.Width, msg.Height)
-		return m, tea.Batch(m.agentList.StartSpinner(), m.agentList.NewStatusMessage("Loading agents"))
 	case AgentItemsMsg:
 		// When a new page of agents is received, append them to existing agents in the list and stop the loading
 		// spinner
@@ -157,5 +184,12 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m AgentListModel) View() string {
-	return m.agentList.View()
+	return lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		agentListStyle.Render(m.agentList.View()),
+		lipgloss.JoinVertical(
+			lipgloss.Top,
+			viewPortStyle.Render(m.agentViewPort.View()),
+		),
+	)
 }
