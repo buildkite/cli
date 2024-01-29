@@ -1,18 +1,13 @@
 package agent
 
 import (
-	"bytes"
 	"fmt"
-	"time"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/agent"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/cli/v3/pkg/style"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 )
@@ -42,41 +37,14 @@ func NewCmdAgentView(f *factory.Factory) *cobra.Command {
 
 			l := io.NewPendingCommand(func() tea.Msg {
 				agentData, _, err := f.RestAPIClient.Agents.Get(org, id)
+
 				if err != nil {
 					return err
 				}
 
-				// Parse metadata and queue name from returned REST API Metadata list
-				metadata, queue := agent.ParseMetadata(agentData.Metadata)
-
-				tableOut := &bytes.Buffer{}
-				bold := lipgloss.NewStyle().Bold(true)
-				agentStateStyle := lipgloss.NewStyle().Bold(true).Foreground(agent.MapStatusToColour(*agentData.ConnectedState))
-				queueStyle := lipgloss.NewStyle().Foreground(style.Teal)
-				versionStyle := lipgloss.NewStyle().Foreground(style.Grey)
-
-				fmt.Fprint(tableOut, bold.Render(*agentData.Name))
-
-				t := table.New().Border(lipgloss.HiddenBorder()).StyleFunc(func(row, col int) lipgloss.Style {
-					return lipgloss.NewStyle().PaddingRight(2)
-				})
-
-				// Construct table row data
-				t.Row("ID", *agentData.ID)
-				t.Row("State", agentStateStyle.Render(*agentData.ConnectedState))
-				t.Row("Queue", queueStyle.Render(queue))
-				t.Row("Version", versionStyle.Render(*agentData.Version))
-				t.Row("Hostname", *agentData.Hostname)
-				// t.Row("PID", *agent.)
-				t.Row("User Agent", *agentData.UserAgent)
-				t.Row("IP Address", *agentData.IPAddress)
-				// t.Row("OS", *agent.)
-				t.Row("Connected", agentData.CreatedAt.UTC().Format(time.RFC1123Z))
-				// t.Row("Stopped By", *agent.CreatedAt)
-				t.Row("Metadata", metadata)
-
-				fmt.Fprint(tableOut, t.Render())
-				return io.PendingOutput(tableOut.String())
+				// Obtain agent table data output and return
+				agentTable := agent.AgentDataTable(agentData)
+				return io.PendingOutput(agentTable)
 			}, "Loading agent")
 
 			p := tea.NewProgram(l)

@@ -6,28 +6,37 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pkg/browser"
 )
 
-var agentListStyle = lipgloss.NewStyle().Margin(1, 2)
+var agentListStyle = lipgloss.NewStyle().Padding(1, 2)
+var viewPortStyle = agentListStyle.Copy()
 
 type AgentListModel struct {
-	agentList        list.Model
-	agentCurrentPage int
-	agentPerPage     int
-	agentLastPage    int
-	agentsLoading    bool
-	agentLoader      func(int) tea.Cmd
+	agentList          list.Model
+	agentViewPort      viewport.Model
+	agentDataDisplayed bool
+	agentCurrentPage   int
+	agentPerPage       int
+	agentLastPage      int
+	agentsLoading      bool
+	agentLoader        func(int) tea.Cmd
 }
 
 func NewAgentList(loader func(int) tea.Cmd, page, perpage int) AgentListModel {
 	l := list.New(nil, NewDelegate(), 0, 0)
 	l.Title = "Buildkite Agents"
+	l.SetStatusBarItemName("agent", "agents")
+
+	v := viewport.New(0, 0)
+	v.SetContent("")
 
 	l.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
+			key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "view")),
 			key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "web")),
 		}
 	}
@@ -35,10 +44,12 @@ func NewAgentList(loader func(int) tea.Cmd, page, perpage int) AgentListModel {
 	l.AdditionalFullHelpKeys = l.AdditionalShortHelpKeys
 
 	return AgentListModel{
-		agentList:        l,
-		agentCurrentPage: page,
-		agentPerPage:     perpage,
-		agentLoader:      loader,
+		agentList:          l,
+		agentViewPort:      v,
+		agentDataDisplayed: false,
+		agentCurrentPage:   page,
+		agentPerPage:       perpage,
+		agentLoader:        loader,
 	}
 }
 
@@ -54,6 +65,25 @@ func (m *AgentListModel) appendAgents() tea.Cmd {
 	return tea.Sequence(tea.Batch(startSpiner, setStatus), appendAgents)
 }
 
+func (m *AgentListModel) setComponentSizing(width, height int) {
+	h, v := agentListStyle.GetFrameSize()
+	// Set component size
+	m.agentList.SetSize(width-h, height-v)
+	m.agentViewPort.Height = height - v
+	m.agentViewPort.Width = width - h
+
+	// Set styles width/height for resizing upon a tea.WindowSizeMsg
+	viewPortStyle.Width((width - h) / 2)
+	viewPortStyle.Height(height - v)
+	agentListStyle.Width((width - h) / 2)
+	agentListStyle.Height(height - v)
+}
+
+func (m *AgentListModel) clearAgentViewPort() {
+	m.agentViewPort.SetContent("")
+	m.agentDataDisplayed = false
+}
+
 func (m AgentListModel) Init() tea.Cmd {
 	return m.appendAgents()
 }
@@ -63,12 +93,24 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		// When viewport size is reported, start a spinner and show a message to the user indicating agents are loading
-		h, v := agentListStyle.GetFrameSize()
-		m.agentList.SetSize(msg.Width-h, msg.Height-v)
+		m.setComponentSizing(msg.Width, msg.Height)
 		return m, tea.Batch(m.agentList.StartSpinner(), m.agentList.NewStatusMessage("Loading agents"))
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "v":
+			if !m.agentDataDisplayed {
+				if agent, ok := m.agentList.SelectedItem().(AgentListItem); ok {
+					tableContext := AgentDataTable(agent.Agent)
+					m.agentViewPort.SetContent(tableContext)
+					m.agentDataDisplayed = true
+				}
+			} else {
+				m.clearAgentViewPort()
+			}
+		case "up":
+			m.clearAgentViewPort()
 		case "down":
+			m.clearAgentViewPort()
 			// Calculate last element, unfiltered and if the last agent page via the API has been reached
 			lastListItem := m.agentList.Index() == len(m.agentList.Items())-1
 			unfilteredState := m.agentList.FilterState() == list.Unfiltered
@@ -120,5 +162,12 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m AgentListModel) View() string {
-	return agentListStyle.Render(m.agentList.View())
+	return lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		agentListStyle.Render(m.agentList.View()),
+		lipgloss.JoinVertical(
+			lipgloss.Top,
+			viewPortStyle.Render(m.agentViewPort.View()),
+		),
+	)
 }
