@@ -2,16 +2,39 @@ package list
 
 import (
 	"github.com/buildkite/cli/v3/internal/keys"
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 type KeyMap []keys.Binding
+
+// FullHelp implements help.KeyMap.
+func (km KeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		km.AsBindings(),
+	}
+}
+
+// ShortHelp implements help.KeyMap.
+func (km KeyMap) ShortHelp() []key.Binding {
+	return km.AsBindings()
+}
 
 type selectable interface {
 	MoveDown()
 	MoveTop()
 	MoveBottom()
 	MoveUp()
+}
+
+func (km KeyMap) AsBindings() []key.Binding {
+	bindings := make([]key.Binding, len(km))
+
+	for i, b := range km {
+		bindings[i] = *b.Binding
+	}
+
+	return bindings
 }
 
 func DefaultKeyMap() KeyMap {

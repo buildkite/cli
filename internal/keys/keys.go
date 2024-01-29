@@ -36,7 +36,10 @@ type BindingOpt func(*Binding)
 
 // NewBinding returns a new keybinding from a set of BindingOpt options.
 func NewBinding(opts ...BindingOpt) Binding {
-	b := Binding{}
+	innerBind := key.NewBinding()
+	b := Binding{
+		Binding: &innerBind,
+	}
 	for _, opt := range opts {
 		opt(&b)
 	}
