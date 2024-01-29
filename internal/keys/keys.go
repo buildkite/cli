@@ -10,7 +10,10 @@
 //	)
 package keys
 
-import tea "github.com/charmbracelet/bubbletea"
+import (
+	"github.com/charmbracelet/bubbles/key"
+	tea "github.com/charmbracelet/bubbletea"
+)
 
 // Action is a callback function executed when a keybinding is pressed
 type Action func(tea.Model) any
@@ -23,10 +26,8 @@ type Help struct {
 
 // Binding describes a set of keybindings and a callback to execute when pressed, along with their associated help text.
 type Binding struct {
-	action   Action
-	disabled bool
-	help     Help
-	keys     []string
+	*key.Binding
+	action Action
 }
 
 // BindingOpt is an initialization option for a keybinding. It's used as an
@@ -52,70 +53,25 @@ func WithAction(act Action) BindingOpt {
 // WithKeys initializes a keybinding with the given keystrokes.
 func WithKeys(keys ...string) BindingOpt {
 	return func(b *Binding) {
-		b.keys = keys
+		key.WithKeys(keys...)(b.Binding)
 	}
 }
 
 // WithHelp initializes a keybinding with the given help text.
-func WithHelp(key, desc string) BindingOpt {
+func WithHelp(k, desc string) BindingOpt {
 	return func(b *Binding) {
-		b.help = Help{Key: key, Desc: desc}
+		key.WithHelp(k, desc)(b.Binding)
 	}
 }
 
 // WithDisabled initializes a disabled keybinding.
 func WithDisabled() BindingOpt {
 	return func(b *Binding) {
-		b.disabled = true
+		key.WithDisabled()(b.Binding)
 	}
 }
 
 // ExecuteAction calls the action for the keybinding
 func (b *Binding) ExecuteAction(model tea.Model) any {
 	return b.action(model)
-}
-
-// SetKeys sets the keys for the keybinding.
-func (b *Binding) SetKeys(keys ...string) {
-	b.keys = keys
-}
-
-// Keys returns the keys for the keybinding.
-func (b Binding) Keys() []string {
-	return b.keys
-}
-
-// SetHelp sets the help text for the keybinding.
-func (b *Binding) SetHelp(key, desc string) {
-	b.help = Help{Key: key, Desc: desc}
-}
-
-// Help returns the Help information for the keybinding.
-func (b Binding) Help() Help {
-	return b.help
-}
-
-// Enabled returns whether or not the keybinding is enabled. Disabled
-// keybindings won't be activated and won't show up in help. Keybindings are
-// enabled by default.
-func (b Binding) Enabled() bool {
-	return !b.disabled && b.keys != nil
-}
-
-// SetEnabled enables or disables the keybinding.
-func (b *Binding) SetEnabled(v bool) {
-	b.disabled = !v
-}
-
-// Matches checks if the given KeyMsg matches the given bindings.
-func Matches(k tea.KeyMsg, b ...Binding) bool {
-	keys := k.String()
-	for _, binding := range b {
-		for _, v := range binding.keys {
-			if keys == v && binding.Enabled() {
-				return true
-			}
-		}
-	}
-	return false
 }
