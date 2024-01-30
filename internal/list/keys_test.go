@@ -6,7 +6,6 @@ import (
 	"github.com/buildkite/cli/v3/internal/keys"
 	"github.com/buildkite/cli/v3/internal/list"
 	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/x/exp/teatest"
 )
 
 func TestKeyMapHelpMenu(t *testing.T) {
@@ -18,9 +17,12 @@ func TestKeyMapHelpMenu(t *testing.T) {
 		keymap := list.DefaultKeyMap()
 		help := help.New()
 
-		out := help.View(keymap)
+		got := help.View(keymap)
+		want := "q quit • ↑/k up • ↓/j down • g/home go to start • G/end go to end"
 
-		teatest.RequireEqualOutput(t, []byte(out))
+		if got != want {
+			t.Fatalf("Output does not match expected. %s != %s", got, want)
+		}
 	})
 
 	t.Run("it adds more menu items", func(t *testing.T) {
@@ -29,9 +31,12 @@ func TestKeyMapHelpMenu(t *testing.T) {
 		keymap := list.KeyMap([]keys.Binding{keys.NewBinding(keys.WithKeys("v"), keys.WithHelp("v", "view"))})
 		help := help.New()
 
-		out := help.View(keymap)
+		got := help.View(keymap)
+		want := "v view"
 
-		teatest.RequireEqualOutput(t, []byte(out))
+		if got != want {
+			t.Fatalf("Output does not match expected. %s != %s", got, want)
+		}
 	})
 
 	t.Run("it doesnt show disabled bindings", func(t *testing.T) {
@@ -43,8 +48,11 @@ func TestKeyMapHelpMenu(t *testing.T) {
 		})
 		help := help.New()
 
-		out := help.View(keymap)
+		got := help.View(keymap)
+		want := "v view"
 
-		teatest.RequireEqualOutput(t, []byte(out))
+		if got != want {
+			t.Fatalf("Output does not match expected. %s != %s", got, want)
+		}
 	})
 }
