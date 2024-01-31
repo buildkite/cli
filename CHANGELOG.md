@@ -3,16 +3,16 @@
 
 ## Unreleased
 - SUP-1693 Bind "s" to stop agent by [[PR #188](https://github.com/buildkite/cli/pull/188)] @jradtilbrook
-- SUP-1698: Keybind for viewing agent data within \'bk agent list\' by [[PR #192](https://github.com/buildkite/cli/pull/192)] @james2791
+- SUP-1698: Keybind for viewing agent data within `bk agent list` by [[PR #192](https://github.com/buildkite/cli/pull/192)] @james2791
 - Fix runtime error introduced in SUP-1695 by [[PR #194](https://github.com/buildkite/cli/pull/194)] @lizrabuya
-- SUP-1695: Keybinding for viewing agent data in web from \'bk agent list\' by [[PR #193](https://github.com/buildkite/cli/pull/193)] @lizrabuya
-- SUP-1658: \'bk agent list\': appender, pagination and limiting by [[PR #191](https://github.com/buildkite/cli/pull/191)] @james2791
+- SUP-1695: Keybinding for viewing agent data in web from `bk agent list` by [[PR #193](https://github.com/buildkite/cli/pull/193)] @lizrabuya
+- SUP-1658: `bk agent list`: appender, pagination and limiting by [[PR #191](https://github.com/buildkite/cli/pull/191)] @james2791
 - SUP-1700: Agent view output metadata improvements by [[PR #187](https://github.com/buildkite/cli/pull/187)] @james2791
-- SUP-1699 Change styling of \'bk agent list\' by [[PR #186](https://github.com/buildkite/cli/pull/186)] @jradtilbrook
+- SUP-1699 Change styling of `bk agent list` by [[PR #186](https://github.com/buildkite/cli/pull/186)] @jradtilbrook
 - SUP-1682 Parallelise bulk agent stopping by [[PR #184](https://github.com/buildkite/cli/pull/184)] @jradtilbrook
-- SUP-1691: \'bk agent list\' interactivity by [[PR #185](https://github.com/buildkite/cli/pull/185)] @james2791
+- SUP-1691: `bk agent list` interactivity by [[PR #185](https://github.com/buildkite/cli/pull/185)] @james2791
 - SUP-1560 Add bk build new by [[PR #183](https://github.com/buildkite/cli/pull/183)] @lizrabuya
-- SUP-1652: Filterable \'bk agent list\' via REST API query parameters by [[PR #181](https://github.com/buildkite/cli/pull/181)] @james2791
+- SUP-1652: Filterable `bk agent list` via REST API query parameters by [[PR #181](https://github.com/buildkite/cli/pull/181)] @james2791
 - Resolve project pipeline by [[PR #182](https://github.com/buildkite/cli/pull/182)] @mcncl
 - Bump github.com/spf13/viper from 1.18.1 to 1.18.2 by [[PR #179](https://github.com/buildkite/cli/pull/179)] @dependabot
 - SUP-1619: Agent bulk stopping by [[PR #178](https://github.com/buildkite/cli/pull/178)] @james2791
