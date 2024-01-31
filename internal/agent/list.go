@@ -6,28 +6,43 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pkg/browser"
 )
 
-var agentListStyle = lipgloss.NewStyle().Margin(1, 2)
+type AgentStopFn func(string, bool) any
+
+var agentListStyle = lipgloss.NewStyle().Padding(1, 2)
+var viewPortStyle = agentListStyle.Copy()
 
 type AgentListModel struct {
-	agentList        list.Model
-	agentCurrentPage int
-	agentPerPage     int
-	agentLastPage    int
-	agentsLoading    bool
-	agentLoader      func(int) tea.Cmd
+	agentList          *list.Model
+	agentViewPort      viewport.Model
+	agentDataDisplayed bool
+	agentCurrentPage   int
+	agentPerPage       int
+	agentLastPage      int
+	agentsLoading      bool
+	agentLoader        func(int) tea.Cmd
+	agentStopper       AgentStopFn
 }
 
-func NewAgentList(loader func(int) tea.Cmd, page, perpage int) AgentListModel {
+func NewAgentList(loader func(int) tea.Cmd, page, perpage int, agentStopper AgentStopFn) AgentListModel {
 	l := list.New(nil, NewDelegate(), 0, 0)
 	l.Title = "Buildkite Agents"
+	l.SetStatusBarItemName("agent", "agents")
+	l.SetFilteringEnabled(false)
+
+	v := viewport.New(0, 0)
+	v.SetContent("")
 
 	l.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
+			key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "force stop")),
+			key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "stop")),
+			key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "view")),
 			key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "web")),
 		}
 	}
@@ -35,10 +50,13 @@ func NewAgentList(loader func(int) tea.Cmd, page, perpage int) AgentListModel {
 	l.AdditionalFullHelpKeys = l.AdditionalShortHelpKeys
 
 	return AgentListModel{
-		agentList:        l,
-		agentCurrentPage: page,
-		agentPerPage:     perpage,
-		agentLoader:      loader,
+		agentList:          &l,
+		agentViewPort:      v,
+		agentDataDisplayed: false,
+		agentCurrentPage:   page,
+		agentPerPage:       perpage,
+		agentLoader:        loader,
+		agentStopper:       agentStopper,
 	}
 }
 
@@ -54,8 +72,32 @@ func (m *AgentListModel) appendAgents() tea.Cmd {
 	return tea.Sequence(tea.Batch(startSpiner, setStatus), appendAgents)
 }
 
+func (m *AgentListModel) clearAgentViewPort() {
+	m.agentViewPort.SetContent("")
+	m.agentDataDisplayed = false
+}
+
 func (m AgentListModel) Init() tea.Cmd {
 	return m.appendAgents()
+}
+
+func stopAgent(m *AgentListModel, force bool) tea.Cmd {
+	if agent, ok := m.agentList.SelectedItem().(AgentListItem); ok {
+		index := m.agentList.Index()
+		// stop the agent and update the UI
+		return func() tea.Msg {
+			err := m.agentStopper(*agent.ID, force)
+			if err != nil {
+				return err
+			}
+			m.agentList.RemoveItem(index)
+			m.agentList.ResetSelected()
+			return AgentStopped{
+				Agent: agent,
+			}
+		}
+	}
+	return nil
 }
 
 func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -68,7 +110,24 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(m.agentList.StartSpinner(), m.agentList.NewStatusMessage("Loading agents"))
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "s": // stop an agent gracefully
+			cmds = append(cmds, stopAgent(&m, false))
+		case "S": // stop an agent forcefully
+			cmds = append(cmds, stopAgent(&m, true))
+		case "v":
+			if !m.agentDataDisplayed {
+				if agent, ok := m.agentList.SelectedItem().(AgentListItem); ok {
+					tableContext := AgentDataTable(agent.Agent)
+					m.agentViewPort.SetContent(tableContext)
+					m.agentDataDisplayed = true
+				}
+			} else {
+				m.clearAgentViewPort()
+			}
+		case "up":
+			m.clearAgentViewPort()
 		case "down":
+			m.clearAgentViewPort()
 			// Calculate last element, unfiltered and if the last agent page via the API has been reached
 			lastListItem := m.agentList.Index() == len(m.agentList.Items())-1
 			unfilteredState := m.agentList.FilterState() == list.Unfiltered
@@ -86,11 +145,13 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "w":
 			if agent, ok := m.agentList.SelectedItem().(AgentListItem); ok {
-				err := browser.OpenURL(*agent.WebURL)
-				return m, m.agentList.NewStatusMessage(fmt.Sprintf("Failed opening agent web url: %s", err.Error()))
+				if err := browser.OpenURL(*agent.WebURL); err != nil {
+					return m, m.agentList.NewStatusMessage(fmt.Sprintf("Failed opening agent web url: %s", err.Error()))
+				}
 			}
 		}
-	// Custom messages
+	case AgentStopped:
+		m.agentList.StopSpinner()
 	case AgentItemsMsg:
 		// When a new page of agents is received, append them to existing agents in the list and stop the loading
 		// spinner
@@ -108,16 +169,27 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.agentList.StopSpinner()
 		// Show a status message for a long time
 		m.agentList.StatusMessageLifetime = time.Duration(time.Hour)
-		return m, m.agentList.NewStatusMessage(fmt.Sprintf("Failed loading agents: %s", msg.Error()))
+		return m, m.agentList.NewStatusMessage(msg.Error())
 	}
 
-	var cmd tea.Cmd
-	m.agentList, cmd = m.agentList.Update(msg)
+	agentList, cmd := m.agentList.Update(msg)
+	m.agentList = &agentList
 	cmds = append(cmds, cmd)
+
+	if m, ok := msg.(Cmder); ok {
+		cmds = append(cmds, m.Cmd())
+	}
 
 	return m, tea.Batch(cmds...)
 }
 
 func (m AgentListModel) View() string {
-	return agentListStyle.Render(m.agentList.View())
+	return lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		agentListStyle.Render(m.agentList.View()),
+		lipgloss.JoinVertical(
+			lipgloss.Top,
+			viewPortStyle.Render(m.agentViewPort.View()),
+		),
+	)
 }

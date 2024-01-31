@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"errors"
 	"os"
 
 	"github.com/MakeNowJust/heredoc"
@@ -40,7 +41,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 					items := make([]agent.AgentListItem, len(agents))
 
 					if err != nil {
-						return err
+						return errors.Join(errors.New("Failed loading agents"), err)
 					}
 
 					for i, a := range agents {
@@ -54,7 +55,12 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 				}
 			}
 
-			model := agent.NewAgentList(loader, 1, perpage)
+			stopper := func(id string, force bool) any {
+				_, err := f.RestAPIClient.Agents.Stop(f.Config.Organization, id, force)
+				return err
+			}
+
+			model := agent.NewAgentList(loader, 1, perpage, stopper)
 
 			p := tea.NewProgram(model, tea.WithAltScreen())
 
