@@ -1,12 +1,14 @@
 package agent
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"sync"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/agent"
+	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -19,11 +21,12 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
-		Use:                   "stop <agent> [--force]",
-		Args:                  cobra.MinimumNArgs(1),
+		Use:                   "stop <agent>... [--force]",
+		Args:                  cobra.ArbitraryArgs,
 		Short:                 "Stop Buildkite agents",
 		Long: heredoc.Doc(`
 			Instruct one or more agents to stop accepting new build jobs and shut itself down.
+			Agents can be supplied as positional arguments or from STDIN, one per line.
 
 			If the "ORGANIZATION_SLUG/" portion of the "ORGANIZATION_SLUG/UUID" agent argument
 			is omitted, it uses the currently selected organization.
@@ -73,10 +76,31 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 				}
 			}
 
-			agents := make([]agent.StoppableAgent, len(args))
-			for i, id := range args {
-				agents[i] = agent.NewStoppableAgent(id, stopFn(id))
+			var agents []agent.StoppableAgent
+			// this command accepts either input from stdin or positional arguments (not both) in that order
+			// so we need to check if stdin has data for us to read and read that, otherwise use positional args and if
+			// there are none, then we need to error
+			// if stdin has data available, use that
+			if io.HasDataAvailable(cmd.InOrStdin()) {
+				scanner := bufio.NewScanner(cmd.InOrStdin())
+				scanner.Split(bufio.ScanLines)
+				for scanner.Scan() {
+					id := scanner.Text()
+					agents = append(agents, agent.NewStoppableAgent(id, stopFn(id)))
+				}
+
+				if scanner.Err() != nil {
+					return scanner.Err()
+				}
+			} else if len(args) > 0 {
+				agents = make([]agent.StoppableAgent, len(args))
+				for i, id := range args {
+					agents[i] = agent.NewStoppableAgent(id, stopFn(id))
+				}
+			} else {
+				return errors.New("Must supply agents to stop.")
 			}
+
 			bulkAgent := agent.BulkAgent{
 				Agents: agents,
 			}
