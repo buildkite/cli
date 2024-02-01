@@ -4,20 +4,28 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"io"
 	"sync"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/agent"
-	"github.com/buildkite/cli/v3/internal/io"
+	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/semaphore"
 )
 
+type AgentStopOptions struct {
+	force bool
+	limit int64
+	f     *factory.Factory
+}
+
 func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
-	var force bool
-	var limit int64
+	options := AgentStopOptions{
+		f: f,
+	}
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
@@ -34,68 +42,72 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 			The --force flag applies to all agents that are stopped.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// use a wait group to ensure we exit the program after all agents have finished
-			var wg sync.WaitGroup
-			// this semaphore is used to limit how many concurrent API requests can be sent
-			var sem = semaphore.NewWeighted(limit)
-
-			var agents []agent.StoppableAgent
-			// this command accepts either input from stdin or positional arguments (not both) in that order
-			// so we need to check if stdin has data for us to read and read that, otherwise use positional args and if
-			// there are none, then we need to error
-			// if stdin has data available, use that
-			if io.HasDataAvailable(cmd.InOrStdin()) {
-				scanner := bufio.NewScanner(cmd.InOrStdin())
-				scanner.Split(bufio.ScanLines)
-				for scanner.Scan() {
-					wg.Add(1)
-					id := scanner.Text()
-					agents = append(agents, agent.NewStoppableAgent(id, stopper(id, f, &force, sem, &wg)))
-				}
-
-				if scanner.Err() != nil {
-					return scanner.Err()
-				}
-			} else if len(args) > 0 {
-				wg.Add(len(args))
-				agents = make([]agent.StoppableAgent, len(args))
-				for i, id := range args {
-					agents[i] = agent.NewStoppableAgent(id, stopper(id, f, &force, sem, &wg))
-				}
-			} else {
-				return errors.New("Must supply agents to stop.")
-			}
-
-			bulkAgent := agent.BulkAgent{
-				Agents: agents,
-			}
-
-			p := tea.NewProgram(bulkAgent)
-
-			// send a quit message after all agents have stopped
-			go func() {
-				wg.Wait()
-				p.Send(tea.Quit())
-			}()
-
-			_, err := p.Run()
-			if err != nil {
-				return err
-			}
-
-			for _, agent := range agents {
-				if agent.Errored() {
-					return errors.New("At least one agent failed to stop")
-				}
-			}
-			return nil
+			return RunStop(cmd.InOrStdin(), args, &options)
 		},
 	}
 
-	cmd.Flags().BoolVar(&force, "force", false, "Force stop the agent. Terminating any jobs in progress")
-	cmd.Flags().Int64VarP(&limit, "limit", "l", 5, "Limit parallel API requests")
+	cmd.Flags().BoolVar(&options.force, "force", false, "Force stop the agent. Terminating any jobs in progress")
+	cmd.Flags().Int64VarP(&options.limit, "limit", "l", 5, "Limit parallel API requests")
 
 	return &cmd
+}
+
+func RunStop(input io.Reader, args []string, opts *AgentStopOptions) error {
+	// use a wait group to ensure we exit the program after all agents have finished
+	var wg sync.WaitGroup
+	// this semaphore is used to limit how many concurrent API requests can be sent
+	var sem = semaphore.NewWeighted(opts.limit)
+
+	var agents []agent.StoppableAgent
+	// this command accepts either input from stdin or positional arguments (not both) in that order
+	// so we need to check if stdin has data for us to read and read that, otherwise use positional args and if
+	// there are none, then we need to error
+	// if stdin has data available, use that
+	if bk_io.HasDataAvailable(input) {
+		scanner := bufio.NewScanner(input)
+		scanner.Split(bufio.ScanLines)
+		for scanner.Scan() {
+			wg.Add(1)
+			id := scanner.Text()
+			agents = append(agents, agent.NewStoppableAgent(id, stopper(id, opts.f, &opts.force, sem, &wg)))
+		}
+
+		if scanner.Err() != nil {
+			return scanner.Err()
+		}
+	} else if len(args) > 0 {
+		wg.Add(len(args))
+		agents = make([]agent.StoppableAgent, len(args))
+		for i, id := range args {
+			agents[i] = agent.NewStoppableAgent(id, stopper(id, opts.f, &opts.force, sem, &wg))
+		}
+	} else {
+		return errors.New("Must supply agents to stop.")
+	}
+
+	bulkAgent := agent.BulkAgent{
+		Agents: agents,
+	}
+
+	p := tea.NewProgram(bulkAgent)
+
+	// send a quit message after all agents have stopped
+	go func() {
+		wg.Wait()
+		p.Send(tea.Quit())
+	}()
+
+	_, err := p.Run()
+	if err != nil {
+		return err
+	}
+
+	for _, agent := range agents {
+		if agent.Errored() {
+			return errors.New("At least one agent failed to stop")
+		}
+	}
+	return nil
 }
 
 // here we want to allow each agent to transition through from a waiting state to stopping and ending at
