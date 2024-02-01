@@ -36,45 +36,8 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// use a wait group to ensure we exit the program after all agents have finished
 			var wg sync.WaitGroup
-			wg.Add(len(args))
 			// this semaphore is used to limit how many concurrent API requests can be sent
 			var sem = semaphore.NewWeighted(limit)
-
-			// here we want to allow each agent to transition through from a waiting state to stopping and ending at
-			// success/failure. so we need to wrap up multiple tea.Cmds, the first one marking it as "stopping". after
-			// that, another Cmd is started to make the API request to stop it. After that request we return a status to
-			// indicate success/failure
-			// the sync.WaitGroup also needs to be marked as done so we can stop the entire application after all agents
-			// are stopped
-			var stopFn = func(id string) agent.StopFn {
-				org, agentID := parseAgentArg(id, f.Config)
-				return func() agent.StatusUpdate {
-					// before attempting to stop the agent, acquire a semaphore lock to limit parallelisation
-					_ = sem.Acquire(context.Background(), 1)
-
-					return agent.StatusUpdate{
-						ID:     id,
-						Status: agent.Stopping,
-						// return an new command to actually stop the agent in the api and return the status of that
-						Cmd: func() tea.Msg {
-							// defer the semaphore and waitgroup release until the whole operation is completed
-							defer sem.Release(1)
-							defer wg.Done()
-							_, err := f.RestAPIClient.Agents.Stop(org, agentID, force)
-							if err != nil {
-								return agent.StatusUpdate{
-									ID:  id,
-									Err: err,
-								}
-							}
-							return agent.StatusUpdate{
-								ID:     id,
-								Status: agent.Succeeded,
-							}
-						},
-					}
-				}
-			}
 
 			var agents []agent.StoppableAgent
 			// this command accepts either input from stdin or positional arguments (not both) in that order
@@ -85,17 +48,19 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 				scanner := bufio.NewScanner(cmd.InOrStdin())
 				scanner.Split(bufio.ScanLines)
 				for scanner.Scan() {
+					wg.Add(1)
 					id := scanner.Text()
-					agents = append(agents, agent.NewStoppableAgent(id, stopFn(id)))
+					agents = append(agents, agent.NewStoppableAgent(id, stopper(id, f, &force, sem, &wg)))
 				}
 
 				if scanner.Err() != nil {
 					return scanner.Err()
 				}
 			} else if len(args) > 0 {
+				wg.Add(len(args))
 				agents = make([]agent.StoppableAgent, len(args))
 				for i, id := range args {
-					agents[i] = agent.NewStoppableAgent(id, stopFn(id))
+					agents[i] = agent.NewStoppableAgent(id, stopper(id, f, &force, sem, &wg))
 				}
 			} else {
 				return errors.New("Must supply agents to stop.")
@@ -131,4 +96,40 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 	cmd.Flags().Int64VarP(&limit, "limit", "l", 5, "Limit parallel API requests")
 
 	return &cmd
+}
+
+// here we want to allow each agent to transition through from a waiting state to stopping and ending at
+// success/failure. so we need to wrap up multiple tea.Cmds, the first one marking it as "stopping". after
+// that, another Cmd is started to make the API request to stop it. After that request we return a status to
+// indicate success/failure
+// the sync.WaitGroup also needs to be marked as done so we can stop the entire application after all agents
+// are stopped
+func stopper(id string, f *factory.Factory, force *bool, sem *semaphore.Weighted, wg *sync.WaitGroup) agent.StopFn {
+	org, agentID := parseAgentArg(id, f.Config)
+	return func() agent.StatusUpdate {
+		// before attempting to stop the agent, acquire a semaphore lock to limit parallelisation
+		_ = sem.Acquire(context.Background(), 1)
+
+		return agent.StatusUpdate{
+			ID:     id,
+			Status: agent.Stopping,
+			// return an new command to actually stop the agent in the api and return the status of that
+			Cmd: func() tea.Msg {
+				// defer the semaphore and waitgroup release until the whole operation is completed
+				defer sem.Release(1)
+				defer wg.Done()
+				_, err := f.RestAPIClient.Agents.Stop(org, agentID, *force)
+				if err != nil {
+					return agent.StatusUpdate{
+						ID:  id,
+						Err: err,
+					}
+				}
+				return agent.StatusUpdate{
+					ID:     id,
+					Status: agent.Succeeded,
+				}
+			},
+		}
+	}
 }
