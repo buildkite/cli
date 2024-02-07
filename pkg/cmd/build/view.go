@@ -62,7 +62,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the build in a web browser after it has been created.")
+	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the build in a web browser.")
 
 	return &cmd
 }
