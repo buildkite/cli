@@ -11,7 +11,6 @@ import (
 )
 
 func NewCmdBuildView(f *factory.Factory) *cobra.Command {
-	var include_retried_jobs bool
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
@@ -28,13 +27,8 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			buildId := args[0]
 			org, pipeline := parsePipelineArg(args[1], f.Config)
 
-			opt := buildkite.BuildsListOptions{
-				IncludeRetriedJobs: include_retried_jobs,
-			}
-
 			l := io.NewPendingCommand(func() tea.Msg {
-				b, _, err := f.RestAPIClient.Builds.Get(org, pipeline, buildId, &opt)
-
+				b, _, err := f.RestAPIClient.Builds.Get(org, pipeline, buildId, &buildkite.BuildsListOptions{})
 				if err != nil {
 					return err
 				}
@@ -50,8 +44,5 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			return err
 		},
 	}
-
-	cmd.Flags().BoolVarP(&include_retried_jobs, "include-retried-jobs", "r", false, "Include all retried jobs in each build’s jobs list")
-
 	return &cmd
 }
