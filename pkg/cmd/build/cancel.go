@@ -47,7 +47,7 @@ func cancelBuild(org string, pipeline string, buildId string, web bool, f *facto
 			return err
 		}
 
-		return io.PendingOutput(renderResult(fmt.Sprintf("Build cancelled: %s\n", *build.WebURL)))
+		return io.PendingOutput(renderResult(fmt.Sprintf("Cancelling build: %s\n", *build.WebURL)))
 
 	}, fmt.Sprintf("Cancelling build #%s from pipeline %s", buildId, pipeline))
 
