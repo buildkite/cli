@@ -1,6 +1,7 @@
 package build
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
 
@@ -8,6 +9,8 @@ import (
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 )
 
@@ -34,6 +37,7 @@ func NewCmdBuild(f *factory.Factory) *cobra.Command {
 	cmd.AddCommand(NewCmdBuildNew(f))
 	cmd.AddCommand(NewCmdBuildView(f))
 	cmd.AddCommand(NewCmdBuildRebuild(f))
+	cmd.AddCommand(NewCmdBuildCancel(f))
 
 	return &cmd
 }
@@ -59,4 +63,22 @@ func parsePipelineArg(arg string, conf *config.Config) (string, string) {
 		pipeline = arg
 	}
 	return org, pipeline
+}
+
+func openBuildInBrowser(openInWeb bool, webUrl string) error {
+
+	if openInWeb {
+		fmt.Printf("Opening %s in your browser\n", webUrl)
+		err := browser.OpenURL(webUrl)
+		if err != nil {
+			fmt.Println("Error opening browser: ", err)
+			return err
+		}
+	}
+	return nil
+}
+
+func renderResult(result string) string {
+	return lipgloss.JoinVertical(lipgloss.Top,
+		lipgloss.NewStyle().Padding(1, 1).Render(result))
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/pkg/browser"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
 
@@ -43,7 +43,6 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 }
 
 func newBuild(org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool) error {
-	buildUrl := fmt.Sprintf("https://buildkite.com/%s/%s/builds", org, pipeline)
 	l := io.NewPendingCommand(func() tea.Msg {
 
 		if len(branch) == 0 {
@@ -64,17 +63,14 @@ func newBuild(org string, pipeline string, f *factory.Factory, message string, c
 		if err != nil {
 			return err
 		}
-		buildUrl = fmt.Sprintf("%s/%d", buildUrl, *build.Number)
 
-		if web {
-			fmt.Printf("Opening %s in your browser\n", buildUrl)
-			err = browser.OpenURL(buildUrl)
-			if err != nil {
-				fmt.Println("Error opening browser: ", err)
-			}
+		if err = openBuildInBrowser(web, *build.WebURL); err != nil {
+			return err
 		}
 
-		return io.PendingOutput(fmt.Sprintf("Build created: %s", buildUrl))
+		return io.PendingOutput(lipgloss.JoinVertical(lipgloss.Top,
+			lipgloss.NewStyle().Padding(1, 1).Render(fmt.Sprintf("Build created: %s\n", *build.WebURL))))
+
 	}, fmt.Sprintf("Starting new build for %s", pipeline))
 	p := tea.NewProgram(l)
 	_, err := p.Run()

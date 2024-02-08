@@ -10,16 +10,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewCmdBuildRebuild(f *factory.Factory) *cobra.Command {
+func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 	var web bool
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
-		Use:                   "rebuild <number> <pipeline> [flags]",
-		Short:                 "Reruns a build.",
+		Use:                   "cancel <number> <pipeline> [flags]",
+		Short:                 "Cancels a build.",
 		Args:                  cobra.ExactArgs(2),
 		Long: heredoc.Doc(`
-			Runs a new build from the specified build number and pipeline and outputs the URL to the new build.
+			Cancels the specified build.
 
 			It accepts a build number and a pipeline slug  as an argument.
 			The pipeline can be a {pipeline_slug}, {org_slug}/{pipeline_slug} or a full URL to the pipeline.
@@ -27,7 +27,7 @@ func NewCmdBuildRebuild(f *factory.Factory) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			buildId := args[0]
 			org, pipeline := parsePipelineArg(args[1], f.Config)
-			return rebuild(org, pipeline, buildId, web, f)
+			return cancelBuild(org, pipeline, buildId, web, f)
 		},
 	}
 
@@ -36,9 +36,9 @@ func NewCmdBuildRebuild(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-func rebuild(org string, pipeline string, buildId string, web bool, f *factory.Factory) error {
+func cancelBuild(org string, pipeline string, buildId string, web bool, f *factory.Factory) error {
 	l := io.NewPendingCommand(func() tea.Msg {
-		build, err := f.RestAPIClient.Builds.Rebuild(org, pipeline, buildId)
+		build, err := f.RestAPIClient.Builds.Cancel(org, pipeline, buildId)
 		if err != nil {
 			return err
 		}
@@ -47,9 +47,9 @@ func rebuild(org string, pipeline string, buildId string, web bool, f *factory.F
 			return err
 		}
 
-		return io.PendingOutput(renderResult(fmt.Sprintf("Build created: %s\n", *build.WebURL)))
+		return io.PendingOutput(renderResult(fmt.Sprintf("Build cancelled: %s\n", *build.WebURL)))
 
-	}, fmt.Sprintf("Rerunning build #%s for pipeline %s", buildId, pipeline))
+	}, fmt.Sprintf("Cancelling build #%s from pipeline %s", buildId, pipeline))
 
 	p := tea.NewProgram(l)
 	_, err := p.Run()

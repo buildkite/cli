@@ -58,11 +58,10 @@ func renderBuildState(state string, blocked bool) string {
 		stateIcon = "⏰"
 	case "failed", "failing":
 		stateIcon = "✖"
-	case "canceled", "canceling":
+	case "canceled":
 		stateIcon = "🚫"
-	case "item":
-		stateIcon = "∴∘"
-
+	case "canceling":
+		stateIcon = "🚫(cancelling...)"
 	default:
 		stateIcon = "❔"
 	}
