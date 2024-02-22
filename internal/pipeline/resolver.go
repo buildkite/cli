@@ -6,19 +6,17 @@ package pipeline
 // TODO this shouldnt return `any`, we just don't have good type yet and will be added later
 type PipelineResolverFn func() (*any, error)
 
-type PipelineResolver struct {
-	resolvers []PipelineResolverFn
-}
+type AggregateResolver []PipelineResolverFn
 
-func (pr *PipelineResolver) AddResolver(resolver PipelineResolverFn) {
-	pr.resolvers = append(pr.resolvers, resolver)
+func NewAggregateResolver(resolvers ...PipelineResolverFn) AggregateResolver {
+	return resolvers
 }
 
 // Resolve is a PipelineResolverFn that wraps up a list of resolvers to loop through to try find a pipeline. The first
 // pipeline that is found will be returned, if none are found if won't return an error to match the expectation of a
 // PipelineResolveFn
-func (pr *PipelineResolver) Resolve() (*any, error) {
-	for _, resolve := range pr.resolvers {
+func (pr AggregateResolver) Resolve() (*any, error) {
+	for _, resolve := range pr {
 		if p, err := resolve(); err != nil && p != nil {
 			return p, err
 		}
