@@ -8,10 +8,6 @@ type PipelineResolverFn func() (*any, error)
 
 type AggregateResolver []PipelineResolverFn
 
-func NewAggregateResolver(resolvers ...PipelineResolverFn) AggregateResolver {
-	return resolvers
-}
-
 // Resolve is a PipelineResolverFn that wraps up a list of resolvers to loop through to try find a pipeline. The first
 // pipeline that is found will be returned, if none are found if won't return an error to match the expectation of a
 // PipelineResolveFn
