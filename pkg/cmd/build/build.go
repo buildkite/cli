@@ -38,6 +38,7 @@ func NewCmdBuild(f *factory.Factory) *cobra.Command {
 	cmd.AddCommand(NewCmdBuildView(f))
 	cmd.AddCommand(NewCmdBuildRebuild(f))
 	cmd.AddCommand(NewCmdBuildCancel(f))
+	cmd.AddCommand(NewCmdBuildView2(f))
 
 	return &cmd
 }
