@@ -5,45 +5,101 @@ import (
 	"testing"
 
 	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/h2non/gock"
 )
 
 func TestResolvePipelines(t *testing.T) {
 	t.Parallel()
 
-	// t.Run("one pipeline", func(t *testing.T) {
-	// 	t.Parallel()
-	// })
+	t.Run("path has no repo URL", func(t *testing.T) {
 
-	// t.Run("multiple pipelines", func(t *testing.T) {
-	// 	t.Parallel()
-	// })
+		defer gock.Off()
 
-	// t.Run("error getting repo urls", func(t *testing.T) {
-	// 	t.Parallel()
-	// })
+		gock.New("https://api.buildkite.com/v2/organizations/testOrg").
+			Get("/pipelines").
+			Reply(200).
+			BodyString(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/test.git"}]`)
 
-	t.Run("no pipelines found", func(t *testing.T) {
-		t.Parallel()
+		client := &http.Client{Transport: &http.Transport{}}
+		gock.InterceptClient(client)
 
-		client := &http.Client{
-			Transport: &mockRoundTripper{&http.Response{StatusCode: 200}},
-		}
 		bkClient := buildkite.NewClient(client)
-		pipelines, _ := ResolveFromPath(".", "testorg", bkClient)
-		// if err != nil {
-		// 	t.Errorf("Error: %s", err)
-		// }
+		pipelines, err := ResolveFromPath("../..", "testOrg", bkClient)
+		if err != nil {
+			t.Errorf("Error: %s", err)
+		}
 		if len(pipelines) != 0 {
 			t.Errorf("Expected 0 pipeline, got %d", len(pipelines))
 		}
 
 	})
-}
 
-type mockRoundTripper struct {
-	resp *http.Response
-}
+	t.Run("no pipelines found", func(t *testing.T) {
 
-func (rt *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	return rt.resp, nil
+		defer gock.Off()
+
+		gock.New("https://api.buildkite.com/v2/organizations/testOrg").
+			Get("/pipelines").
+			Reply(200).
+			BodyString(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/test.git"}]`)
+
+		client := &http.Client{Transport: &http.Transport{}}
+		gock.InterceptClient(client)
+
+		bkClient := buildkite.NewClient(client)
+		pipelines, err := ResolveFromPath(".", "testOrg", bkClient)
+		if err != nil {
+			t.Errorf("Error: %s", err)
+		}
+		if len(pipelines) != 0 {
+			t.Errorf("Expected 0 pipeline, got %d", len(pipelines))
+		}
+
+	})
+
+	t.Run("one pipeline", func(t *testing.T) {
+
+		defer gock.Off()
+
+		gock.New("https://api.buildkite.com/v2/organizations/testOrg").
+			Get("/pipelines").
+			Reply(200).
+			BodyString(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/cli.git"}]`)
+
+		client := &http.Client{Transport: &http.Transport{}}
+		gock.InterceptClient(client)
+
+		bkClient := buildkite.NewClient(client)
+		pipelines, err := ResolveFromPath(".", "testOrg", bkClient)
+		if err != nil {
+			t.Errorf("Error: %s", err)
+		}
+		if len(pipelines) != 1 {
+			t.Errorf("Expected 1 pipeline, got %d", len(pipelines))
+		}
+	})
+
+	t.Run("multiple pipelines", func(t *testing.T) {
+
+		defer gock.Off()
+
+		gock.New("https://api.buildkite.com/v2/organizations/testOrg").
+			Get("/pipelines").
+			Reply(200).
+			BodyString(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/cli.git"},
+						{"slug": "my-pipeline-2", "repository": "git@github.com:buildkite/cli.git"}]`)
+
+		client := &http.Client{Transport: &http.Transport{}}
+		gock.InterceptClient(client)
+
+		bkClient := buildkite.NewClient(client)
+		pipelines, err := ResolveFromPath(".", "testOrg", bkClient)
+		if err != nil {
+			t.Errorf("Error: %s", err)
+		}
+		if len(pipelines) != 2 {
+			t.Errorf("Expected 2 pipeline, got %d", len(pipelines))
+		}
+	})
+
 }
