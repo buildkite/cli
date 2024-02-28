@@ -1,15 +1,16 @@
 steps:
   - name: ":golangci-lint: lint"
     plugins:
-      docker-compose#v4.14.0:
+      docker-compose#v5.1.0:
         config: .buildkite/docker-compose.yaml
         run: lint
 
   - name: ":go: test"
     plugins:
-      docker-compose#v4.14.0:
+      docker-compose#v5.1.0:
         config: .buildkite/docker-compose.yaml
         run: test
+        tty: true
 
   - wait
 
@@ -17,6 +18,6 @@ steps:
     artifact_paths:
       - dist/**/*
     plugins:
-      docker-compose#v4.14.0:
+      docker-compose#v5.1.0:
         config: .buildkite/docker-compose.yaml
         run: build
