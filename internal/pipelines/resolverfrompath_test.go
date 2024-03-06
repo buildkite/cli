@@ -8,7 +8,7 @@ import (
 	"github.com/h2non/gock"
 )
 
-func TestResolvePipelines(t *testing.T) {
+func TestResolvePipelinesFromPath(t *testing.T) {
 	t.Parallel()
 
 	t.Run("path has no repo URL", func(t *testing.T) {

@@ -41,6 +41,10 @@ type ProjectConfig struct {
 	Pipeline string `yaml:"pipeline"`
 }
 
+type LocalConfig struct {
+	Pipeline string `yaml:"pipeline"`
+}
+
 type ViperConfig interface {
 	Set(string, interface{})
 	GetStringMap(string) map[string]interface{}
@@ -149,4 +153,30 @@ func writePipelineToBuildkiteYAML(projectConfig *ProjectConfig) (*ProjectConfig,
 	}
 
 	return projectConfig, nil
+}
+
+// Local config .bk.yaml or .bk.yml may or may not exist. Load it if it does.
+func (config *LocalConfig) Read() error {
+
+	var configFile string
+	if _, err := os.Stat(".bk.yaml"); err == nil {
+		configFile = ".bk.yaml"
+	} else if _, err := os.Stat(".bk.yml"); err == nil {
+		configFile = ".bk.yml"
+	}
+
+	// If a configuration file is found, try to read and parse it
+	if configFile != "" {
+		yamlFile, err := os.ReadFile(configFile)
+		if err != nil {
+			return err
+		}
+
+		err = yaml.Unmarshal(yamlFile, config)
+		if err != nil {
+			return err
+		}
+
+	}
+	return nil
 }
