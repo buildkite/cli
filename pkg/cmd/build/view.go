@@ -7,6 +7,7 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/build"
 	"github.com/buildkite/cli/v3/internal/io"
+	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	tea "github.com/charmbracelet/bubbletea"
@@ -19,8 +20,8 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
-		Use:                   "view <number> <pipeline> [flags]",
-		Args:                  cobra.ExactArgs(2),
+		Use:                   "view <number> [pipeline] [flags]",
+		Args:                  cobra.MinimumNArgs(1),
 		Short:                 "View build information.",
 		Long: heredoc.Doc(`
 			View a build's information.
@@ -30,18 +31,22 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			buildId := args[0]
-			org, pipeline := parsePipelineArg(args[1], f.Config)
+			resolvers := pipeline.NewAggregateResolver(pipelineResolverPositionArg(args, f.Config))
+			pipeline, err := resolvers.Resolve()
+			if err != nil {
+				return err
+			}
 
 			l := io.NewPendingCommand(func() tea.Msg {
 				var buildUrl string
 
-				b, _, err := f.RestAPIClient.Builds.Get(org, pipeline, buildId, &buildkite.BuildsListOptions{})
+				b, _, err := f.RestAPIClient.Builds.Get(pipeline.Org, pipeline.Name, buildId, &buildkite.BuildsListOptions{})
 				if err != nil {
 					return err
 				}
 
 				if web {
-					buildUrl = fmt.Sprintf("https://buildkite.com/%s/%s/builds/%d", org, pipeline, *b.Number)
+					buildUrl = fmt.Sprintf("https://buildkite.com/%s/%s/builds/%d", pipeline.Org, pipeline.Name, *b.Number)
 					fmt.Printf("Opening %s in your browser\n\n", buildUrl)
 					time.Sleep(1 * time.Second)
 					err = browser.OpenURL(buildUrl)
@@ -56,7 +61,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			}, "Loading build information")
 
 			p := tea.NewProgram(l)
-			_, err := p.Run()
+			_, err = p.Run()
 
 			return err
 		},
