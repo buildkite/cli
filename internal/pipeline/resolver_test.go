@@ -13,14 +13,14 @@ func TestAggregateResolver(t *testing.T) {
 		t.Parallel()
 
 		agg := pipeline.AggregateResolver{
-			func() (pipeline.Pipeline, error) { return nil, nil },
-			func() (pipeline.Pipeline, error) { return 42, nil },
+			func() (*pipeline.Pipeline, error) { return nil, nil },
+			func() (*pipeline.Pipeline, error) { return &pipeline.Pipeline{Name: "test"}, nil },
 		}
 
 		p, err := agg.Resolve()
 
-		if p.(int) != 42 {
-			t.Fatalf("Resolve function did not return expected value: %d", p.(int))
+		if p.Name != "test" {
+			t.Fatalf("Resolve function did not return expected value: %s", p.Name)
 		}
 		if err != nil {
 			t.Fatal("Resolve returned an error")
