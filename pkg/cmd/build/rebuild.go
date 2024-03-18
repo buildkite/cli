@@ -5,6 +5,7 @@ import (
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/io"
+	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -15,9 +16,9 @@ func NewCmdBuildRebuild(f *factory.Factory) *cobra.Command {
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
-		Use:                   "rebuild <number> <pipeline> [flags]",
+		Use:                   "rebuild <number> [pipeline] [flags]",
 		Short:                 "Reruns a build.",
-		Args:                  cobra.ExactArgs(2),
+		Args:                  cobra.MinimumNArgs(1),
 		Long: heredoc.Doc(`
 			Runs a new build from the specified build number and pipeline and outputs the URL to the new build.
 
@@ -26,8 +27,12 @@ func NewCmdBuildRebuild(f *factory.Factory) *cobra.Command {
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			buildId := args[0]
-			org, pipeline := parsePipelineArg(args[1], f.Config)
-			return rebuild(org, pipeline, buildId, web, f)
+			resolvers := pipeline.NewAggregateResolver(pipelineResolverPositionArg(args, f.Config))
+			pipeline, err := resolvers.Resolve()
+			if err != nil {
+				return err
+			}
+			return rebuild(pipeline.Org, pipeline.Name, buildId, web, f)
 		},
 	}
 
