@@ -177,6 +177,11 @@ func (config *LocalConfig) Read() error {
 			return err
 		}
 
+		// Check if the "pipeline" key is already set
+		if config.Pipeline != "" {
+			return nil // Pipeline is already defined
+		}
+
 	}
 	return nil
 }
