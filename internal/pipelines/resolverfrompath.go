@@ -4,8 +4,7 @@ import (
 	"strings"
 
 	"github.com/buildkite/go-buildkite/v3/buildkite"
-
-	"gopkg.in/src-d/go-git.v4"
+	"github.com/go-git/go-git/v5"
 )
 
 func ResolveFromPath(path string, org string, client *buildkite.Client) ([]string, error) {
