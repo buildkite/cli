@@ -12,7 +12,6 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	t.Parallel()
 
 	t.Run("path has no repo URL", func(t *testing.T) {
-
 		defer gock.Off()
 
 		gock.New("https://api.buildkite.com/v2/organizations/testOrg").

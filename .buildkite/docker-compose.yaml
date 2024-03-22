@@ -19,6 +19,9 @@ services:
     command:
       - golangci-lint
       - run
+      - --verbose
+      - --timeout
+      - 3m
   build:
     image: goreleaser/goreleaser:v1.20.0
     working_dir: /go/src/github.com/buildkite/cli

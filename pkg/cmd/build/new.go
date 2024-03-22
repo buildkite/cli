@@ -4,7 +4,9 @@ import (
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc"
+	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/internal/io"
+	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	tea "github.com/charmbracelet/bubbletea"
@@ -20,17 +22,21 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
-		Use:                   "new <pipeline> [flags]",
+		Use:                   "new [pipeline] [flags]",
 		Short:                 "Creates a new pipeline build",
-		Args:                  cobra.ExactArgs(1),
+		Args:                  cobra.MaximumNArgs(1),
 		Long: heredoc.Doc(`
 			Creates a new build for the specified pipeline and output the URL to the build.
 
 			It accepts {pipeline_slug}, {org_slug}/{pipeline_slug} or a full URL to the pipeline as an argument.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			org, pipeline := parsePipelineArg(args[0], f.Config)
-			return newBuild(org, pipeline, f, message, commit, branch, web)
+			resolvers := pipeline.NewAggregateResolver(pipelineResolverPositionArg(args, f.Config))
+			pipeline, err := resolvers.Resolve()
+			if err != nil {
+				return err
+			}
+			return newBuild(pipeline.Org, pipeline.Name, f, message, commit, branch, web)
 		},
 	}
 
@@ -40,6 +46,24 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the build in a web browser after it has been created.")
 	cmd.Flags().SortFlags = false
 	return &cmd
+}
+
+func pipelineResolverPositionArg(args []string, conf *config.Config) pipeline.PipelineResolverFn {
+	return func() (*pipeline.Pipeline, error) {
+		// if args does not have values, skip this resolver
+		if len(args) < 1 {
+			return nil, nil
+		}
+
+		org, name := parsePipelineArg(args[0], conf)
+		// if we could not parse the pipeline from the arg then return no pipeline or error, to pass indicate to pass to
+		// the next resolver in the chain
+		if org == "" || name == "" {
+			return nil, nil
+		}
+
+		return &pipeline.Pipeline{Name: name, Org: org}, nil
+	}
 }
 
 func newBuild(org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool) error {
