@@ -2,6 +2,7 @@ package pipelines
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
@@ -17,7 +18,8 @@ func ResolveFromConfig(f *factory.Factory) ([]string, error) {
 	}
 	// if there is a pipeline defined in the local config, return it
 	if len(f.LocalConfig.Pipeline) > 0 {
-		localPipelines = append(localPipelines, f.LocalConfig.Pipeline)
+		//assume pipelines are comma separated - final format TBD
+		localPipelines = strings.Split(f.LocalConfig.Pipeline, ",")
 	}
 	return localPipelines, nil
 }
