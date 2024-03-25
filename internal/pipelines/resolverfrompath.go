@@ -4,11 +4,11 @@ import (
 	"strings"
 
 	"github.com/buildkite/go-buildkite/v3/buildkite"
-
 	"github.com/go-git/go-git/v5"
 )
 
 func ResolveFromPath(path string, org string, client *buildkite.Client) ([]string, error) {
+
 	repos, err := getRepoURLs(path)
 	if err != nil {
 		return nil, err
@@ -17,6 +17,7 @@ func ResolveFromPath(path string, org string, client *buildkite.Client) ([]strin
 }
 
 func filterPipelines(repoURLs []string, org string, client *buildkite.Client) ([]string, error) {
+
 	var currentPipelines []string
 	page := 1
 	per_page := 30

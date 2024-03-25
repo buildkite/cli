@@ -14,6 +14,7 @@ import (
 type Factory struct {
 	Config        *config.Config
 	ProjectConfig *config.ProjectConfig
+	LocalConfig   *config.LocalConfig
 	HttpClient    *http.Client
 	RestAPIClient *buildkite.Client
 	Version       string
@@ -23,6 +24,7 @@ func New(version string) *Factory {
 	factoryConfig := loadFromViper()
 	client := httpClient(version, factoryConfig)
 	projectConfig, err := config.LoadProjectConfig()
+
 	if err != nil {
 		fmt.Printf("Error loading project config: %s", err)
 	}
@@ -33,6 +35,7 @@ func New(version string) *Factory {
 		RestAPIClient: buildkite.NewClient(client),
 		Version:       version,
 		ProjectConfig: projectConfig,
+		LocalConfig:   &config.LocalConfig{},
 	}
 }
 
