@@ -10,6 +10,7 @@ import (
 
 const (
 	APITokenConfigKey          = "api_token"
+	OpenAIAPITokenConfigKey    = "openai_api_token"
 	OrganizationsSlugConfigKey = "organizations"
 	SelectedOrgKey             = "selected_org"
 )
@@ -32,9 +33,10 @@ const (
 //	  buildkite-oss:
 //	    api_token: <token>
 type Config struct {
-	APIToken     string
-	Organization string
-	V            ViperConfig
+	APIToken       string
+	OpenAIAPIToken string
+	Organization   string
+	V              ViperConfig
 }
 
 type ProjectConfig struct {
@@ -57,11 +59,13 @@ func (conf *Config) merge() {
 		APITokenConfigKey: conf.APIToken,
 	}
 	conf.V.Set(OrganizationsSlugConfigKey, orgs)
+	conf.V.Set(OpenAIAPITokenConfigKey, conf.OpenAIAPIToken)
 }
 
 // Save sets the current config values into viper and writes the config file
 func (conf *Config) Save() error {
 	conf.V.Set(SelectedOrgKey, conf.Organization)
+	conf.V.Set(OpenAIAPITokenConfigKey, conf.OpenAIAPIToken)
 	conf.merge()
 
 	return conf.V.WriteConfig()
