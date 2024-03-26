@@ -32,8 +32,8 @@ const (
 //	  buildkite-oss:
 //	    api_token: <token>
 type Config struct {
-	Organization string
 	APIToken     string
+	Organization string
 	V            ViperConfig
 }
 
@@ -92,10 +92,10 @@ func LoadProjectConfig() (*ProjectConfig, error) {
 	currentDirName := filepath.Base(dir)
 
 	var configFile string
-	if _, err := os.Stat("buildkite.yaml"); err == nil {
-		configFile = "buildkite.yaml"
-	} else if _, err := os.Stat("buildkite.yml"); err == nil {
-		configFile = "buildkite.yml"
+	if _, err := os.Stat(".bk.yaml"); err == nil {
+		configFile = ".bk.yaml"
+	} else if _, err := os.Stat(".bk.yml"); err == nil {
+		configFile = ".bk.yml"
 	}
 
 	// If a configuration file is found, try to read and parse it
@@ -121,7 +121,7 @@ func LoadProjectConfig() (*ProjectConfig, error) {
 }
 
 func writePipelineToBuildkiteYAML(projectConfig *ProjectConfig) (*ProjectConfig, error) {
-	configFilePath := "buildkite.yaml"
+	configFilePath := ".bk.yaml"
 
 	configData := make(map[string]interface{})
 	// Attempt to read the existing buildkite.yaml file
