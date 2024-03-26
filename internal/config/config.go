@@ -16,7 +16,7 @@ const (
 
 const (
 	appData        = "AppData"
-	configFilePath = ".bk.yaml"
+	configFilePath = "bk.yaml"
 	xdgConfigHome  = "XDG_CONFIG_HOME"
 )
 
