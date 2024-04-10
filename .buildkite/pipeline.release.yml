@@ -7,5 +7,6 @@ steps:
       - aws-ssm#v1.0.0:
           parameters:
             GITHUB_TOKEN: /pipelines/buildkite/buildkite-cli-release/github-token
-      - docker-compose#v2.2.0:
-          run: go
+      - docker-compose#v5.2.0:
+          run: build
+          config: .buildkite/docker-compose.yaml
