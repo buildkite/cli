@@ -1,6 +1,7 @@
 steps:
   - label: release
-    command: ".buildkite/steps/release.sh"
+    artifact_paths:
+      - dist/**/*
     plugins:
       - aws-assume-role-with-web-identity:
           role-arn: arn:aws:iam::445615400570:role/pipeline-buildkite-buildkite-cli-release
