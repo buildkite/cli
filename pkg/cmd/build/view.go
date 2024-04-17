@@ -31,7 +31,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			buildId := args[0]
-			resolvers := pipeline.NewAggregateResolver(pipelineResolverPositionArg(args, f.Config))
+			resolvers := pipeline.NewAggregateResolver(pipelineResolverPositionArg(args[1:], f.Config))
 			pipeline, err := resolvers.Resolve()
 			if err != nil {
 				return err
