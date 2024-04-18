@@ -29,7 +29,6 @@ func NewCmdBuild(f *factory.Factory) *cobra.Command {
 				A pipeline is passed as an argument. It can be supplied in any of the following formats:
 				- "PIPELINE_SLUG"
 				- "ORGANIZATION_SLUG/PIPELINE_SLUG" 
-				- by URL, e.g. "https://buildkite.com/buildkite/buildkite-cli"
 			`),
 		},
 	}

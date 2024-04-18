@@ -27,11 +27,11 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			View a build's information.
 
 			It accepts a build number and a pipeline slug  as an argument.
-			The pipeline can be a {pipeline_slug}, {org_slug}/{pipeline_slug} or a full URL to the pipeline.
+			The pipeline can be a {pipeline_slug} or in the format {org_slug}/{pipeline_slug}.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			buildId := args[0]
-			resolvers := pipeline.NewAggregateResolver(pipelineResolverPositionArg(args, f.Config))
+			resolvers := pipeline.NewAggregateResolver(pipelineResolverPositionArg(args[1:], f.Config))
 			pipeline, err := resolvers.Resolve()
 			if err != nil {
 				return err
