@@ -28,10 +28,14 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 
 			It accepts a build number and a pipeline slug as an argument.
 			The pipeline can be a {pipeline_slug} or in the format {org_slug}/{pipeline_slug}.
+			If the pipeline argument is omitted, it will be resolved using the current directory.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			buildId := args[0]
-			resolvers := pipeline.NewAggregateResolver(pipelineResolverPositionArg(args[1:], f.Config))
+			resolvers := pipeline.NewAggregateResolver(
+				pipelineResolverPositionArg(args[1:], f.Config),
+				pipeline.ResolveFromPath(),
+			)
 			pipeline, err := resolvers.Resolve()
 			if err != nil {
 				return err
