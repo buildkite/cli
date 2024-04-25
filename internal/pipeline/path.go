@@ -7,7 +7,7 @@ import (
 	"github.com/go-git/go-git/v5"
 )
 
-func ResolveFromPath(path string, org string, client *buildkite.Client) ([]string, error) {
+func resolveFromPath(path string, org string, client *buildkite.Client) ([]string, error) {
 	repos, err := getRepoURLs(path)
 	if err != nil {
 		return nil, err
