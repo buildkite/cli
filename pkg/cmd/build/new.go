@@ -31,8 +31,22 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 			It accepts {pipeline_slug}, {org_slug}/{pipeline_slug} or a full URL to the pipeline as an argument.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resolvers := pipeline.NewAggregateResolver(pipelineResolverPositionArg(args, f.Config))
-			pipeline, err := resolvers.Resolve()
+			resolvers := pipeline.NewAggregateResolver(
+				pipelineResolverPositionArg(args, f.Config),
+				pipeline.ResolveFromPath("", f.Config.Organization, f.RestAPIClient),
+			)
+			var pipeline pipeline.Pipeline
+			r := io.NewPendingCommand(func() tea.Msg {
+				p, err := resolvers.Resolve()
+				if err != nil {
+					return err
+				}
+				pipeline = *p
+
+				return io.PendingOutput(fmt.Sprintf("Resolved pipeline to: %s", pipeline.Name))
+			}, "Resolving pipeline")
+			p := tea.NewProgram(r)
+			_, err := p.Run()
 			if err != nil {
 				return err
 			}
