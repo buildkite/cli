@@ -34,16 +34,28 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			buildId := args[0]
 			resolvers := pipeline.NewAggregateResolver(
 				pipelineResolverPositionArg(args[1:], f.Config),
-				pipeline.ResolveFromPath(args[0], f.Config.Organization, f.RestAPIClient),
+				pipeline.ResolveFromPath("", f.Config.Organization, f.RestAPIClient),
 			)
 
-			l := io.NewPendingCommand(func() tea.Msg {
-				var buildUrl string
+			var pipeline pipeline.Pipeline
 
-				pipeline, err := resolvers.Resolve()
+			r := io.NewPendingCommand(func() tea.Msg {
+				p, err := resolvers.Resolve()
 				if err != nil {
 					return err
 				}
+				pipeline = *p
+
+				return io.PendingOutput(fmt.Sprintf("Resolved pipeline to: %s", pipeline.Name))
+			}, "Resolving pipeline")
+			p := tea.NewProgram(r)
+			_, err := p.Run()
+			if err != nil {
+				return err
+			}
+
+			l := io.NewPendingCommand(func() tea.Msg {
+				var buildUrl string
 
 				b, _, err := f.RestAPIClient.Builds.Get(pipeline.Org, pipeline.Name, buildId, &buildkite.BuildsListOptions{})
 				if err != nil {
@@ -65,8 +77,8 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 				return io.PendingOutput(summary)
 			}, "Loading build information")
 
-			p := tea.NewProgram(l)
-			_, err := p.Run()
+			p = tea.NewProgram(l)
+			_, err = p.Run()
 
 			return err
 		},
