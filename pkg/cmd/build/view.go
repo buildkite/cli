@@ -34,15 +34,16 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			buildId := args[0]
 			resolvers := pipeline.NewAggregateResolver(
 				pipelineResolverPositionArg(args[1:], f.Config),
-				pipeline.ResolveFromPath(),
+				pipeline.ResolveFromPath(args[0], f.Config.Organization, f.RestAPIClient),
 			)
-			pipeline, err := resolvers.Resolve()
-			if err != nil {
-				return err
-			}
 
 			l := io.NewPendingCommand(func() tea.Msg {
 				var buildUrl string
+
+				pipeline, err := resolvers.Resolve()
+				if err != nil {
+					return err
+				}
 
 				b, _, err := f.RestAPIClient.Builds.Get(pipeline.Org, pipeline.Name, buildId, &buildkite.BuildsListOptions{})
 				if err != nil {
@@ -65,7 +66,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			}, "Loading build information")
 
 			p := tea.NewProgram(l)
-			_, err = p.Run()
+			_, err := p.Run()
 
 			return err
 		},
