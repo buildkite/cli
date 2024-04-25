@@ -36,7 +36,6 @@ func filterPipelines(repoURLs []string, org string, client *buildkite.Client) ([
 				gitUrl := u[strings.LastIndex(u, "/")+1:]
 				if strings.Contains(*p.Repository, gitUrl) {
 					currentPipelines = append(currentPipelines, *p.Slug)
-
 				}
 			}
 		}
@@ -54,7 +53,7 @@ func getRepoURLs(path string) ([]string, error) {
 	if len(path) > 0 {
 		searchPath = path
 	}
-	r, err := git.PlainOpenWithOptions(searchPath, &git.PlainOpenOptions{DetectDotGit: true})
+	r, err := git.PlainOpenWithOptions(searchPath, &git.PlainOpenOptions{DetectDotGit: true, EnableDotGitCommonDir: true})
 	if err != nil {
 		return nil, err
 	}
