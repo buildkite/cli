@@ -2,12 +2,6 @@ package pipeline
 
 import "errors"
 
-// Pipeline is a struct containing information about a pipeline for a resolver to return
-type Pipeline struct {
-	Name string
-	Org  string
-}
-
 // PipelineResolverFn is a function for the purpose of finding a pipeline. It returns an error if an irrecoverable
 // scenario happens and should halt execution. Otherwise if the resolver does not find a pipeline, it should return
 // (nil, nil) to indicate this. ie. no error occurred, but no pipeline was found either.
