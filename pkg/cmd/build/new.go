@@ -28,7 +28,8 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 		Long: heredoc.Doc(`
 			Creates a new build for the specified pipeline and output the URL to the build.
 
-			It accepts {pipeline_slug}, {org_slug}/{pipeline_slug} or a full URL to the pipeline as an argument.
+			The pipeline can be a {pipeline_slug} or in the format {org_slug}/{pipeline_slug}.
+			If the pipeline argument is omitted, it will be resolved using the current directory.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			resolvers := pipeline.NewAggregateResolver(

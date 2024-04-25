@@ -24,11 +24,26 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 
 			It accepts a build number and a pipeline slug  as an argument.
 			The pipeline can be a {pipeline_slug} or in the format {org_slug}/{pipeline_slug}.
+			If the pipeline argument is omitted, it will be resolved using the current directory.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			buildId := args[0]
-			resolvers := pipeline.NewAggregateResolver(pipelineResolverPositionArg(args[1:], f.Config))
-			pipeline, err := resolvers.Resolve()
+			resolvers := pipeline.NewAggregateResolver(
+				pipelineResolverPositionArg(args[1:], f.Config),
+				pipeline.ResolveFromPath("", f.Config.Organization, f.RestAPIClient),
+			)
+			var pipeline pipeline.Pipeline
+			r := io.NewPendingCommand(func() tea.Msg {
+				p, err := resolvers.Resolve()
+				if err != nil {
+					return err
+				}
+				pipeline = *p
+
+				return io.PendingOutput(fmt.Sprintf("Resolved pipeline to: %s", pipeline.Name))
+			}, "Resolving pipeline")
+			p := tea.NewProgram(r)
+			_, err := p.Run()
 			if err != nil {
 				return err
 			}
@@ -36,7 +51,7 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the build in a web browser after it has been created.")
+	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the build in a web browser after it has been cancelled.")
 	cmd.Flags().SortFlags = false
 	return &cmd
 }
