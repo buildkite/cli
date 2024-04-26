@@ -7,6 +7,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline"
+	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	tea "github.com/charmbracelet/bubbletea"
@@ -32,9 +33,9 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 			If the pipeline argument is omitted, it will be resolved using the current directory.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resolvers := pipeline.NewAggregateResolver(
+			resolvers := resolver.NewAggregateResolver(
 				pipelineResolverPositionArg(args, f.Config),
-				pipeline.ResolveFromPath("", f.Config.Organization, f.RestAPIClient),
+				resolver.ResolveFromPath("", f.Config.Organization, f.RestAPIClient),
 			)
 			var pipeline pipeline.Pipeline
 			r := io.NewPendingCommand(func() tea.Msg {
@@ -63,7 +64,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-func pipelineResolverPositionArg(args []string, conf *config.Config) pipeline.PipelineResolverFn {
+func pipelineResolverPositionArg(args []string, conf *config.Config) resolver.PipelineResolverFn {
 	return func() (*pipeline.Pipeline, error) {
 		// if args does not have values, skip this resolver
 		if len(args) < 1 {

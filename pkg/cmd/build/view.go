@@ -8,6 +8,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/build"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline"
+	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	tea "github.com/charmbracelet/bubbletea"
@@ -32,9 +33,9 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			buildId := args[0]
-			resolvers := pipeline.NewAggregateResolver(
+			resolvers := resolver.NewAggregateResolver(
 				pipelineResolverPositionArg(args[1:], f.Config),
-				pipeline.ResolveFromPath("", f.Config.Organization, f.RestAPIClient),
+				resolver.ResolveFromPath("", f.Config.Organization, f.RestAPIClient),
 			)
 
 			var pipeline pipeline.Pipeline
