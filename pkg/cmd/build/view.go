@@ -44,6 +44,10 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 				var buildUrl string
 
 				b, _, err := f.RestAPIClient.Builds.Get(pipeline.Org, pipeline.Name, buildId, &buildkite.BuildsListOptions{})
+
+				if err != nil {
+					return err
+				}
 				buildArtifacts, _, err = f.RestAPIClient.Artifacts.ListByBuild(pipeline.Org, pipeline.Name, buildId, &buildkite.ArtifactListOptions{})
 				if err != nil {
 					return err
