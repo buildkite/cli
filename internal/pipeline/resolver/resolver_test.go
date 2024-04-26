@@ -1,9 +1,10 @@
-package pipeline_test
+package resolver_test
 
 import (
 	"testing"
 
 	"github.com/buildkite/cli/v3/internal/pipeline"
+	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 )
 
 func TestAggregateResolver(t *testing.T) {
@@ -12,7 +13,7 @@ func TestAggregateResolver(t *testing.T) {
 	t.Run("it loops over resolvers until one returns", func(t *testing.T) {
 		t.Parallel()
 
-		agg := pipeline.AggregateResolver{
+		agg := resolver.AggregateResolver{
 			func() (*pipeline.Pipeline, error) { return nil, nil },
 			func() (*pipeline.Pipeline, error) { return &pipeline.Pipeline{Name: "test"}, nil },
 		}
@@ -30,7 +31,7 @@ func TestAggregateResolver(t *testing.T) {
 	t.Run("returns nil if nothing resolves", func(t *testing.T) {
 		t.Parallel()
 
-		agg := pipeline.AggregateResolver{}
+		agg := resolver.AggregateResolver{}
 
 		p, err := agg.Resolve()
 

@@ -1,18 +1,22 @@
-package pipeline
+package resolver
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/buildkite/cli/v3/internal/pipeline"
+)
 
 // PipelineResolverFn is a function for the purpose of finding a pipeline. It returns an error if an irrecoverable
 // scenario happens and should halt execution. Otherwise if the resolver does not find a pipeline, it should return
 // (nil, nil) to indicate this. ie. no error occurred, but no pipeline was found either.
-type PipelineResolverFn func() (*Pipeline, error)
+type PipelineResolverFn func() (*pipeline.Pipeline, error)
 
 type AggregateResolver []PipelineResolverFn
 
 // Resolve is a PipelineResolverFn that wraps up a list of resolvers to loop through to try find a pipeline. The first
 // pipeline that is found will be returned, if none are found if won't return an error to match the expectation of a
 // PipelineResolveFn
-func (pr AggregateResolver) Resolve() (*Pipeline, error) {
+func (pr AggregateResolver) Resolve() (*pipeline.Pipeline, error) {
 	for _, resolve := range pr {
 		p, err := resolve()
 		if err != nil {
@@ -33,6 +37,6 @@ func NewAggregateResolver(resolvers ...PipelineResolverFn) AggregateResolver {
 	return append(resolvers, errorResolver)
 }
 
-func errorResolver() (*Pipeline, error) {
+func errorResolver() (*pipeline.Pipeline, error) {
 	return nil, errors.New("Failed to resolve a pipeline.")
 }
