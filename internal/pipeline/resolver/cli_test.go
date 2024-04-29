@@ -1,9 +1,10 @@
-package build
+package resolver_test
 
 import (
 	"testing"
 
 	"github.com/buildkite/cli/v3/internal/config"
+	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 )
 
 func TestParsePipelineArg(t *testing.T) {
@@ -37,13 +38,33 @@ func TestParsePipelineArg(t *testing.T) {
 			c := config.Config{
 				Organization: "testing",
 			}
-			org, agent := parsePipelineArg(testcase.url, &c)
-			if org != testcase.org {
+			f := resolver.ResolveFromPositionalArgument([]string{testcase.url}, 0, &c)
+			pipeline, err := f()
+			if err != nil {
+				t.Error(err)
+			}
+			if pipeline.Org != testcase.org {
 				t.Error("parsed organization slug did not match expected")
 			}
-			if agent != testcase.pipeline {
+			if pipeline.Name != testcase.pipeline {
 				t.Error("parsed pipeline name did not match expected")
 			}
 		})
 	}
+
+	t.Run("Returns error if failed parsing", func(t *testing.T) {
+		t.Parallel()
+
+		c := config.Config{
+			Organization: "testing",
+		}
+		f := resolver.ResolveFromPositionalArgument([]string{"https://buildkite.com/"}, 0, &c)
+		pipeline, err := f()
+		if err == nil {
+			t.Error("Should have failed parsing pipeline")
+		}
+		if pipeline != nil {
+			t.Error("No pipeline should be returned")
+		}
+	})
 }

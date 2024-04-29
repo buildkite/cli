@@ -39,7 +39,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			var buildAnnotations = make([]buildkite.Annotation, 0)
 			buildId := args[0]
 			resolvers := resolver.NewAggregateResolver(
-				pipelineResolverPositionArg(args[1:], f.Config),
+				resolver.ResolveFromPositionalArgument(args, 1, f.Config),
 				resolver.ResolveFromPath("", f.Config.Organization, f.RestAPIClient),
 			)
 
