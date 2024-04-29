@@ -10,6 +10,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/build"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline"
+	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	tea "github.com/charmbracelet/bubbletea"
@@ -29,15 +30,32 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 		Long: heredoc.Doc(`
 			View a build's information.
 
-			It accepts a build number and a pipeline slug  as an argument.
+			It accepts a build number and a pipeline slug as an argument.
 			The pipeline can be a {pipeline_slug} or in the format {org_slug}/{pipeline_slug}.
+			If the pipeline argument is omitted, it will be resolved using the current directory.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var buildArtifacts = make([]buildkite.Artifact, 0)
 			var buildAnnotations = make([]buildkite.Annotation, 0)
 			buildId := args[0]
-			resolvers := pipeline.NewAggregateResolver(pipelineResolverPositionArg(args[1:], f.Config))
-			pipeline, err := resolvers.Resolve()
+			resolvers := resolver.NewAggregateResolver(
+				pipelineResolverPositionArg(args[1:], f.Config),
+				resolver.ResolveFromPath("", f.Config.Organization, f.RestAPIClient),
+			)
+
+			var pipeline pipeline.Pipeline
+
+			r := io.NewPendingCommand(func() tea.Msg {
+				p, err := resolvers.Resolve()
+				if err != nil {
+					return err
+				}
+				pipeline = *p
+
+				return io.PendingOutput(fmt.Sprintf("Resolved pipeline to: %s", pipeline.Name))
+			}, "Resolving pipeline")
+			p := tea.NewProgram(r)
+			_, err := p.Run()
 			if err != nil {
 				return err
 			}
@@ -86,7 +104,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 				return io.PendingOutput(summary)
 			}, "Loading build information")
 
-			p := tea.NewProgram(l)
+			p = tea.NewProgram(l)
 			_, err = p.Run()
 
 			return err

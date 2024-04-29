@@ -7,6 +7,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline"
+	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	tea "github.com/charmbracelet/bubbletea"
@@ -28,11 +29,26 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 		Long: heredoc.Doc(`
 			Creates a new build for the specified pipeline and output the URL to the build.
 
-			It accepts {pipeline_slug}, {org_slug}/{pipeline_slug} or a full URL to the pipeline as an argument.
+			The pipeline can be a {pipeline_slug} or in the format {org_slug}/{pipeline_slug}.
+			If the pipeline argument is omitted, it will be resolved using the current directory.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resolvers := pipeline.NewAggregateResolver(pipelineResolverPositionArg(args, f.Config))
-			pipeline, err := resolvers.Resolve()
+			resolvers := resolver.NewAggregateResolver(
+				pipelineResolverPositionArg(args, f.Config),
+				resolver.ResolveFromPath("", f.Config.Organization, f.RestAPIClient),
+			)
+			var pipeline pipeline.Pipeline
+			r := io.NewPendingCommand(func() tea.Msg {
+				p, err := resolvers.Resolve()
+				if err != nil {
+					return err
+				}
+				pipeline = *p
+
+				return io.PendingOutput(fmt.Sprintf("Resolved pipeline to: %s", pipeline.Name))
+			}, "Resolving pipeline")
+			p := tea.NewProgram(r)
+			_, err := p.Run()
 			if err != nil {
 				return err
 			}
@@ -48,7 +64,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-func pipelineResolverPositionArg(args []string, conf *config.Config) pipeline.PipelineResolverFn {
+func pipelineResolverPositionArg(args []string, conf *config.Config) resolver.PipelineResolverFn {
 	return func() (*pipeline.Pipeline, error) {
 		// if args does not have values, skip this resolver
 		if len(args) < 1 {

@@ -1,4 +1,4 @@
-package pipeline
+package resolver
 
 import (
 	"net/http"
@@ -23,7 +23,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		gock.InterceptClient(client)
 
 		bkClient := buildkite.NewClient(client)
-		pipelines, err := ResolveFromPath("../..", "testOrg", bkClient)
+		pipelines, err := resolveFromPath("../..", "testOrg", bkClient)
 		if err != nil {
 			t.Errorf("Error: %s", err)
 		}
@@ -46,7 +46,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		gock.InterceptClient(client)
 
 		bkClient := buildkite.NewClient(client)
-		pipelines, err := ResolveFromPath(".", "testOrg", bkClient)
+		pipelines, err := resolveFromPath(".", "testOrg", bkClient)
 		if err != nil {
 			t.Errorf("Error: %s", err)
 		}
@@ -69,7 +69,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		gock.InterceptClient(client)
 
 		bkClient := buildkite.NewClient(client)
-		pipelines, err := ResolveFromPath(".", "testOrg", bkClient)
+		pipelines, err := resolveFromPath(".", "testOrg", bkClient)
 		if err != nil {
 			t.Errorf("Error: %s", err)
 		}
@@ -92,7 +92,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		gock.InterceptClient(client)
 
 		bkClient := buildkite.NewClient(client)
-		pipelines, err := ResolveFromPath(".", "testOrg", bkClient)
+		pipelines, err := resolveFromPath(".", "testOrg", bkClient)
 		if err != nil {
 			t.Errorf("Error: %s", err)
 		}

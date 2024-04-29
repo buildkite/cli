@@ -1,13 +1,31 @@
-package pipeline
+package resolver
 
 import (
 	"strings"
 
+	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	"github.com/go-git/go-git/v5"
 )
 
-func ResolveFromPath(path string, org string, client *buildkite.Client) ([]string, error) {
+func ResolveFromPath(path string, org string, client *buildkite.Client) PipelineResolverFn {
+	return func() (*pipeline.Pipeline, error) {
+		pipelines, err := resolveFromPath(path, org, client)
+		if err != nil {
+			return nil, err
+		}
+		if len(pipelines) == 0 {
+			return nil, nil
+		}
+
+		return &pipeline.Pipeline{
+			Name: pipelines[0],
+			Org:  org,
+		}, nil
+	}
+}
+
+func resolveFromPath(path string, org string, client *buildkite.Client) ([]string, error) {
 	repos, err := getRepoURLs(path)
 	if err != nil {
 		return nil, err
