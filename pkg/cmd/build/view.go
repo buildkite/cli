@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/MakeNowJust/heredoc"
+	"github.com/buildkite/cli/v3/internal/annotation"
 	"github.com/buildkite/cli/v3/internal/artifact"
 	"github.com/buildkite/cli/v3/internal/build"
 	"github.com/buildkite/cli/v3/internal/io"
@@ -35,6 +36,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var buildArtifacts = make([]buildkite.Artifact, 0)
+			var buildAnnotations = make([]buildkite.Annotation, 0)
 			buildId := args[0]
 			resolvers := resolver.NewAggregateResolver(
 				pipelineResolverPositionArg(args[1:], f.Config),
@@ -60,13 +62,17 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 
 			l := io.NewPendingCommand(func() tea.Msg {
 				var buildUrl string
-
 				b, _, err := f.RestAPIClient.Builds.Get(pipeline.Org, pipeline.Name, buildId, &buildkite.BuildsListOptions{})
-
 				if err != nil {
 					return err
 				}
+
 				buildArtifacts, _, err = f.RestAPIClient.Artifacts.ListByBuild(pipeline.Org, pipeline.Name, buildId, &buildkite.ArtifactListOptions{})
+				if err != nil {
+					return err
+				}
+
+				buildAnnotations, _, err = f.RestAPIClient.Annotations.ListByBuild(pipeline.Org, pipeline.Name, buildId, &buildkite.AnnotationListOptions{})
 				if err != nil {
 					return err
 				}
@@ -87,6 +93,12 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 					summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Render("\nArtifacts")
 					for _, a := range buildArtifacts {
 						summary += artifact.ArtifactSummary(&a)
+					}
+				}
+				if len(buildAnnotations) > 0 {
+					summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Render("\nAnnotations")
+					for _, a := range buildAnnotations {
+						summary += annotation.AnnotationSummary(&a)
 					}
 				}
 				return io.PendingOutput(summary)
