@@ -47,9 +47,12 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 				return io.PendingOutput(fmt.Sprintf("Resolved pipeline to: %s", pipeline.Name))
 			}, "Resolving pipeline")
 			p := tea.NewProgram(r)
-			_, err := p.Run()
+			finalModel, err := p.Run()
 			if err != nil {
 				return err
+			}
+			if finalModel.(io.Pending).Err != nil {
+				return finalModel.(io.Pending).Err
 			}
 			return newBuild(pipeline.Org, pipeline.Name, f, message, commit, branch, web)
 		},
