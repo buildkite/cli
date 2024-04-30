@@ -34,6 +34,7 @@ func resolveFromPath(path string, org string, client *buildkite.Client) ([]strin
 }
 
 func filterPipelines(repoURLs []string, org string, client *buildkite.Client) ([]string, error) {
+
 	var currentPipelines []string
 	page := 1
 	per_page := 30
