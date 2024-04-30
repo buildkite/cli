@@ -12,10 +12,11 @@ type PendingOutput string
 // Pending is used to show a loading spinner while a long running function runs to perform some action and output
 // information
 type Pending struct {
-	spinner  spinner.Model
-	quitting bool
+	Err      error
 	fn       tea.Cmd
 	output   string
+	quitting bool
+	spinner  spinner.Model
 }
 
 // Init implements tea.Model.
@@ -46,6 +47,7 @@ func (p Pending) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case error: // an error occurred somewhere. show the error and exit
 		p.quitting = true
 		p.output = "Error: " + msg.Error()
+		p.Err = msg
 		return p, tea.Quit
 	default: // start/update the spinner
 		var cmd tea.Cmd

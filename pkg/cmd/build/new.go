@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc"
-	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
@@ -34,7 +33,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			resolvers := resolver.NewAggregateResolver(
-				pipelineResolverPositionArg(args, f.Config),
+				resolver.ResolveFromPositionalArgument(args, 0, f.Config),
 				resolver.ResolveFromPath("", f.Config.Organization, f.RestAPIClient),
 			)
 			var pipeline pipeline.Pipeline
@@ -48,9 +47,12 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 				return io.PendingOutput(fmt.Sprintf("Resolved pipeline to: %s", pipeline.Name))
 			}, "Resolving pipeline")
 			p := tea.NewProgram(r)
-			_, err := p.Run()
+			finalModel, err := p.Run()
 			if err != nil {
 				return err
+			}
+			if finalModel.(io.Pending).Err != nil {
+				return finalModel.(io.Pending).Err
 			}
 			return newBuild(pipeline.Org, pipeline.Name, f, message, commit, branch, web)
 		},
@@ -62,24 +64,6 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the build in a web browser after it has been created.")
 	cmd.Flags().SortFlags = false
 	return &cmd
-}
-
-func pipelineResolverPositionArg(args []string, conf *config.Config) resolver.PipelineResolverFn {
-	return func() (*pipeline.Pipeline, error) {
-		// if args does not have values, skip this resolver
-		if len(args) < 1 {
-			return nil, nil
-		}
-
-		org, name := parsePipelineArg(args[0], conf)
-		// if we could not parse the pipeline from the arg then return no pipeline or error, to pass indicate to pass to
-		// the next resolver in the chain
-		if org == "" || name == "" {
-			return nil, nil
-		}
-
-		return &pipeline.Pipeline{Name: name, Org: org}, nil
-	}
 }
 
 func newBuild(org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool) error {
