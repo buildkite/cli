@@ -7,6 +7,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline"
+	"github.com/buildkite/cli/v3/internal/pipelines"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	tea "github.com/charmbracelet/bubbletea"
@@ -31,7 +32,10 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 			It accepts {pipeline_slug}, {org_slug}/{pipeline_slug} or a full URL to the pipeline as an argument.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resolvers := pipeline.NewAggregateResolver(pipelineResolverPositionArg(args, f.Config))
+			resolvers := pipeline.NewAggregateResolver(
+				pipelineResolverPositionArg(args, f.Config),
+				pipelines.PipelineResolverFromConfig(f.LocalConfig),
+			)
 			pipeline, err := resolvers.Resolve()
 			if err != nil {
 				return err
@@ -51,11 +55,11 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 func pipelineResolverPositionArg(args []string, conf *config.Config) pipeline.PipelineResolverFn {
 	return func() (*pipeline.Pipeline, error) {
 		// if args does not have values, skip this resolver
-		if len(args) < 1 {
+		if len(args) < 2 {
 			return nil, nil
 		}
 
-		org, name := parsePipelineArg(args[0], conf)
+		org, name := parsePipelineArg(args[1], conf)
 		// if we could not parse the pipeline from the arg then return no pipeline or error, to pass indicate to pass to
 		// the next resolver in the chain
 		if org == "" || name == "" {

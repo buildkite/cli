@@ -24,6 +24,7 @@ func New(version string) *Factory {
 	factoryConfig := loadFromViper()
 	client := httpClient(version, factoryConfig)
 	projectConfig, err := config.LoadProjectConfig()
+	localConfig := config.LoadLocalConfig(factoryConfig.Organization)
 
 	if err != nil {
 		fmt.Printf("Error loading project config: %s", err)
@@ -35,7 +36,7 @@ func New(version string) *Factory {
 		RestAPIClient: buildkite.NewClient(client),
 		Version:       version,
 		ProjectConfig: projectConfig,
-		LocalConfig:   &config.LocalConfig{},
+		LocalConfig:   localConfig,
 	}
 }
 

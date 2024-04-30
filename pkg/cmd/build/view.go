@@ -8,6 +8,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/build"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline"
+	"github.com/buildkite/cli/v3/internal/pipelines"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	tea "github.com/charmbracelet/bubbletea"
@@ -31,11 +32,15 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			buildId := args[0]
-			resolvers := pipeline.NewAggregateResolver(pipelineResolverPositionArg(args, f.Config))
+			resolvers := pipeline.NewAggregateResolver(
+				pipelineResolverPositionArg(args, f.Config),
+				pipelines.PipelineResolverFromConfig(f.LocalConfig),
+			)
 			pipeline, err := resolvers.Resolve()
 			if err != nil {
 				return err
 			}
+			fmt.Println("Resloved pipeline: ", pipeline.Name, pipeline.Org)
 
 			l := io.NewPendingCommand(func() tea.Msg {
 				var buildUrl string
