@@ -29,7 +29,7 @@ func ResolveFromConfig(c *config.LocalConfig) PipelineResolverFn {
 		}
 
 		if !defaultExists { //add default pipeline to the list of pipelines
-			pipelines = append([]string{defaultPipeline}, pipelines...)
+			pipelines = append(pipelines, defaultPipeline)
 		}
 
 		selected, err := pipeline.RenderOptions(defaultPipeline, pipelines)
