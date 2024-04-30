@@ -36,6 +36,8 @@ services:
     working_dir: /go/src/github.com/buildkite/cli
     volumes:
       - ..:/go/src/github.com/buildkite/cli
+    environment:
+      - GITHUB_TOKEN
     command:
       - release
       - --clean
