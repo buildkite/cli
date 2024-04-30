@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/buildkite/cli/v3/internal/build"
+	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/root"
 )
@@ -17,7 +17,7 @@ func main() {
 
 func mainRun() int {
 	ctx := context.Background()
-	f := factory.New(build.Version)
+	f := factory.New(version.Version)
 
 	rootCmd, err := root.NewCmdRoot(f)
 	if err != nil {
