@@ -1,14 +1,36 @@
-package pipelines
+package resolver
 
 import (
 	"strings"
 
+	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	"github.com/go-git/go-git/v5"
 )
 
+<<<<<<<< HEAD:internal/pipeline/resolver/resolverfrompath.go
 func ResolveFromPath(path string, org string, client *buildkite.Client) ([]string, error) {
 
+========
+func ResolveFromPath(path string, org string, client *buildkite.Client) PipelineResolverFn {
+	return func() (*pipeline.Pipeline, error) {
+		pipelines, err := resolveFromPath(path, org, client)
+		if err != nil {
+			return nil, err
+		}
+		if len(pipelines) == 0 {
+			return nil, nil
+		}
+
+		return &pipeline.Pipeline{
+			Name: pipelines[0],
+			Org:  org,
+		}, nil
+	}
+}
+
+func resolveFromPath(path string, org string, client *buildkite.Client) ([]string, error) {
+>>>>>>>> 3.x:internal/pipeline/resolver/path.go
 	repos, err := getRepoURLs(path)
 	if err != nil {
 		return nil, err
@@ -38,7 +60,6 @@ func filterPipelines(repoURLs []string, org string, client *buildkite.Client) ([
 				gitUrl := u[strings.LastIndex(u, "/")+1:]
 				if strings.Contains(*p.Repository, gitUrl) {
 					currentPipelines = append(currentPipelines, *p.Slug)
-
 				}
 			}
 		}
@@ -56,7 +77,7 @@ func getRepoURLs(path string) ([]string, error) {
 	if len(path) > 0 {
 		searchPath = path
 	}
-	r, err := git.PlainOpenWithOptions(searchPath, &git.PlainOpenOptions{DetectDotGit: true})
+	r, err := git.PlainOpenWithOptions(searchPath, &git.PlainOpenOptions{DetectDotGit: true, EnableDotGitCommonDir: true})
 	if err != nil {
 		return nil, err
 	}

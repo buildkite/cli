@@ -6,7 +6,7 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline"
-	"github.com/buildkite/cli/v3/internal/pipelines"
+	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -24,23 +24,38 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 			Cancels the specified build.
 
 			It accepts a build number and a pipeline slug  as an argument.
-			The pipeline can be a {pipeline_slug}, {org_slug}/{pipeline_slug} or a full URL to the pipeline.
+			The pipeline can be a {pipeline_slug} or in the format {org_slug}/{pipeline_slug}.
+			If the pipeline argument is omitted, it will be resolved using the current directory.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			buildId := args[0]
-			resolvers := pipeline.NewAggregateResolver(
-				pipelineResolverPositionArg(args, f.Config),
-				pipelines.PipelineResolverFromConfig(f.LocalConfig),
+			resolvers := resolver.NewAggregateResolver(
+				resolver.ResolveFromPositionalArgument(args, 1, f.Config),
+				resolver.ResolveFromPath("", f.Config.Organization, f.RestAPIClient),
 			)
-			pipeline, err := resolvers.Resolve()
+			var pipeline pipeline.Pipeline
+			r := io.NewPendingCommand(func() tea.Msg {
+				p, err := resolvers.Resolve()
+				if err != nil {
+					return err
+				}
+				pipeline = *p
+
+				return io.PendingOutput(fmt.Sprintf("Resolved pipeline to: %s", pipeline.Name))
+			}, "Resolving pipeline")
+			p := tea.NewProgram(r)
+			finalModel, err := p.Run()
 			if err != nil {
 				return err
+			}
+			if finalModel.(io.Pending).Err != nil {
+				return finalModel.(io.Pending).Err
 			}
 			return cancelBuild(pipeline.Org, pipeline.Name, buildId, web, f)
 		},
 	}
 
-	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the build in a web browser after it has been created.")
+	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the build in a web browser after it has been cancelled.")
 	cmd.Flags().SortFlags = false
 	return &cmd
 }

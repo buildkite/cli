@@ -1,0 +1,13 @@
+steps:
+  - label: release
+    artifact_paths:
+      - dist/**/*
+    plugins:
+      - aws-assume-role-with-web-identity:
+          role-arn: arn:aws:iam::445615400570:role/pipeline-buildkite-buildkite-cli-release
+      - aws-ssm#v1.0.0:
+          parameters:
+            GITHUB_TOKEN: /pipelines/buildkite/buildkite-cli-release/github-token
+      - docker-compose#v5.2.0:
+          run: build
+          config: .buildkite/docker-compose.yaml

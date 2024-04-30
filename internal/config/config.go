@@ -10,6 +10,7 @@ import (
 
 const (
 	APITokenConfigKey          = "api_token"
+	OpenAIAPITokenConfigKey    = "openai_api_token"
 	OrganizationsSlugConfigKey = "organizations"
 	SelectedOrgKey             = "selected_org"
 )
@@ -32,12 +33,17 @@ const (
 //	  buildkite-oss:
 //	    api_token: <token>
 type Config struct {
-	Organization string
-	APIToken     string
-	V            ViperConfig
+	APIToken       string
+	OpenAIAPIToken string
+	Organization   string
+	V              ViperConfig
 }
 
 type ProjectConfig struct {
+	Pipeline string `yaml:"pipeline"`
+}
+
+type LocalConfig struct {
 	Pipeline string `yaml:"pipeline"`
 }
 
@@ -53,11 +59,13 @@ func (conf *Config) merge() {
 		APITokenConfigKey: conf.APIToken,
 	}
 	conf.V.Set(OrganizationsSlugConfigKey, orgs)
+	conf.V.Set(OpenAIAPITokenConfigKey, conf.OpenAIAPIToken)
 }
 
 // Save sets the current config values into viper and writes the config file
 func (conf *Config) Save() error {
 	conf.V.Set(SelectedOrgKey, conf.Organization)
+	conf.V.Set(OpenAIAPITokenConfigKey, conf.OpenAIAPIToken)
 	conf.merge()
 
 	return conf.V.WriteConfig()
@@ -88,10 +96,10 @@ func LoadProjectConfig() (*ProjectConfig, error) {
 	currentDirName := filepath.Base(dir)
 
 	var configFile string
-	if _, err := os.Stat("buildkite.yaml"); err == nil {
-		configFile = "buildkite.yaml"
-	} else if _, err := os.Stat("buildkite.yml"); err == nil {
-		configFile = "buildkite.yml"
+	if _, err := os.Stat(".bk.yaml"); err == nil {
+		configFile = ".bk.yaml"
+	} else if _, err := os.Stat(".bk.yml"); err == nil {
+		configFile = ".bk.yml"
 	}
 
 	// If a configuration file is found, try to read and parse it
@@ -117,7 +125,7 @@ func LoadProjectConfig() (*ProjectConfig, error) {
 }
 
 func writePipelineToBuildkiteYAML(projectConfig *ProjectConfig) (*ProjectConfig, error) {
-	configFilePath := "buildkite.yaml"
+	configFilePath := ".bk.yaml"
 
 	configData := make(map[string]interface{})
 	// Attempt to read the existing buildkite.yaml file
@@ -149,4 +157,35 @@ func writePipelineToBuildkiteYAML(projectConfig *ProjectConfig) (*ProjectConfig,
 	}
 
 	return projectConfig, nil
+}
+
+// Local config .bk.yaml or .bk.yml may or may not exist. Load it if it does.
+func (config *LocalConfig) Read() error {
+
+	var configFile string
+	if _, err := os.Stat(".bk.yaml"); err == nil {
+		configFile = ".bk.yaml"
+	} else if _, err := os.Stat(".bk.yml"); err == nil {
+		configFile = ".bk.yml"
+	}
+
+	// If a configuration file is found, try to read and parse it
+	if configFile != "" {
+		yamlFile, err := os.ReadFile(configFile)
+		if err != nil {
+			return err
+		}
+
+		err = yaml.Unmarshal(yamlFile, config)
+		if err != nil {
+			return err
+		}
+
+		// Check if the "pipeline" key is already set
+		if config.Pipeline != "" {
+			return nil // Pipeline is already defined
+		}
+
+	}
+	return nil
 }
