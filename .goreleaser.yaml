@@ -8,6 +8,9 @@ release:
   make_latest: false
   mode: replace
 
+changelog:
+  use: github
+
 builds:
   - id: macos
     goos: [darwin]
