@@ -28,6 +28,5 @@ services:
     volumes:
       - ..:/go/src/github.com/buildkite/cli
     command:
-      - build
-      - --snapshot
+      - release
       - --clean
