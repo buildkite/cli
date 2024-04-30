@@ -19,6 +19,7 @@ func RenderOptions(defaultPipeline string, pipelines []string) (string, error) {
 	err := huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[string]().
+				Title("Select a pipeline").
 				Options(options...).
 				Value(&choice),
 		),

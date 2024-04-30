@@ -16,7 +16,7 @@ func ResolveFromPositionalArgument(args []string, index int, conf *config.Config
 			return nil, nil
 		}
 		// if the index is out of bounds
-		if len(args) < index {
+		if (len(args) - 1) < index {
 			return nil, nil
 		}
 
@@ -25,7 +25,7 @@ func ResolveFromPositionalArgument(args []string, index int, conf *config.Config
 		// if we get here, we should be able to parse the value and return an error if not
 		// this is because a user has explicitly given an input value for us to use - we shoulnt ignore it on error
 		if org == "" || name == "" {
-			return nil, fmt.Errorf("Not able to parse the input pipeline argument: \"%s\"", args[index])
+			return nil, fmt.Errorf("unable to parse the input pipeline argument: \"%s\"", args[index])
 		}
 
 		return &pipeline.Pipeline{Name: name, Org: org}, nil

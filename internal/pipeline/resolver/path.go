@@ -8,10 +8,6 @@ import (
 	"github.com/go-git/go-git/v5"
 )
 
-<<<<<<<< HEAD:internal/pipeline/resolver/resolverfrompath.go
-func ResolveFromPath(path string, org string, client *buildkite.Client) ([]string, error) {
-
-========
 func ResolveFromPath(path string, org string, client *buildkite.Client) PipelineResolverFn {
 	return func() (*pipeline.Pipeline, error) {
 		pipelines, err := resolveFromPath(path, org, client)
@@ -30,7 +26,6 @@ func ResolveFromPath(path string, org string, client *buildkite.Client) Pipeline
 }
 
 func resolveFromPath(path string, org string, client *buildkite.Client) ([]string, error) {
->>>>>>>> 3.x:internal/pipeline/resolver/path.go
 	repos, err := getRepoURLs(path)
 	if err != nil {
 		return nil, err

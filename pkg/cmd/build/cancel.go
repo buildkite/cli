@@ -32,6 +32,7 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 			resolvers := resolver.NewAggregateResolver(
 				resolver.ResolveFromPositionalArgument(args, 1, f.Config),
 				resolver.ResolveFromPath("", f.Config.Organization, f.RestAPIClient),
+				resolver.ResolveFromConfig(f.LocalConfig),
 			)
 			var pipeline pipeline.Pipeline
 			r := io.NewPendingCommand(func() tea.Msg {

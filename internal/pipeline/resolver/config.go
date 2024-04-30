@@ -1,25 +1,45 @@
 package resolver
 
 import (
-	"fmt"
-	"strings"
-
-	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/internal/config"
+	"github.com/buildkite/cli/v3/internal/pipeline"
 )
 
-func ResolveFromConfig(f *factory.Factory) ([]string, error) {
+func ResolveFromConfig(c *config.LocalConfig) PipelineResolverFn {
+	return func() (*pipeline.Pipeline, error) {
 
-	var localPipelines []string
-	// check if there is a local config file
-	err := f.LocalConfig.Read()
-	if err != nil {
-		fmt.Printf("Error reading local config: %s", err)
-		return nil, err
+		var pipelines []string
+		var defaultPipeline string
+
+		defaultPipeline = c.DefaultPipeline
+		if defaultPipeline == "" && len(c.Pipelines) == 0 {
+			return nil, nil
+		}
+
+		if defaultPipeline == "" && len(c.Pipelines) >= 1 {
+			defaultPipeline = c.Pipelines[0]
+		}
+
+		defaultExists := false
+		for _, opt := range c.Pipelines {
+			if defaultPipeline == opt {
+				defaultExists = true
+			}
+			pipelines = append(pipelines, opt)
+		}
+
+		if !defaultExists { //add default pipeline to the list of pipelines
+			pipelines = append([]string{defaultPipeline}, pipelines...)
+		}
+
+		selected, err := pipeline.RenderOptions(defaultPipeline, pipelines)
+		if err != nil {
+			return nil, err
+		}
+
+		return &pipeline.Pipeline{
+			Name: selected,
+			Org:  c.Organization,
+		}, nil
 	}
-	// if there is a pipeline defined in the local config, return it
-	if len(f.LocalConfig.Pipeline) > 0 {
-		//assume pipelines are comma separated - final format TBD
-		localPipelines = strings.Split(f.LocalConfig.Pipeline, ",")
-	}
-	return localPipelines, nil
 }
