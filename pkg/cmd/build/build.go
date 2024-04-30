@@ -55,5 +55,3 @@ func renderResult(result string) string {
 	return lipgloss.JoinVertical(lipgloss.Top,
 		lipgloss.NewStyle().Padding(1, 1).Render(result))
 }
-
-func 
