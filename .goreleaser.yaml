@@ -2,6 +2,11 @@ project_name: bk
 
 release:
   name_template: Buildkite CLI {{.Version}}
+  draft: true
+  replace_existing_draft: true
+  prerelease: auto
+  make_latest: false
+  mode: replace
 
 builds:
   - id: macos
