@@ -9,5 +9,5 @@ steps:
           parameters:
             GITHUB_TOKEN: /pipelines/buildkite/buildkite-cli-release/github-token
       - docker-compose#v5.2.0:
-          run: build
+          run: release
           config: .buildkite/docker-compose.yaml
