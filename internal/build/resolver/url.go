@@ -1,14 +1,16 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 
 	"github.com/buildkite/cli/v3/internal/build"
+	"github.com/buildkite/cli/v3/internal/pipeline"
 )
 
-func ResolveFromURL(args []string) build.BuildResolverFn {
-	return func() (*build.Build, error) {
+func ResolveFromURL(args []string) BuildResolverFn {
+	return func(context.Context, pipeline.Pipeline) (*build.Build, error) {
 		if len(args) != 1 {
 			return nil, fmt.Errorf("Incorrect number of arguments, expected 1, got %d", len(args))
 		}
