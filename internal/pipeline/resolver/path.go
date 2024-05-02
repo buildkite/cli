@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"strings"
 
 	"github.com/buildkite/cli/v3/internal/pipeline"
@@ -9,7 +10,7 @@ import (
 )
 
 func ResolveFromPath(path string, org string, client *buildkite.Client) PipelineResolverFn {
-	return func() (*pipeline.Pipeline, error) {
+	return func(context.Context) (*pipeline.Pipeline, error) {
 		pipelines, err := resolveFromPath(path, org, client)
 		if err != nil {
 			return nil, err

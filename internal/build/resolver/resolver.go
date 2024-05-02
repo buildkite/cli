@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/buildkite/cli/v3/internal/build"
-	"github.com/buildkite/cli/v3/internal/pipeline"
 )
 
 var resolved bool
@@ -15,9 +14,7 @@ var resolvedError error
 // BuildResolverFn is a function for finding a build. It returns an error if an irrecoverable scenario happens and
 // should halt execution. Otherwise, if the resolver does not find a build, it should return (nil, nil) to indicate
 // this. ie. no error occurred, but no build was found either
-//
-// Some build resolvers may need to limit scope to a pipeline so that is provided to the resolver at runtime
-type BuildResolverFn func(context.Context, pipeline.Pipeline) (*build.Build, error)
+type BuildResolverFn func(context.Context) (*build.Build, error)
 
 type AggregateResolver []BuildResolverFn
 
@@ -26,7 +23,7 @@ type AggregateResolver []BuildResolverFn
 // BuildResolverFn
 //
 // This is safe to call multiple times, the same result will be returned
-func (ar AggregateResolver) Resolve(ctx context.Context, p pipeline.Pipeline) (*build.Build, error) {
+func (ar AggregateResolver) Resolve(ctx context.Context) (*build.Build, error) {
 	// short-circuit if this has been called before
 	if resolved {
 		return resolvedBuild, resolvedError
@@ -35,7 +32,7 @@ func (ar AggregateResolver) Resolve(ctx context.Context, p pipeline.Pipeline) (*
 	resolved = true
 
 	for _, resolve := range ar {
-		b, err := resolve(ctx, p)
+		b, err := resolve(ctx)
 		if err != nil {
 			resolvedError = err
 			return nil, err
@@ -55,6 +52,6 @@ func NewAggregateResolver(resolvers ...BuildResolverFn) AggregateResolver {
 	return append(resolvers, errorResolver)
 }
 
-func errorResolver(context.Context, pipeline.Pipeline) (*build.Build, error) {
+func errorResolver(context.Context) (*build.Build, error) {
 	return nil, errors.New("Failed to find a build.")
 }

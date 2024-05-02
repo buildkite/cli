@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strings"
@@ -10,7 +11,7 @@ import (
 )
 
 func ResolveFromPositionalArgument(args []string, index int, conf *config.Config) PipelineResolverFn {
-	return func() (*pipeline.Pipeline, error) {
+	return func(context.Context) (*pipeline.Pipeline, error) {
 		// if args does not have values, skip this resolver
 		if len(args) < 1 {
 			return nil, nil
