@@ -7,10 +7,6 @@ import (
 	"github.com/buildkite/cli/v3/internal/build"
 )
 
-var resolved bool
-var resolvedBuild *build.Build
-var resolvedError error
-
 // BuildResolverFn is a function for finding a build. It returns an error if an irrecoverable scenario happens and
 // should halt execution. Otherwise, if the resolver does not find a build, it should return (nil, nil) to indicate
 // this. ie. no error occurred, but no build was found either
@@ -24,21 +20,12 @@ type AggregateResolver []BuildResolverFn
 //
 // This is safe to call multiple times, the same result will be returned
 func (ar AggregateResolver) Resolve(ctx context.Context) (*build.Build, error) {
-	// short-circuit if this has been called before
-	if resolved {
-		return resolvedBuild, resolvedError
-	}
-
-	resolved = true
-
 	for _, resolve := range ar {
 		b, err := resolve(ctx)
 		if err != nil {
-			resolvedError = err
 			return nil, err
 		}
 		if b != nil {
-			resolvedBuild = b
 			return b, nil
 		}
 	}
