@@ -10,6 +10,7 @@ import (
 
 const (
 	APITokenConfigKey          = "api_token"
+	DefaultGraphQLEndpoint     = "https://graphql.buildkite.com/v1"
 	OpenAIAPITokenConfigKey    = "openai_api_token"
 	OrganizationsSlugConfigKey = "organizations"
 	SelectedOrgKey             = "selected_org"
