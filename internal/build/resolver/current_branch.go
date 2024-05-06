@@ -19,7 +19,7 @@ func ResolveBuildFromCurrentBranch(branch string, pipelineResolver pipelineResol
 			return nil, err
 		}
 		if pipeline == nil {
-			return nil, fmt.Errorf("Failed to resolve a pipeline (%s) to query builds on.", pipeline.Name)
+			return nil, fmt.Errorf("Failed to resolve a pipeline to query builds on.")
 		}
 
 		b, err := graphql.RecentBuildsForBranch(ctx, f.GraphQLClient, branch, fmt.Sprintf("%s/%s", pipeline.Org, pipeline.Name))
