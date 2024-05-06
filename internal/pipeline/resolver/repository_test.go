@@ -4,7 +4,10 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/buildkite/cli/v3/internal/config"
+	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/go-git/go-git/v5"
 	"github.com/h2non/gock"
 )
 
@@ -12,6 +15,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	t.Parallel()
 
 	t.Run("path has no repo URL", func(t *testing.T) {
+		t.Parallel()
 		defer gock.Off()
 
 		gock.New("https://api.buildkite.com/v2/organizations/testOrg").
@@ -23,17 +27,25 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		gock.InterceptClient(client)
 
 		bkClient := buildkite.NewClient(client)
-		pipelines, err := resolveFromPath("../..", "testOrg", bkClient)
+		f := factory.Factory{
+			Config: &config.Config{
+				Organization: "testOrg",
+			},
+			GitRepository: testRepository(),
+			HttpClient:    client,
+			RestAPIClient: bkClient,
+		}
+		pipelines, err := resolveFromRepository(&f)
 		if err != nil {
 			t.Errorf("Error: %s", err)
 		}
 		if len(pipelines) != 0 {
 			t.Errorf("Expected 0 pipeline, got %d", len(pipelines))
 		}
-
 	})
 
 	t.Run("no pipelines found", func(t *testing.T) {
+		t.Parallel()
 
 		defer gock.Off()
 
@@ -46,7 +58,15 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		gock.InterceptClient(client)
 
 		bkClient := buildkite.NewClient(client)
-		pipelines, err := resolveFromPath(".", "testOrg", bkClient)
+		f := factory.Factory{
+			Config: &config.Config{
+				Organization: "testOrg",
+			},
+			RestAPIClient: bkClient,
+			HttpClient:    client,
+			GitRepository: testRepository(),
+		}
+		pipelines, err := resolveFromRepository(&f)
 		if err != nil {
 			t.Errorf("Error: %s", err)
 		}
@@ -57,6 +77,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	})
 
 	t.Run("one pipeline", func(t *testing.T) {
+		t.Parallel()
 
 		defer gock.Off()
 
@@ -69,7 +90,15 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		gock.InterceptClient(client)
 
 		bkClient := buildkite.NewClient(client)
-		pipelines, err := resolveFromPath(".", "testOrg", bkClient)
+		f := factory.Factory{
+			Config: &config.Config{
+				Organization: "testOrg",
+			},
+			RestAPIClient: bkClient,
+			HttpClient:    client,
+			GitRepository: testRepository(),
+		}
+		pipelines, err := resolveFromRepository(&f)
 		if err != nil {
 			t.Errorf("Error: %s", err)
 		}
@@ -79,6 +108,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	})
 
 	t.Run("multiple pipelines", func(t *testing.T) {
+		t.Parallel()
 
 		defer gock.Off()
 
@@ -92,7 +122,15 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		gock.InterceptClient(client)
 
 		bkClient := buildkite.NewClient(client)
-		pipelines, err := resolveFromPath(".", "testOrg", bkClient)
+		f := factory.Factory{
+			Config: &config.Config{
+				Organization: "testOrg",
+			},
+			RestAPIClient: bkClient,
+			HttpClient:    client,
+			GitRepository: testRepository(),
+		}
+		pipelines, err := resolveFromRepository(&f)
 		if err != nil {
 			t.Errorf("Error: %s", err)
 		}
@@ -100,5 +138,9 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 			t.Errorf("Expected 2 pipeline, got %d", len(pipelines))
 		}
 	})
+}
 
+func testRepository() *git.Repository {
+	repo, _ := git.PlainOpenWithOptions("../..", &git.PlainOpenOptions{DetectDotGit: true, EnableDotGitCommonDir: true})
+	return repo
 }

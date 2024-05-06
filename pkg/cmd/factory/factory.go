@@ -9,15 +9,17 @@ import (
 	"github.com/buildkite/cli/v3/internal/api"
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/go-git/go-git/v5"
 	"github.com/spf13/viper"
 )
 
 type Factory struct {
 	Config        *config.Config
-	ProjectConfig *config.ProjectConfig
-	LocalConfig   *config.LocalConfig
-	HttpClient    *http.Client
+	GitRepository *git.Repository
 	GraphQLClient graphql.Client
+	HttpClient    *http.Client
+	LocalConfig   *config.LocalConfig
+	ProjectConfig *config.ProjectConfig
 	RestAPIClient *buildkite.Client
 	Version       string
 }
@@ -32,14 +34,17 @@ func New(version string) *Factory {
 		fmt.Printf("Error loading project config: %s", err)
 	}
 
+	repo, _ := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{DetectDotGit: true, EnableDotGitCommonDir: true})
+
 	return &Factory{
 		Config:        factoryConfig,
-		HttpClient:    client,
+		GitRepository: repo,
 		GraphQLClient: graphql.NewClient(config.DefaultGraphQLEndpoint, client),
+		HttpClient:    client,
+		LocalConfig:   localConfig,
+		ProjectConfig: projectConfig,
 		RestAPIClient: buildkite.NewClient(client),
 		Version:       version,
-		ProjectConfig: projectConfig,
-		LocalConfig:   localConfig,
 	}
 }
 
