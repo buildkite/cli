@@ -23,7 +23,18 @@ require (
 )
 
 require (
+	github.com/agnivade/levenshtein v1.1.1 // indirect
+	github.com/alexflint/go-arg v1.4.2 // indirect
+	github.com/alexflint/go-scalar v1.0.0 // indirect
+	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
+	github.com/vektah/gqlparser v1.3.1 // indirect
+	github.com/vektah/gqlparser/v2 v2.5.11 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
+)
+
+require (
 	dario.cat/mergo v1.0.0 // indirect
+	github.com/Khan/genqlient v0.7.1-0.20240405163908-3da9a0f905b3
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/ProtonMail/go-crypto v1.0.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
@@ -72,6 +83,7 @@ require (
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
+	github.com/suessflorian/gqlfetch v0.6.0
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect

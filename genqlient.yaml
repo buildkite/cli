@@ -1,0 +1,8 @@
+schema: schema.graphql
+
+operations:
+  - internal/**/*.graphql
+
+optional: pointer
+
+generated: internal/graphql/generated.go

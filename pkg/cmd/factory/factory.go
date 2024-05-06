@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"runtime"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/buildkite/cli/v3/internal/api"
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
@@ -16,6 +17,7 @@ type Factory struct {
 	ProjectConfig *config.ProjectConfig
 	LocalConfig   *config.LocalConfig
 	HttpClient    *http.Client
+	GraphQLClient graphql.Client
 	RestAPIClient *buildkite.Client
 	Version       string
 }
@@ -33,6 +35,7 @@ func New(version string) *Factory {
 	return &Factory{
 		Config:        factoryConfig,
 		HttpClient:    client,
+		GraphQLClient: graphql.NewClient(config.DefaultGraphQLEndpoint, client),
 		RestAPIClient: buildkite.NewClient(client),
 		Version:       version,
 		ProjectConfig: projectConfig,
