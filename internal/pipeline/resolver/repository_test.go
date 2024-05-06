@@ -15,7 +15,6 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	t.Parallel()
 
 	t.Run("path has no repo URL", func(t *testing.T) {
-		t.Parallel()
 		defer gock.Off()
 
 		gock.New("https://api.buildkite.com/v2/organizations/testOrg").
@@ -45,8 +44,6 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	})
 
 	t.Run("no pipelines found", func(t *testing.T) {
-		t.Parallel()
-
 		defer gock.Off()
 
 		gock.New("https://api.buildkite.com/v2/organizations/testOrg").
@@ -77,8 +74,6 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	})
 
 	t.Run("one pipeline", func(t *testing.T) {
-		t.Parallel()
-
 		defer gock.Off()
 
 		gock.New("https://api.buildkite.com/v2/organizations/testOrg").
@@ -108,8 +103,6 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	})
 
 	t.Run("multiple pipelines", func(t *testing.T) {
-		t.Parallel()
-
 		defer gock.Off()
 
 		gock.New("https://api.buildkite.com/v2/organizations/testOrg").
