@@ -31,7 +31,7 @@ func main() {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		fmt.Printf("Written schema to %s\n", schemaFile)
+		fmt.Printf("Schema written to %s\n", schemaFile)
 	}
 
 	fmt.Println("Generating GraphQL code")
