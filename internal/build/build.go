@@ -3,5 +3,5 @@ package build
 type Build struct {
 	Organization string
 	Pipeline     string
-	BuildNumber  string
+	BuildNumber  int
 }
