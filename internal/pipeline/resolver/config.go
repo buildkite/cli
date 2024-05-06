@@ -1,12 +1,14 @@
 package resolver
 
 import (
+	"context"
+
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/internal/pipeline"
 )
 
 func ResolveFromConfig(c *config.LocalConfig) PipelineResolverFn {
-	return func() (*pipeline.Pipeline, error) {
+	return func(context.Context) (*pipeline.Pipeline, error) {
 
 		var pipelines []string
 		var defaultPipeline string

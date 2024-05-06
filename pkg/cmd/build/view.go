@@ -1,6 +1,7 @@
 package build
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -47,7 +48,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			var pipeline pipeline.Pipeline
 
 			r := io.NewPendingCommand(func() tea.Msg {
-				p, err := resolvers.Resolve()
+				p, err := resolvers.Resolve(context.Background())
 				if err != nil {
 					return err
 				}

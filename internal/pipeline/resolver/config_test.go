@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"testing"
 
 	"github.com/buildkite/cli/v3/internal/config"
@@ -14,7 +15,7 @@ func TestResolvePipelineFromConfig(t *testing.T) {
 		}
 
 		resolve := ResolveFromConfig(&l)
-		selected, err := resolve()
+		selected, err := resolve(context.Background())
 		if err != nil {
 			t.Errorf("failed to resolve from config")
 		}
@@ -33,7 +34,7 @@ func TestResolvePipelineFromConfig(t *testing.T) {
 		}
 
 		resolve := ResolveFromConfig(&l)
-		selected, err := resolve()
+		selected, err := resolve(context.Background())
 		if err != nil {
 			t.Errorf("failed to resolve from config")
 		}

@@ -1,6 +1,7 @@
 package resolver_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/buildkite/cli/v3/internal/config"
@@ -39,7 +40,7 @@ func TestParsePipelineArg(t *testing.T) {
 				Organization: "testing",
 			}
 			f := resolver.ResolveFromPositionalArgument([]string{testcase.url}, 0, &c)
-			pipeline, err := f()
+			pipeline, err := f(context.Background())
 			if err != nil {
 				t.Error(err)
 			}
@@ -59,7 +60,7 @@ func TestParsePipelineArg(t *testing.T) {
 			Organization: "testing",
 		}
 		f := resolver.ResolveFromPositionalArgument([]string{"https://buildkite.com/"}, 0, &c)
-		pipeline, err := f()
+		pipeline, err := f(context.Background())
 		if err == nil {
 			t.Error("Should have failed parsing pipeline")
 		}

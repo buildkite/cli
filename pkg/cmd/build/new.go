@@ -1,6 +1,7 @@
 package build
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc"
@@ -39,7 +40,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 			)
 			var pipeline pipeline.Pipeline
 			r := io.NewPendingCommand(func() tea.Msg {
-				p, err := resolvers.Resolve()
+				p, err := resolvers.Resolve(context.Background())
 				if err != nil {
 					return err
 				}

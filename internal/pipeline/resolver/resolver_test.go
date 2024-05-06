@@ -1,6 +1,7 @@
 package resolver_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/buildkite/cli/v3/internal/pipeline"
@@ -14,11 +15,11 @@ func TestAggregateResolver(t *testing.T) {
 		t.Parallel()
 
 		agg := resolver.AggregateResolver{
-			func() (*pipeline.Pipeline, error) { return nil, nil },
-			func() (*pipeline.Pipeline, error) { return &pipeline.Pipeline{Name: "test"}, nil },
+			func(context.Context) (*pipeline.Pipeline, error) { return nil, nil },
+			func(context.Context) (*pipeline.Pipeline, error) { return &pipeline.Pipeline{Name: "test"}, nil },
 		}
 
-		p, err := agg.Resolve()
+		p, err := agg.Resolve(context.Background())
 
 		if p.Name != "test" {
 			t.Fatalf("Resolve function did not return expected value: %s", p.Name)
@@ -33,7 +34,7 @@ func TestAggregateResolver(t *testing.T) {
 
 		agg := resolver.AggregateResolver{}
 
-		p, err := agg.Resolve()
+		p, err := agg.Resolve(context.Background())
 
 		if p != nil && err != nil {
 			t.Fatal("Resolve did not return nil")
