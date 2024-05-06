@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -38,10 +36,6 @@ type Config struct {
 	OpenAIAPIToken string
 	Organization   string
 	V              ViperConfig
-}
-
-type ProjectConfig struct {
-	Pipeline string `yaml:"pipeline"`
 }
 
 type ViperConfig interface {
@@ -80,78 +74,4 @@ func ConfigFile() string {
 		path = filepath.Join(c, ".config", configFilePath)
 	}
 	return path
-}
-
-func LoadProjectConfig() (*ProjectConfig, error) {
-	projectConfig := &ProjectConfig{}
-
-	// Determine the current directory name for fallback
-	dir, err := os.Getwd()
-	if err != nil {
-		return nil, err // Unable to get current directory
-	}
-	currentDirName := filepath.Base(dir)
-
-	var configFile string
-	if _, err := os.Stat(".bk.yaml"); err == nil {
-		configFile = ".bk.yaml"
-	} else if _, err := os.Stat(".bk.yml"); err == nil {
-		configFile = ".bk.yml"
-	}
-
-	// If a configuration file is found, try to read and parse it
-	if configFile != "" {
-		yamlFile, err := os.ReadFile(configFile)
-		if err != nil {
-			return nil, err
-		}
-
-		err = yaml.Unmarshal(yamlFile, projectConfig)
-		if err != nil {
-			return nil, err
-		}
-
-		// Check if the "pipeline" key is already set
-		if projectConfig.Pipeline != "" {
-			return projectConfig, nil // Pipeline is already defined
-		}
-	}
-
-	projectConfig.Pipeline = currentDirName
-	return writePipelineToBuildkiteYAML(projectConfig)
-}
-
-func writePipelineToBuildkiteYAML(projectConfig *ProjectConfig) (*ProjectConfig, error) {
-	configFilePath := ".bk.yaml"
-
-	configData := make(map[string]interface{})
-	// Attempt to read the existing buildkite.yaml file
-	if fileData, err := os.ReadFile(configFilePath); err == nil {
-		// File exists, try to parse it
-		err := yaml.Unmarshal(fileData, &configData)
-		if err != nil {
-			return nil, err // Return error if unable to parse the file
-		}
-	}
-
-	// Add or update the "pipeline" key only if it's not set or empty
-	if _, exists := configData["pipeline"]; !exists || configData["pipeline"] == "" {
-		configData["pipeline"] = projectConfig.Pipeline
-	} else {
-		return projectConfig, nil // If "pipeline" is already set, don't modify the file
-	}
-
-	// Marshal the data back into YAML format
-	data, err := yaml.Marshal(&configData)
-	if err != nil {
-		return nil, err
-	}
-
-	// Write or overwrite the buildkite.yaml file with the updated content
-	err = os.WriteFile(configFilePath, data, 0o644)
-	if err != nil {
-		return nil, err
-	}
-
-	return projectConfig, nil
 }
