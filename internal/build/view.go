@@ -9,12 +9,11 @@ import (
 )
 
 func BuildSummary(build *buildkite.Build) string {
-
 	buildInfo := fmt.Sprintf("%s %s %s", renderBuildNumber(*build.State, *build.Number), *build.Message, renderBuildState(*build.State, *build.Blocked))
 
 	source := fmt.Sprintf("Triggered via %s by %s ∘ Created on %s",
 		*build.Source,
-		build.Creator.Name,
+		buildCreator(build),
 		build.CreatedAt.UTC().Format(time.RFC1123Z))
 	hash := *build.Commit
 	commitDetails := fmt.Sprintf("Branch: %s / Commit: %s \n", *build.Branch, hash[0:8])
@@ -24,6 +23,14 @@ func BuildSummary(build *buildkite.Build) string {
 		lipgloss.NewStyle().Padding(0, 1).Render(commitDetails),
 	)
 	return summary
+}
+
+// buildCreator returns the creator of a build factoring in the creator/author fallback
+func buildCreator(build *buildkite.Build) string {
+	if build.Creator != nil {
+		return build.Creator.Name
+	}
+	return build.Author.Name
 }
 
 func getBuildStateColor(state string) lipgloss.Color {
