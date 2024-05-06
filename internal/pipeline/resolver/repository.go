@@ -2,16 +2,18 @@ package resolver
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/buildkite/cli/v3/internal/pipeline"
+	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	"github.com/go-git/go-git/v5"
 )
 
-func ResolveFromPath(path string, org string, client *buildkite.Client) PipelineResolverFn {
+func ResolveFromRepository(f *factory.Factory) PipelineResolverFn {
 	return func(context.Context) (*pipeline.Pipeline, error) {
-		pipelines, err := resolveFromPath(path, org, client)
+		pipelines, err := resolveFromRepository(f)
 		if err != nil {
 			return nil, err
 		}
@@ -21,21 +23,20 @@ func ResolveFromPath(path string, org string, client *buildkite.Client) Pipeline
 
 		return &pipeline.Pipeline{
 			Name: pipelines[0],
-			Org:  org,
+			Org:  f.Config.Organization,
 		}, nil
 	}
 }
 
-func resolveFromPath(path string, org string, client *buildkite.Client) ([]string, error) {
-	repos, err := getRepoURLs(path)
+func resolveFromRepository(f *factory.Factory) ([]string, error) {
+	repos, err := getRepoURLs(f.GitRepository)
 	if err != nil {
 		return nil, err
 	}
-	return filterPipelines(repos, org, client)
+	return filterPipelines(repos, f.Config.Organization, f.RestAPIClient)
 }
 
 func filterPipelines(repoURLs []string, org string, client *buildkite.Client) ([]string, error) {
-
 	var currentPipelines []string
 	page := 1
 	per_page := 30
@@ -68,14 +69,9 @@ func filterPipelines(repoURLs []string, org string, client *buildkite.Client) ([
 	return currentPipelines, nil
 }
 
-func getRepoURLs(path string) ([]string, error) {
-	searchPath := "." // default to current directory
-	if len(path) > 0 {
-		searchPath = path
-	}
-	r, err := git.PlainOpenWithOptions(searchPath, &git.PlainOpenOptions{DetectDotGit: true, EnableDotGitCommonDir: true})
-	if err != nil {
-		return nil, err
+func getRepoURLs(r *git.Repository) ([]string, error) {
+	if r == nil {
+		return nil, fmt.Errorf("Could not determine current repository")
 	}
 
 	c, err := r.Config()
