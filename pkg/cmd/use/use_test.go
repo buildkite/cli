@@ -5,24 +5,7 @@ import (
 
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/spf13/afero"
-	"github.com/spf13/viper"
 )
-
-type viperMock struct {
-	v *viper.Viper
-}
-
-func (v viperMock) Set(k string, val interface{}) {
-	v.v.Set(k, val)
-}
-
-func (v viperMock) GetStringMap(k string) map[string]interface{} {
-	return v.v.GetStringMap(k)
-}
-
-func (viperMock) WriteConfig() error {
-	return nil
-}
 
 func TestCmdUse(t *testing.T) {
 	t.Parallel()
