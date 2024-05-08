@@ -29,13 +29,9 @@ func NewCmdUse(f *factory.Factory) *cobra.Command {
 }
 
 func useRun(selected *string, conf *config.Config) error {
-	// prompt to choose from configured orgs
+	// prompt to choose from configured orgs if one is not already selected
 	if selected == nil {
-		m := conf.V.GetStringMap(config.OrganizationsSlugConfigKey)
-		keys := make([]string, 0, len(m))
-		for k := range m {
-			keys = append(keys, k)
-		}
+		keys := conf.ConfiguredOrganizations()
 		q := &survey.Select{
 			Options: keys,
 		}
@@ -47,18 +43,15 @@ func useRun(selected *string, conf *config.Config) error {
 	}
 
 	// if already selected, do nothing
-	if conf.Organization == *selected {
+	if conf.OrganizationSlug() == *selected {
 		fmt.Printf("Using configuration for `%s`\n", *selected)
 		return nil
 	}
 
 	// if the selected org exists, use it
-	m := conf.V.GetStringMap(config.OrganizationsSlugConfigKey)
-	if org, ok := m[*selected]; ok {
-		conf.Organization = *selected
-		conf.APIToken = org.(map[string]interface{})[config.APITokenConfigKey].(string)
+	if conf.HasConfiguredOrganization(*selected) {
 		fmt.Printf("Using configuration for `%s`\n", *selected)
-		return conf.Save()
+		return conf.SelectOrganization(*selected)
 	}
 
 	// if the selected org doesnt exist, recommend configuring it and error out

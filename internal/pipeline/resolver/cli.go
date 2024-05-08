@@ -60,7 +60,7 @@ func parsePipelineArg(arg string, conf *config.Config) (org, pipeline string) {
 		}
 		org, pipeline = part[0], part[1]
 	} else {
-		org = conf.Organization
+		org = conf.OrganizationSlug()
 		pipeline = arg
 	}
 	return org, pipeline

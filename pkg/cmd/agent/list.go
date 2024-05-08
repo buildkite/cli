@@ -36,7 +36,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 						},
 					}
 
-					agents, resp, err := f.RestAPIClient.Agents.List(f.Config.Organization, &opts)
+					agents, resp, err := f.RestAPIClient.Agents.List(f.Config.OrganizationSlug(), &opts)
 					items := make([]agent.AgentListItem, len(agents))
 
 					if err != nil {

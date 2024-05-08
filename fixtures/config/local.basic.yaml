@@ -1,0 +1,4 @@
+selected_org: buildkite-test
+organizations:
+  buildkite-test:
+    api_token: test-token-1234

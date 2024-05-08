@@ -9,6 +9,7 @@ import (
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	"github.com/go-git/go-git/v5"
 	"github.com/h2non/gock"
+	"github.com/spf13/afero"
 )
 
 func TestResolvePipelinesFromPath(t *testing.T) {
@@ -26,10 +27,10 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		gock.InterceptClient(client)
 
 		bkClient := buildkite.NewClient(client)
+		conf := config.New(afero.NewMemMapFs(), nil)
+		conf.SelectOrganization("testOrg")
 		f := factory.Factory{
-			Config: &config.Config{
-				Organization: "testOrg",
-			},
+			Config:        conf,
 			GitRepository: testRepository(),
 			HttpClient:    client,
 			RestAPIClient: bkClient,
@@ -55,10 +56,10 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		gock.InterceptClient(client)
 
 		bkClient := buildkite.NewClient(client)
+		conf := config.New(afero.NewMemMapFs(), nil)
+		conf.SelectOrganization("testOrg")
 		f := factory.Factory{
-			Config: &config.Config{
-				Organization: "testOrg",
-			},
+			Config:        conf,
 			RestAPIClient: bkClient,
 			HttpClient:    client,
 			GitRepository: testRepository(),
@@ -85,10 +86,10 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		gock.InterceptClient(client)
 
 		bkClient := buildkite.NewClient(client)
+		conf := config.New(afero.NewMemMapFs(), nil)
+		conf.SelectOrganization("testOrg")
 		f := factory.Factory{
-			Config: &config.Config{
-				Organization: "testOrg",
-			},
+			Config:        conf,
 			RestAPIClient: bkClient,
 			HttpClient:    client,
 			GitRepository: testRepository(),
@@ -115,10 +116,10 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		gock.InterceptClient(client)
 
 		bkClient := buildkite.NewClient(client)
+		conf := config.New(afero.NewMemMapFs(), nil)
+		conf.SelectOrganization("testOrg")
 		f := factory.Factory{
-			Config: &config.Config{
-				Organization: "testOrg",
-			},
+			Config:        conf,
 			RestAPIClient: bkClient,
 			HttpClient:    client,
 			GitRepository: testRepository(),

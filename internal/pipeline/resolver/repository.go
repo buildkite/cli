@@ -23,7 +23,7 @@ func ResolveFromRepository(f *factory.Factory) PipelineResolverFn {
 
 		return &pipeline.Pipeline{
 			Name: pipelines[0],
-			Org:  f.Config.Organization,
+			Org:  f.Config.OrganizationSlug(),
 		}, nil
 	}
 }
@@ -33,7 +33,7 @@ func resolveFromRepository(f *factory.Factory) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return filterPipelines(repos, f.Config.Organization, f.RestAPIClient)
+	return filterPipelines(repos, f.Config.OrganizationSlug(), f.RestAPIClient)
 }
 
 func filterPipelines(repoURLs []string, org string, client *buildkite.Client) ([]string, error) {

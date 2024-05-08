@@ -18,7 +18,7 @@ func NewCmdConfigure(f *factory.Factory) *cobra.Command {
 		Short:   "Configure Buildkite API token",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// if the token already exists and --force is not used
-			if !force && f.Config.APIToken != "" {
+			if !force && f.Config.APIToken() != "" {
 				return errors.New("API token already configured. You must use --force.")
 			}
 
