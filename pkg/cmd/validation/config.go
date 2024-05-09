@@ -12,7 +12,7 @@ func CheckValidConfiguration(conf *config.Config) func(cmd *cobra.Command, args 
 	var err error
 
 	// ensure the configuration has an API token set
-	if conf.APIToken == "" || conf.Organization == "" {
+	if conf.APIToken() == "" || conf.OrganizationSlug() == "" {
 		err = errors.New("You must set a valid API token. Run `bk configure`.")
 	}
 

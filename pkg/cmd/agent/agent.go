@@ -63,7 +63,7 @@ func parseAgentArg(agent string, conf *config.Config) (string, string) {
 			part := strings.Split(agent, "/")
 			org, id = part[0], part[1]
 		} else {
-			org = conf.Organization
+			org = conf.OrganizationSlug()
 			id = agent
 		}
 	}

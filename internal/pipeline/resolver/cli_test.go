@@ -6,6 +6,7 @@ import (
 
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
+	"github.com/spf13/afero"
 )
 
 func TestParsePipelineArg(t *testing.T) {
@@ -36,10 +37,9 @@ func TestParsePipelineArg(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			c := config.Config{
-				Organization: "testing",
-			}
-			f := resolver.ResolveFromPositionalArgument([]string{testcase.url}, 0, &c)
+			conf := config.New(afero.NewMemMapFs(), nil)
+			conf.SelectOrganization("testing")
+			f := resolver.ResolveFromPositionalArgument([]string{testcase.url}, 0, conf)
 			pipeline, err := f(context.Background())
 			if err != nil {
 				t.Error(err)
@@ -56,10 +56,9 @@ func TestParsePipelineArg(t *testing.T) {
 	t.Run("Returns error if failed parsing", func(t *testing.T) {
 		t.Parallel()
 
-		c := config.Config{
-			Organization: "testing",
-		}
-		f := resolver.ResolveFromPositionalArgument([]string{"https://buildkite.com/"}, 0, &c)
+		conf := config.New(afero.NewMemMapFs(), nil)
+		conf.SelectOrganization("testing")
+		f := resolver.ResolveFromPositionalArgument([]string{"https://buildkite.com/"}, 0, conf)
 		pipeline, err := f(context.Background())
 		if err == nil {
 			t.Error("Should have failed parsing pipeline")

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/buildkite/cli/v3/internal/config"
+	"github.com/spf13/afero"
 )
 
 func TestParseAgentArg(t *testing.T) {
@@ -39,10 +40,9 @@ func TestParseAgentArg(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			c := config.Config{
-				Organization: "testing",
-			}
-			org, agent := parseAgentArg(testcase.url, &c)
+			conf := config.New(afero.NewMemMapFs(), nil)
+			conf.SelectOrganization("testing")
+			org, agent := parseAgentArg(testcase.url, conf)
 
 			if org != testcase.org {
 				t.Error("parsed organization slug did not match expected")

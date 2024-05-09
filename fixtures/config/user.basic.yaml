@@ -1,0 +1,4 @@
+selected_org: buildkite-org
+organizations:
+  buildkite-test:
+    api_token: test-token-abcd

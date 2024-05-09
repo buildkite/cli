@@ -10,6 +10,7 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/agent"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/spf13/afero"
 )
 
 func TestCmdAgentStop(t *testing.T) {
@@ -36,10 +37,10 @@ func TestCmdAgentStop(t *testing.T) {
 		client := &http.Client{
 			Transport: &mockRoundTripper{&http.Response{StatusCode: 200}},
 		}
+		conf := config.New(afero.NewMemMapFs(), nil)
+		conf.SelectOrganization("test")
 		factory := &factory.Factory{
-			Config: &config.Config{
-				Organization: "test",
-			},
+			Config:        conf,
 			RestAPIClient: buildkite.NewClient(client),
 		}
 		cmd := agent.NewCmdAgentStop(factory)
@@ -67,10 +68,10 @@ func TestCmdAgentStop(t *testing.T) {
 		client := &http.Client{
 			Transport: &mockRoundTripper{&http.Response{StatusCode: 200}},
 		}
+		conf := config.New(afero.NewMemMapFs(), nil)
+		conf.SelectOrganization("test")
 		factory := &factory.Factory{
-			Config: &config.Config{
-				Organization: "test",
-			},
+			Config:        conf,
 			RestAPIClient: buildkite.NewClient(client),
 		}
 
@@ -100,10 +101,10 @@ func TestCmdAgentStop(t *testing.T) {
 		client := &http.Client{
 			Transport: &mockRoundTripper{&http.Response{StatusCode: 200}},
 		}
+		conf := config.New(afero.NewMemMapFs(), nil)
+		conf.SelectOrganization("test")
 		factory := &factory.Factory{
-			Config: &config.Config{
-				Organization: "test",
-			},
+			Config:        conf,
 			RestAPIClient: buildkite.NewClient(client),
 		}
 
@@ -136,10 +137,10 @@ func TestCmdAgentStop(t *testing.T) {
 		client := &http.Client{
 			Transport: &mockRoundTripper{&http.Response{StatusCode: 404, Request: &http.Request{}}},
 		}
+		conf := config.New(afero.NewMemMapFs(), nil)
+		conf.SelectOrganization("test")
 		factory := &factory.Factory{
-			Config: &config.Config{
-				Organization: "test",
-			},
+			Config:        conf,
 			RestAPIClient: buildkite.NewClient(client),
 		}
 

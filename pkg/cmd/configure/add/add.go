@@ -40,8 +40,12 @@ func ConfigureRun(f *factory.Factory) error {
 		return err
 	}
 
-	f.Config.APIToken = answers.Token
-	f.Config.Organization = answers.Org
+	err = f.Config.SelectOrganization(answers.Org)
+	if err != nil {
+		return err
+	}
 
-	return f.Config.Save()
+	err = f.Config.SetTokenForOrg(answers.Org, answers.Token)
+
+	return err
 }
