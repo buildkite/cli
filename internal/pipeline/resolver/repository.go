@@ -25,9 +25,7 @@ func ResolveFromRepository(f *factory.Factory, picker PipelinePicker) PipelineRe
 			return nil, nil
 		}
 
-		choice := picker(pipelines)
-
-		return choice, nil
+		return picker(pipelines), nil
 	}
 }
 
