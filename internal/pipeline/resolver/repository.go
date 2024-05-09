@@ -21,14 +21,13 @@ func ResolveFromRepository(f *factory.Factory, picker PipelinePicker) PipelineRe
 			return nil, nil
 		}
 
-		return &pipeline.Pipeline{
-			Name: pipelines[0],
-			Org:  f.Config.OrganizationSlug(),
-		}, nil
+		choice := picker(pipelines)
+
+		return choice, nil
 	}
 }
 
-func resolveFromRepository(f *factory.Factory) ([]string, error) {
+func resolveFromRepository(f *factory.Factory) ([]pipeline.Pipeline, error) {
 	repos, err := getRepoURLs(f.GitRepository)
 	if err != nil {
 		return nil, err
@@ -36,8 +35,8 @@ func resolveFromRepository(f *factory.Factory) ([]string, error) {
 	return filterPipelines(repos, f.Config.OrganizationSlug(), f.RestAPIClient)
 }
 
-func filterPipelines(repoURLs []string, org string, client *buildkite.Client) ([]string, error) {
-	var currentPipelines []string
+func filterPipelines(repoURLs []string, org string, client *buildkite.Client) ([]pipeline.Pipeline, error) {
+	var currentPipelines []pipeline.Pipeline
 	page := 1
 	per_page := 30
 	for more_pipelines := true; more_pipelines; {
@@ -56,7 +55,7 @@ func filterPipelines(repoURLs []string, org string, client *buildkite.Client) ([
 			for _, u := range repoURLs {
 				gitUrl := u[strings.LastIndex(u, "/")+1:]
 				if strings.Contains(*p.Repository, gitUrl) {
-					currentPipelines = append(currentPipelines, *p.Slug)
+					currentPipelines = append(currentPipelines, pipeline.Pipeline{Name: *p.Slug, Org: org})
 				}
 			}
 		}
