@@ -39,6 +39,10 @@ const (
 //	    api_token: <token>
 //	  buildkite-oss:
 //	    api_token: <token>
+//	preferences:
+//	   pipelines:
+//	     - first-pipeline
+//	     - second-pipeline
 type Config struct {
 	// localConfig is the configuration stored in the current directory or any directory above that, stopping at the git
 	// root. This file should never contain the `organizations` property because that will include the API token and it
@@ -124,6 +128,15 @@ func (conf *Config) HasConfiguredOrganization(slug string) bool {
 	m := conf.userConfig.GetStringMap("organizations")
 	_, ok := m[slug]
 	return ok
+}
+
+func (conf *Config) AddPreferredPipeline(pipelines []string) error {
+	conf.localConfig.Set("preferences.pipelines", pipelines)
+	return conf.localConfig.WriteConfig()
+}
+
+func (conf *Config) PreferredPipelines() []string {
+	return conf.localConfig.GetStringSlice("preferences.pipelines")
 }
 
 func firstNonEmpty[T comparable](t ...T) T {

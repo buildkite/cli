@@ -32,7 +32,7 @@ func NewCmdBuildRebuild(f *factory.Factory) *cobra.Command {
 			buildId := args[0]
 			resolvers := resolver.NewAggregateResolver(
 				resolver.ResolveFromPositionalArgument(args, 1, f.Config),
-				resolver.ResolveFromConfig(f.LocalConfig),
+				resolver.ResolveFromConfig(f.Config),
 				resolver.ResolveFromRepository(f),
 			)
 			var pipeline pipeline.Pipeline

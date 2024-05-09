@@ -17,7 +17,6 @@ type Factory struct {
 	GitRepository *git.Repository
 	GraphQLClient graphql.Client
 	HttpClient    *http.Client
-	LocalConfig   *config.LocalConfig
 	RestAPIClient *buildkite.Client
 	Version       string
 }
