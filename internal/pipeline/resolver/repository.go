@@ -11,7 +11,7 @@ import (
 	"github.com/go-git/go-git/v5"
 )
 
-func ResolveFromRepository(f *factory.Factory) PipelineResolverFn {
+func ResolveFromRepository(f *factory.Factory, picker PipelinePicker) PipelineResolverFn {
 	return func(context.Context) (*pipeline.Pipeline, error) {
 		pipelines, err := resolveFromRepository(f)
 		if err != nil {
