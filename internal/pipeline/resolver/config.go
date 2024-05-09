@@ -7,41 +7,33 @@ import (
 	"github.com/buildkite/cli/v3/internal/pipeline"
 )
 
-func ResolveFromConfig(c *config.LocalConfig) PipelineResolverFn {
+func ResolveFromConfig(conf *config.LocalConfig, picker PipelinePicker) PipelineResolverFn {
 	return func(context.Context) (*pipeline.Pipeline, error) {
-
-		var pipelines []string
+		var pipelines []pipeline.Pipeline
 		var defaultPipeline string
 
-		defaultPipeline = c.DefaultPipeline
-		if defaultPipeline == "" && len(c.Pipelines) == 0 {
+		defaultPipeline = conf.DefaultPipeline
+		if defaultPipeline == "" && len(conf.Pipelines) == 0 {
 			return nil, nil
 		}
 
-		if defaultPipeline == "" && len(c.Pipelines) >= 1 {
-			defaultPipeline = c.Pipelines[0]
+		if defaultPipeline == "" && len(conf.Pipelines) >= 1 {
+			defaultPipeline = conf.Pipelines[0]
 		}
 
 		defaultExists := false
-		for _, opt := range c.Pipelines {
+		for _, opt := range conf.Pipelines {
 			if defaultPipeline == opt {
 				defaultExists = true
 			}
-			pipelines = append(pipelines, opt)
+			pipelines = append(pipelines, pipeline.Pipeline{Name: opt, Org: conf.Organization})
 		}
 
 		if !defaultExists { //add default pipeline to the list of pipelines
-			pipelines = append(pipelines, defaultPipeline)
+			pipelines = append(pipelines, pipeline.Pipeline{Name: defaultPipeline, Org: conf.Organization})
 		}
 
-		selected, err := pipeline.RenderOptions(defaultPipeline, pipelines)
-		if err != nil {
-			return nil, err
-		}
-
-		return &pipeline.Pipeline{
-			Name: selected,
-			Org:  c.Organization,
-		}, nil
+		selected := picker(pipelines)
+		return selected, nil
 	}
 }

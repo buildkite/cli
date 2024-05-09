@@ -14,7 +14,7 @@ func TestResolvePipelineFromConfig(t *testing.T) {
 		l := config.LocalConfig{ // empty local config
 		}
 
-		resolve := ResolveFromConfig(&l)
+		resolve := ResolveFromConfig(&l, PassthruPicker)
 		selected, err := resolve(context.Background())
 		if err != nil {
 			t.Errorf("failed to resolve from config")
@@ -33,7 +33,7 @@ func TestResolvePipelineFromConfig(t *testing.T) {
 			Pipelines:       []string{"bk-1"},
 		}
 
-		resolve := ResolveFromConfig(&l)
+		resolve := ResolveFromConfig(&l, PassthruPicker)
 		selected, err := resolve(context.Background())
 		if err != nil {
 			t.Errorf("failed to resolve from config")
