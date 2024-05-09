@@ -34,7 +34,7 @@ func TestPickers(t *testing.T) {
 		}
 	})
 
-	t.Run("cached picker handles empty list", func(t *testing.T) {
+	t.Run("cached picker doesnt save if user makes no choice", func(t *testing.T) {
 		t.Parallel()
 
 		fs := afero.NewMemMapFs()
@@ -44,7 +44,27 @@ func TestPickers(t *testing.T) {
 		resolver.CachedPicker(conf, func(p []pipeline.Pipeline) *pipeline.Pipeline { return nil })(pipelines)
 
 		b, _ := afero.ReadFile(fs, ".bk.yaml")
-		expected := "pipelines: []\n"
+		expected := ""
+		if string(b) != expected {
+			t.Fatalf("Local config file does not match expected: %s", string(b))
+		}
+	})
+
+	t.Run("cached picker saves correct pipeline first", func(t *testing.T) {
+		t.Parallel()
+
+		fs := afero.NewMemMapFs()
+		conf := config.New(fs, nil)
+
+		pipelines := []pipeline.Pipeline{
+			{Name: "first"},
+			{Name: "second"},
+			{Name: "third"},
+		}
+		resolver.CachedPicker(conf, func(p []pipeline.Pipeline) *pipeline.Pipeline { return &p[1] })(pipelines)
+
+		b, _ := afero.ReadFile(fs, ".bk.yaml")
+		expected := "pipelines:\n    - second\n    - first\n    - third\n"
 		if string(b) != expected {
 			t.Fatalf("Local config file does not match expected: %s", string(b))
 		}
