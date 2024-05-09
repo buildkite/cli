@@ -7,6 +7,9 @@ import (
 	"github.com/buildkite/cli/v3/internal/pipeline"
 )
 
+// PipelinePicker is a function used to pick a pipeline from a list.
+//
+// It is indended to be used from pipeline resolvers that resolve multiple pipelines.
 type PipelinePicker func([]pipeline.Pipeline) *pipeline.Pipeline
 
 func PassthruPicker(p []pipeline.Pipeline) *pipeline.Pipeline {
