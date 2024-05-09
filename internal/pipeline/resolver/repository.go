@@ -11,6 +11,10 @@ import (
 	"github.com/go-git/go-git/v5"
 )
 
+// ResolveFromRepository finds pipelines based on the current repository.
+//
+// It queries the API for all pipelines in the organization that match the repository's URL.
+// It delegates picking one from the list of matches to the `picker`.
 func ResolveFromRepository(f *factory.Factory, picker PipelinePicker) PipelineResolverFn {
 	return func(context.Context) (*pipeline.Pipeline, error) {
 		pipelines, err := resolveFromRepository(f)
