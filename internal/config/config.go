@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/go-git/go-git/v5"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
@@ -130,13 +131,31 @@ func (conf *Config) HasConfiguredOrganization(slug string) bool {
 	return ok
 }
 
-func (conf *Config) AddPreferredPipeline(pipelines []string) error {
-	conf.localConfig.Set("preferences.pipelines", pipelines)
-	return conf.localConfig.WriteConfig()
+func (conf *Config) PreferredPipelines() []pipeline.Pipeline {
+	names := conf.localConfig.GetStringSlice("pipelines")
+
+	if len(names) == 0 {
+		return []pipeline.Pipeline{}
+	}
+
+	pipelines := make([]pipeline.Pipeline, len(names))
+	for i, v := range names {
+		pipelines[i] = pipeline.Pipeline{
+			Name: v,
+			Org:  conf.OrganizationSlug(),
+		}
+	}
+
+	return pipelines
 }
 
-func (conf *Config) PreferredPipelines() []string {
-	return conf.localConfig.GetStringSlice("preferences.pipelines")
+func (conf *Config) SetPreferredPipelines(pipelines []pipeline.Pipeline) error {
+	names := make([]string, len(pipelines))
+	for i, p := range pipelines {
+		names[i] = p.Name
+	}
+	conf.localConfig.Set("pipelines", names)
+	return conf.localConfig.WriteConfig()
 }
 
 func firstNonEmpty[T comparable](t ...T) T {
