@@ -23,6 +23,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	t.Parallel()
 
 	t.Run("no pipelines found", func(t *testing.T) {
+		t.Parallel()
 		// mock a response that doesn't match the current repository url
 		transport := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			return &http.Response{
@@ -52,6 +53,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	})
 
 	t.Run("one pipeline", func(t *testing.T) {
+		t.Parallel()
 		// mock a response with a single pipeline matching the current repo url
 		transport := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			return &http.Response{
@@ -80,6 +82,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	})
 
 	t.Run("multiple pipelines", func(t *testing.T) {
+		t.Parallel()
 		// mock a response with 2 pipelines matching the current repo url
 		transport := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			return &http.Response{
