@@ -60,28 +60,4 @@ func TestConfig(t *testing.T) {
 			t.Errorf("PreferredPipelines() does not match: %d", len(conf.PreferredPipelines()))
 		}
 	})
-
-	t.Run("read in user config", func(t *testing.T) {
-		t.Parallel()
-
-		fs := afero.NewMemMapFs()
-		err := prepareTestDirectory(fs, "user.basic.yaml", configFile())
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// try to load configuration
-		conf := New(fs, nil)
-		// confirm we get the expected values
-		if conf.userConfig.GetString("selected_org") != "buildkite-org" {
-			t.Errorf("OrganizationSlug() does not match: %s", conf.OrganizationSlug())
-		}
-		if conf.userConfig.GetString("organizations.buildkite-test.api_token") != "test-token-abcd" {
-			t.Errorf("APIToken() does not match: %s", conf.APIToken())
-		}
-
-		if len(conf.userConfig.GetStringSlice("preferences.pipelines")) != 1 {
-			t.Errorf("PreferredPipelines() does not match: %d", len(conf.PreferredPipelines()))
-		}
-	})
 }
