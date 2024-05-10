@@ -1,12 +1,10 @@
 package build
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/io"
-	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
@@ -38,24 +36,15 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 				resolver.ResolveFromConfig(f.Config, resolver.PickOne),
 				resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOne)),
 			)
-			var pipeline pipeline.Pipeline
-			r := io.NewPendingCommand(func() tea.Msg {
-				p, err := resolvers.Resolve(context.Background())
-				if err != nil {
-					return err
-				}
-				pipeline = *p
 
-				return io.PendingOutput(fmt.Sprintf("Resolved pipeline to: %s", pipeline.Name))
-			}, "Resolving pipeline")
-			p := tea.NewProgram(r)
-			finalModel, err := p.Run()
+			pipeline, err := resolvers.Resolve(cmd.Context())
 			if err != nil {
 				return err
 			}
-			if finalModel.(io.Pending).Err != nil {
-				return finalModel.(io.Pending).Err
+			if pipeline == nil {
+				return fmt.Errorf("could not resolve a pipeline")
 			}
+
 			return newBuild(pipeline.Org, pipeline.Name, f, message, commit, branch, web)
 		},
 	}
