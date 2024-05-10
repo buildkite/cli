@@ -131,6 +131,7 @@ func (conf *Config) HasConfiguredOrganization(slug string) bool {
 	return ok
 }
 
+// PreferredPipelines will retrieve the list of pipelines from local configuration
 func (conf *Config) PreferredPipelines() []pipeline.Pipeline {
 	names := conf.localConfig.GetStringSlice("pipelines")
 
@@ -149,7 +150,13 @@ func (conf *Config) PreferredPipelines() []pipeline.Pipeline {
 	return pipelines
 }
 
+// SetPreferredPipelines will write the provided list of pipelines to local configuration
 func (conf *Config) SetPreferredPipelines(pipelines []pipeline.Pipeline) error {
+	// only save pipelines if they are present
+	if len(pipelines) == 0 {
+		return nil
+	}
+
 	names := make([]string, len(pipelines))
 	for i, p := range pipelines {
 		names[i] = p.Name
