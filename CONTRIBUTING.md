@@ -1,6 +1,6 @@
 # Contributing
 
-We welcome contributions from the community to make Buildkite `cli` project even better.
+We welcome contributions from the community to make Buildkite CLI, `bk`, project even better.
 
 ## Getting Started
 
