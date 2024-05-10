@@ -11,6 +11,8 @@ func TestCheckValidConfiguration(t *testing.T) {
 	t.Parallel()
 
 	t.Run("API token is configured", func(t *testing.T) {
+		t.Parallel()
+
 		conf := config.New(afero.NewMemMapFs(), nil)
 		_ = conf.SetTokenForOrg("testing", "testing")
 		_ = conf.SelectOrganization("testing")
@@ -23,6 +25,8 @@ func TestCheckValidConfiguration(t *testing.T) {
 	})
 
 	t.Run("API token is not configured", func(t *testing.T) {
+		t.Parallel()
+
 		conf := config.New(afero.NewMemMapFs(), nil)
 
 		f := CheckValidConfiguration(conf)

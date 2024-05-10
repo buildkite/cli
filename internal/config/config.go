@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/go-git/go-git/v5"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
@@ -39,10 +40,9 @@ const (
 //	    api_token: <token>
 //	  buildkite-oss:
 //	    api_token: <token>
-//	preferences:
-//	   pipelines:
-//	     - first-pipeline
-//	     - second-pipeline
+//	pipelines: # (only in local config)
+//	  - first-pipeline
+//	  - second-pipeline
 type Config struct {
 	// localConfig is the configuration stored in the current directory or any directory above that, stopping at the git
 	// root. This file should never contain the `organizations` property because that will include the API token and it
@@ -130,13 +130,38 @@ func (conf *Config) HasConfiguredOrganization(slug string) bool {
 	return ok
 }
 
-func (conf *Config) AddPreferredPipeline(pipelines []string) error {
-	conf.localConfig.Set("preferences.pipelines", pipelines)
-	return conf.localConfig.WriteConfig()
+// PreferredPipelines will retrieve the list of pipelines from local configuration
+func (conf *Config) PreferredPipelines() []pipeline.Pipeline {
+	names := conf.localConfig.GetStringSlice("pipelines")
+
+	if len(names) == 0 {
+		return []pipeline.Pipeline{}
+	}
+
+	pipelines := make([]pipeline.Pipeline, len(names))
+	for i, v := range names {
+		pipelines[i] = pipeline.Pipeline{
+			Name: v,
+			Org:  conf.OrganizationSlug(),
+		}
+	}
+
+	return pipelines
 }
 
-func (conf *Config) PreferredPipelines() []string {
-	return conf.localConfig.GetStringSlice("preferences.pipelines")
+// SetPreferredPipelines will write the provided list of pipelines to local configuration
+func (conf *Config) SetPreferredPipelines(pipelines []pipeline.Pipeline) error {
+	// only save pipelines if they are present
+	if len(pipelines) == 0 {
+		return nil
+	}
+
+	names := make([]string, len(pipelines))
+	for i, p := range pipelines {
+		names[i] = p.Name
+	}
+	conf.localConfig.Set("pipelines", names)
+	return conf.localConfig.WriteConfig()
 }
 
 func firstNonEmpty[T comparable](t ...T) T {

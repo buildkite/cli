@@ -15,6 +15,8 @@ func TestStoppableAgentOutput(t *testing.T) {
 	t.Parallel()
 
 	t.Run("starts in waiting state", func(t *testing.T) {
+		t.Parallel()
+
 		// use a StopFn that quits straight away
 		model := NewStoppableAgent("123", func() StatusUpdate { return StatusUpdate{tea.Quit, nil, "123", Waiting} })
 		testModel := teatest.NewTestModel(t, model)
@@ -28,6 +30,8 @@ func TestStoppableAgentOutput(t *testing.T) {
 	})
 
 	t.Run("stopping state", func(t *testing.T) {
+		t.Parallel()
+
 		// use a StopFn that quits straight away
 		model := NewStoppableAgent("123", func() StatusUpdate { return StatusUpdate{tea.Quit, nil, "123", Stopping} })
 		testModel := teatest.NewTestModel(t, model)
@@ -41,6 +45,8 @@ func TestStoppableAgentOutput(t *testing.T) {
 	})
 
 	t.Run("success state", func(t *testing.T) {
+		t.Parallel()
+
 		// use a StopFn that quits straight away
 		model := NewStoppableAgent("123", func() StatusUpdate { return StatusUpdate{tea.Quit, nil, "123", Succeeded} })
 		testModel := teatest.NewTestModel(t, model)
@@ -54,6 +60,8 @@ func TestStoppableAgentOutput(t *testing.T) {
 	})
 
 	t.Run("failed state", func(t *testing.T) {
+		t.Parallel()
+
 		// use a StopFn that quits straight away
 		model := NewStoppableAgent("123", func() StatusUpdate { return StatusUpdate{tea.Quit, errors.New("error"), "123", Failed} })
 		testModel := teatest.NewTestModel(t, model)
@@ -67,6 +75,8 @@ func TestStoppableAgentOutput(t *testing.T) {
 	})
 
 	t.Run("transitions through waiting-stopping-succeeded", func(t *testing.T) {
+		t.Parallel()
+
 		// use a StopFn that quits straight away
 		model := NewStoppableAgent("123", func() StatusUpdate { return StatusUpdate{nil, nil, "123", Waiting} })
 		testModel := teatest.NewTestModel(t, model)
@@ -94,6 +104,8 @@ func TestStoppableAgentOutput(t *testing.T) {
 	})
 
 	t.Run("shows error state", func(t *testing.T) {
+		t.Parallel()
+
 		// use a StopFn that quits straight away
 		model := NewStoppableAgent("123", func() StatusUpdate { return StatusUpdate{nil, nil, "123", Waiting} })
 		testModel := teatest.NewTestModel(t, model)

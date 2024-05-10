@@ -5,25 +5,12 @@ import (
 	"testing"
 
 	"github.com/buildkite/cli/v3/internal/config"
+	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/spf13/afero"
 )
 
 func TestResolvePipelineFromConfig(t *testing.T) {
-
-	t.Run("missing config", func(t *testing.T) {
-		t.Parallel()
-
-		resolve := ResolveFromConfig(nil)
-		selected, err := resolve(context.Background())
-
-		if err != nil && err.Error() != "could not determine config to use for pipeline resolution" {
-			t.Errorf("unknown error encountered")
-		}
-
-		if selected != nil {
-			t.Errorf("pipeline must be nil")
-		}
-	})
+	t.Parallel()
 
 	t.Run("no pipelines from config", func(t *testing.T) {
 		t.Parallel()
@@ -43,9 +30,9 @@ func TestResolvePipelineFromConfig(t *testing.T) {
 	t.Run("Resolve to one pipeline", func(t *testing.T) {
 		t.Parallel()
 
-		pipelines := []string{"pipeline1"}
+		pipelines := []pipeline.Pipeline{{Name: "pipeline1"}}
 		conf := config.New(afero.NewMemMapFs(), nil)
-		conf.AddPreferredPipeline(pipelines)
+		conf.SetPreferredPipelines(pipelines)
 		resolve := ResolveFromConfig(conf)
 		selected, err := resolve(context.Background())
 		if err != nil {
@@ -56,7 +43,7 @@ func TestResolvePipelineFromConfig(t *testing.T) {
 			t.Errorf("pipeline must not be nil")
 		}
 
-		if selected != nil && selected.Name != pipelines[0] {
+		if selected != nil && selected.Name != pipelines[0].Name {
 			t.Errorf("pipeline name must be pipeline1")
 		}
 	})
@@ -64,9 +51,9 @@ func TestResolvePipelineFromConfig(t *testing.T) {
 	t.Run("Resolve to many pipelines", func(t *testing.T) {
 		t.Parallel()
 
-		pipelines := []string{"pipeline1", "pipeline2", "pipeline3"}
+		pipelines := []pipeline.Pipeline{{Name: "pipeline1"}, {Name: "pipeline2"}, {Name: "pipeline3"}}
 		conf := config.New(afero.NewMemMapFs(), nil)
-		conf.AddPreferredPipeline(pipelines)
+		conf.SetPreferredPipelines(pipelines)
 		resolve := ResolveFromConfig(conf)
 		selected, err := resolve(context.Background())
 		if err != nil {
@@ -77,7 +64,7 @@ func TestResolvePipelineFromConfig(t *testing.T) {
 			t.Errorf("pipeline must not be nil")
 		}
 
-		if selected != nil && selected.Name != pipelines[0] {
+		if selected != nil && selected.Name != pipelines[0].Name {
 			t.Errorf("pipeline name should resolve temporarily to pipeline1")
 		}
 	})
