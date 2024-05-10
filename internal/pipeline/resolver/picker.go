@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/buildkite/cli/v3/internal/config"
+	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline"
 )
 
@@ -14,6 +15,32 @@ type PipelinePicker func([]pipeline.Pipeline) *pipeline.Pipeline
 
 func PassthruPicker(p []pipeline.Pipeline) *pipeline.Pipeline {
 	return &p[0]
+}
+
+func PickOne(pipelines []pipeline.Pipeline) *pipeline.Pipeline {
+	if len(pipelines) == 0 {
+		return nil
+	}
+
+	names := make([]string, len(pipelines))
+	for i, p := range pipelines {
+		names[i] = p.Name
+	}
+
+	chosen, err := io.PromptForOne(names)
+	if err != nil {
+		return nil
+	}
+
+	// find the pipeline that was chosen so we can set the org on the return
+	index := sort.Search(len(pipelines), func(i int) bool {
+		return chosen == pipelines[i].Name
+	})
+
+	return &pipeline.Pipeline{
+		Name: chosen,
+		Org:  pipelines[index].Org,
+	}
 }
 
 // CachedPicker returns a PipelinePicker that saves the given pipelines to local config as well as running the provider
