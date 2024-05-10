@@ -2,6 +2,7 @@ linters:
   enable:
   - gofmt
   - nolintlint
+  - tparallel
 
 issues:
   max-issues-per-linter: 0
