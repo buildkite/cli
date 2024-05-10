@@ -40,10 +40,9 @@ const (
 //	    api_token: <token>
 //	  buildkite-oss:
 //	    api_token: <token>
-//	preferences:
-//	   pipelines:
-//	     - first-pipeline
-//	     - second-pipeline
+//	pipelines: # (only in local config)
+//	  - first-pipeline
+//	  - second-pipeline
 type Config struct {
 	// localConfig is the configuration stored in the current directory or any directory above that, stopping at the git
 	// root. This file should never contain the `organizations` property because that will include the API token and it
