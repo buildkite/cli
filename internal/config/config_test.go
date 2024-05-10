@@ -56,7 +56,7 @@ func TestConfig(t *testing.T) {
 			t.Errorf("APIToken() does not match: %s", conf.APIToken())
 		}
 
-		if len(conf.localConfig.GetStringSlice("preferences.pipelines")) != 2 {
+		if len(conf.PreferredPipelines()) != 2 {
 			t.Errorf("PreferredPipelines() does not match: %d", len(conf.PreferredPipelines()))
 		}
 	})
