@@ -2,46 +2,28 @@ package resolver
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/internal/pipeline"
 )
 
-func ResolveFromConfig(c *config.LocalConfig) PipelineResolverFn {
+func ResolveFromConfig(c *config.Config) PipelineResolverFn {
 	return func(context.Context) (*pipeline.Pipeline, error) {
 
-		var pipelines []string
-		var defaultPipeline string
+		if c == nil {
+			return nil, fmt.Errorf("could not determine config to use for pipeline resolution")
+		}
 
-		defaultPipeline = c.DefaultPipeline
-		if defaultPipeline == "" && len(c.Pipelines) == 0 {
+		preferredPipelines := c.PreferredPipelines()
+
+		if len(preferredPipelines) == 0 {
 			return nil, nil
 		}
 
-		if defaultPipeline == "" && len(c.Pipelines) >= 1 {
-			defaultPipeline = c.Pipelines[0]
-		}
-
-		defaultExists := false
-		for _, opt := range c.Pipelines {
-			if defaultPipeline == opt {
-				defaultExists = true
-			}
-			pipelines = append(pipelines, opt)
-		}
-
-		if !defaultExists { //add default pipeline to the list of pipelines
-			pipelines = append(pipelines, defaultPipeline)
-		}
-
-		selected, err := pipeline.RenderOptions(defaultPipeline, pipelines)
-		if err != nil {
-			return nil, err
-		}
-
 		return &pipeline.Pipeline{
-			Name: selected,
-			Org:  c.Organization,
+			Name: preferredPipelines[0],
+			Org:  c.OrganizationSlug(),
 		}, nil
 	}
 }

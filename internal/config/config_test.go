@@ -55,6 +55,10 @@ func TestConfig(t *testing.T) {
 		if conf.localConfig.GetString("organizations.buildkite-test.api_token") != "test-token-1234" {
 			t.Errorf("APIToken() does not match: %s", conf.APIToken())
 		}
+
+		if len(conf.localConfig.GetStringSlice("preferences.pipelines")) != 2 {
+			t.Errorf("PreferredPipelines() does not match: %d", len(conf.PreferredPipelines()))
+		}
 	})
 
 	t.Run("read in user config", func(t *testing.T) {
@@ -74,6 +78,10 @@ func TestConfig(t *testing.T) {
 		}
 		if conf.userConfig.GetString("organizations.buildkite-test.api_token") != "test-token-abcd" {
 			t.Errorf("APIToken() does not match: %s", conf.APIToken())
+		}
+
+		if len(conf.userConfig.GetStringSlice("preferences.pipelines")) != 1 {
+			t.Errorf("PreferredPipelines() does not match: %d", len(conf.PreferredPipelines()))
 		}
 	})
 }

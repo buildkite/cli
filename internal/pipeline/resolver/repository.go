@@ -71,7 +71,7 @@ func filterPipelines(repoURLs []string, org string, client *buildkite.Client) ([
 
 func getRepoURLs(r *git.Repository) ([]string, error) {
 	if r == nil {
-		return nil, fmt.Errorf("Could not determine current repository")
+		return nil, fmt.Errorf("could not determine current repository")
 	}
 
 	c, err := r.Config()
