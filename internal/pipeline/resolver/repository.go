@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
@@ -16,16 +18,24 @@ import (
 // It queries the API for all pipelines in the organization that match the repository's URL.
 // It delegates picking one from the list of matches to the `picker`.
 func ResolveFromRepository(f *factory.Factory, picker PipelinePicker) PipelineResolverFn {
-	return func(context.Context) (*pipeline.Pipeline, error) {
+	return func(ctx context.Context) (*pipeline.Pipeline, error) {
+		s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+		s.Suffix = " Resolving pipeline"
+		s.Start()
 		pipelines, err := resolveFromRepository(f)
+		s.Stop()
 		if err != nil {
 			return nil, err
 		}
 		if len(pipelines) == 0 {
 			return nil, nil
 		}
+		pipeline := picker(pipelines)
+		if pipeline == nil {
+			return nil, nil
+		}
 
-		return picker(pipelines), nil
+		return pipeline, nil
 	}
 }
 
