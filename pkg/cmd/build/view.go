@@ -42,8 +42,8 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 
 			resolvers := resolver.NewAggregateResolver(
 				resolver.ResolveFromPositionalArgument(args, 1, f.Config),
-				resolver.ResolveFromConfig(f.Config),
-				resolver.ResolveFromRepository(f),
+				resolver.ResolveFromConfig(f.Config, resolver.PassthruPicker),
+				resolver.ResolveFromRepository(f, resolver.PassthruPicker),
 			)
 
 			var pipeline pipeline.Pipeline

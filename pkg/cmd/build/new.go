@@ -35,8 +35,8 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			resolvers := resolver.NewAggregateResolver(
 				resolver.ResolveFromPositionalArgument(args, 0, f.Config),
-				resolver.ResolveFromConfig(f.Config),
-				resolver.ResolveFromRepository(f),
+				resolver.ResolveFromConfig(f.Config, resolver.PassthruPicker),
+				resolver.ResolveFromRepository(f, resolver.PassthruPicker),
 			)
 			var pipeline pipeline.Pipeline
 			r := io.NewPendingCommand(func() tea.Msg {

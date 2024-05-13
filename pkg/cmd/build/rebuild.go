@@ -32,8 +32,8 @@ func NewCmdBuildRebuild(f *factory.Factory) *cobra.Command {
 			buildId := args[0]
 			resolvers := resolver.NewAggregateResolver(
 				resolver.ResolveFromPositionalArgument(args, 1, f.Config),
-				resolver.ResolveFromConfig(f.Config),
-				resolver.ResolveFromRepository(f),
+				resolver.ResolveFromConfig(f.Config, resolver.PassthruPicker),
+				resolver.ResolveFromRepository(f, resolver.PassthruPicker),
 			)
 			var pipeline pipeline.Pipeline
 			r := io.NewPendingCommand(func() tea.Msg {
