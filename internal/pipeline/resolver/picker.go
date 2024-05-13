@@ -1,9 +1,10 @@
 package resolver
 
 import (
-	"sort"
+	"slices"
 
 	"github.com/buildkite/cli/v3/internal/config"
+	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline"
 )
 
@@ -14,6 +15,29 @@ type PipelinePicker func([]pipeline.Pipeline) *pipeline.Pipeline
 
 func PassthruPicker(p []pipeline.Pipeline) *pipeline.Pipeline {
 	return &p[0]
+}
+
+func PickOne(pipelines []pipeline.Pipeline) *pipeline.Pipeline {
+	if len(pipelines) == 0 {
+		return nil
+	}
+
+	names := make([]string, len(pipelines))
+	for i, p := range pipelines {
+		names[i] = p.Name
+	}
+
+	chosen, err := io.PromptForOne(names)
+	if err != nil {
+		return nil
+	}
+
+	// find the index of the pipeline that was chosen so we can set the org on the return
+	index := slices.IndexFunc[[]pipeline.Pipeline](pipelines, func(p pipeline.Pipeline) bool {
+		return p.Name == chosen
+	})
+
+	return &pipelines[index]
 }
 
 // CachedPicker returns a PipelinePicker that saves the given pipelines to local config as well as running the provider
@@ -28,11 +52,14 @@ func CachedPicker(conf *config.Config, picker PipelinePicker) PipelinePicker {
 			return nil
 		}
 
-		// swap the chosen pipeline with the first element
-		index := sort.Search(len(pipelines), func(i int) bool {
-			return chosen == &pipelines[i]
+		// pointers and slices are getting in our way here, so copy the current pipeline pointed to by chosen into a
+		// temporary variable to later return, as the value chosen points to is going to change when we rearrange the
+		// pipelines slice
+		tmp := *chosen
+		index := slices.IndexFunc[[]pipeline.Pipeline](pipelines, func(p pipeline.Pipeline) bool {
+			return tmp.Name == p.Name
 		})
-		pipelines[0], pipelines[index] = *chosen, pipelines[0]
+		pipelines[0], pipelines[index] = tmp, pipelines[0]
 
 		// save the pipelines to local config before passing to the picker
 		err := conf.SetPreferredPipelines(pipelines)
@@ -40,6 +67,6 @@ func CachedPicker(conf *config.Config, picker PipelinePicker) PipelinePicker {
 			return nil
 		}
 
-		return chosen
+		return &tmp
 	}
 }

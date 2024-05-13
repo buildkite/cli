@@ -3,8 +3,8 @@ package use
 import (
 	"fmt"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/buildkite/cli/v3/internal/config"
+	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/spf13/cobra"
 )
@@ -28,32 +28,32 @@ func NewCmdUse(f *factory.Factory) *cobra.Command {
 	return cmd
 }
 
-func useRun(selected *string, conf *config.Config) error {
+func useRun(org *string, conf *config.Config) error {
+	var selected string
+
 	// prompt to choose from configured orgs if one is not already selected
-	if selected == nil {
-		keys := conf.ConfiguredOrganizations()
-		q := &survey.Select{
-			Options: keys,
-		}
-		selected = new(string)
-		err := survey.AskOne(q, selected)
+	if org == nil {
+		var err error
+		selected, err = io.PromptForOne(conf.ConfiguredOrganizations())
 		if err != nil {
 			return err
 		}
+	} else {
+		selected = *org
 	}
 
 	// if already selected, do nothing
-	if conf.OrganizationSlug() == *selected {
-		fmt.Printf("Using configuration for `%s`\n", *selected)
+	if conf.OrganizationSlug() == selected {
+		fmt.Printf("Using configuration for `%s`\n", selected)
 		return nil
 	}
 
 	// if the selected org exists, use it
-	if conf.HasConfiguredOrganization(*selected) {
-		fmt.Printf("Using configuration for `%s`\n", *selected)
-		return conf.SelectOrganization(*selected)
+	if conf.HasConfiguredOrganization(selected) {
+		fmt.Printf("Using configuration for `%s`\n", selected)
+		return conf.SelectOrganization(selected)
 	}
 
 	// if the selected org doesnt exist, recommend configuring it and error out
-	return fmt.Errorf("No configuration found for `%s`. Run `bk configure` to add it.", *selected)
+	return fmt.Errorf("No configuration found for `%s`. Run `bk configure` to add it.", selected)
 }

@@ -26,6 +26,7 @@ require (
 	github.com/alexflint/go-scalar v1.0.0 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
+	github.com/fatih/color v1.14.1 // indirect
 	github.com/vektah/gqlparser v1.3.1 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.11 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -40,6 +41,7 @@ require (
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/aymanbagabas/go-udiff v0.2.0 // indirect
+	github.com/briandowns/spinner v1.23.0
 	github.com/catppuccin/go v0.2.0 // indirect
 	github.com/cenkalti/backoff v1.1.1-0.20171020064038-309aa717adbf // indirect
 	github.com/charmbracelet/huh v0.3.0

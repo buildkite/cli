@@ -2,7 +2,6 @@ selected_org: buildkite-test
 organizations:
   buildkite-test:
     api_token: test-token-1234
-preferences:
-  pipelines:
-    - first-pipeline
-    - second-pipeline
+pipelines:
+  - first-pipeline
+  - second-pipeline
