@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -22,6 +23,11 @@ func ResolveFromPositionalArgument(args []string, index int, pipeline pipelineRe
 		}
 
 		build := parseBuildArg(ctx, args[index], pipeline)
+		// if we get here, we should be able to parse the value and return an error if not
+		// this is because a user has explicitly given an input value for us to use - we shouldnt ignore it on error
+		if build == nil {
+			return nil, fmt.Errorf("unable to parse the input build argument: \"%s\"", args[index])
+		}
 
 		return build, nil
 	}
