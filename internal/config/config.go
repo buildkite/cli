@@ -6,6 +6,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -184,8 +185,30 @@ func configFile() string {
 	} else if b := os.Getenv(appData); runtime.GOOS == "windows" && b != "" {
 		path = filepath.Join(b, "Buildkite CLI", configFilePath)
 	} else {
-		c, _ := os.UserHomeDir()
-		path = filepath.Join(c, ".config", configFilePath)
+		c, err := createIfNotExistsConfigDir()
+		if err != nil {
+			return ""
+		}
+		path = filepath.Join(c, configFilePath)
 	}
 	return path
+}
+
+func createIfNotExistsConfigDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	configDir := filepath.Join(homeDir, ".config")
+	if _, err := os.Stat(configDir); errors.Is(err, os.ErrNotExist) {
+		err := os.Mkdir(configDir, 0755)
+		if err != nil {
+			return "", err
+		}
+	} else if err != nil {
+		// Other error occurred in checking the dir
+		return "", err
+	}
+	return configDir, nil
 }
