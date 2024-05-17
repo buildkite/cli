@@ -15,11 +15,11 @@ import (
 // ResolveBuildFromCurrentBranch Finds the most recent build for the branch in the current working directory
 func ResolveBuildForCurrentUser(branch string, pipelineResolver pipelineResolver.PipelineResolverFn, f *factory.Factory) BuildResolverFn {
 	return func(ctx context.Context) (*build.Build, error) {
-		// find the pipeline first, then we can make a graphql query to find the most recent build for that branch
 		var pipeline *pipeline.Pipeline
 		var user *buildkite.User
 
 		// use an errgroup so a few API calls can be done in parallel
+		// and then we check for any errors that occurred
 		g, _ := errgroup.WithContext(ctx)
 		g.Go(func() error {
 			p, e := pipelineResolver(ctx)
@@ -40,7 +40,7 @@ func ResolveBuildForCurrentUser(branch string, pipelineResolver pipelineResolver
 			return nil, err
 		}
 		if pipeline == nil {
-			return nil, fmt.Errorf("Failed to resolve a pipeline to query builds on.")
+			return nil, fmt.Errorf("failed to resolve a pipeline to query builds on.")
 		}
 
 		builds, _, err := f.RestAPIClient.Builds.ListByPipeline(f.Config.OrganizationSlug(), pipeline.Name, &buildkite.BuildsListOptions{
@@ -54,9 +54,11 @@ func ResolveBuildForCurrentUser(branch string, pipelineResolver pipelineResolver
 			return nil, err
 		}
 		if len(builds) == 0 {
-			// TODO should this return an error since it didnt find any builds?
-			return nil, nil
+			// we error here because this resolver is explicitly used so any case where it doesn't resolve a build is a
+			// problem
+			return nil, fmt.Errorf("failed to find a build for current user (email: %s)", *user.Email)
 		}
+
 		return &build.Build{
 			Organization: f.Config.OrganizationSlug(),
 			Pipeline:     pipeline.Name,
