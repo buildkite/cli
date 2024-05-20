@@ -1,6 +1,6 @@
 # bk - The Buildkite CLI
 
-![GitHub Release](https://img.shields.io/github/v/release/buildkite/cli?include_prereleases&sort=semver&display_name=release&logo=buildkite)
+[![Latest Release](https://img.shields.io/github/v/release/buildkite/cli?include_prereleases&sort=semver&display_name=release&logo=buildkite)](https://github.com/buildkite/cli/releases/latest)
 
 A command line interface for [Buildkite](https://buildkite.com/).
 
