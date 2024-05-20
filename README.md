@@ -1,11 +1,50 @@
 # bk - The Buildkite CLI
 
-[![Latest release](https://img.shields.io/github/release/buildkite/cli.svg)](https://github.com/buildkite/cli/releases/latest)
+[![Latest Release](https://img.shields.io/github/v/release/buildkite/cli?include_prereleases&sort=semver&display_name=release&logo=buildkite)](https://github.com/buildkite/cli/releases/latest)
+
+A command line interface for [Buildkite](https://buildkite.com/).
+
+Use `bk` to interact with your Buildkite organization without leaving the terminal 🙌.
 
 > [!NOTE]  
 > The `3.x` (default) branch is under current active development. If you'd like to use the most recent released version of the Buildkite CLI, please refer to the `main` [branch](https://github.com/buildkite/cli/tree/main) and [releases](https://github.com/buildkite/cli/releases) page for details and installation instructions.
 
-A command line interface for [Buildkite](https://buildkite.com/).
+## Installing
+
+`bk` is available as a downloadable binary from the [releases page](https://github.com/buildkite/cli/releases).
+
+## Usage
+
+```sh
+$ bk --help
+Work with Buildkite from the command line.
+
+Usage:
+  bk [command]
+
+Examples:
+$ bk build view
+$ bk agent stop <agent ID>
+
+
+Available Commands:
+  agent       Manage agents
+  build       Manage pipeline builds
+  completion  Generate the autocompletion script for the specified shell
+  configure   Configure Buildkite API token
+  help        Help about any command
+  init        Initialize a pipeline.yaml file
+  use         Select an organization
+
+Flags:
+  -h, --help   help for bk
+
+Use "bk [command] --help" for more information about a command.
+```
+
+### Configure
+
+You'll need to run `bk configure` first to set up your organization and API token.
 
 ## 💬 Feedback
 
