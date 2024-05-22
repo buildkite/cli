@@ -12,6 +12,9 @@ steps:
   - name: ":go: test"
     artifact_paths:
       - cover-tree.svg
+    commands:
+      - go test -coverprofile cover.out ./...
+      - go run github.com/nikolaydubina/go-cover-treemap@latest -coverprofile cover.out > cover-tree.svg
     plugins:
       docker-compose#v5.1.0:
         config: .buildkite/docker-compose.yaml
