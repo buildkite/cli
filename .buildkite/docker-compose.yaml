@@ -6,10 +6,9 @@ services:
     working_dir: /app
     volumes:
       - ..:/app
-    command:
-      - go
-      - test
-      - ./...
+    command: |
+      go test -coverprofile cover.out ./...
+      go run github.com/nikolaydubina/go-cover-treemap@latest -coverprofile cover.out > cover-tree.svg
   lint:
     image: golangci/golangci-lint:v1.54.1
     working_dir: /app
