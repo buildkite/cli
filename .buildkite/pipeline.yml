@@ -3,10 +3,11 @@ agents:
 
 steps:
   - name: ":golangci-lint: lint"
+    command: golangci-lint run --verbose --timeout 3m
     plugins:
       docker-compose#v5.1.0:
         config: .buildkite/docker-compose.yaml
-        run: lint
+        run: golangci-lint
         tty: true
 
   - name: ":go: test"
@@ -18,8 +19,9 @@ steps:
     plugins:
       docker-compose#v5.1.0:
         config: .buildkite/docker-compose.yaml
-        run: test
+        run: golangci-lint
         tty: true
+        mount-buildkite-agent: true
 
   - wait
 
