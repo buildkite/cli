@@ -66,4 +66,24 @@ archives:
       - LICENSE.md
       - README.md
 
+nfpms:
+  - builds:
+      - linux
+    vendor: Buildkite
+    homepage: https://buildkite.com
+    maintainer: Buildkite <support@buildkite.com>
+    description: A command line interface for Buildkite.
+    license: MIT
+    formats:
+      - apk
+      - deb
+      - rpm
+    provides:
+      - bk
+    recommends:
+      - jq
+    contents:
+      - dst: /usr/bin/bk
+        src: bin/bk
+
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj
