@@ -5,6 +5,13 @@ set -uo pipefail
 
 AUDIENCE=$1
 
+goreleaser release --clean --auto-snapshot --skip publish
+
+if [ ! $? ]; then
+    echo "Failed to build a release"
+    exit 1
+fi
+
 # grab a token for pushing packages to buildkite with an expiry of 3 mins
 TOKEN=$(buildkite-agent oidc request-token --audience "$AUDIENCE" --lifetime 180)
 
@@ -13,17 +20,10 @@ if [ ! $? ]; then
     exit 1
 fi
 
-goreleaser release --clean --auto-snapshot --skip publish
-
-if [ ! $? ]; then
-    echo "Failed to build a release"
-    exit 1
-fi
-
 for FILE in dist/*.rpm; do
     echo curl -X POST https://api.buildkite.com/v2/packages/organizations/jradtilbrook/registries/cli-rpm/packages \
          -H "Authorization: Bearer ${TOKEN}" \
-         -F "file=@$FILE"
+         -F "file=@${FILE}"
     if [ ! $? ]; then
         echo "Failed to push RPM package"
         exit 1
