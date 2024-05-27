@@ -10,7 +10,7 @@ require (
 	github.com/buildkite/go-buildkite/v3 v3.11.0
 	github.com/charmbracelet/bubbles v0.18.0
 	github.com/charmbracelet/bubbletea v0.26.2
-	github.com/charmbracelet/lipgloss v0.10.0
+	github.com/charmbracelet/lipgloss v0.11.0
 	github.com/charmbracelet/x/exp/teatest v0.0.0-20231215171016-7ba2b450712d
 	github.com/go-git/go-git/v5 v5.12.0
 	github.com/muesli/reflow v0.3.0
@@ -25,6 +25,7 @@ require (
 	github.com/alexflint/go-arg v1.4.2 // indirect
 	github.com/alexflint/go-scalar v1.0.0 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
+	github.com/charmbracelet/x/ansi v0.1.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/fatih/color v1.14.1 // indirect
 	github.com/vektah/gqlparser v1.3.1 // indirect
