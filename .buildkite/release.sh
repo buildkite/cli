@@ -13,12 +13,12 @@ REGISTRY=""
 PUBLISH=false
 PACKAGE=""
 
-function audience() {
+audience() {
     ORG=$1
     REGISTRY=$2
     echo "https://packages.buildkite.com/organizations/${ORG}/packages/registries/${REGISTRY}"
 }
-function upload_url() {
+upload_url() {
     ORG=$1
     REGISTRY=$2
     echo "https://api.buildkite.com/v2/packages/organizations/${ORG}/registries/${REGISTRY}/packages"
