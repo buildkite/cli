@@ -5,7 +5,7 @@ set -uo pipefail
 
 AUDIENCE=$1
 
-goreleaser release --clean --auto-snapshot --skip publish
+goreleaser release --clean --snapshot
 
 if [ ! $? ]; then
     echo "Failed to build a release"
