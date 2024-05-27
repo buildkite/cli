@@ -42,7 +42,6 @@ steps:
           - -- package
           - deb
         config: .buildkite/docker-compose.yaml
-        entrypoint: /bin/sh
         mount-buildkite-agent: true
         run: goreleaser
         shell: false
