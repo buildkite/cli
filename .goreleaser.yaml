@@ -80,10 +80,8 @@ nfpms:
       - rpm
     provides:
       - bk
-    # bindir: /usr
-    # TODO bindir/contents seems wrong
-    contents:
-      - dst: /usr/bin/bk
-        src: dist/linux_linux_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}/bk
+    # contents:
+    #   - dst: /usr/bin/bk
+    #     src: dist/linux_linux_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}/bk
 
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj
