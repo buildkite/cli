@@ -20,6 +20,8 @@ if [ ! $? ]; then
     exit 1
 fi
 
+echo $TOKEN
+
 for FILE in dist/*.rpm; do
     curl -X POST https://api.buildkite.com/v2/packages/organizations/jradtilbrook/registries/cli-rpm/packages \
          -H "Authorization: Bearer ${TOKEN}" \
