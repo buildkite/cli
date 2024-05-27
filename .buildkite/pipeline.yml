@@ -39,7 +39,7 @@ steps:
           - buildkite
           - --registry
           - cli-deb
-          - -- package
+          - --package
           - deb
         config: .buildkite/docker-compose.yaml
         mount-buildkite-agent: true
