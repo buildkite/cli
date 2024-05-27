@@ -32,23 +32,15 @@ steps:
     plugins:
       docker-compose#v5.1.0:
         command:
-          - build
-          - --snapshot
-          - --clean
-        config: .buildkite/docker-compose.yaml
-        run: goreleaser
-        tty: true
-
-  - label: ":buildkite: release"
-    artifact_paths:
-      - dist/**/*
-    plugins:
-      docker-compose#v5.1.0:
-        build:
-          context: .
-        command:
           - .buildkite/release.sh
-          - https://packages.buildkite.com/organizations/jradtilbrook/packages/registries/cli-rpm
+          - --snapshot
+          - --publish
+          - --org
+          - buildkite
+          - --registry
+          - cli-deb
+          - -- package
+          - deb
         config: .buildkite/docker-compose.yaml
         entrypoint: /bin/sh
         mount-buildkite-agent: true
