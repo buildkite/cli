@@ -8,6 +8,8 @@ services:
       - ..:/app
       - ~/.cache/golangci-lint/v1.54.1:/root/.cache
   goreleaser:
+    build:
+      context: .
     image: goreleaser/goreleaser:v1.20.0
     working_dir: /go/src/github.com/buildkite/cli
     volumes:
