@@ -44,7 +44,8 @@ steps:
       - dist/**/*
     plugins:
       docker-compose#v5.1.0:
-        shell: false
+        build:
+          context: .
         command:
           - .buildkite/release.sh
           - https://packages.buildkite.com/organizations/jradtilbrook/packages/registries/cli-rpm
@@ -52,4 +53,5 @@ steps:
         entrypoint: /bin/sh
         mount-buildkite-agent: true
         run: goreleaser
+        shell: false
         tty: true

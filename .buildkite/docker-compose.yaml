@@ -10,7 +10,6 @@ services:
   goreleaser:
     build:
       context: .
-    image: goreleaser/goreleaser:v1.20.0
     working_dir: /go/src/github.com/buildkite/cli
     volumes:
       - ..:/go/src/github.com/buildkite/cli
