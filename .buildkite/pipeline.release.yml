@@ -1,5 +1,6 @@
 steps:
   - label: release
+    command: release --clean
     artifact_paths:
       - dist/**/*
     plugins:
@@ -9,5 +10,7 @@ steps:
           parameters:
             GITHUB_TOKEN: /pipelines/buildkite/buildkite-cli-release/github-token
       - docker-compose#v5.2.0:
-          run: release
+          run: goreleaser
           config: .buildkite/docker-compose.yaml
+          env:
+            - GITHUB_TOKEN

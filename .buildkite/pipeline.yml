@@ -27,10 +27,11 @@ steps:
   - wait
 
   - label: ":buildkite: build"
+    command: build --snapshot --clean
     artifact_paths:
       - dist/**/*
     plugins:
       docker-compose#v5.1.0:
         config: .buildkite/docker-compose.yaml
-        run: build
+        run: goreleaser
         tty: true
