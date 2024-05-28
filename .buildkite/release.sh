@@ -37,7 +37,7 @@ AUDIENCE=$(audience $ORGANIZATION $REGISTRY)
 # grab a token for pushing packages to buildkite with an expiry of 3 mins
 TOKEN=$(buildkite-agent oidc request-token --audience "$AUDIENCE" --lifetime 180)
 
-if [[ ! $? ]]; then
+if [[ $? -ne 0 ]]; then
     echo "Failed to retrieve OIDC token"
     exit 1
 fi
@@ -48,7 +48,7 @@ for FILE in dist/*.${PACKAGE}; do
          -F "file=@${FILE}" \
         --fail-with-body
 
-    if [ ! $? ]; then
+    if [[ $? -ne 0 ]]; then
         echo "Failed to push RPM package $file"
         exit 1
     fi
