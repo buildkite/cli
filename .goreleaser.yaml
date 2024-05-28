@@ -1,5 +1,8 @@
 project_name: bk
 
+partial:
+  by: target
+
 release:
   name_template: Buildkite CLI {{.Version}}
   draft: true

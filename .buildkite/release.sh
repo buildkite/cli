@@ -22,6 +22,13 @@ upload_url() {
     echo "https://api.buildkite.com/v2/packages/organizations/${ORG}/registries/${REGISTRY}/packages"
 }
 
+GORELEASER_KEY=$(buildkite-agent secret get goreleaser_key)
+
+if [[ $? -ne 0 ]]; then
+    echo "Failed to retrieve GoReleaser Pro key"
+    exit 1
+fi
+
 if ! goreleaser release --clean ${GORELEASER_ARGS}; then
     echo "Failed to build a release"
     exit 1
