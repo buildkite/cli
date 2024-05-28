@@ -22,9 +22,7 @@ upload_url() {
     echo "https://api.buildkite.com/v2/packages/organizations/${ORG}/registries/${REGISTRY}/packages"
 }
 
-goreleaser release --clean ${GORELEASER_ARGS}
-
-if [[ ! $? ]]; then
+if ! goreleaser release --clean ${GORELEASER_ARGS}; then
     echo "Failed to build a release"
     exit 1
 fi
