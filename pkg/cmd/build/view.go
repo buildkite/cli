@@ -8,8 +8,9 @@ import (
 	"github.com/buildkite/cli/v3/internal/annotation"
 	"github.com/buildkite/cli/v3/internal/artifact"
 	"github.com/buildkite/cli/v3/internal/build"
+	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/io"
-	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
+	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	tea "github.com/charmbracelet/bubbletea"
@@ -23,54 +24,58 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
-		Use:                   "view <number> [pipeline] [flags]",
-		Args:                  cobra.MinimumNArgs(1),
+		Use:                   "view [number [pipeline]] [flags]",
 		Short:                 "View build information.",
 		Long: heredoc.Doc(`
 			View a build's information.
 
 			It accepts a build number and a pipeline slug as an argument.
+			If the build argument is be omitted, the most recent build on the current branch will be resolved.
 			The pipeline can be a {pipeline_slug} or in the format {org_slug}/{pipeline_slug}.
 			If the pipeline argument is omitted, it will be resolved using the current directory.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var buildArtifacts = make([]buildkite.Artifact, 0)
 			var buildAnnotations = make([]buildkite.Annotation, 0)
-			buildId := args[0]
 
-			resolvers := resolver.NewAggregateResolver(
-				resolver.ResolveFromPositionalArgument(args, 1, f.Config),
-				resolver.ResolveFromConfig(f.Config, resolver.PickOne),
-				resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOne)),
+			pipelineRes := pipelineResolver.NewAggregateResolver(
+				pipelineResolver.ResolveFromPositionalArgument(args, 1, f.Config),
+				pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
+				pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOne)),
 			)
 
-			pipeline, err := resolvers.Resolve(cmd.Context())
+			buildRes := buildResolver.NewAggregateResolver(
+				buildResolver.ResolveFromPositionalArgument(args, 0, pipelineRes.Resolve, f.Config),
+				buildResolver.ResolveBuildFromCurrentBranch(f.GitRepository, pipelineRes.Resolve, f),
+			)
+
+			bld, err := buildRes.Resolve(cmd.Context())
 			if err != nil {
 				return err
 			}
-			if pipeline == nil {
-				return fmt.Errorf("could not resolve a pipeline")
+			if bld == nil {
+				return fmt.Errorf("could not resolve a build")
 			}
 
 			l := io.NewPendingCommand(func() tea.Msg {
 				var buildUrl string
-				b, _, err := f.RestAPIClient.Builds.Get(pipeline.Org, pipeline.Name, buildId, &buildkite.BuildsListOptions{})
+				b, _, err := f.RestAPIClient.Builds.Get(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.BuildsListOptions{})
 				if err != nil {
 					return err
 				}
 
-				buildArtifacts, _, err = f.RestAPIClient.Artifacts.ListByBuild(pipeline.Org, pipeline.Name, buildId, &buildkite.ArtifactListOptions{})
+				buildArtifacts, _, err = f.RestAPIClient.Artifacts.ListByBuild(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.ArtifactListOptions{})
 				if err != nil {
 					return err
 				}
 
-				buildAnnotations, _, err = f.RestAPIClient.Annotations.ListByBuild(pipeline.Org, pipeline.Name, buildId, &buildkite.AnnotationListOptions{})
+				buildAnnotations, _, err = f.RestAPIClient.Annotations.ListByBuild(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.AnnotationListOptions{})
 				if err != nil {
 					return err
 				}
 
 				if web {
-					buildUrl = fmt.Sprintf("https://buildkite.com/%s/%s/builds/%d", pipeline.Org, pipeline.Name, *b.Number)
+					buildUrl = fmt.Sprintf("https://buildkite.com/%s/%s/builds/%d", bld.Organization, bld.Pipeline, *b.Number)
 					fmt.Printf("Opening %s in your browser\n\n", buildUrl)
 					time.Sleep(1 * time.Second)
 					err = browser.OpenURL(buildUrl)

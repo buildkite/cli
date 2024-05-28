@@ -4,8 +4,9 @@ import (
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc"
+	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/io"
-	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
+	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -16,9 +17,8 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
-		Use:                   "cancel <number> [pipeline] [flags]",
+		Use:                   "cancel [number [pipeline]] [flags]",
 		Short:                 "Cancels a build.",
-		Args:                  cobra.MinimumNArgs(1),
 		Long: heredoc.Doc(`
 			Cancels the specified build.
 
@@ -27,22 +27,26 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 			If the pipeline argument is omitted, it will be resolved using the current directory.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			buildId := args[0]
-			resolvers := resolver.NewAggregateResolver(
-				resolver.ResolveFromPositionalArgument(args, 1, f.Config),
-				resolver.ResolveFromConfig(f.Config, resolver.PickOne),
-				resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOne)),
+			pipelineRes := pipelineResolver.NewAggregateResolver(
+				pipelineResolver.ResolveFromPositionalArgument(args, 1, f.Config),
+				pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
+				pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOne)),
 			)
 
-			pipeline, err := resolvers.Resolve(cmd.Context())
+			buildRes := buildResolver.NewAggregateResolver(
+				buildResolver.ResolveFromPositionalArgument(args, 0, pipelineRes.Resolve, f.Config),
+				buildResolver.ResolveBuildFromCurrentBranch(f.GitRepository, pipelineRes.Resolve, f),
+			)
+
+			bld, err := buildRes.Resolve(cmd.Context())
 			if err != nil {
 				return err
 			}
-			if pipeline == nil {
-				return fmt.Errorf("could not resolve a pipeline")
+			if bld == nil {
+				return fmt.Errorf("could not resolve a build")
 			}
 
-			return cancelBuild(pipeline.Org, pipeline.Name, buildId, web, f)
+			return cancelBuild(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), web, f)
 		},
 	}
 

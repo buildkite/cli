@@ -8,10 +8,11 @@ import (
 	"github.com/buildkite/cli/v3/internal/graphql"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/go-git/go-git/v5"
 )
 
 // ResolveBuildFromCurrentBranch Finds the most recent build for the branch in the current working directory
-func ResolveBuildFromCurrentBranch(branch string, pipelineResolver pipelineResolver.PipelineResolverFn, f *factory.Factory) BuildResolverFn {
+func ResolveBuildFromCurrentBranch(repo *git.Repository, pipelineResolver pipelineResolver.PipelineResolverFn, f *factory.Factory) BuildResolverFn {
 	return func(ctx context.Context) (*build.Build, error) {
 		// find the pipeline first, then we can make a graphql query to find the most recent build for that branch
 		pipeline, err := pipelineResolver(ctx)
@@ -21,6 +22,12 @@ func ResolveBuildFromCurrentBranch(branch string, pipelineResolver pipelineResol
 		if pipeline == nil {
 			return nil, fmt.Errorf("Failed to resolve a pipeline to query builds on.")
 		}
+
+		head, err := repo.Head()
+		if err != nil {
+			return nil, err
+		}
+		branch := head.Name().Short()
 
 		b, err := graphql.RecentBuildsForBranch(ctx, f.GraphQLClient, branch, fmt.Sprintf("%s/%s", pipeline.Org, pipeline.Name))
 		if err != nil {

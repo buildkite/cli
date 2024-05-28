@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"regexp"
 	"testing"
 
 	genqlient "github.com/Khan/genqlient/graphql"
@@ -13,6 +14,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/graphql"
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/go-git/go-git/v5"
 )
 
 func TestResolveBuildFromCurrentBranch(t *testing.T) {
@@ -37,7 +39,7 @@ func TestResolveBuildFromCurrentBranch(t *testing.T) {
 		f := factory.Factory{
 			GraphQLClient: genqlient.NewClient("", mockDoer(&mock)),
 		}
-		r := resolver.ResolveBuildFromCurrentBranch("testing", pipelineResolver, &f)
+		r := resolver.ResolveBuildFromCurrentBranch(testRepository(), pipelineResolver, &f)
 		b, err := r(context.Background())
 
 		if err != nil {
@@ -63,17 +65,17 @@ func TestResolveBuildFromCurrentBranch(t *testing.T) {
 		f := factory.Factory{
 			GraphQLClient: genqlient.NewClient("", mockDoer(&mock)),
 		}
-		r := resolver.ResolveBuildFromCurrentBranch("testing", pipelineResolver, &f)
+		r := resolver.ResolveBuildFromCurrentBranch(testRepository(), pipelineResolver, &f)
 		_, err := r(context.Background())
 
-		if err.Error() != "No builds found for pipeline test pipeline, branch testing" {
+		if !regexp.MustCompile("No builds found for pipeline test pipeline, branch .*").Match([]byte(err.Error())) {
 			t.Fatal(err)
 		}
 	})
 
 	t.Run("Errors if pipeline cannot be resovled", func(t *testing.T) {
 		t.Parallel()
-		r := resolver.ResolveBuildFromCurrentBranch("testing", func(context.Context) (*pipeline.Pipeline, error) { return nil, nil }, &factory.Factory{})
+		r := resolver.ResolveBuildFromCurrentBranch(testRepository(), func(context.Context) (*pipeline.Pipeline, error) { return nil, nil }, &factory.Factory{})
 		_, err := r(context.Background())
 
 		if err.Error() != "Failed to resolve a pipeline to query builds on." {
@@ -105,4 +107,9 @@ func pipelineResolver(context.Context) (*pipeline.Pipeline, error) {
 		Org:  "test org",
 		Name: "test pipeline",
 	}, nil
+}
+
+func testRepository() *git.Repository {
+	repo, _ := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{DetectDotGit: true, EnableDotGitCommonDir: true})
+	return repo
 }
