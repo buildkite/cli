@@ -1,27 +1,12 @@
 version: '3.5'
 
 services:
-  test:
-    image: golangci/golangci-lint:v1.54.1
-    working_dir: /app
-    volumes:
-      - ..:/app
-    command:
-      - go
-      - test
-      - ./...
-  lint:
+  golangci-lint:
     image: golangci/golangci-lint:v1.54.1
     working_dir: /app
     volumes:
       - ..:/app
       - ~/.cache/golangci-lint/v1.54.1:/root/.cache
-    command:
-      - golangci-lint
-      - run
-      - --verbose
-      - --timeout
-      - 3m
   build:
     image: goreleaser/goreleaser:v1.20.0
     working_dir: /go/src/github.com/buildkite/cli

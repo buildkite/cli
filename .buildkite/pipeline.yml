@@ -3,18 +3,26 @@ agents:
 
 steps:
   - name: ":golangci-lint: lint"
+    command: golangci-lint run --verbose --timeout 3m
     plugins:
       docker-compose#v5.1.0:
         config: .buildkite/docker-compose.yaml
-        run: lint
+        run: golangci-lint
         tty: true
 
   - name: ":go: test"
+    artifact_paths:
+      - cover-tree.svg
+    commands:
+      - go test -coverprofile cover.out ./...
+      - go run github.com/nikolaydubina/go-cover-treemap@latest -coverprofile cover.out > cover-tree.svg
+      - echo '<img src="artifact://cover-tree.svg" alt="Test coverage tree map" height=500>' | buildkite-agent annotate --style "info"
     plugins:
       docker-compose#v5.1.0:
         config: .buildkite/docker-compose.yaml
-        run: test
+        run: golangci-lint
         tty: true
+        mount-buildkite-agent: true
 
   - wait
 
