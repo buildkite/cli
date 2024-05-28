@@ -10,6 +10,9 @@ services:
   goreleaser:
     build:
       context: .
+    environment:
+      - BUILDKITE_AGENT_JOB_API_SOCKET
+      - BUILDKITE_AGENT_JOB_API_TOKEN
     working_dir: /go/src/github.com/buildkite/cli
     volumes:
       - ..:/go/src/github.com/buildkite/cli
