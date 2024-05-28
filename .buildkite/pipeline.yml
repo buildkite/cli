@@ -26,11 +26,31 @@ steps:
 
   - wait
 
-  - label: ":buildkite: build ({{matrix}})"
+  - label: ":buildkite: build ({{matrix.os}}/{{matrix.arch}})"
     matrix:
-      - "darwin"
-      - "linux"
-      - "windows"
+      setup:
+        os:
+          - "darwin"
+          - "linux"
+          - "windows"
+        arch:
+          - amd64
+          - arm64
+          - '386'
+          - arm
+      adjustments:
+        - with:
+            os: windows
+            arch: arm
+          skip: true
+        - with:
+            os: darwin
+            arch: arm
+          skip: true
+        - with:
+            os: darwin
+            arch: '386'
+          skip: true
     artifact_paths:
       - dist/**/*
     plugins:
@@ -41,7 +61,8 @@ steps:
         entrypoint: /bin/sh
         env:
           - GORELEASER_ARGS=--snapshot --split
-          - GOOS={{matrix}}
+          - GOOS={{matrix.os}}
+          - GOARCH={{matrix.arch}}
         mount-buildkite-agent: true
         run: goreleaser
         shell: false
