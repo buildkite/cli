@@ -33,16 +33,10 @@ steps:
       docker-compose#v5.1.0:
         command:
           - .buildkite/release.sh
-          - --snapshot
-          - --publish
-          - --org
-          - buildkite
-          - --registry
-          - cli-deb
-          - --package
-          - deb
         config: .buildkite/docker-compose.yaml
         entrypoint: /bin/sh
+        env:
+          - GORELEASER_ARGS="--snapshot"
         mount-buildkite-agent: true
         run: goreleaser
         shell: false

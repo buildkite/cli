@@ -7,11 +7,9 @@
 # NOTE: do not exit on non-zero returns codes
 set -uo pipefail
 
-GORELEASER_ARGS=""
-ORGANIZATION=""
-REGISTRY=""
-PUBLISH=false
-PACKAGE=""
+# should we publish the build packages
+PUBLISH=${PUBLISH:-false}
+GORELEASER_ARGS=${GORELEASER_ARGS:-""}
 
 audience() {
     ORG=$1
@@ -24,43 +22,14 @@ upload_url() {
     echo "https://api.buildkite.com/v2/packages/organizations/${ORG}/registries/${REGISTRY}/packages"
 }
 
-# Parse flags and their arguments
-while shopt -s nullglob; do
-    case "$1" in
-    --snapshot)
-        GORELEASER_ARGS="${GORELEASER_ARGS} --snapshot"
-        shift
-        ;;
-    --org)
-        ORGANIZATION=$2
-        shift 2
-        ;;
-    --registry)
-        REGISTRY=$2
-        shift 2
-        ;;
-    --package)
-        PACKAGE=$2
-        shift 2
-        ;;
-    --publish)
-        PUBLISH=true
-        shift
-        ;;
-    *)
-        break
-        ;;
-    esac
-done
-
 goreleaser release --clean ${GORELEASER_ARGS}
 
-if [ ! $? ]; then
+if [[ ! $? ]]; then
     echo "Failed to build a release"
     exit 1
 fi
 
-if [ ! $PUBLISH ]; then
+if [[ $PUBLISH == false ]]; then
     echo "Not publishing package to registries"
     exit 0
 fi
@@ -70,7 +39,7 @@ AUDIENCE=$(audience $ORGANIZATION $REGISTRY)
 # grab a token for pushing packages to buildkite with an expiry of 3 mins
 TOKEN=$(buildkite-agent oidc request-token --audience "$AUDIENCE" --lifetime 180)
 
-if [ ! $? ]; then
+if [[ ! $? ]]; then
     echo "Failed to retrieve OIDC token"
     exit 1
 fi
