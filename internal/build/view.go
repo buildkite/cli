@@ -30,7 +30,13 @@ func buildCreator(build *buildkite.Build) string {
 	if build.Creator != nil {
 		return build.Creator.Name
 	}
-	return build.Author.Name
+	if build.Author != nil {
+		return build.Author.Name
+	}
+
+	// if we cannot return any name then just return an empty string?
+	// it is possible to have no creator or author, for example a scheduled build
+	return "Unknown"
 }
 
 func getBuildStateColor(state string) lipgloss.Color {
