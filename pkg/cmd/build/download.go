@@ -2,7 +2,10 @@ package build
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
+	"github.com/buildkite/cli/v3/internal/build"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -26,7 +29,7 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 
 			buildRes := buildResolver.NewAggregateResolver(
 				buildResolver.ResolveFromPositionalArgument(args, 0, pipelineRes.Resolve, f.Config),
-				// buildResolver.ResolveBuildFromCurrentBranch(f.GitRepository, pipelineRes.Resolve, f),
+				buildResolver.ResolveBuildFromCurrentBranch(f.GitRepository, pipelineRes.Resolve, f),
 			)
 
 			bld, err := buildRes.Resolve(cmd.Context())
@@ -37,7 +40,7 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 				return fmt.Errorf("could not resolve a build")
 			}
 
-			return download()
+			return download(*bld, logs, f)
 		},
 	}
 
@@ -46,6 +49,39 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-func download() error {
+func download(build build.Build, logs bool, f *factory.Factory) error {
+	b, _, err := f.RestAPIClient.Builds.Get(build.Organization, build.Pipeline, fmt.Sprint(build.BuildNumber), nil)
+	if err != nil {
+		return err
+	}
+	if b == nil {
+		return fmt.Errorf("Could not find build for %s #%d", build.Pipeline, build.BuildNumber)
+	}
+
+	directory := fmt.Sprintf("build-logs-%s", *b.ID)
+	err = os.MkdirAll(directory, os.ModePerm)
+	if err != nil {
+		return err
+	}
+
+	for _, job := range b.Jobs {
+		// only script (command) jobs will have logs
+		if job == nil || *job.Type != "script" {
+			continue
+		}
+
+		log, _, err := f.RestAPIClient.Jobs.GetJobLog(build.Organization, build.Pipeline, *b.ID, *job.ID)
+		if err != nil {
+			return err
+		}
+		if log == nil {
+			return fmt.Errorf("Could not get logs for job %s", *job.ID)
+		}
+
+		err = os.WriteFile(filepath.Join(directory, *job.ID), []byte(*log.Content), 0644)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
