@@ -16,7 +16,7 @@ steps:
     commands:
       - go test -coverprofile cover.out ./...
       - go run github.com/nikolaydubina/go-cover-treemap@latest -coverprofile cover.out > cover-tree.svg
-      - echo '<img src="artifact://cover-tree.svg" alt="Test coverage tree map" height=500>' | buildkite-agent annotate --style "info"
+      - echo '<details><summary>Coverage tree map</summary><img src="artifact://cover-tree.svg" alt="Test coverage tree map" width="70%"></details>' | buildkite-agent annotate --style "info"
     plugins:
       docker-compose#v5.1.0:
         config: .buildkite/docker-compose.yaml
