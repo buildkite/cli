@@ -26,11 +26,23 @@ steps:
 
   - wait
 
-  - label: ":buildkite: build"
+  - label: ":buildkite: build ({{matrix}})"
+    matrix:
+          - "darwin"
+          - "linux"
+          - "windows"
     artifact_paths:
       - dist/**/*
     plugins:
       docker-compose#v5.1.0:
+        command:
+          - .buildkite/release.sh
         config: .buildkite/docker-compose.yaml
-        run: build
+        entrypoint: /bin/sh
+        env:
+          - GORELEASER_ARGS=--snapshot --split
+          - GOOS={{matrix}}
+        mount-buildkite-agent: true
+        run: goreleaser
+        shell: false
         tty: true

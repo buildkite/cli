@@ -15,7 +15,7 @@ builds:
   - id: macos
     goos: [darwin]
     goarch: [amd64, arm64]
-    binary: bin/bk
+    binary: bk
     main: ./cmd/bk
     ldflags:
       - -s -w -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}}
@@ -25,7 +25,7 @@ builds:
     goarch: ['386', arm, amd64, arm64]
     env:
       - CGO_ENABLED=0
-    binary: bin/bk
+    binary: bk
     main: ./cmd/bk
     ldflags:
       - -s -w -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}}
@@ -33,7 +33,7 @@ builds:
   - id: windows
     goos: [windows]
     goarch: ['386', amd64, arm64]
-    binary: bin/bk
+    binary: bk
     main: ./cmd/bk
     ldflags:
       - -s -w -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}}
@@ -65,5 +65,20 @@ archives:
     files:
       - LICENSE.md
       - README.md
+
+nfpms:
+  - builds:
+      - linux
+    vendor: Buildkite
+    homepage: https://buildkite.com
+    maintainer: Buildkite <support@buildkite.com>
+    description: A command line interface for Buildkite.
+    license: MIT
+    formats:
+      - apk
+      - deb
+      - rpm
+    provides:
+      - bk
 
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj

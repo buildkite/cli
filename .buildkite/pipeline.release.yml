@@ -9,5 +9,10 @@ steps:
           parameters:
             GITHUB_TOKEN: /pipelines/buildkite/buildkite-cli-release/github-token
       - docker-compose#v5.2.0:
-          run: release
+          command:
+            - release
+            - --clean
           config: .buildkite/docker-compose.yaml
+          env:
+            - GITHUB_TOKEN
+          run: goreleaser

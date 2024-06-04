@@ -7,22 +7,13 @@ services:
     volumes:
       - ..:/app
       - ~/.cache/golangci-lint/v1.54.1:/root/.cache
-  build:
-    image: goreleaser/goreleaser:v1.20.0
-    working_dir: /go/src/github.com/buildkite/cli
-    volumes:
-      - ..:/go/src/github.com/buildkite/cli
-    command:
-      - build
-      - --snapshot
-      - --clean
-  release:
-    image: goreleaser/goreleaser:v1.20.0
-    working_dir: /go/src/github.com/buildkite/cli
-    volumes:
-      - ..:/go/src/github.com/buildkite/cli
+  goreleaser:
+    build:
+      context: .
     environment:
-      - GITHUB_TOKEN
-    command:
-      - release
-      - --clean
+      - BUILDKITE_AGENT_JOB_API_SOCKET
+      - BUILDKITE_AGENT_JOB_API_TOKEN
+    working_dir: /go/src/github.com/buildkite/cli
+    volumes:
+      - ..:/go/src/github.com/buildkite/cli
+      - ${BUILDKITE_AGENT_JOB_API_SOCKET}:${BUILDKITE_AGENT_JOB_API_SOCKET}
