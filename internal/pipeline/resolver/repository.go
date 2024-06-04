@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -82,12 +81,16 @@ func filterPipelines(repoURLs []string, org string, client *buildkite.Client) ([
 
 func getRepoURLs(r *git.Repository) ([]string, error) {
 	if r == nil {
-		return nil, fmt.Errorf("could not determine current repository")
+		return nil, nil // could not resolve to any repository, proceed to another resolver
 	}
 
 	c, err := r.Config()
 	if err != nil {
 		return nil, err
+	}
+
+	if _, ok := c.Remotes["origin"]; !ok {
+		return nil, nil // repo's "origin" remote does not exist, proceed to another resolver
 	}
 	return c.Remotes["origin"].URLs, nil
 }
