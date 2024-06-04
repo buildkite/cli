@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/buildkite/cli/v3/internal/build"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
@@ -50,6 +52,10 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 }
 
 func download(build build.Build, logs bool, f *factory.Factory) error {
+	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+	s.Suffix = " Downloading logs"
+	s.Start()
+	defer s.Stop()
 	b, _, err := f.RestAPIClient.Builds.Get(build.Organization, build.Pipeline, fmt.Sprint(build.BuildNumber), nil)
 	if err != nil {
 		return err
