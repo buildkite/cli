@@ -23,6 +23,10 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 		Short:                 "Download resources of a build",
 		Long:                  "Download allows you to download resources from a build.",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if !logs {
+				fmt.Println("Nothing to download")
+				return nil
+			}
 			pipelineRes := pipelineResolver.NewAggregateResolver(
 				pipelineResolver.ResolveFromPositionalArgument(args, 1, f.Config),
 				pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
@@ -42,7 +46,13 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 				return fmt.Errorf("could not resolve a build")
 			}
 
-			return download(*bld, logs, f)
+			s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+			s.Suffix = " Downloading logs"
+			s.Start()
+			defer s.Stop()
+			err = download(*bld, f)
+
+			return err
 		},
 	}
 
@@ -51,17 +61,13 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-func download(build build.Build, logs bool, f *factory.Factory) error {
-	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-	s.Suffix = " Downloading logs"
-	s.Start()
-	defer s.Stop()
+func download(build build.Build, f *factory.Factory) error {
 	b, _, err := f.RestAPIClient.Builds.Get(build.Organization, build.Pipeline, fmt.Sprint(build.BuildNumber), nil)
 	if err != nil {
 		return err
 	}
 	if b == nil {
-		return fmt.Errorf("Could not find build for %s #%d", build.Pipeline, build.BuildNumber)
+		return fmt.Errorf("could not find build for %s #%d", build.Pipeline, build.BuildNumber)
 	}
 
 	directory := fmt.Sprintf("build-logs-%s", *b.ID)
@@ -81,7 +87,7 @@ func download(build build.Build, logs bool, f *factory.Factory) error {
 			return err
 		}
 		if log == nil {
-			return fmt.Errorf("Could not get logs for job %s", *job.ID)
+			return fmt.Errorf("could not get logs for job %s", *job.ID)
 		}
 
 		err = os.WriteFile(filepath.Join(directory, *job.ID), []byte(*log.Content), 0644)
@@ -89,5 +95,8 @@ func download(build build.Build, logs bool, f *factory.Factory) error {
 			return err
 		}
 	}
+
+	fmt.Printf("\nDownloaded logs to: %s\n", directory)
+
 	return nil
 }
