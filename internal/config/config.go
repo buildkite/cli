@@ -21,7 +21,6 @@ import (
 const (
 	DefaultGraphQLEndpoint     = "https://graphql.buildkite.com/v1"
 	OrganizationsSlugConfigKey = "organizations"
-	OpenAITokenKey             = "openai_token"
 )
 
 const (

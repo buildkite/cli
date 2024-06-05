@@ -16,7 +16,6 @@ func NewCmdAI(f *factory.Factory) *cobra.Command {
 			# To configure your AI token
 			$ bk ai configure
 		`),
-		PersistentPreRunE: validation.CheckValidConfiguration(f.Config),
 	}
 
 	cmd.AddCommand(NewCmdAIConfigure(f))
