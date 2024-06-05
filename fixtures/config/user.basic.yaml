@@ -1,3 +1,4 @@
+openai_token: jumanji
 selected_org: buildkite-org
 organizations:
   buildkite-test:
