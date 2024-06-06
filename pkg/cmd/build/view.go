@@ -10,6 +10,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/build"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/io"
+	"github.com/buildkite/cli/v3/internal/job"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
@@ -83,9 +84,15 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 						fmt.Println("Error opening browser: ", err)
 					}
 				}
-
+  
 				// Obtain build summary and return
 				summary := build.BuildSummary(b)
+        if len(b.Jobs) > 0 {
+          summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Render("\nJobs")
+          for _, j := range b.Jobs{
+            summary += job.JobSummary(j)
+          }
+        }
 				if len(buildArtifacts) > 0 {
 					summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Render("\nArtifacts")
 					for _, a := range buildArtifacts {
