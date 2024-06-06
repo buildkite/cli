@@ -202,7 +202,7 @@ func createIfNotExistsConfigDir() (string, error) {
 
 	configDir := filepath.Join(homeDir, ".config")
 	if _, err := os.Stat(configDir); errors.Is(err, os.ErrNotExist) {
-		err := os.Mkdir(configDir, 0755)
+		err := os.Mkdir(configDir, 0o755)
 		if err != nil {
 			return "", err
 		}

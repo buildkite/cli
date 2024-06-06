@@ -37,7 +37,6 @@ func NewCmdAgentView(f *factory.Factory) *cobra.Command {
 
 			l := io.NewPendingCommand(func() tea.Msg {
 				agentData, _, err := f.RestAPIClient.Agents.Get(org, id)
-
 				if err != nil {
 					return err
 				}
