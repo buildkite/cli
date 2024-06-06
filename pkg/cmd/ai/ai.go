@@ -3,8 +3,8 @@ package ai
 import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/spf13/cobra"
+  aiUse "github.com/buildkite/cli/v3/pkg/cmd/ai/use"
 )
 
 func NewCmdAI(f *factory.Factory) *cobra.Command {
@@ -19,6 +19,7 @@ func NewCmdAI(f *factory.Factory) *cobra.Command {
 	}
 
 	cmd.AddCommand(NewCmdAIConfigure(f))
+  cmd.AddCommand(aiUse.NewCmdUse(f))
 
 	return &cmd
 }

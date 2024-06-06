@@ -11,7 +11,7 @@ func NewCmdAIAdd(f *factory.Factory) *cobra.Command {
 		Use:   "add",
 		Args:  cobra.NoArgs,
 		Short: "Add an OpenAI token.",
-    Long: "Add an OpenAI token for use with CLI AI tooling",
+		Long:  "Add an OpenAI token for use with CLI AI tooling",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return ConfigureRun(f)
 		},
@@ -23,19 +23,24 @@ func NewCmdAIAdd(f *factory.Factory) *cobra.Command {
 func ConfigureRun(f *factory.Factory) error {
 	qs := []*survey.Question{
 		{
+			Name:     "key",
+			Prompt:   &survey.Input{Message: "Provide a name for the token:"},
+			Validate: survey.Required,
+		},
+		{
 			Name:     "token",
 			Prompt:   &survey.Password{Message: "Paste your OpenAI token:"},
 			Validate: survey.Required,
 		},
 	}
-	answers := struct{ Token string }{}
+	answers := struct{ Key, Token string }{}
 
 	err := survey.Ask(qs, &answers)
 	if err != nil {
 		return err
 	}
 
-	err = f.Config.SetOpenAIToken(answers.Token)
+	err = f.Config.SetOpenAIToken(answers.Key, answers.Token)
 
 	return err
 }
