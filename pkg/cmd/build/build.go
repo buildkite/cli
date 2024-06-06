@@ -39,7 +39,6 @@ func NewCmdBuild(f *factory.Factory) *cobra.Command {
 }
 
 func openBuildInBrowser(openInWeb bool, webUrl string) error {
-
 	if openInWeb {
 		fmt.Printf("Opening %s in your browser\n", webUrl)
 		err := browser.OpenURL(webUrl)

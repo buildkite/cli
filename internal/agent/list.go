@@ -12,8 +12,10 @@ import (
 	"github.com/pkg/browser"
 )
 
-var agentListStyle = lipgloss.NewStyle().Padding(1, 2)
-var viewPortStyle = agentListStyle.Copy()
+var (
+	agentListStyle = lipgloss.NewStyle().Padding(1, 2)
+	viewPortStyle  = agentListStyle.Copy()
+)
 
 type AgentListModel struct {
 	agentList          list.Model

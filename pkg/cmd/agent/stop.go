@@ -56,7 +56,7 @@ func RunStop(cmd *cobra.Command, args []string, opts *AgentStopOptions) error {
 	// use a wait group to ensure we exit the program after all agents have finished
 	var wg sync.WaitGroup
 	// this semaphore is used to limit how many concurrent API requests can be sent
-	var sem = semaphore.NewWeighted(opts.limit)
+	sem := semaphore.NewWeighted(opts.limit)
 
 	var agents []agent.StoppableAgent
 	// this command accepts either input from stdin or positional arguments (not both) in that order

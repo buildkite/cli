@@ -68,5 +68,4 @@ func TestResolvePipelineFromConfig(t *testing.T) {
 			t.Errorf("pipeline name should resolve temporarily to pipeline1")
 		}
 	})
-
 }

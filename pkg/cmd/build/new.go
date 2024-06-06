@@ -59,7 +59,6 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 
 func newBuild(org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool) error {
 	l := io.NewPendingCommand(func() tea.Msg {
-
 		if len(branch) == 0 {
 			p, _, err := f.RestAPIClient.Pipelines.Get(org, pipeline)
 			if err != nil {
@@ -85,7 +84,6 @@ func newBuild(org string, pipeline string, f *factory.Factory, message string, c
 
 		return io.PendingOutput(lipgloss.JoinVertical(lipgloss.Top,
 			lipgloss.NewStyle().Padding(1, 1).Render(fmt.Sprintf("Build created: %s\n", *build.WebURL))))
-
 	}, fmt.Sprintf("Starting new build for %s", pipeline))
 	p := tea.NewProgram(l)
 	_, err := p.Run()

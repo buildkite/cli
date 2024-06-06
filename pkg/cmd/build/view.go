@@ -36,8 +36,8 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			If the pipeline argument is omitted, it will be resolved using the current directory.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var buildArtifacts = make([]buildkite.Artifact, 0)
-			var buildAnnotations = make([]buildkite.Annotation, 0)
+			buildArtifacts := make([]buildkite.Artifact, 0)
+			buildAnnotations := make([]buildkite.Annotation, 0)
 
 			pipelineRes := pipelineResolver.NewAggregateResolver(
 				pipelineResolver.ResolveFromPositionalArgument(args, 1, f.Config),
@@ -84,15 +84,15 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 						fmt.Println("Error opening browser: ", err)
 					}
 				}
-  
+
 				// Obtain build summary and return
 				summary := build.BuildSummary(b)
-        if len(b.Jobs) > 0 {
-          summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Render("\nJobs")
-          for _, j := range b.Jobs{
-            summary += job.JobSummary(j)
-          }
-        }
+				if len(b.Jobs) > 0 {
+					summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Render("\nJobs")
+					for _, j := range b.Jobs {
+						summary += job.JobSummary(j)
+					}
+				}
 				if len(buildArtifacts) > 0 {
 					summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Render("\nArtifacts")
 					for _, a := range buildArtifacts {

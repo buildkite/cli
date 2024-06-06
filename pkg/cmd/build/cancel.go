@@ -67,7 +67,6 @@ func cancelBuild(org string, pipeline string, buildId string, web bool, f *facto
 		}
 
 		return io.PendingOutput(renderResult(fmt.Sprintf("Cancelling build: %s\n", *build.WebURL)))
-
 	}, fmt.Sprintf("Cancelling build #%s from pipeline %s", buildId, pipeline))
 
 	p := tea.NewProgram(l)

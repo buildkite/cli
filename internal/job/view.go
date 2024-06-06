@@ -12,17 +12,17 @@ import (
 
 func JobSummary(job *buildkite.Job) string {
 	jobName := getJobName(*job)
-  jobTotalTime, err := calculateTotalTime(job.StartedAt, job.FinishedAt)
-  if err != nil {
-    log.Fatal("Unable to calculate total job time", err)
-  }
+	jobTotalTime, err := calculateTotalTime(job.StartedAt, job.FinishedAt)
+	if err != nil {
+		log.Fatal("Unable to calculate total job time", err)
+	}
 
-  jobInfo := fmt.Sprintf("%s %s (%s)", renderJobState(*job.State), jobName, lipgloss.NewStyle().Foreground(lipgloss.Color("#5A5A5A")).Render(jobTotalTime.String()))
+	jobInfo := fmt.Sprintf("%s %s (%s)", renderJobState(*job.State), jobName, lipgloss.NewStyle().Foreground(lipgloss.Color("#5A5A5A")).Render(jobTotalTime.String()))
 
-  summary := lipgloss.JoinVertical(lipgloss.Top,
-    lipgloss.NewStyle().Align(lipgloss.Left).Padding(0, 1).Render(),
-    lipgloss.NewStyle().Bold(true).Padding(0, 1).Render(jobInfo),
-    )
+	summary := lipgloss.JoinVertical(lipgloss.Top,
+		lipgloss.NewStyle().Align(lipgloss.Left).Padding(0, 1).Render(),
+		lipgloss.NewStyle().Bold(true).Padding(0, 1).Render(jobInfo),
+	)
 	return summary
 }
 
@@ -79,9 +79,9 @@ func getJobStateColor(state string) lipgloss.Color {
 }
 
 func calculateTotalTime(startedAt, finishedAt *buildkite.Timestamp) (time.Duration, error) {
-    if startedAt == nil || finishedAt == nil {
-        return 0, errors.New("both startedAt and finishedAt must be non-nil")
-    }
+	if startedAt == nil || finishedAt == nil {
+		return 0, errors.New("both startedAt and finishedAt must be non-nil")
+	}
 
-    return finishedAt.Time.Sub(startedAt.Time), nil
+	return finishedAt.Time.Sub(startedAt.Time), nil
 }
