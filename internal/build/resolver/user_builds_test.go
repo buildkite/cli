@@ -127,7 +127,6 @@ func TestResolveBuildForCurrentUser(t *testing.T) {
 
 		r := resolver.ResolveBuildForCurrentUser("main", pipelineResolver, f)
 		build, err := r(context.Background())
-
 		if err != nil {
 			t.Fatal(err)
 		}

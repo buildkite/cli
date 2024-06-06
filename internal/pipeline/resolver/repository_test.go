@@ -34,7 +34,6 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		if len(pipelines) != 0 {
 			t.Errorf("Expected 0 pipeline, got %d", len(pipelines))
 		}
-
 	})
 
 	t.Run("one pipeline", func(t *testing.T) {

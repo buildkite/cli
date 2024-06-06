@@ -96,7 +96,7 @@ func (conf *Config) OrganizationSlug() string {
 }
 
 func (conf *Config) OpenAIToken() string {
-  return conf.userConfig.GetString("selected_openai_token")
+	return conf.userConfig.GetString("selected_openai_token")
 }
 
 // SelectOrganization sets the selected organization in the local configuration file
@@ -107,22 +107,22 @@ func (conf *Config) SelectOrganization(org string) error {
 
 // SetOpenAIToken sets the user's OpenAI token in the user config file
 func (conf *Config) SetOpenAIToken(key, token string) error {
-  name := fmt.Sprintf("openai_tokens.%s", key)
+	name := fmt.Sprintf("openai_tokens.%s", key)
 	conf.userConfig.Set(name, token)
 	return conf.userConfig.WriteConfig()
 }
 
 // GetOpenAIToken reads the user's OpenAI token from the user config file
 func (conf *Config) GetOpenAIToken(key string) string {
-  token := fmt.Sprintf("openai_tokens.%s", key)
+	token := fmt.Sprintf("openai_tokens.%s", key)
 	return conf.userConfig.GetString(token)
 }
 
 // SelectOpenAIToken will allow the user to select a preferred OpenAI token
 // It's possible to have differently scoped tokens with different limits/balances
 func (conf *Config) SelectOpenAIToken(key string) error {
-  conf.userConfig.Set("selected_openai_token", key)
-  return conf.userConfig.WriteConfig()
+	conf.userConfig.Set("selected_openai_token", key)
+	return conf.userConfig.WriteConfig()
 }
 
 // APIToken gets the API token configured for the currently selected organization
@@ -241,7 +241,7 @@ func createIfNotExistsConfigDir() (string, error) {
 
 	configDir := filepath.Join(homeDir, ".config")
 	if _, err := os.Stat(configDir); errors.Is(err, os.ErrNotExist) {
-		err := os.Mkdir(configDir, 0755)
+		err := os.Mkdir(configDir, 0o755)
 		if err != nil {
 			return "", err
 		}

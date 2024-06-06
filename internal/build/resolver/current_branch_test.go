@@ -41,7 +41,6 @@ func TestResolveBuildFromCurrentBranch(t *testing.T) {
 		}
 		r := resolver.ResolveBuildFromCurrentBranch(testRepository(), pipelineResolver, &f)
 		b, err := r(context.Background())
-
 		if err != nil {
 			t.Fatal(err)
 		}

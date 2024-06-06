@@ -58,7 +58,6 @@ func getBuildStateColor(state string) lipgloss.Color {
 }
 
 func renderBuildState(state string, blocked bool) string {
-
 	var stateIcon string
 	stateColor := getBuildStateColor(state)
 
