@@ -8,6 +8,7 @@ import (
 	configureCmd "github.com/buildkite/cli/v3/pkg/cmd/configure"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	initCmd "github.com/buildkite/cli/v3/pkg/cmd/init"
+	pipelineCmd "github.com/buildkite/cli/v3/pkg/cmd/pipeline"
 	useCmd "github.com/buildkite/cli/v3/pkg/cmd/use"
 	versionCmd "github.com/buildkite/cli/v3/pkg/cmd/version"
 	"github.com/spf13/cobra"
@@ -34,6 +35,7 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 	cmd.AddCommand(aiCmd.NewCmdAI(f))
 	cmd.AddCommand(versionCmd.NewCmdVersion(f))
 	cmd.AddCommand(buildCmd.NewCmdBuild(f))
+	cmd.AddCommand(pipelineCmd.NewCmdPipeline(f))
 
 	return cmd, nil
 }
