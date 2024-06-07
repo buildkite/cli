@@ -23,24 +23,19 @@ func NewCmdAIAdd(f *factory.Factory) *cobra.Command {
 func ConfigureRun(f *factory.Factory) error {
 	qs := []*survey.Question{
 		{
-			Name:     "key",
-			Prompt:   &survey.Input{Message: "Provide a name for the token:"},
-			Validate: survey.Required,
-		},
-		{
 			Name:     "token",
 			Prompt:   &survey.Password{Message: "Paste your OpenAI token:"},
 			Validate: survey.Required,
 		},
 	}
-	answers := struct{ Key, Token string }{}
+	answers := struct{ Token string }{}
 
 	err := survey.Ask(qs, &answers)
 	if err != nil {
 		return err
 	}
 
-	err = f.Config.SetOpenAIToken(answers.Key, answers.Token)
+	err = f.Config.SetOpenAIToken(answers.Token)
 
 	return err
 }

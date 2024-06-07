@@ -18,7 +18,7 @@ func NewCmdAIConfigure(f *factory.Factory) *cobra.Command {
 		Short:   "Configure OpenAI token.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// if the token already exists and --force is not used
-			if !force && f.Config.OpenAIToken() != "" {
+			if !force && f.Config.GetOpenAIToken() != "" {
 				return errors.New("OpenAI token already configured. You must use --force.")
 			}
 

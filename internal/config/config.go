@@ -95,10 +95,6 @@ func (conf *Config) OrganizationSlug() string {
 	)
 }
 
-func (conf *Config) OpenAIToken() string {
-	return conf.userConfig.GetString("selected_openai_token")
-}
-
 // SelectOrganization sets the selected organization in the local configuration file
 func (conf *Config) SelectOrganization(org string) error {
 	conf.localConfig.Set("selected_org", org)
@@ -106,23 +102,14 @@ func (conf *Config) SelectOrganization(org string) error {
 }
 
 // SetOpenAIToken sets the user's OpenAI token in the user config file
-func (conf *Config) SetOpenAIToken(key, token string) error {
-	name := fmt.Sprintf("openai_tokens.%s", key)
-	conf.userConfig.Set(name, token)
+func (conf *Config) SetOpenAIToken(token string) error {
+	conf.userConfig.Set("openai_token", token)
 	return conf.userConfig.WriteConfig()
 }
 
 // GetOpenAIToken reads the user's OpenAI token from the user config file
-func (conf *Config) GetOpenAIToken(key string) string {
-	token := fmt.Sprintf("openai_tokens.%s", key)
-	return conf.userConfig.GetString(token)
-}
-
-// SelectOpenAIToken will allow the user to select a preferred OpenAI token
-// It's possible to have differently scoped tokens with different limits/balances
-func (conf *Config) SelectOpenAIToken(key string) error {
-	conf.userConfig.Set("selected_openai_token", key)
-	return conf.userConfig.WriteConfig()
+func (conf *Config) GetOpenAIToken() string {
+	return conf.userConfig.GetString("openai_token")
 }
 
 // APIToken gets the API token configured for the currently selected organization
@@ -149,24 +136,9 @@ func (conf *Config) ConfiguredOrganizations() []string {
 	return keys
 }
 
-func (conf *Config) ConfiguredOpenAITokens() []string {
-	m := conf.userConfig.GetStringMap("openai_tokens")
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
 func (conf *Config) HasConfiguredOrganization(slug string) bool {
 	m := conf.userConfig.GetStringMap("organizations")
 	_, ok := m[slug]
-	return ok
-}
-
-func (conf *Config) HasConfiguredOpenAITokens(key string) bool {
-	m := conf.userConfig.GetStringMap("openai_tokens")
-	_, ok := m[key]
 	return ok
 }
 
