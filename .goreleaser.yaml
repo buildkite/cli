@@ -1,4 +1,5 @@
 project_name: bk
+version: 2
 
 release:
   name_template: Buildkite CLI {{.Version}}
