@@ -28,6 +28,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Use:                   "view [number] [flags]",
 		Short:                 "View build information.",
+		Args:                  cobra.MaximumNArgs(1),
 		Long: heredoc.Doc(`
 			View a build's information.
 
@@ -38,7 +39,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			buildAnnotations := make([]buildkite.Annotation, 0)
 
 			pipelineRes := pipelineResolver.NewAggregateResolver(
-				pipelineResolver.ResolveFromPositionalArgument(args, 1, f.Config),
+				pipelineResolver.ResolveFromFlag(pipeline, f.Config),
 				pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
 				pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOne)),
 			)
