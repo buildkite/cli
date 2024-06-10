@@ -22,6 +22,11 @@ func PickOne(pipelines []pipeline.Pipeline) *pipeline.Pipeline {
 		return nil
 	}
 
+	// no need to prompt for only one option
+	if len(pipelines) == 1 {
+		return &pipelines[0]
+	}
+
 	names := make([]string, len(pipelines))
 	for i, p := range pipelines {
 		names[i] = p.Name
