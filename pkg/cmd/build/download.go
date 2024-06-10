@@ -15,18 +15,12 @@ import (
 )
 
 func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
-	var logs bool
-
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
 		Use:                   "download [number [pipeline]] [flags]",
-		Short:                 "Download resources of a build",
-		Long:                  "Download allows you to download resources from a build.",
+		Short:                 "Download job logs for a build",
+		Long:                  "Download allows you to download resources for a build.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !logs {
-				fmt.Println("Nothing to download")
-				return nil
-			}
 			pipelineRes := pipelineResolver.NewAggregateResolver(
 				pipelineResolver.ResolveFromPositionalArgument(args, 1, f.Config),
 				pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
@@ -55,8 +49,6 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 			return err
 		},
 	}
-
-	cmd.Flags().BoolVar(&logs, "logs", false, "Download all job logs for the build")
 
 	return &cmd
 }
