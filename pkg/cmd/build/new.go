@@ -14,25 +14,24 @@ import (
 )
 
 func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
-	var message string
-	var commit string
 	var branch string
+	var commit string
+	var message string
+	var pipeline string
 	var web bool
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
-		Use:                   "new [pipeline] [flags]",
-		Short:                 "Creates a new pipeline build",
-		Args:                  cobra.MaximumNArgs(1),
+		Use:                   "new [flags]",
+		Short:                 "Create a new build",
+		Args:                  cobra.NoArgs,
 		Long: heredoc.Doc(`
-			Creates a new build for the specified pipeline and output the URL to the build.
-
-			The pipeline can be a {pipeline_slug} or in the format {org_slug}/{pipeline_slug}.
-			If the pipeline argument is omitted, it will be resolved using the current directory.
+			Create a new build on a pipeline.
+			The web URL to the build will be printed to stdout.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			resolvers := resolver.NewAggregateResolver(
-				resolver.ResolveFromPositionalArgument(args, 0, f.Config),
+				resolver.ResolveFromFlag(pipeline, f.Config),
 				resolver.ResolveFromConfig(f.Config, resolver.PickOne),
 				resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOne)),
 			)
@@ -53,6 +52,9 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVarP(&commit, "commit", "c", "HEAD", "The commit to build.")
 	cmd.Flags().StringVarP(&branch, "branch", "b", "", "The branch to build. Defaults to the default branch of the pipeline.")
 	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the build in a web browser after it has been created.")
+	cmd.Flags().StringVarP(&pipeline, "pipeline", "p", "", "The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
+		"If omitted, it will be resolved using the current directory.",
+	)
 	cmd.Flags().SortFlags = false
 	return &cmd
 }
