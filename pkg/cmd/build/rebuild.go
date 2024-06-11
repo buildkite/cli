@@ -68,7 +68,7 @@ func rebuild(org string, pipeline string, buildId string, web bool, f *factory.F
 			return err
 		}
 
-		return io.PendingOutput(renderResult(fmt.Sprintf("Build created: %s\n", *build.WebURL)))
+		return io.PendingOutput(renderResult(fmt.Sprintf("Build created: %s", *build.WebURL)))
 	}, fmt.Sprintf("Rerunning build #%s for pipeline %s", buildId, pipeline))
 
 	p := tea.NewProgram(l)

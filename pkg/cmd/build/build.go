@@ -40,7 +40,6 @@ func NewCmdBuild(f *factory.Factory) *cobra.Command {
 
 func openBuildInBrowser(openInWeb bool, webUrl string) error {
 	if openInWeb {
-		fmt.Printf("Opening %s in your browser\n", webUrl)
 		err := browser.OpenURL(webUrl)
 		if err != nil {
 			fmt.Println("Error opening browser: ", err)
@@ -52,5 +51,5 @@ func openBuildInBrowser(openInWeb bool, webUrl string) error {
 
 func renderResult(result string) string {
 	return lipgloss.JoinVertical(lipgloss.Top,
-		lipgloss.NewStyle().Padding(1, 1).Render(result))
+		lipgloss.NewStyle().Padding(0, 0).Render(result))
 }
