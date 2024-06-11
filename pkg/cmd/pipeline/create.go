@@ -19,7 +19,7 @@ func NewCmdPipelineCreate(f *factory.Factory) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Use:                   "create",
 		Short:                 "Creates a new pipeline",
-		Args:                  cobra.MaximumNArgs(1),
+		Args:                  cobra.NoArgs,
 		Long: heredoc.Doc(`
 			Creates a new pipeline in the current org and outputs the URL to the pipeline.
 
