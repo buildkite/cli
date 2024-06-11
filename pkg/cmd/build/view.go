@@ -2,7 +2,6 @@ package build
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/annotation"
@@ -57,8 +56,14 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 				return fmt.Errorf("could not resolve a build")
 			}
 
+			if web {
+				buildUrl := fmt.Sprintf("https://buildkite.com/%s/%s/builds/%d", bld.Organization, bld.Pipeline, bld.BuildNumber)
+				fmt.Printf("Opening %s in your browser\n", buildUrl)
+				return browser.OpenURL(buildUrl)
+			}
+
 			l := io.NewPendingCommand(func() tea.Msg {
-				var buildUrl string
+
 				b, _, err := f.RestAPIClient.Builds.Get(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.BuildsListOptions{})
 				if err != nil {
 					return err
@@ -72,16 +77,6 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 				buildAnnotations, _, err = f.RestAPIClient.Annotations.ListByBuild(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.AnnotationListOptions{})
 				if err != nil {
 					return err
-				}
-
-				if web {
-					buildUrl = fmt.Sprintf("https://buildkite.com/%s/%s/builds/%d", bld.Organization, bld.Pipeline, *b.Number)
-					fmt.Printf("Opening %s in your browser\n\n", buildUrl)
-					time.Sleep(1 * time.Second)
-					err = browser.OpenURL(buildUrl)
-					if err != nil {
-						fmt.Println("Error opening browser: ", err)
-					}
 				}
 
 				// Obtain build summary and return

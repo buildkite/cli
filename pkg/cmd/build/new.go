@@ -9,7 +9,6 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
 
@@ -84,8 +83,7 @@ func newBuild(org string, pipeline string, f *factory.Factory, message string, c
 			return err
 		}
 
-		return io.PendingOutput(lipgloss.JoinVertical(lipgloss.Top,
-			lipgloss.NewStyle().Padding(1, 1).Render(fmt.Sprintf("Build created: %s\n", *build.WebURL))))
+		return io.PendingOutput(renderResult(fmt.Sprintf("Build created: %s", *build.WebURL)))
 	}, fmt.Sprintf("Starting new build for %s", pipeline))
 	p := tea.NewProgram(l)
 	_, err := p.Run()
