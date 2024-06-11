@@ -22,9 +22,6 @@ func NewCmdPipelineCreate(f *factory.Factory) *cobra.Command {
 		Args:                  cobra.NoArgs,
 		Long: heredoc.Doc(`
 			Creates a new pipeline in the current org and outputs the URL to the pipeline.
-
-			The pipeline can be a {pipeline_slug} or in the format {org_slug}/{pipeline_slug}.
-			If the pipeline argument is omitted, the user will be prompted for a name and description.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var repoURL string
