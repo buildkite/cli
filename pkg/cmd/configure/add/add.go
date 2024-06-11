@@ -1,8 +1,10 @@
 package add
 
 import (
-	"github.com/AlecAivazis/survey/v2"
+	"errors"
+
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 )
 
@@ -21,31 +23,32 @@ func NewCmdAdd(f *factory.Factory) *cobra.Command {
 }
 
 func ConfigureRun(f *factory.Factory) error {
-	qs := []*survey.Question{
-		{
-			Name:     "org",
-			Prompt:   &survey.Input{Message: "What is your organization slug?"},
-			Validate: survey.Required,
-		},
-		{
-			Name:     "token",
-			Prompt:   &survey.Password{Message: "Paste your API token:"},
-			Validate: survey.Required,
-		},
+	var org, token string
+	nonEmpty := func(s string) error {
+		if len(s) == 0 {
+			return errors.New("value cannot be empty")
+		}
+		return nil
 	}
-	answers := struct{ Org, Token string }{}
-
-	err := survey.Ask(qs, &answers)
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().Title("Organization slug: ").Value(&org).Validate(nonEmpty).Inline(true).Prompt(""),
+		),
+		huh.NewGroup(
+			huh.NewInput().Title("API Token: ").Value(&token).EchoMode(huh.EchoModePassword).Validate(nonEmpty).Inline(true).Prompt(""),
+		),
+	).WithTheme(huh.ThemeBase16())
+	err := form.Run()
 	if err != nil {
 		return err
 	}
 
-	err = f.Config.SelectOrganization(answers.Org)
+	err = f.Config.SelectOrganization(org)
 	if err != nil {
 		return err
 	}
 
-	err = f.Config.SetTokenForOrg(answers.Org, answers.Token)
+	err = f.Config.SetTokenForOrg(org, token)
 
 	return err
 }
