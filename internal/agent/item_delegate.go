@@ -35,20 +35,20 @@ type itemStyles struct {
 func DefaultItemStyles() (s itemStyles) {
 	// apply a width of the longest expected string
 	s.normalStatus = lipgloss.NewStyle().Width(len("connected"))
-	s.selectedStatus = s.normalStatus.Copy()
-	s.dimmedStatus = s.normalStatus.Copy()
+	s.selectedStatus = s.normalStatus
+	s.dimmedStatus = s.normalStatus
 
 	s.normalName = lipgloss.NewStyle().PaddingLeft(2)
-	s.selectedName = s.normalName.Copy()
-	s.dimmedName = s.normalName.Copy()
+	s.selectedName = s.normalName
+	s.dimmedName = s.normalName
 
-	s.normalVersion = s.normalName.Copy().Foreground(style.Grey) //.Width(len("v0.00.00"))
-	s.selectedVersion = s.normalVersion.Copy()
-	s.dimmedVersion = s.normalVersion.Copy()
+	s.normalVersion = s.normalName.Foreground(style.Grey) //.Width(len("v0.00.00"))
+	s.selectedVersion = s.normalVersion
+	s.dimmedVersion = s.normalVersion
 
-	s.normalQueue = s.normalName.Copy().Foreground(style.Teal)
-	s.selectedQueue = s.normalQueue.Copy()
-	s.dimmedQueue = s.normalQueue.Copy()
+	s.normalQueue = s.normalName.Foreground(style.Teal)
+	s.selectedQueue = s.normalQueue
+	s.dimmedQueue = s.normalQueue
 
 	s.filterMatch = lipgloss.NewStyle().Underline(true)
 
@@ -117,7 +117,7 @@ func (d listAgentDelegate) Render(w io.Writer, m list.Model, index int, item lis
 		if isFiltered {
 			// Highlight matches
 			unmatched := s.selectedName.Inline(true)
-			matched := unmatched.Copy().Inherit(s.filterMatch)
+			matched := unmatched.Inherit(s.filterMatch)
 			name = lipgloss.StyleRunes(name, matchedRunes, matched, unmatched)
 		}
 		name = s.selectedName.Render(name)
@@ -128,7 +128,7 @@ func (d listAgentDelegate) Render(w io.Writer, m list.Model, index int, item lis
 		if isFiltered {
 			// Highlight matches
 			unmatched := s.normalName.Inline(true)
-			matched := unmatched.Copy().Inherit(s.filterMatch)
+			matched := unmatched.Inherit(s.filterMatch)
 			name = lipgloss.StyleRunes(name, matchedRunes, matched, unmatched)
 		}
 		name = s.normalName.Render(name)
