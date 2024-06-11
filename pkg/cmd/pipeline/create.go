@@ -14,9 +14,6 @@ import (
 )
 
 func NewCmdPipelineCreate(f *factory.Factory) *cobra.Command {
-	var pipelineName string
-	var description string
-	var repoURL string
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
@@ -30,23 +27,46 @@ func NewCmdPipelineCreate(f *factory.Factory) *cobra.Command {
 			If the pipeline argument is omitted, the user will be prompted for a name and description.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			var repoURL string
 
-			survey.AskOne(&survey.Input{Message: "Name:"}, &pipelineName, survey.WithValidator(survey.Required))
-			survey.AskOne(&survey.Input{Message: "Description:"}, &description, survey.WithValidator(survey.Required))
+			qs := []*survey.Question{
+				{
+					Name:     "pipeline",
+					Prompt:   &survey.Input{Message: "Name:"},
+					Validate: survey.Required,
+				},
+				{
+					Name:     "description",
+					Prompt:   &survey.Input{Message: "Description:"},
+					Validate: survey.Required,
+				},
+			}
+			answers := struct{ Pipeline, Description string }{}
+			err := survey.Ask(qs, &answers)
+			if err != nil {
+				return err
+			}
+
 			repoURLS := getRepoURLS(f)
 			if len(repoURLS) > 0 {
 				prompt := &survey.Select{
 					Message: "Choose a repository:",
 					Options: repoURLS,
 				}
-				survey.AskOne(prompt, &repoURL, survey.WithValidator(survey.Required))
+				err := survey.AskOne(prompt, &repoURL, survey.WithValidator(survey.Required))
+				if err != nil {
+					return err
+				}
 			} else {
-				survey.AskOne(&survey.Input{Message: "Repository URL:"}, &repoURL, survey.WithValidator(survey.Required))
+				err := survey.AskOne(&survey.Input{Message: "Repository URL:"}, &repoURL, survey.WithValidator(survey.Required))
+				if err != nil {
+					return err
+				}
 			}
 
-			fmt.Printf("Creating pipeline %s with description %s, repo %s\n", pipelineName, description, repoURL)
+			fmt.Printf("Creating pipeline %s with description %s, repo %s\n", answers.Pipeline, answers.Description, repoURL)
 
-			return createPipeline(f.RestAPIClient, f.Config.OrganizationSlug(), pipelineName, description, repoURL)
+			return createPipeline(f.RestAPIClient, f.Config.OrganizationSlug(), answers.Pipeline, answers.Description, repoURL)
 		},
 	}
 
