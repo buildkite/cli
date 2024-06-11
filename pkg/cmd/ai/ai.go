@@ -9,6 +9,7 @@ import (
 
 func NewCmdAI(f *factory.Factory) *cobra.Command {
 	cmd := cobra.Command{
+		Hidden:  true,
 		Use:     "ai <command>",
 		Short:   "Manage AI integration.",
 		Long:    "Work with Buildkite AI.",
