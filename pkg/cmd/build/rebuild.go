@@ -14,21 +14,20 @@ import (
 
 func NewCmdBuildRebuild(f *factory.Factory) *cobra.Command {
 	var web bool
+	var pipeline string
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
-		Use:                   "rebuild [number [pipeline]] [flags]",
-		Short:                 "Reruns a build.",
+		Use:                   "rebuild [number] [flags]",
+		Short:                 "Rebuild a build.",
+		Args:                  cobra.MaximumNArgs(1),
 		Long: heredoc.Doc(`
-			Runs a new build from the specified build number and pipeline and outputs the URL to the new build.
-
-			It accepts a build number and a pipeline slug  as an argument.
-			The pipeline can be a {pipeline_slug} or in the format {org_slug}/{pipeline_slug}.
-			If the pipeline argument is omitted, it will be resolved using the current directory.
+			Rebuild a build.
+			The web URL to the build will be printed to stdout.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pipelineRes := pipelineResolver.NewAggregateResolver(
-				pipelineResolver.ResolveFromPositionalArgument(args, 1, f.Config),
+				pipelineResolver.ResolveFromFlag(pipeline, f.Config),
 				pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
 				pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOne)),
 			)
@@ -51,6 +50,9 @@ func NewCmdBuildRebuild(f *factory.Factory) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the build in a web browser after it has been created.")
+	cmd.Flags().StringVarP(&pipeline, "pipeline", "p", "", "The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
+		"If omitted, it will be resolved using the current directory.",
+	)
 	cmd.Flags().SortFlags = false
 	return &cmd
 }

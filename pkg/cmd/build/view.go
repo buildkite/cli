@@ -22,25 +22,24 @@ import (
 
 func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 	var web bool
+	var pipeline string
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
-		Use:                   "view [number [pipeline]] [flags]",
+		Use:                   "view [number] [flags]",
 		Short:                 "View build information.",
+		Args:                  cobra.MaximumNArgs(1),
 		Long: heredoc.Doc(`
 			View a build's information.
 
-			It accepts a build number and a pipeline slug as an argument.
-			If the build argument is be omitted, the most recent build on the current branch will be resolved.
-			The pipeline can be a {pipeline_slug} or in the format {org_slug}/{pipeline_slug}.
-			If the pipeline argument is omitted, it will be resolved using the current directory.
+			You can pass an optional build number to view. If omitted, the most recent build on the current branch will be resolved.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			buildArtifacts := make([]buildkite.Artifact, 0)
 			buildAnnotations := make([]buildkite.Annotation, 0)
 
 			pipelineRes := pipelineResolver.NewAggregateResolver(
-				pipelineResolver.ResolveFromPositionalArgument(args, 1, f.Config),
+				pipelineResolver.ResolveFromFlag(pipeline, f.Config),
 				pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
 				pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOne)),
 			)
@@ -116,6 +115,9 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the build in a web browser.")
+	cmd.Flags().StringVarP(&pipeline, "pipeline", "p", "", "The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
+		"If omitted, it will be resolved using the current directory.",
+	)
 
 	return &cmd
 }
