@@ -57,7 +57,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			}
 
 			if web {
-				buildUrl := fmt.Sprintf("https://buildkite.com/%s/%s/builds/%s", bld.Organization, bld.Pipeline, args[0])
+				buildUrl := fmt.Sprintf("https://buildkite.com/%s/%s/builds/%d", bld.Organization, bld.Pipeline, bld.BuildNumber)
 				fmt.Printf("Opening %s in your browser\n\n", buildUrl)
 				return browser.OpenURL(buildUrl)
 			}
