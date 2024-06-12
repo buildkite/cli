@@ -30,7 +30,7 @@ fi
 GITHUB_TOKEN=$(buildkite-agent secret get github_token)
 if [[ $? -ne 0 ]]; then
     echo "Failed to retrieve GitHub token"
-    exit 1
+    echo "Will continue to allow building (without releasing)"
 fi
 
 if ! goreleaser "$@"; then
