@@ -22,9 +22,14 @@ upload_url() {
 }
 
 GORELEASER_KEY=$(buildkite-agent secret get goreleaser_key)
-
 if [[ $? -ne 0 ]]; then
     echo "Failed to retrieve GoReleaser Pro key"
+    exit 1
+fi
+
+GITHUB_TOKEN=$(buildkite-agent secret get github_token)
+if [[ $? -ne 0 ]]; then
+    echo "Failed to retrieve GitHub token"
     exit 1
 fi
 

@@ -31,11 +31,6 @@ steps:
     artifact_paths:
       - dist/**/*
     plugins:
-      - aws-assume-role-with-web-identity:
-          role-arn: arn:aws:iam::445615400570:role/pipeline-buildkite-buildkite-cli-release
-      - aws-ssm#v1.0.0:
-          parameters:
-            GITHUB_TOKEN: /pipelines/buildkite/buildkite-cli-release/github-token
       - artifacts#v1.9.3:
           download:
             - dist/**/*
@@ -46,8 +41,6 @@ steps:
             - --merge
           config: .buildkite/docker-compose.yaml
           entrypoint: /bin/sh
-          env:
-            - GITHUB_TOKEN
           mount-buildkite-agent: true
           run: goreleaser
           shell: false
