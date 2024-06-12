@@ -8,9 +8,10 @@ import (
 
 func NewCmdAI(f *factory.Factory) *cobra.Command {
 	cmd := cobra.Command{
-		Use:   "ai <command>",
-		Short: "Manage AI integration.",
-		Long:  "Work with Buildkite AI.",
+		Hidden: true,
+		Use:    "ai <command>",
+		Short:  "Manage AI integration.",
+		Long:   "Work with Buildkite AI.",
 		Example: heredoc.Doc(`
 			# To configure your AI token
 			$ bk ai configure
@@ -18,6 +19,7 @@ func NewCmdAI(f *factory.Factory) *cobra.Command {
 	}
 
 	cmd.AddCommand(NewCmdAIConfigure(f))
+	cmd.AddCommand(NewCmdAIAsk(f))
 
 	return &cmd
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	"github.com/go-git/go-git/v5"
+	"github.com/sashabaranov/go-openai"
 )
 
 type Factory struct {
@@ -17,6 +18,7 @@ type Factory struct {
 	GitRepository *git.Repository
 	GraphQLClient graphql.Client
 	HttpClient    *http.Client
+	OpenAIClient  *openai.Client
 	RestAPIClient *buildkite.Client
 	Version       string
 }
@@ -31,6 +33,7 @@ func New(version string) *Factory {
 		GitRepository: repo,
 		GraphQLClient: graphql.NewClient(config.DefaultGraphQLEndpoint, client),
 		HttpClient:    client,
+		OpenAIClient:  openai.NewClient(conf.GetOpenAIToken()),
 		RestAPIClient: buildkite.NewClient(client),
 		Version:       version,
 	}
