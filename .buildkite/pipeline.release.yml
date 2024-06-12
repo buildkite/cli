@@ -1,4 +1,26 @@
 steps:
+  - label: ":buildkite: build ({{matrix}})"
+    matrix:
+          - "darwin"
+          - "linux"
+          - "windows"
+    artifact_paths:
+      - dist/**/*
+    plugins:
+      - docker-compose#v5.2.0:
+          command:
+            - .buildkite/release.sh release --clean --split
+          config: .buildkite/docker-compose.yaml
+          entrypoint: /bin/sh
+          env:
+            - GOOS={{matrix}}
+          mount-buildkite-agent: true
+          run: goreleaser
+          shell: false
+          tty: true
+
+  - wait
+
   - label: release
     artifact_paths:
       - dist/**/*
@@ -8,11 +30,17 @@ steps:
       - aws-ssm#v1.0.0:
           parameters:
             GITHUB_TOKEN: /pipelines/buildkite/buildkite-cli-release/github-token
+      - artifacts#v1.9.3:
+          download:
+            - dist/**/*
       - docker-compose#v5.2.0:
           command:
-            - release
-            - --clean
+            - .buildkite/release.sh continue --merge
           config: .buildkite/docker-compose.yaml
+          entrypoint: /bin/sh
           env:
             - GITHUB_TOKEN
+          mount-buildkite-agent: true
           run: goreleaser
+          shell: false
+          tty: true
