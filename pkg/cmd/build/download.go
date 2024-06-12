@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
-	"github.com/briandowns/spinner"
 	"github.com/buildkite/cli/v3/internal/build"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
 )
 
@@ -40,11 +39,15 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 				return fmt.Errorf("could not resolve a build")
 			}
 
-			s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-			s.Suffix = " Downloading logs"
-			s.Start()
-			defer s.Stop()
-			err = download(*bld, f)
+			spinErr := spinner.New().
+				Title("Downloading logs").
+				Action(func() {
+					err = download(*bld, f)
+				}).
+				Run()
+			if spinErr != nil {
+				return spinErr
+			}
 
 			return err
 		},
