@@ -9,7 +9,6 @@ set -uo pipefail
 
 # should we publish the build packages
 PUBLISH=${PUBLISH:-false}
-GORELEASER_ARGS=${GORELEASER_ARGS:-""}
 
 audience() {
     ORG=$1
@@ -29,7 +28,7 @@ if [[ $? -ne 0 ]]; then
     exit 1
 fi
 
-if ! goreleaser release --clean ${GORELEASER_ARGS}; then
+if ! goreleaser "$@"; then
     echo "Failed to build a release"
     exit 1
 fi
