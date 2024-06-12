@@ -36,7 +36,11 @@ steps:
     plugins:
       - docker-compose#v5.2.0:
           command:
-            - .buildkite/release.sh release --clean --snapshot --split
+            - .buildkite/release.sh
+            - release
+            - --clean
+            - --snapshot
+            - --split
           config: .buildkite/docker-compose.yaml
           entrypoint: /bin/sh
           env:

@@ -9,7 +9,10 @@ steps:
     plugins:
       - docker-compose#v5.2.0:
           command:
-            - .buildkite/release.sh release --clean --split
+            - .buildkite/release.sh
+            - release
+            - --clean
+            - --split
           config: .buildkite/docker-compose.yaml
           entrypoint: /bin/sh
           env:
@@ -35,7 +38,9 @@ steps:
             - dist/**/*
       - docker-compose#v5.2.0:
           command:
-            - .buildkite/release.sh continue --merge
+            - .buildkite/release.sh
+            - continue
+            - --merge
           config: .buildkite/docker-compose.yaml
           entrypoint: /bin/sh
           env:
