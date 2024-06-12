@@ -2,3 +2,4 @@
 dist/
 buildkite.yaml
 .bk.yaml
+build-logs-*
