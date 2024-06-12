@@ -14,7 +14,7 @@ import (
 
 var (
 	agentListStyle = lipgloss.NewStyle().Padding(1, 2)
-	viewPortStyle  = agentListStyle.Copy()
+	viewPortStyle  = agentListStyle
 )
 
 type AgentListModel struct {

@@ -3,12 +3,11 @@ package resolver
 import (
 	"context"
 	"strings"
-	"time"
 
-	"github.com/briandowns/spinner"
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/charmbracelet/huh/spinner"
 	"github.com/go-git/go-git/v5"
 )
 
@@ -18,11 +17,17 @@ import (
 // It delegates picking one from the list of matches to the `picker`.
 func ResolveFromRepository(f *factory.Factory, picker PipelinePicker) PipelineResolverFn {
 	return func(ctx context.Context) (*pipeline.Pipeline, error) {
-		s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-		s.Suffix = " Resolving pipeline"
-		s.Start()
-		pipelines, err := resolveFromRepository(f)
-		s.Stop()
+		var err error
+		var pipelines []pipeline.Pipeline
+		spinErr := spinner.New().
+			Title("Resolving pipeline").
+			Action(func() {
+				pipelines, err = resolveFromRepository(f)
+			}).
+			Run()
+		if spinErr != nil {
+			return nil, spinErr
+		}
 		if err != nil {
 			return nil, err
 		}
