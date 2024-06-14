@@ -50,13 +50,17 @@ steps:
           shell: false
           tty: true
 
-  - block:
-      label: ":package: Want to create a release from this commit?"
-      branches:
-        - 3.x
-        - main
-        - sup-2335-add-steps-to-release-from-ci-pipeline
-      blocked_state: passed
+  - block: ":package: Create a release?"
+    prompt: "Fill out the tag to create for this release"
+    branches:
+      - 3.x
+      - main
+      - sup-2335-add-steps-to-release-from-ci-pipeline
+    blocked_state: passed
+    fields:
+      - key: release-tag
+        text: Tag
+        required: true
 
   # this tags the commit with the input from the previous block step and pushes it to github
   # that will trigger the buildkite-cli-release pipeline off the tag which will create a release in github
