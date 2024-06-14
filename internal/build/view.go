@@ -16,8 +16,8 @@ func BuildSummary(build *buildkite.Build) string {
 		buildCreator(build),
 		build.CreatedAt.UTC().Format(time.RFC1123Z))
 	hash := *build.Commit
-	if len(hash) >= 7 {
-		hash = hash[0:8]
+	if len(hash) > 0 {
+		hash = hash[0:]
 	}
 	commitDetails := fmt.Sprintf("Branch: %s / Commit: %s \n", *build.Branch, hash)
 	summary := lipgloss.JoinVertical(lipgloss.Top,

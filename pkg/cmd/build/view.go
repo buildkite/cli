@@ -85,7 +85,9 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 					summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Render("\nJobs")
 					for _, j := range b.Jobs {
             bkJob := *j
-						summary += job.JobSummary(job.Job(bkJob))
+            if *bkJob.Type == "script" {
+						  summary += job.JobSummary(job.Job(bkJob))
+            }
 					}
 				}
 				if len(buildArtifacts) > 0 {

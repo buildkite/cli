@@ -14,28 +14,31 @@ func JobSummary(job Job) string {
 }
 
 func (j Job) Summarise() string {
-  var summary string
-  var jobState string
-  var jobName string
-  var jobDuration time.Duration
+	var summary string
+	var jobState string
+	var jobName string
+	var jobDuration time.Duration
 
-  jobState = renderJobState(*j.State)
+	jobState = renderJobState(*j.State)
 
-  if j.getJobType() != "script" {
-    jobName = j.getJobType()
-    jobDuration = time.Duration(0)
-  } else {
-    jobName = j.getJobName()
-    jobDuration = calculateTotalTime(j.StartedAt, j.FinishedAt)
-  }
+	if j.getJobType() != "script" {
+		jobName = j.getJobType()
+		jobDuration = time.Duration(0)
+	} else {
+		jobName = j.getJobName()
+		jobDuration = calculateTotalTime(j.StartedAt, j.FinishedAt)
+	}
 
 	summary = lipgloss.JoinVertical(lipgloss.Top,
-		lipgloss.NewStyle().Bold(true).Padding(0, 1).Render(jobState),
-		lipgloss.NewStyle().Padding(0, 1).Render(jobName),
-		lipgloss.NewStyle().Padding(0, 1).Render(jobDuration.String()),
+		lipgloss.NewStyle().Align(lipgloss.Left).Padding(0, 1).Render(),
+		lipgloss.JoinHorizontal(lipgloss.Left,
+			lipgloss.NewStyle().Bold(true).Padding(0, 1).Render(jobState),
+			lipgloss.NewStyle().Padding(0, 1).Render(jobName),
+			lipgloss.NewStyle().Padding(0, 1).Foreground(lipgloss.Color("#6c6c6c")).Render(jobDuration.String()),
+		),
 	)
 
-  return summary
+	return summary
 }
 
 func (j Job) getJobType() string {
