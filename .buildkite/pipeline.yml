@@ -50,8 +50,7 @@ steps:
           shell: false
           tty: true
 
-  - label: ":package: Create a release?"
-    block: "Release"
+  - block: ":package: Create a release?"
     prompt: "Fill out the tag to create for this release"
     branches:
       - 3.x
@@ -67,7 +66,7 @@ steps:
   # this tags the commit with the input from the previous block step and pushes it to github
   # that will trigger the buildkite-cli-release pipeline off the tag which will create a release in github
   - label: ":rocket: Pushing a tag to release"
-    command: "echo git tag ..."
+    command: ".buildkite/tag.sh"
     branches:
       - 3.x
       - main
