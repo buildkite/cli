@@ -55,6 +55,7 @@ steps:
       branches:
         - 3.x
         - main
+        - sup-2335-add-steps-to-release-from-ci-pipeline
       blocked_state: passed
 
   # this tags the commit with the input from the previous block step and pushes it to github
@@ -64,6 +65,7 @@ steps:
     branches:
       - 3.x
       - main
+      - sup-2335-add-steps-to-release-from-ci-pipeline
     plugins:
       - aws-assume-role-with-web-identity:
           role-arn: arn:aws:iam::445615400570:role/pipeline-buildkite-buildkite-cli
