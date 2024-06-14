@@ -63,7 +63,6 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			}
 
 			l := io.NewPendingCommand(func() tea.Msg {
-
 				b, _, err := f.RestAPIClient.Builds.Get(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.BuildsListOptions{})
 				if err != nil {
 					return err
@@ -84,10 +83,10 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 				if len(b.Jobs) > 0 {
 					summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Render("\nJobs")
 					for _, j := range b.Jobs {
-            bkJob := *j
-            if *bkJob.Type == "script" {
-						  summary += job.JobSummary(job.Job(bkJob))
-            }
+						bkJob := *j
+						if *bkJob.Type == "script" {
+							summary += job.JobSummary(job.Job(bkJob))
+						}
 					}
 				}
 				if len(buildArtifacts) > 0 {

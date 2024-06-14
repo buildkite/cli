@@ -85,7 +85,7 @@ func download(build build.Build, f *factory.Factory) error {
 			return fmt.Errorf("could not get logs for job %s", *job.ID)
 		}
 
-		err = os.WriteFile(filepath.Join(directory, *job.ID), []byte(*log.Content), 0644)
+		err = os.WriteFile(filepath.Join(directory, *job.ID), []byte(*log.Content), 0o644)
 		if err != nil {
 			return err
 		}
