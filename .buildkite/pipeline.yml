@@ -26,7 +26,7 @@ steps:
 
   - wait
 
-  - label: ":buildkite: build ({{matrix}})"
+  - label: ":terminal: build ({{matrix}})"
     matrix:
           - "darwin"
           - "linux"
@@ -49,3 +49,24 @@ steps:
           run: goreleaser
           shell: false
           tty: true
+
+  - block:
+      label: ":package: Want to create a release from this commit?"
+      branches:
+        - 3.x
+        - main
+      blocked_state: passed
+
+  # this tags the commit with the input from the previous block step and pushes it to github
+  # that will trigger the buildkite-cli-release pipeline off the tag which will create a release in github
+  - label: ":rocket: Pushing a tag to release"
+    command: "echo git tag ..."
+    branches:
+      - 3.x
+      - main
+    plugins:
+      - aws-assume-role-with-web-identity:
+          role-arn: arn:aws:iam::445615400570:role/pipeline-buildkite-buildkite-cli
+      - aws-ssm#v1.0.0:
+          parameters:
+            GITHUB_TOKEN: /pipelines/buildkite/buildkite-cli/github-token

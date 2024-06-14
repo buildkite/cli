@@ -2,7 +2,7 @@ agents:
   queue: hosted
 
 steps:
-  - label: ":buildkite: build ({{matrix}})"
+  - label: ":terminal: build ({{matrix}})"
     matrix:
           - "darwin"
           - "linux"
@@ -27,7 +27,7 @@ steps:
 
   - wait
 
-  - label: release
+  - label: ":rocket: :package: release"
     artifact_paths:
       - dist/**/*
     env:
