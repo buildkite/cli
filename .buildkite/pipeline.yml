@@ -79,3 +79,4 @@ steps:
       - aws-ssm#v1.0.0:
           parameters:
             GITHUB_TOKEN: /pipelines/buildkite/buildkite-cli/github-token
+            GITHUB_USER: /pipelines/buildkite/buildkite-cli/github-user

@@ -17,4 +17,7 @@ git tag -l
 
 echo "+++ Tagging ${BUILDKITE_COMMIT} with ${TAG}"
 git tag "${TAG}"
+
+git config --global credential.username "$GITHUB_USER"
+
 git push origin "${TAG}"
