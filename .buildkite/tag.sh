@@ -20,4 +20,4 @@ git tag "${TAG}"
 
 git config --global credential.username "$GITHUB_USER"
 
-git push origin "${TAG}"
+echo "$GITHUB_TOKEN" | git push origin "${TAG}"
