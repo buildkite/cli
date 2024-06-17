@@ -18,7 +18,7 @@ git tag -l
 echo "--- Downloading gh"
 curl -L https://github.com/cli/cli/releases/download/v2.51.0/gh_2.51.0_linux_amd64.tar.gz | tar xvz
 echo "--- Logging in to gh"
-echo "$GITHUB_TOKEN" | gh_2.51.0_linux_amd64/bin/gh auth login --with-token
+gh_2.51.0_linux_amd64/bin/gh auth setup-git
 
 echo "+++ Tagging ${BUILDKITE_COMMIT} with ${TAG}"
 git tag "${TAG}"
