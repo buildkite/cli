@@ -15,9 +15,12 @@ echo "Local tags:"
 git tag -l
 # TODO verify the tag format and that its semver newer than the most previous
 
+echo "--- Downloading gh"
+curl -L https://github.com/cli/cli/releases/download/v2.51.0/gh_2.51.0_linux_amd64.tar.gz | tar xvz
+echo "--- Logging in to gh"
+echo "$GITHUB_TOKEN" | gh_2.51.0_linux_amd64/bin/gh auth login --with-token
+
 echo "+++ Tagging ${BUILDKITE_COMMIT} with ${TAG}"
 git tag "${TAG}"
 
-git config --global credential.username "$GITHUB_USER"
-
-echo "$GITHUB_TOKEN" | git push origin "${TAG}"
+git push origin "${TAG}"
