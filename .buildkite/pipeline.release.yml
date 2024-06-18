@@ -29,7 +29,6 @@ steps:
 
   - label: ":rocket: :package: upload packages ({{matrix}})"
     matrix:
-      - "apk"
       - "deb"
       - "rpm"
     plugins:
