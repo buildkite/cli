@@ -29,6 +29,7 @@ upload_url() {
 AUDIENCE=$(audience $ORGANIZATION $REGISTRY)
 
 # grab a token for pushing packages to buildkite with an expiry of 3 mins
+echo "--- Fetching OIDC token for $AUDIENCE"
 TOKEN=$(buildkite-agent oidc request-token --audience "$AUDIENCE" --lifetime 180)
 
 if [[ $? -ne 0 ]]; then
@@ -37,6 +38,7 @@ if [[ $? -ne 0 ]]; then
 fi
 
 for FILE in dist/linux/*.${PACKAGE}; do
+    echo "--- Pushing $FILE"
     curl -s -X POST $(upload_url $ORGANIZATION $REGISTRY) \
          -H "Authorization: Bearer ${TOKEN}" \
          -F "file=@${FILE}" \
