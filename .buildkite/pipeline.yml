@@ -54,8 +54,6 @@ steps:
     prompt: "Fill out the tag to create for this release"
     branches:
       - 3.x
-      - main
-      - sup-2335-add-steps-to-release-from-ci-pipeline
     blocked_state: passed
     fields:
       - key: release-tag
@@ -71,8 +69,6 @@ steps:
     command: ".buildkite/tag.sh"
     branches:
       - 3.x
-      - main
-      - sup-2335-add-steps-to-release-from-ci-pipeline
     plugins:
       - aws-assume-role-with-web-identity:
           role-arn: arn:aws:iam::445615400570:role/pipeline-buildkite-buildkite-cli
