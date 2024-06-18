@@ -18,7 +18,7 @@ REGISTRY=${3:-cli-$PACKAGE}
 audience() {
     ORG=$1
     REGISTRY=$2
-    echo "https://packages.buildkite.com/organizations/${ORG}/packages/registries/${REGISTRY}"
+    echo "https://packages.buildkite.com/${ORG}/${REGISTRY}"
 }
 upload_url() {
     ORG=$1
