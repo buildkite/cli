@@ -50,8 +50,6 @@ steps:
           shell: false
           tty: true
 
-  - wait
-
   - block: ":package: Create a release?"
     prompt: "Fill out the tag to create for this release"
     branches:
