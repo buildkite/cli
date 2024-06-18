@@ -4,7 +4,7 @@
 # This script is used to upload packages to Buildkite registries
 #
 
-set -euo pipefail
+set -uo pipefail
 
 if [[ -z "${1}" ]]; then
     echo "Must pass in the package type: apk, deb, rpm"
