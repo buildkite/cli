@@ -39,13 +39,21 @@ fi
 
 for FILE in dist/linux/*.${PACKAGE}; do
     echo "--- Pushing $FILE"
-    curl -s -X POST $(upload_url $ORGANIZATION $REGISTRY) \
-         -H "Authorization: Bearer ${TOKEN}" \
-         -F "file=@${FILE}" \
-        --fail-with-body
+    if [[ $PACKAGE = "apk" ]]; then
+        curl -s -X POST $(upload_url $ORGANIZATION $REGISTRY) \
+             -H "Authorization: Bearer ${TOKEN}" \
+             -F "package[distro_version_id]=alpine/v3" \
+             -F "package[package_file]=@${FILE}" \
+            --fail-with-body
+    else
+        curl -s -X POST $(upload_url $ORGANIZATION $REGISTRY) \
+             -H "Authorization: Bearer ${TOKEN}" \
+             -F "file=@${FILE}" \
+            --fail-with-body
+    fi
 
     if [[ $? -ne 0 ]]; then
-        echo "Failed to push package $file"
+        echo "Failed to push package $FILE"
         exit 1
     fi
 done
