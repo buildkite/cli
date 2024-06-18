@@ -52,25 +52,6 @@ steps:
 
   - wait
 
-  - label: ":rocket: :package: upload packages ({{matrix}})"
-    matrix:
-      - "deb"
-      - "rpm"
-    plugins:
-      - artifacts#v1.9.3:
-          download:
-            - dist/linux/*
-      - docker-compose#v5.2.0:
-          command:
-            - .buildkite/upload-packages.sh
-            - "{{matrix}}"
-          config: .buildkite/docker-compose.yaml
-          entrypoint: /bin/sh
-          mount-buildkite-agent: true
-          run: goreleaser
-          shell: false
-          tty: true
-
   - block: ":package: Create a release?"
     prompt: "Fill out the tag to create for this release"
     branches:
