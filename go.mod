@@ -20,7 +20,7 @@ require (
 	github.com/sashabaranov/go-openai v1.25.0
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.19.0
-	github.com/vektah/gqlparser/v2 v2.5.15
+	github.com/vektah/gqlparser/v2 v2.5.16
 	golang.org/x/sync v0.7.0
 )
 
