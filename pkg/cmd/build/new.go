@@ -46,13 +46,18 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 				return fmt.Errorf("could not resolve a pipeline")
 			}
 
-			_ = huh.NewConfirm().
+			form := huh.NewConfirm().
 				Title(fmt.Sprintf("Create new build on %s?", pipeline.Name)).
 				Affirmative("Yes!").
 				Negative("No!").
 				Value(&confirm).
-				WithTheme(huh.ThemeDracula()).
-				Run()
+				WithTheme(huh.ThemeDracula())
+
+      if confirm {
+        form.Skip()
+      } else {
+        form.Run()
+      }
 
 			if confirm {
 				return newBuild(pipeline.Org, pipeline.Name, f, message, commit, branch, web)
@@ -69,6 +74,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVarP(&pipeline, "pipeline", "p", "", "The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
 		"If omitted, it will be resolved using the current directory.",
 	)
+  cmd.Flags().BoolVarP(&confirm, "confirm", "", false, "Skip the confirmation step. Useful if being used in automation/CI")
 	cmd.Flags().SortFlags = false
 	return &cmd
 }
