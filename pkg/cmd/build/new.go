@@ -53,11 +53,11 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 				Value(&confirm).
 				WithTheme(huh.ThemeDracula())
 
-      if confirm {
-        form.Skip()
-      } else {
-        form.Run()
-      }
+			if confirm {
+				form.Skip()
+			} else {
+				_ = form.Run()
+			}
 
 			if confirm {
 				return newBuild(pipeline.Org, pipeline.Name, f, message, commit, branch, web)
@@ -74,7 +74,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVarP(&pipeline, "pipeline", "p", "", "The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
 		"If omitted, it will be resolved using the current directory.",
 	)
-  cmd.Flags().BoolVarP(&confirm, "confirm", "", false, "Skip the confirmation step. Useful if being used in automation/CI")
+	cmd.Flags().BoolVarP(&confirm, "confirm", "", false, "Skip the confirmation step. Useful if being used in automation/CI")
 	cmd.Flags().SortFlags = false
 	return &cmd
 }
