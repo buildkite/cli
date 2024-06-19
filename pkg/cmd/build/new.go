@@ -1,6 +1,7 @@
 package build
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc"
@@ -9,6 +10,7 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 )
 
@@ -17,6 +19,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	var commit string
 	var message string
 	var pipeline string
+	var confirm bool
 	var web bool
 
 	cmd := cobra.Command{
@@ -43,7 +46,19 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 				return fmt.Errorf("could not resolve a pipeline")
 			}
 
-			return newBuild(pipeline.Org, pipeline.Name, f, message, commit, branch, web)
+			_ = huh.NewConfirm().
+				Title(fmt.Sprintf("Create new build on %s?", pipeline.Name)).
+				Affirmative("Yes!").
+				Negative("No!").
+				Value(&confirm).
+				WithTheme(huh.ThemeDracula()).
+				Run()
+
+			if confirm {
+				return newBuild(pipeline.Org, pipeline.Name, f, message, commit, branch, web)
+			} else {
+				return errors.New("Create was aborted.")
+			}
 		},
 	}
 
