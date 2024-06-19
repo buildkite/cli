@@ -21,7 +21,6 @@ func AgentDataTable(agent *buildkite.Agent) string {
 	agentStateStyle := lipgloss.NewStyle().Bold(true).Foreground(MapStatusToColour(*agent.ConnectedState))
 	queueStyle := lipgloss.NewStyle().Foreground(style.Teal)
 	versionStyle := lipgloss.NewStyle().Foreground(style.Grey)
-
 	fmt.Fprint(tableOut, bold.Render(*agent.Name))
 
 	t := table.New().Border(lipgloss.HiddenBorder()).StyleFunc(func(row, col int) lipgloss.Style {

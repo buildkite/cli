@@ -18,7 +18,7 @@ func main() {
 func mainRun() int {
 	ctx := context.Background()
 	f := factory.New(version.Version)
-
+	fmt.Printf("main.go")
 	rootCmd, err := root.NewCmdRoot(f)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to create root command: %s\n", err)

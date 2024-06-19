@@ -8,6 +8,201 @@ import (
 	"github.com/Khan/genqlient/graphql"
 )
 
+// GetClusterQueueAgentOrganization includes the requested fields of the GraphQL type Organization.
+// The GraphQL type's documentation follows.
+//
+// An organization
+type GetClusterQueueAgentOrganization struct {
+	Agents *GetClusterQueueAgentOrganizationAgentsAgentConnection `json:"agents"`
+}
+
+// GetAgents returns GetClusterQueueAgentOrganization.Agents, and is useful for accessing the field via an interface.
+func (v *GetClusterQueueAgentOrganization) GetAgents() *GetClusterQueueAgentOrganizationAgentsAgentConnection {
+	return v.Agents
+}
+
+// GetClusterQueueAgentOrganizationAgentsAgentConnection includes the requested fields of the GraphQL type AgentConnection.
+type GetClusterQueueAgentOrganizationAgentsAgentConnection struct {
+	Edges []*GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdge `json:"edges"`
+}
+
+// GetEdges returns GetClusterQueueAgentOrganizationAgentsAgentConnection.Edges, and is useful for accessing the field via an interface.
+func (v *GetClusterQueueAgentOrganizationAgentsAgentConnection) GetEdges() []*GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdge {
+	return v.Edges
+}
+
+// GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdge includes the requested fields of the GraphQL type AgentEdge.
+type GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdge struct {
+	Node *GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgent `json:"node"`
+}
+
+// GetNode returns GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdge.Node, and is useful for accessing the field via an interface.
+func (v *GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdge) GetNode() *GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgent {
+	return v.Node
+}
+
+// GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgent includes the requested fields of the GraphQL type Agent.
+// The GraphQL type's documentation follows.
+//
+// An agent
+type GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgent struct {
+	// The name of the agent
+	Name string `json:"name"`
+	// The hostname of the machine running the agent
+	Hostname *string `json:"hostname"`
+	// The version of the agent
+	Version      *string                                                                                   `json:"version"`
+	Id           string                                                                                    `json:"id"`
+	ClusterQueue *GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgentClusterQueue `json:"clusterQueue"`
+}
+
+// GetName returns GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgent.Name, and is useful for accessing the field via an interface.
+func (v *GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgent) GetName() string {
+	return v.Name
+}
+
+// GetHostname returns GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgent.Hostname, and is useful for accessing the field via an interface.
+func (v *GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgent) GetHostname() *string {
+	return v.Hostname
+}
+
+// GetVersion returns GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgent.Version, and is useful for accessing the field via an interface.
+func (v *GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgent) GetVersion() *string {
+	return v.Version
+}
+
+// GetId returns GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgent.Id, and is useful for accessing the field via an interface.
+func (v *GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgent) GetId() string {
+	return v.Id
+}
+
+// GetClusterQueue returns GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgent.ClusterQueue, and is useful for accessing the field via an interface.
+func (v *GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgent) GetClusterQueue() *GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgentClusterQueue {
+	return v.ClusterQueue
+}
+
+// GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgentClusterQueue includes the requested fields of the GraphQL type ClusterQueue.
+type GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgentClusterQueue struct {
+	Id string `json:"id"`
+	// The public UUID for this cluster queue
+	Uuid string `json:"uuid"`
+}
+
+// GetId returns GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgentClusterQueue.Id, and is useful for accessing the field via an interface.
+func (v *GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgentClusterQueue) GetId() string {
+	return v.Id
+}
+
+// GetUuid returns GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgentClusterQueue.Uuid, and is useful for accessing the field via an interface.
+func (v *GetClusterQueueAgentOrganizationAgentsAgentConnectionEdgesAgentEdgeNodeAgentClusterQueue) GetUuid() string {
+	return v.Uuid
+}
+
+// GetClusterQueueAgentResponse is returned by GetClusterQueueAgent on success.
+type GetClusterQueueAgentResponse struct {
+	// Find an organization
+	Organization *GetClusterQueueAgentOrganization `json:"organization"`
+}
+
+// GetOrganization returns GetClusterQueueAgentResponse.Organization, and is useful for accessing the field via an interface.
+func (v *GetClusterQueueAgentResponse) GetOrganization() *GetClusterQueueAgentOrganization {
+	return v.Organization
+}
+
+// GetClusterQueuesOrganization includes the requested fields of the GraphQL type Organization.
+// The GraphQL type's documentation follows.
+//
+// An organization
+type GetClusterQueuesOrganization struct {
+	// Return cluster in the Organization by UUID
+	Cluster *GetClusterQueuesOrganizationCluster `json:"cluster"`
+}
+
+// GetCluster returns GetClusterQueuesOrganization.Cluster, and is useful for accessing the field via an interface.
+func (v *GetClusterQueuesOrganization) GetCluster() *GetClusterQueuesOrganizationCluster {
+	return v.Cluster
+}
+
+// GetClusterQueuesOrganizationCluster includes the requested fields of the GraphQL type Cluster.
+type GetClusterQueuesOrganizationCluster struct {
+	// Name of the cluster
+	Name string `json:"name"`
+	// Description of the cluster
+	Description *string                                                          `json:"description"`
+	Queues      *GetClusterQueuesOrganizationClusterQueuesClusterQueueConnection `json:"queues"`
+}
+
+// GetName returns GetClusterQueuesOrganizationCluster.Name, and is useful for accessing the field via an interface.
+func (v *GetClusterQueuesOrganizationCluster) GetName() string { return v.Name }
+
+// GetDescription returns GetClusterQueuesOrganizationCluster.Description, and is useful for accessing the field via an interface.
+func (v *GetClusterQueuesOrganizationCluster) GetDescription() *string { return v.Description }
+
+// GetQueues returns GetClusterQueuesOrganizationCluster.Queues, and is useful for accessing the field via an interface.
+func (v *GetClusterQueuesOrganizationCluster) GetQueues() *GetClusterQueuesOrganizationClusterQueuesClusterQueueConnection {
+	return v.Queues
+}
+
+// GetClusterQueuesOrganizationClusterQueuesClusterQueueConnection includes the requested fields of the GraphQL type ClusterQueueConnection.
+type GetClusterQueuesOrganizationClusterQueuesClusterQueueConnection struct {
+	Edges []*GetClusterQueuesOrganizationClusterQueuesClusterQueueConnectionEdgesClusterQueueEdge `json:"edges"`
+}
+
+// GetEdges returns GetClusterQueuesOrganizationClusterQueuesClusterQueueConnection.Edges, and is useful for accessing the field via an interface.
+func (v *GetClusterQueuesOrganizationClusterQueuesClusterQueueConnection) GetEdges() []*GetClusterQueuesOrganizationClusterQueuesClusterQueueConnectionEdgesClusterQueueEdge {
+	return v.Edges
+}
+
+// GetClusterQueuesOrganizationClusterQueuesClusterQueueConnectionEdgesClusterQueueEdge includes the requested fields of the GraphQL type ClusterQueueEdge.
+type GetClusterQueuesOrganizationClusterQueuesClusterQueueConnectionEdgesClusterQueueEdge struct {
+	Node *GetClusterQueuesOrganizationClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue `json:"node"`
+}
+
+// GetNode returns GetClusterQueuesOrganizationClusterQueuesClusterQueueConnectionEdgesClusterQueueEdge.Node, and is useful for accessing the field via an interface.
+func (v *GetClusterQueuesOrganizationClusterQueuesClusterQueueConnectionEdgesClusterQueueEdge) GetNode() *GetClusterQueuesOrganizationClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue {
+	return v.Node
+}
+
+// GetClusterQueuesOrganizationClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue includes the requested fields of the GraphQL type ClusterQueue.
+type GetClusterQueuesOrganizationClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue struct {
+	Id string `json:"id"`
+	// The public UUID for this cluster queue
+	Uuid        string  `json:"uuid"`
+	Key         string  `json:"key"`
+	Description *string `json:"description"`
+}
+
+// GetId returns GetClusterQueuesOrganizationClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue.Id, and is useful for accessing the field via an interface.
+func (v *GetClusterQueuesOrganizationClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue) GetId() string {
+	return v.Id
+}
+
+// GetUuid returns GetClusterQueuesOrganizationClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue.Uuid, and is useful for accessing the field via an interface.
+func (v *GetClusterQueuesOrganizationClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue) GetUuid() string {
+	return v.Uuid
+}
+
+// GetKey returns GetClusterQueuesOrganizationClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue.Key, and is useful for accessing the field via an interface.
+func (v *GetClusterQueuesOrganizationClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue) GetKey() string {
+	return v.Key
+}
+
+// GetDescription returns GetClusterQueuesOrganizationClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue.Description, and is useful for accessing the field via an interface.
+func (v *GetClusterQueuesOrganizationClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue) GetDescription() *string {
+	return v.Description
+}
+
+// GetClusterQueuesResponse is returned by GetClusterQueues on success.
+type GetClusterQueuesResponse struct {
+	// Find an organization
+	Organization *GetClusterQueuesOrganization `json:"organization"`
+}
+
+// GetOrganization returns GetClusterQueuesResponse.Organization, and is useful for accessing the field via an interface.
+func (v *GetClusterQueuesResponse) GetOrganization() *GetClusterQueuesOrganization {
+	return v.Organization
+}
+
 // RecentBuildsForBranchPipeline includes the requested fields of the GraphQL type Pipeline.
 // The GraphQL type's documentation follows.
 //
@@ -94,6 +289,30 @@ func (v *RecentBuildsForBranchResponse) GetPipeline() *RecentBuildsForBranchPipe
 	return v.Pipeline
 }
 
+// __GetClusterQueueAgentInput is used internally by genqlient
+type __GetClusterQueueAgentInput struct {
+	OrgSlug string   `json:"orgSlug"`
+	QueueId []string `json:"queueId"`
+}
+
+// GetOrgSlug returns __GetClusterQueueAgentInput.OrgSlug, and is useful for accessing the field via an interface.
+func (v *__GetClusterQueueAgentInput) GetOrgSlug() string { return v.OrgSlug }
+
+// GetQueueId returns __GetClusterQueueAgentInput.QueueId, and is useful for accessing the field via an interface.
+func (v *__GetClusterQueueAgentInput) GetQueueId() []string { return v.QueueId }
+
+// __GetClusterQueuesInput is used internally by genqlient
+type __GetClusterQueuesInput struct {
+	OrgSlug   string `json:"orgSlug"`
+	ClusterId string `json:"clusterId"`
+}
+
+// GetOrgSlug returns __GetClusterQueuesInput.OrgSlug, and is useful for accessing the field via an interface.
+func (v *__GetClusterQueuesInput) GetOrgSlug() string { return v.OrgSlug }
+
+// GetClusterId returns __GetClusterQueuesInput.ClusterId, and is useful for accessing the field via an interface.
+func (v *__GetClusterQueuesInput) GetClusterId() string { return v.ClusterId }
+
 // __RecentBuildsForBranchInput is used internally by genqlient
 type __RecentBuildsForBranchInput struct {
 	Branch       string `json:"branch"`
@@ -105,6 +324,106 @@ func (v *__RecentBuildsForBranchInput) GetBranch() string { return v.Branch }
 
 // GetPipelineSlug returns __RecentBuildsForBranchInput.PipelineSlug, and is useful for accessing the field via an interface.
 func (v *__RecentBuildsForBranchInput) GetPipelineSlug() string { return v.PipelineSlug }
+
+// The query or mutation executed by GetClusterQueueAgent.
+const GetClusterQueueAgent_Operation = `
+query GetClusterQueueAgent ($orgSlug: ID!, $queueId: [ID!]) {
+	organization(slug: $orgSlug) {
+		agents(first: 10, clusterQueue: $queueId) {
+			edges {
+				node {
+					name
+					hostname
+					version
+					id
+					clusterQueue {
+						id
+						uuid
+					}
+				}
+			}
+		}
+	}
+}
+`
+
+func GetClusterQueueAgent(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	orgSlug string,
+	queueId []string,
+) (*GetClusterQueueAgentResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "GetClusterQueueAgent",
+		Query:  GetClusterQueueAgent_Operation,
+		Variables: &__GetClusterQueueAgentInput{
+			OrgSlug: orgSlug,
+			QueueId: queueId,
+		},
+	}
+	var err_ error
+
+	var data_ GetClusterQueueAgentResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
+
+// The query or mutation executed by GetClusterQueues.
+const GetClusterQueues_Operation = `
+query GetClusterQueues ($orgSlug: ID!, $clusterId: ID!) {
+	organization(slug: $orgSlug) {
+		cluster(id: $clusterId) {
+			name
+			description
+			queues(first: 10) {
+				edges {
+					node {
+						id
+						uuid
+						key
+						description
+					}
+				}
+			}
+		}
+	}
+}
+`
+
+func GetClusterQueues(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	orgSlug string,
+	clusterId string,
+) (*GetClusterQueuesResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "GetClusterQueues",
+		Query:  GetClusterQueues_Operation,
+		Variables: &__GetClusterQueuesInput{
+			OrgSlug:   orgSlug,
+			ClusterId: clusterId,
+		},
+	}
+	var err_ error
+
+	var data_ GetClusterQueuesResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
 
 // The query or mutation executed by RecentBuildsForBranch.
 const RecentBuildsForBranch_Operation = `

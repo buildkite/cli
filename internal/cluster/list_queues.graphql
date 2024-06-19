@@ -1,0 +1,37 @@
+query GetClusterQueues($orgSlug: ID!, $clusterId: ID!) {
+  organization(slug: $orgSlug) {
+    cluster(id: $clusterId) {
+      name
+      description
+      queues(first: 10) {
+        edges {
+          node {
+            id
+            uuid
+            key
+            description
+          }
+        }
+      }
+    }
+  }
+}
+
+query GetClusterQueueAgent($orgSlug: ID!, $queueId: [ID!]) {
+  organization(slug: $orgSlug) {
+    agents(first: 10, clusterQueue: $queueId) {
+      edges {
+        node {
+          name
+          hostname
+          version
+          id
+          clusterQueue{
+            id
+            uuid
+          }
+        }
+      }
+    }
+  }
+}
