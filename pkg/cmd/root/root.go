@@ -5,6 +5,7 @@ import (
 	agentCmd "github.com/buildkite/cli/v3/pkg/cmd/agent"
 	aiCmd "github.com/buildkite/cli/v3/pkg/cmd/ai"
 	buildCmd "github.com/buildkite/cli/v3/pkg/cmd/build"
+	clusterCmd "github.com/buildkite/cli/v3/pkg/cmd/cluster"
 	configureCmd "github.com/buildkite/cli/v3/pkg/cmd/configure"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	initCmd "github.com/buildkite/cli/v3/pkg/cmd/init"
@@ -38,6 +39,7 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 	cmd.AddCommand(pipelineCmd.NewCmdPipeline(f))
 	cmd.AddCommand(useCmd.NewCmdUse(f))
 	cmd.AddCommand(versionCmd.NewCmdVersion(f))
+	cmd.AddCommand(clusterCmd.NewCmdCluster(f))
 
 	return cmd, nil
 }
