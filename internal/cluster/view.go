@@ -25,18 +25,18 @@ func ClusterSummary(ctx context.Context, OrganizationSlug string, ClusterID stri
 		return lipgloss.NewStyle().PaddingRight(2)
 	}).Headers("Queues", "No of agents")
 
-	//summary := ""
 	if len(clusterSummary.ClusterID) > 0 {
 		fmt.Fprint(tableOut, bold.Render("Cluster name: "+clusterSummary.Name, "\n"))
 		fmt.Fprint(tableOut, bold.Render("\nCluster Description: "+clusterSummary.Description, "\n"))
-		//summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Render("Cluster ID: ", clusterSummary.ClusterID, "\n")
-		//summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Render("Orgnization: ", clusterSummary.OrganizationSlug, "\n")
-		//summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Render("Queue Name \n")
+
+		if len(clusterSummary.Queues) == 0 {
+			fmt.Fprint(tableOut, "\n No Queues found for this cluster \n")
+			return tableOut.String(), nil
+		}
 		for _, queue := range clusterSummary.Queues {
 
 			t.Row(queue.Name, strconv.Itoa(queue.Agent))
-			//summary += lipgloss.NewStyle().Bold(false).Padding(0, 1).Render(queue.Name, "\n")
-			//summary += lipgloss.NewStyle().Bold(false).Padding(0, 1).Render("Agents", strconv.Itoa(queue.Agent), "\n")
+
 		}
 	}
 
