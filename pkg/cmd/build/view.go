@@ -96,9 +96,16 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 					}
 				}
 				if len(buildAnnotations) > 0 {
-					summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("\n\nAnnotations")
 					for _, a := range buildAnnotations {
-						summary += annotation.AnnotationSummary(&a)
+						annotationCount := 0
+						if len(annotation.AnnotationSummary(&a)) < 230 {
+							continue
+						}
+						annotationCount += 1
+						if annotationCount > 0 {
+							summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("\n\nAnnotations")
+							summary += annotation.AnnotationSummary(&a)
+						}
 					}
 				}
 				return io.PendingOutput(summary)
