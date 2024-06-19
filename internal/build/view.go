@@ -11,8 +11,8 @@ import (
 const messageMaxLength = 40
 
 func BuildSummary(build *buildkite.Build) string {
-  message := *build.Message
-  buildInfo := fmt.Sprintf("%s %s %s", renderBuildNumber(*build.State, *build.Number), message[:messageMaxLength], renderBuildState(*build.State, *build.Blocked))
+	message := *build.Message
+	buildInfo := fmt.Sprintf("%s %s %s", renderBuildNumber(*build.State, *build.Number), message[:messageMaxLength], renderBuildState(*build.State, *build.Blocked))
 
 	source := fmt.Sprintf("Triggered via %s by %s ∘ Created on %s",
 		*build.Source,
