@@ -81,7 +81,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 				// Obtain build summary and return
 				summary := build.BuildSummary(b)
 				if len(b.Jobs) > 0 {
-					summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Render("\nJobs")
+					summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("\nJobs")
 					for _, j := range b.Jobs {
 						bkJob := *j
 						if *bkJob.Type == "script" {
@@ -90,13 +90,13 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 					}
 				}
 				if len(buildArtifacts) > 0 {
-					summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Render("\nArtifacts")
+					summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("\n\nArtifacts")
 					for _, a := range buildArtifacts {
 						summary += artifact.ArtifactSummary(&a)
 					}
 				}
 				if len(buildAnnotations) > 0 {
-					summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Render("\nAnnotations")
+					summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("\n\nAnnotations")
 					for _, a := range buildAnnotations {
 						summary += annotation.AnnotationSummary(&a)
 					}
