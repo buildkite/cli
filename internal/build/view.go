@@ -105,7 +105,7 @@ func trimMessage(msg string) string {
 	newlineIndex := strings.Index(msg, "\n")
 	if newlineIndex != -1 {
 		beforeNewline := msg[:newlineIndex]
-		return beforeNewline
+		return beforeNewline + "..."
 	} else {
 		return msg
 	}
