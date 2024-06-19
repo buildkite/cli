@@ -7,7 +7,7 @@
 set -uo pipefail
 
 if [[ -z "${1}" ]]; then
-    echo "Must pass in the package type: apk, deb, rpm"
+    echo "Must pass in the package type: deb, rpm"
     exit 1
 fi
 
