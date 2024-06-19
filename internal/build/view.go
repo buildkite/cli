@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-
 func BuildSummary(build *buildkite.Build) string {
 	message := trimMessage(*build.Message)
 	buildInfo := fmt.Sprintf("%s %s %s", renderBuildNumber(*build.State, *build.Number), message, renderBuildState(*build.State, *build.Blocked))
@@ -103,11 +102,11 @@ func renderBuildNumber(state string, number int) string {
 }
 
 func trimMessage(msg string) string {
-  newlineIndex := strings.Index(msg, "\n")
+	newlineIndex := strings.Index(msg, "\n")
 	if newlineIndex != -1 {
 		beforeNewline := msg[:newlineIndex]
-		return beforeNewline 
+		return beforeNewline
 	} else {
-    return msg
+		return msg
 	}
 }
