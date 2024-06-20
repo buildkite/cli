@@ -2,7 +2,7 @@ agents:
   queue: hosted
 
 steps:
-  - label: ":buildkite: build ({{matrix}})"
+  - label: ":terminal: build ({{matrix}})"
     matrix:
           - "darwin"
           - "linux"
@@ -27,9 +27,30 @@ steps:
 
   - wait
 
-  - label: release
+  - label: ":rocket: :package: upload packages ({{matrix}})"
+    matrix:
+      - "deb"
+      - "rpm"
+    plugins:
+      - artifacts#v1.9.3:
+          download:
+            - dist/linux/*
+      - docker-compose#v5.2.0:
+          command:
+            - .buildkite/upload-packages.sh
+            - "{{matrix}}"
+          config: .buildkite/docker-compose.yaml
+          entrypoint: /bin/sh
+          mount-buildkite-agent: true
+          run: goreleaser
+          shell: false
+          tty: true
+
+  - label: ":rocket: :github: release"
     artifact_paths:
       - dist/**/*
+    env:
+      AWS_REGION: us-east-1
     plugins:
       - aws-assume-role-with-web-identity:
           role-arn: arn:aws:iam::445615400570:role/pipeline-buildkite-buildkite-cli-release

@@ -2,6 +2,7 @@ package build
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/buildkite/go-buildkite/v3/buildkite"
@@ -9,15 +10,16 @@ import (
 )
 
 func BuildSummary(build *buildkite.Build) string {
-	buildInfo := fmt.Sprintf("%s %s %s", renderBuildNumber(*build.State, *build.Number), *build.Message, renderBuildState(*build.State, *build.Blocked))
+	message := trimMessage(*build.Message)
+	buildInfo := fmt.Sprintf("%s %s %s", renderBuildNumber(*build.State, *build.Number), message, renderBuildState(*build.State, *build.Blocked))
 
 	source := fmt.Sprintf("Triggered via %s by %s ∘ Created on %s",
 		*build.Source,
 		buildCreator(build),
 		build.CreatedAt.UTC().Format(time.RFC1123Z))
 	hash := *build.Commit
-	if len(hash) >= 7 {
-		hash = hash[0:8]
+	if len(hash) > 0 {
+		hash = hash[0:]
 	}
 	commitDetails := fmt.Sprintf("Branch: %s / Commit: %s \n", *build.Branch, hash)
 	summary := lipgloss.JoinVertical(lipgloss.Top,
@@ -97,4 +99,14 @@ func renderBuildNumber(state string, number int) string {
 	}
 
 	return lipgloss.NewStyle().Foreground(stateColor).Render(fmt.Sprintf("Build #%d", number))
+}
+
+func trimMessage(msg string) string {
+	newlineIndex := strings.Index(msg, "\n")
+	if newlineIndex != -1 {
+		beforeNewline := msg[:newlineIndex]
+		return beforeNewline + "..."
+	} else {
+		return msg
+	}
 }

@@ -14,7 +14,6 @@ import (
 )
 
 func NewCmdPipelineCreate(f *factory.Factory) *cobra.Command {
-
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
 		Use:                   "create",
@@ -88,7 +87,6 @@ func getRepoURLS(f *factory.Factory) []string {
 
 func createPipeline(client *buildkite.Client, org, pipelineName, description, repoURL string) error {
 	l := io.NewPendingCommand(func() tea.Msg {
-
 		createPipeline := buildkite.CreatePipeline{
 			Name:          *buildkite.String(pipelineName),
 			Repository:    *buildkite.String(repoURL),
@@ -97,9 +95,8 @@ func createPipeline(client *buildkite.Client, org, pipelineName, description, re
 		}
 
 		pipeline, resp, err := client.Pipelines.Create(org, &createPipeline)
-
 		if err != nil {
-			//return renderOutput(fmt.Sprintf("Unable to create pipeline.: %s", err.Error()))
+			// return renderOutput(fmt.Sprintf("Unable to create pipeline.: %s", err.Error()))
 			return io.PendingOutput(lipgloss.JoinVertical(lipgloss.Top,
 				lipgloss.NewStyle().Padding(1, 1).Render(fmt.Sprintf("Unable to create pipeline.: %s", err.Error()))))
 		}
@@ -116,7 +113,6 @@ func createPipeline(client *buildkite.Client, org, pipelineName, description, re
 
 		return io.PendingOutput(lipgloss.JoinVertical(lipgloss.Top,
 			lipgloss.NewStyle().Padding(1, 1).Render(fmt.Sprintf("Pipeline created: %s", *pipeline.WebURL))))
-
 	}, fmt.Sprintf("Creating new pipeline %s for %s", pipelineName, org))
 	p := tea.NewProgram(l)
 	_, err := p.Run()
