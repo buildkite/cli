@@ -9,6 +9,7 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 )
 
@@ -17,6 +18,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	var commit string
 	var message string
 	var pipeline string
+	var confirmed bool
 	var web bool
 
 	cmd := cobra.Command{
@@ -43,7 +45,30 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 				return fmt.Errorf("could not resolve a pipeline")
 			}
 
-			return newBuild(pipeline.Org, pipeline.Name, f, message, commit, branch, web)
+			form := huh.NewForm(
+				huh.NewGroup(
+					huh.NewConfirm().
+						Title(fmt.Sprintf("Create new build on %s?", pipeline.Name)).
+						Affirmative("Yes").
+						Negative("No").
+						Value(&confirmed),
+				).WithHide(confirmed), // user can bypass the prompt by passing the flag
+			)
+
+			err = form.Run()
+			if err != nil {
+				// no need to return error if ctrl-c
+				if err == huh.ErrUserAborted {
+					return nil
+				}
+				return err
+			}
+
+			if confirmed {
+				return newBuild(pipeline.Org, pipeline.Name, f, message, commit, branch, web)
+			} else {
+				return nil
+			}
 		},
 	}
 
@@ -54,6 +79,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVarP(&pipeline, "pipeline", "p", "", "The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
 		"If omitted, it will be resolved using the current directory.",
 	)
+	cmd.Flags().BoolVarP(&confirmed, "yes", "y", false, "Skip the confirmation prompt. Useful if being used in automation/CI.")
 	cmd.Flags().SortFlags = false
 	return &cmd
 }
