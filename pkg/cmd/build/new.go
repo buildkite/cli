@@ -1,7 +1,6 @@
 package build
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc"
@@ -19,7 +18,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	var commit string
 	var message string
 	var pipeline string
-	var confirm bool
+	var confirmed bool
 	var web bool
 
 	cmd := cobra.Command{
@@ -46,23 +45,29 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 				return fmt.Errorf("could not resolve a pipeline")
 			}
 
-			form := huh.NewConfirm().
-				Title(fmt.Sprintf("Create new build on %s?", pipeline.Name)).
-				Affirmative("Yes!").
-				Negative("No!").
-				Value(&confirm).
-				WithTheme(huh.ThemeDracula())
+			form := huh.NewForm(
+				huh.NewGroup(
+					huh.NewConfirm().
+						Title(fmt.Sprintf("Create new build on %s?", pipeline.Name)).
+						Affirmative("Yes").
+						Negative("No").
+						Value(&confirmed),
+				).WithHide(confirmed), // user can bypass the prompt by passing the flag
+			)
 
-			if confirm {
-				form.Skip()
-			} else {
-				_ = form.Run()
+			err = form.Run()
+			if err != nil {
+				// no need to return error if ctrl-c
+				if err == huh.ErrUserAborted {
+					return nil
+				}
+				return err
 			}
 
-			if confirm {
+			if confirmed {
 				return newBuild(pipeline.Org, pipeline.Name, f, message, commit, branch, web)
 			} else {
-				return errors.New("Create was aborted.")
+				return nil
 			}
 		},
 	}
@@ -74,7 +79,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVarP(&pipeline, "pipeline", "p", "", "The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
 		"If omitted, it will be resolved using the current directory.",
 	)
-	cmd.Flags().BoolVarP(&confirm, "confirm", "", false, "Skip the confirmation step. Useful if being used in automation/CI")
+	cmd.Flags().BoolVarP(&confirmed, "yes", "y", false, "Skip the confirmation prompt. Useful if being used in automation/CI.")
 	cmd.Flags().SortFlags = false
 	return &cmd
 }
