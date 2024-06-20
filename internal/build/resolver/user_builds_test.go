@@ -38,13 +38,7 @@ func TestResolveBuildFromUserId(t *testing.T) {
 	t.Run("Errors if pipeline cannot be resolved", func(t *testing.T) {
 		t.Parallel()
 
-		opt := &buildkite.BuildsListOptions{
-			ListOptions: buildkite.ListOptions{
-				PerPage: 1,
-			},
-		}
-
-		_, err := resolver.ResolveBuildForUser(context.Background(), "", opt, nilPipelineResolver, f)
+		_, err := resolver.ResolveBuildForUser(context.Background(), "", "", nilPipelineResolver, f)
 
 		if err == nil {
 			t.Fatal("Resolver should return error if no pipeline resolved")
@@ -54,13 +48,7 @@ func TestResolveBuildFromUserId(t *testing.T) {
 	t.Run("Errors if pipeline resolver errors", func(t *testing.T) {
 		t.Parallel()
 
-		opt := &buildkite.BuildsListOptions{
-			ListOptions: buildkite.ListOptions{
-				PerPage: 1,
-			},
-		}
-
-		_, err := resolver.ResolveBuildForUser(context.Background(), "", opt, errorPipelineResolver, f)
+		_, err := resolver.ResolveBuildForUser(context.Background(), "", "", errorPipelineResolver, f)
 
 		if err == nil {
 			t.Fatal("Resolver should return error if no pipeline resolved")

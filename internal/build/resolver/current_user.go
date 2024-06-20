@@ -18,14 +18,6 @@ func ResolveBuildForCurrentUser(branch string, pipelineResolver pipelineResolver
 			return nil, err
 		}
 
-		opt := &buildkite.BuildsListOptions{
-			Creator: *user.Email,
-			Branch:  []string{branch},
-			ListOptions: buildkite.ListOptions{
-				PerPage: 1,
-			},
-		}
-
-		return ResolveBuildForUser(ctx, *user.Email, opt, pipelineResolver, f)
+		return ResolveBuildForUser(ctx, *user.Email, branch, pipelineResolver, f)
 	}
 }
