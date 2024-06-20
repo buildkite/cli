@@ -8,13 +8,13 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
 
-func QueryCluster(ctx context.Context, OrganizationSlug string, ClusterID string, f *factory.Factory) (Cluster, error) {
+func QueryCluster(ctx context.Context, OrganizationSlug string, ClusterID string, f *factory.Factory) (*Cluster, error) {
 
 	q, err := graphql.GetClusterQueues(ctx, f.GraphQLClient, OrganizationSlug, ClusterID)
 
 	if err != nil {
 		fmt.Println("Unable to read Cluster Queues: ", err.Error())
-		return Cluster{}, err
+		return nil, err
 	}
 
 	ClusterDescription := q.Organization.Cluster.Description
@@ -30,8 +30,8 @@ func QueryCluster(ctx context.Context, OrganizationSlug string, ClusterID string
 	for _, edge := range q.Organization.Cluster.Queues.Edges {
 		agent, err := graphql.GetClusterQueueAgent(ctx, f.GraphQLClient, OrganizationSlug, []string{edge.Node.Id})
 		if err != nil {
-			fmt.Println("Unable to read Cluster Queue Agents: ", err.Error())
-			return Cluster{}, err
+			return nil, fmt.Errorf("unable to read Cluster Queue Agents: %s", err.Error())
+
 		}
 
 		queue := Queue{
@@ -42,5 +42,5 @@ func QueryCluster(ctx context.Context, OrganizationSlug string, ClusterID string
 		cluster.Queues = append(cluster.Queues, queue)
 
 	}
-	return cluster, nil
+	return &cluster, nil
 }

@@ -33,13 +33,13 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 	cmd.AddCommand(agentCmd.NewCmdAgent(f))
 	cmd.AddCommand(aiCmd.NewCmdAI(f))
 	cmd.AddCommand(buildCmd.NewCmdBuild(f))
+	cmd.AddCommand(clusterCmd.NewCmdCluster(f))
 	cmd.AddCommand(configureCmd.NewCmdConfigure(f))
 	cmd.AddCommand(initCmd.NewCmdInit(f))
 	cmd.AddCommand(jobCmd.NewCmdJob(f))
 	cmd.AddCommand(pipelineCmd.NewCmdPipeline(f))
 	cmd.AddCommand(useCmd.NewCmdUse(f))
 	cmd.AddCommand(versionCmd.NewCmdVersion(f))
-	cmd.AddCommand(clusterCmd.NewCmdCluster(f))
 
 	return cmd, nil
 }

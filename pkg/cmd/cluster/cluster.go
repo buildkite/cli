@@ -9,21 +9,14 @@ import (
 
 func NewCmdCluster(f *factory.Factory) *cobra.Command {
 	cmd := cobra.Command{
-		Use:   "cluster <command>",
-		Short: "View cluster information",
-		Args:  cobra.ArbitraryArgs,
-		Long:  "Work with Buildkite cluster.",
+		Use:  "cluster <command>",
+		Args: cobra.ArbitraryArgs,
+		Long: "View cluster information",
 		Example: heredoc.Doc(`
 			# To view cluster details
-			$ bk cluster view -c "cluster_id"
+			$ bk cluster view "cluster_id"
 		`),
 		PersistentPreRunE: validation.CheckValidConfiguration(f.Config),
-		Annotations: map[string]string{
-			"help:arguments": heredoc.Doc(`
-				Organization slug and cluster id is passed as an argument. It can be supplied in any of the following formats:
-				- "ORG_SLUG"
-			`),
-		},
 	}
 	cmd.AddCommand(NewCmdClusterView(f))
 

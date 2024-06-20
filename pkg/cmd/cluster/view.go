@@ -10,11 +10,10 @@ import (
 )
 
 func NewCmdClusterView(f *factory.Factory) *cobra.Command {
-	var clusterID string
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
-		Use:                   "view  [flags]",
-		Args:                  cobra.MinimumNArgs(0),
+		Use:                   "view  id ",
+		Args:                  cobra.MinimumNArgs(1),
 		Short:                 "View cluster information.",
 		Long: heredoc.Doc(`
 			View cluster information.
@@ -24,6 +23,7 @@ func NewCmdClusterView(f *factory.Factory) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 
 			orgSlug := f.Config.OrganizationSlug()
+			clusterID := args[0]
 
 			l := io.NewPendingCommand(func() tea.Msg {
 
@@ -43,8 +43,8 @@ func NewCmdClusterView(f *factory.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&clusterID, "clusterID", "c", "", "ID of the cluster")
-	cmd.Flags().SortFlags = false
+	//cmd.Flags().StringVarP(&clusterID, "clusterID", "c", "", "ID of the cluster")
+	//cmd.Flags().SortFlags = false
 
 	return &cmd
 
