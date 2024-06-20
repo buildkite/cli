@@ -35,7 +35,7 @@ func ClusterSummary(ctx context.Context, OrganizationSlug string, ClusterID stri
 		}
 		for _, queue := range clusterSummary.Queues {
 
-			t.Row(queue.Name, strconv.Itoa(queue.Agent))
+			t.Row(queue.Name, strconv.Itoa(queue.ActiveAgents))
 
 		}
 	}

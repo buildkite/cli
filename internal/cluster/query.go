@@ -35,9 +35,9 @@ func QueryCluster(ctx context.Context, OrganizationSlug string, ClusterID string
 		}
 
 		queue := Queue{
-			Id:    edge.Node.Id,
-			Name:  edge.Node.Key,
-			Agent: len(agent.Organization.Agents.Edges),
+			Id:           edge.Node.Id,
+			Name:         edge.Node.Key,
+			ActiveAgents: len(agent.Organization.Agents.Edges),
 		}
 		cluster.Queues = append(cluster.Queues, queue)
 

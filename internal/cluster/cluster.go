@@ -9,7 +9,7 @@ type Cluster struct {
 }
 
 type Queue struct {
-	Id    string
-	Name  string
-	Agent int
+	Id           string
+	Name         string
+	ActiveAgents int
 }
