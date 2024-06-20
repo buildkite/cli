@@ -43,9 +43,6 @@ func NewCmdClusterView(f *factory.Factory) *cobra.Command {
 		},
 	}
 
-	//cmd.Flags().StringVarP(&clusterID, "clusterID", "c", "", "ID of the cluster")
-	//cmd.Flags().SortFlags = false
-
 	return &cmd
 
 }
