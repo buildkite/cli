@@ -10,7 +10,7 @@ import (
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 )
 
-// ResolveBuildForUser Finds the most recent build for the user based on the provided options
+// ResolveBuildForUser Finds the most recent build for the user and branch
 func ResolveBuildForUser(ctx context.Context, userInfo string, branch string, pipelineResolver pipelineResolver.PipelineResolverFn, f *factory.Factory) (*build.Build, error) {
 
 	pipeline, err := pipelineResolver(ctx)

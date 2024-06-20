@@ -9,6 +9,7 @@ import (
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 )
 
+// ResolveBuildForCurrentUser Finds the most recent build for the current user and branch
 func ResolveBuildForCurrentUser(branch string, pipelineResolver pipelineResolver.PipelineResolverFn, f *factory.Factory) BuildResolverFn {
 	return func(ctx context.Context) (*build.Build, error) {
 		var user *buildkite.User
