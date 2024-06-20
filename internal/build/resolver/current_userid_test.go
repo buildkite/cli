@@ -42,7 +42,7 @@ func TestResolveBuildFromUserUUID(t *testing.T) {
 			Config:        config.New(fs, nil),
 		}
 
-		r := resolver.ResolveBuildFromCurrentUserId("1234", pipelineResolver, f)
+		r := resolver.ResolveBuildByUserId("1234", pipelineResolver, f)
 		_, err := r(context.Background())
 
 		if err == nil {
@@ -86,7 +86,7 @@ func TestResolveBuildFromUserUUID(t *testing.T) {
 			Config:        config.New(fs, nil),
 		}
 
-		r := resolver.ResolveBuildFromCurrentUserId("0183c4e6-c88c-xxxx-b15e-7801077a9181", pipelineResolver, f)
+		r := resolver.ResolveBuildByUserId("0183c4e6-c88c-xxxx-b15e-7801077a9181", pipelineResolver, f)
 		build, err := r(context.Background())
 		if err != nil {
 			t.Fatal(err)
