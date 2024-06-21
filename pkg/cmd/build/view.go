@@ -45,6 +45,8 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 
 			buildRes := buildResolver.NewAggregateResolver(
 				buildResolver.ResolveFromPositionalArgument(args, 0, pipelineRes.Resolve, f.Config),
+			).WithResolverWhen(
+				f.GitRepository != nil,
 				buildResolver.ResolveBuildFromCurrentBranch(f.GitRepository, pipelineRes.Resolve, f),
 			)
 

@@ -81,6 +81,16 @@ func TestResolveBuildFromCurrentBranch(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+
+	t.Run("Pass through if not in a repository", func(t *testing.T) {
+		t.Parallel()
+		r := resolver.ResolveBuildFromCurrentBranch(nil, pipelineResolver, &factory.Factory{})
+		b, err := r(context.Background())
+
+		if b != nil || err != nil {
+			t.Fatal("Should not find a build if not in a repository")
+		}
+	})
 }
 
 type doer struct {
