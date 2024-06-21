@@ -33,6 +33,13 @@ func (ar AggregateResolver) Resolve(ctx context.Context) (*build.Build, error) {
 	return nil, nil
 }
 
+func (ar AggregateResolver) WithResolverWhen(condition bool, resovler BuildResolverFn) AggregateResolver {
+	if condition {
+		return append(ar, resovler)
+	}
+	return ar
+}
+
 // NewAggregateResolver creates an AggregateResolver from a list of BuildResolverFn, appending a final resolver for
 // capturing the case that no build is found by any resolver
 func NewAggregateResolver(resolvers ...BuildResolverFn) AggregateResolver {

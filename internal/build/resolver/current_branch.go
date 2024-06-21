@@ -13,6 +13,12 @@ import (
 
 // ResolveBuildFromCurrentBranch Finds the most recent build for the branch in the current working directory
 func ResolveBuildFromCurrentBranch(repo *git.Repository, pipelineResolver pipelineResolver.PipelineResolverFn, f *factory.Factory) BuildResolverFn {
+	// there is nothing to resolve from if we aren't in a git repository, so short circuit that
+	if repo == nil {
+		return func(ctx context.Context) (*build.Build, error) {
+			return nil, nil
+		}
+	}
 	return func(ctx context.Context) (*build.Build, error) {
 		// find the pipeline first, then we can make a graphql query to find the most recent build for that branch
 		pipeline, err := pipelineResolver(ctx)
