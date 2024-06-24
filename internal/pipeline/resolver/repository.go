@@ -2,11 +2,13 @@ package resolver
 
 import (
 	"context"
-	"strings"
+	"errors"
+	"os"
+	"path/filepath"
 
+	"github.com/buildkite/cli/v3/internal/graphql"
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v3/buildkite"
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/go-git/go-git/v5"
 )
@@ -44,44 +46,59 @@ func ResolveFromRepository(f *factory.Factory, picker PipelinePicker) PipelineRe
 }
 
 func resolveFromRepository(f *factory.Factory) ([]pipeline.Pipeline, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, errors.New("Could not resolve current working directory")
+	}
+	resolvedPipelines := make([]pipeline.Pipeline, 0)
 	repos, err := getRepoURLs(f.GitRepository)
 	if err != nil {
 		return nil, err
 	}
-	return filterPipelines(repos, f.Config.OrganizationSlug(), f.RestAPIClient)
+	for _, repo := range repos {
+		foundPipelines, err := findPipelinesFromRepo(repo, f.Config.OrganizationSlug(), f)
+		if err != nil {
+			continue
+		}
+
+		resolvedPipelines = append(resolvedPipelines, foundPipelines...)
+	}
+
+	cwdPipelines, err := findPipelinesFromCwd(filepath.Base(cwd), f.Config.OrganizationSlug(), f)
+	if err != nil {
+		return resolvedPipelines, nil
+	}
+
+	resolvedPipelines = append(resolvedPipelines, cwdPipelines...)
+
+	return resolvedPipelines, nil
 }
 
-func filterPipelines(repoURLs []string, org string, client *buildkite.Client) ([]pipeline.Pipeline, error) {
-	var currentPipelines []pipeline.Pipeline
-	page := 1
-	per_page := 30
-	for more_pipelines := true; more_pipelines; {
-		opts := buildkite.PipelineListOptions{
-			ListOptions: buildkite.ListOptions{
-				Page:    page,
-				PerPage: per_page,
-			},
-		}
-
-		pipelines, resp, err := client.Pipelines.List(org, &opts)
-		if err != nil {
-			return nil, err
-		}
-		for _, p := range pipelines {
-			for _, u := range repoURLs {
-				gitUrl := u[strings.LastIndex(u, "/")+1:]
-				if strings.Contains(*p.Repository, gitUrl) {
-					currentPipelines = append(currentPipelines, pipeline.Pipeline{Name: *p.Slug, Org: org})
-				}
-			}
-		}
-		if resp.NextPage == 0 {
-			more_pipelines = false
-		} else {
-			page = resp.NextPage
-		}
+func findPipelinesFromCwd(cwd string, org string, f *factory.Factory) ([]pipeline.Pipeline, error) {
+	resolvedPipelines := make([]pipeline.Pipeline, 0)
+	res, err := graphql.FindPipelineFromCwd(context.Background(), f.GraphQLClient, org, &cwd)
+	if err != nil {
+		return nil, err
 	}
-	return currentPipelines, nil
+
+	for _, p := range res.Organization.Pipelines.Edges {
+		resolvedPipelines = append(resolvedPipelines, pipeline.Pipeline{Name: p.Node.GetName(), Org: p.Node.Organization.GetName()})
+	}
+
+	return resolvedPipelines, nil
+}
+
+func findPipelinesFromRepo(repo string, org string, f *factory.Factory) ([]pipeline.Pipeline, error) {
+	resolvedPipelines := make([]pipeline.Pipeline, 0)
+	res, err := graphql.FindPipelineFromGitRepoUrl(context.Background(), f.GraphQLClient, org, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, p := range res.Organization.Pipelines.Edges {
+		resolvedPipelines = append(resolvedPipelines, pipeline.Pipeline{Name: p.Node.GetName(), Org: p.Node.Organization.GetName()})
+	}
+	return resolvedPipelines, nil
 }
 
 func getRepoURLs(r *git.Repository) ([]string, error) {

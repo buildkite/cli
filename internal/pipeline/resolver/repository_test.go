@@ -26,7 +26,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		t.Parallel()
 		// mock a response that doesn't match the current repository url
 		client := mockHttpClient(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/test.git"}]`)
-		f := testFactory(client, "testOrg", testRepository())
+		f := testFactory(client, "testOrg", testRepository(false, false))
 		pipelines, err := resolveFromRepository(f)
 		if err != nil {
 			t.Errorf("Error: %s", err)
@@ -40,7 +40,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		t.Parallel()
 		// mock an http client response with a single pipeline matching the current repo url
 		client := mockHttpClient(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/cli.git"}]`)
-		f := testFactory(client, "testOrg", testRepository())
+		f := testFactory(client, "testOrg", testRepository(true, true))
 		pipelines, err := resolveFromRepository(f)
 		if err != nil {
 			t.Errorf("Error: %s", err)
@@ -55,7 +55,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		// mock an http client response with 2 pipelines matching the current repo url
 		client := mockHttpClient(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/cli.git"},
 		{"slug": "my-pipeline-2", "repository": "git@github.com:buildkite/cli.git"}]`)
-		f := testFactory(client, "testOrg", testRepository())
+		f := testFactory(client, "testOrg", testRepository(true, true))
 		pipelines, err := resolveFromRepository(f)
 		if err != nil {
 			t.Errorf("Error: %s", err)
@@ -79,7 +79,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 
 	t.Run("no remote repository found", func(t *testing.T) {
 		client := mockHttpClient(`[{"slug": "", "repository": ""}]`)
-		f := testFactory(client, "testOrg", testRepository())
+		f := testFactory(client, "testOrg", testRepository(true, true))
 		pipelines, err := resolveFromRepository(f)
 		if pipelines != nil {
 			t.Errorf("Expected nil, got %v", pipelines)
@@ -90,8 +90,29 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	})
 }
 
-func testRepository() *git.Repository {
-	repo, _ := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{DetectDotGit: true, EnableDotGitCommonDir: true})
+func TestResolvePipelinesFromCwd(t *testing.T) {
+	t.Parallel()
+
+	t.Run("multiple pipelines", func(t *testing.T) {
+		t.Parallel()
+		// mock an http client response with 2 pipelines matching the current repo url
+		client := mockHttpClient(`[{"slug": "this-is-testDir-pipeline-2"},
+		{"slug": "this-is-testDir-pipeline-2"}]`)
+		f := testFactory(client, "testOrg", testRepository(false, false))
+		pipelines, err := resolveFromRepository(f)
+		if err != nil {
+			t.Errorf("Error: %s", err)
+		}
+		if len(pipelines) != 2 {
+			t.Errorf("Expected 2 pipeline, got %d", len(pipelines))
+		}
+	})
+}
+
+// By accepting an arg for the detect and enable values, we can "skip" the looking
+// for a .git file and test the directory resolver
+func testRepository(detect, enable bool) *git.Repository {
+	repo, _ := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{DetectDotGit: detect, EnableDotGitCommonDir: enable})
 	return repo
 }
 

@@ -8,6 +8,164 @@ import (
 	"github.com/Khan/genqlient/graphql"
 )
 
+// FindPipelineFromCwdOrganization includes the requested fields of the GraphQL type Organization.
+// The GraphQL type's documentation follows.
+//
+// An organization
+type FindPipelineFromCwdOrganization struct {
+	// Return all the pipelines the current user has access to for this organization
+	Pipelines *FindPipelineFromCwdOrganizationPipelinesPipelineConnection `json:"pipelines"`
+}
+
+// GetPipelines returns FindPipelineFromCwdOrganization.Pipelines, and is useful for accessing the field via an interface.
+func (v *FindPipelineFromCwdOrganization) GetPipelines() *FindPipelineFromCwdOrganizationPipelinesPipelineConnection {
+	return v.Pipelines
+}
+
+// FindPipelineFromCwdOrganizationPipelinesPipelineConnection includes the requested fields of the GraphQL type PipelineConnection.
+type FindPipelineFromCwdOrganizationPipelinesPipelineConnection struct {
+	Edges []*FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdge `json:"edges"`
+}
+
+// GetEdges returns FindPipelineFromCwdOrganizationPipelinesPipelineConnection.Edges, and is useful for accessing the field via an interface.
+func (v *FindPipelineFromCwdOrganizationPipelinesPipelineConnection) GetEdges() []*FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdge {
+	return v.Edges
+}
+
+// FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdge includes the requested fields of the GraphQL type PipelineEdge.
+type FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdge struct {
+	Node *FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipeline `json:"node"`
+}
+
+// GetNode returns FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdge.Node, and is useful for accessing the field via an interface.
+func (v *FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdge) GetNode() *FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipeline {
+	return v.Node
+}
+
+// FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipeline includes the requested fields of the GraphQL type Pipeline.
+// The GraphQL type's documentation follows.
+//
+// A pipeline
+type FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipeline struct {
+	// The name of the pipeline
+	Name         string                                                                                              `json:"name"`
+	Organization FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipelineOrganization `json:"organization"`
+}
+
+// GetName returns FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipeline.Name, and is useful for accessing the field via an interface.
+func (v *FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipeline) GetName() string {
+	return v.Name
+}
+
+// GetOrganization returns FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipeline.Organization, and is useful for accessing the field via an interface.
+func (v *FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipeline) GetOrganization() FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipelineOrganization {
+	return v.Organization
+}
+
+// FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipelineOrganization includes the requested fields of the GraphQL type Organization.
+// The GraphQL type's documentation follows.
+//
+// An organization
+type FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipelineOrganization struct {
+	// The name of the organization
+	Name string `json:"name"`
+}
+
+// GetName returns FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipelineOrganization.Name, and is useful for accessing the field via an interface.
+func (v *FindPipelineFromCwdOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipelineOrganization) GetName() string {
+	return v.Name
+}
+
+// FindPipelineFromCwdResponse is returned by FindPipelineFromCwd on success.
+type FindPipelineFromCwdResponse struct {
+	// Find an organization
+	Organization *FindPipelineFromCwdOrganization `json:"organization"`
+}
+
+// GetOrganization returns FindPipelineFromCwdResponse.Organization, and is useful for accessing the field via an interface.
+func (v *FindPipelineFromCwdResponse) GetOrganization() *FindPipelineFromCwdOrganization {
+	return v.Organization
+}
+
+// FindPipelineFromGitRepoUrlOrganization includes the requested fields of the GraphQL type Organization.
+// The GraphQL type's documentation follows.
+//
+// An organization
+type FindPipelineFromGitRepoUrlOrganization struct {
+	// Return all the pipelines the current user has access to for this organization
+	Pipelines *FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnection `json:"pipelines"`
+}
+
+// GetPipelines returns FindPipelineFromGitRepoUrlOrganization.Pipelines, and is useful for accessing the field via an interface.
+func (v *FindPipelineFromGitRepoUrlOrganization) GetPipelines() *FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnection {
+	return v.Pipelines
+}
+
+// FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnection includes the requested fields of the GraphQL type PipelineConnection.
+type FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnection struct {
+	Edges []*FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdge `json:"edges"`
+}
+
+// GetEdges returns FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnection.Edges, and is useful for accessing the field via an interface.
+func (v *FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnection) GetEdges() []*FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdge {
+	return v.Edges
+}
+
+// FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdge includes the requested fields of the GraphQL type PipelineEdge.
+type FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdge struct {
+	Node *FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipeline `json:"node"`
+}
+
+// GetNode returns FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdge.Node, and is useful for accessing the field via an interface.
+func (v *FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdge) GetNode() *FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipeline {
+	return v.Node
+}
+
+// FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipeline includes the requested fields of the GraphQL type Pipeline.
+// The GraphQL type's documentation follows.
+//
+// A pipeline
+type FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipeline struct {
+	// The name of the pipeline
+	Name         string                                                                                                     `json:"name"`
+	Organization FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipelineOrganization `json:"organization"`
+}
+
+// GetName returns FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipeline.Name, and is useful for accessing the field via an interface.
+func (v *FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipeline) GetName() string {
+	return v.Name
+}
+
+// GetOrganization returns FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipeline.Organization, and is useful for accessing the field via an interface.
+func (v *FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipeline) GetOrganization() FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipelineOrganization {
+	return v.Organization
+}
+
+// FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipelineOrganization includes the requested fields of the GraphQL type Organization.
+// The GraphQL type's documentation follows.
+//
+// An organization
+type FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipelineOrganization struct {
+	// The name of the organization
+	Name string `json:"name"`
+}
+
+// GetName returns FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipelineOrganization.Name, and is useful for accessing the field via an interface.
+func (v *FindPipelineFromGitRepoUrlOrganizationPipelinesPipelineConnectionEdgesPipelineEdgeNodePipelineOrganization) GetName() string {
+	return v.Name
+}
+
+// FindPipelineFromGitRepoUrlResponse is returned by FindPipelineFromGitRepoUrl on success.
+type FindPipelineFromGitRepoUrlResponse struct {
+	// Find an organization
+	Organization *FindPipelineFromGitRepoUrlOrganization `json:"organization"`
+}
+
+// GetOrganization returns FindPipelineFromGitRepoUrlResponse.Organization, and is useful for accessing the field via an interface.
+func (v *FindPipelineFromGitRepoUrlResponse) GetOrganization() *FindPipelineFromGitRepoUrlOrganization {
+	return v.Organization
+}
+
 // GetClusterQueueAgentOrganization includes the requested fields of the GraphQL type Organization.
 // The GraphQL type's documentation follows.
 //
@@ -409,6 +567,30 @@ func (v *UnblockJobResponse) GetJobTypeBlockUnblock() *UnblockJobJobTypeBlockUnb
 	return v.JobTypeBlockUnblock
 }
 
+// __FindPipelineFromCwdInput is used internally by genqlient
+type __FindPipelineFromCwdInput struct {
+	Organization string  `json:"organization"`
+	Term         *string `json:"term"`
+}
+
+// GetOrganization returns __FindPipelineFromCwdInput.Organization, and is useful for accessing the field via an interface.
+func (v *__FindPipelineFromCwdInput) GetOrganization() string { return v.Organization }
+
+// GetTerm returns __FindPipelineFromCwdInput.Term, and is useful for accessing the field via an interface.
+func (v *__FindPipelineFromCwdInput) GetTerm() *string { return v.Term }
+
+// __FindPipelineFromGitRepoUrlInput is used internally by genqlient
+type __FindPipelineFromGitRepoUrlInput struct {
+	Organization string `json:"organization"`
+	Repo         string `json:"repo"`
+}
+
+// GetOrganization returns __FindPipelineFromGitRepoUrlInput.Organization, and is useful for accessing the field via an interface.
+func (v *__FindPipelineFromGitRepoUrlInput) GetOrganization() string { return v.Organization }
+
+// GetRepo returns __FindPipelineFromGitRepoUrlInput.Repo, and is useful for accessing the field via an interface.
+func (v *__FindPipelineFromGitRepoUrlInput) GetRepo() string { return v.Repo }
+
 // __GetClusterQueueAgentInput is used internally by genqlient
 type __GetClusterQueueAgentInput struct {
 	OrgSlug string   `json:"orgSlug"`
@@ -452,6 +634,98 @@ type __UnblockJobInput struct {
 
 // GetId returns __UnblockJobInput.Id, and is useful for accessing the field via an interface.
 func (v *__UnblockJobInput) GetId() string { return v.Id }
+
+// The query or mutation executed by FindPipelineFromCwd.
+const FindPipelineFromCwd_Operation = `
+query FindPipelineFromCwd ($organization: ID!, $term: String) {
+	organization(slug: $organization) {
+		pipelines(first: 10, search: $term) {
+			edges {
+				node {
+					name
+					organization {
+						name
+					}
+				}
+			}
+		}
+	}
+}
+`
+
+func FindPipelineFromCwd(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	organization string,
+	term *string,
+) (*FindPipelineFromCwdResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "FindPipelineFromCwd",
+		Query:  FindPipelineFromCwd_Operation,
+		Variables: &__FindPipelineFromCwdInput{
+			Organization: organization,
+			Term:         term,
+		},
+	}
+	var err_ error
+
+	var data_ FindPipelineFromCwdResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
+
+// The query or mutation executed by FindPipelineFromGitRepoUrl.
+const FindPipelineFromGitRepoUrl_Operation = `
+query FindPipelineFromGitRepoUrl ($organization: ID!, $repo: String!) {
+	organization(slug: $organization) {
+		pipelines(first: 10, repository: {url:$repo}) {
+			edges {
+				node {
+					name
+					organization {
+						name
+					}
+				}
+			}
+		}
+	}
+}
+`
+
+func FindPipelineFromGitRepoUrl(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	organization string,
+	repo string,
+) (*FindPipelineFromGitRepoUrlResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "FindPipelineFromGitRepoUrl",
+		Query:  FindPipelineFromGitRepoUrl_Operation,
+		Variables: &__FindPipelineFromGitRepoUrlInput{
+			Organization: organization,
+			Repo:         repo,
+		},
+	}
+	var err_ error
+
+	var data_ FindPipelineFromGitRepoUrlResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
 
 // The query or mutation executed by GetClusterQueueAgent.
 const GetClusterQueueAgent_Operation = `

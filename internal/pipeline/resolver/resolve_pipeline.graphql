@@ -1,0 +1,29 @@
+query FindPipelineFromCwd($organization: ID!, $term: String){
+  organization(slug: $organization){
+    pipelines(first:10, search: $term){
+      edges {
+        node {
+          name
+          organization {
+            name
+          }
+        }
+      }
+    }
+  }
+}
+
+query FindPipelineFromGitRepoUrl($organization: ID!, $repo: String!) {
+  organization(slug: $organization){
+    pipelines(first:10, repository: {url: $repo}){
+      edges {
+        node {
+          name
+          organization {
+            name
+          }
+        }
+      }
+    }
+  }
+}
