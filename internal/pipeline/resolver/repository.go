@@ -74,23 +74,23 @@ func resolveFromRepository(ctx context.Context, f *factory.Factory) ([]pipeline.
 	return resolvedPipelines, nil
 }
 
-func findPipelinesFromCwd(ctx context.Context, cwd string, org string, f *factory.Factory) ([]pipeline.Pipeline, error) {
-	resolvedPipelines := make([]pipeline.Pipeline, 0)
-	res, err := graphql.FindPipelineFromCwd(ctx, f.GraphQLClient, org, &cwd)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, p := range res.Organization.Pipelines.Edges {
-		resolvedPipelines = append(resolvedPipelines, pipeline.Pipeline{Name: p.Node.GetName(), Org: p.Node.Organization.GetName()})
-	}
-
-	if len(resolvedPipelines) > 0 {
-		return resolvedPipelines, nil
-	}
-
-	return nil, nil
-}
+// func findPipelinesFromCwd(ctx context.Context, cwd string, org string, f *factory.Factory) ([]pipeline.Pipeline, error) {
+// 	resolvedPipelines := make([]pipeline.Pipeline, 0)
+// 	res, err := graphql.FindPipelineFromCwd(ctx, f.GraphQLClient, org, &cwd)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+//
+// 	for _, p := range res.Organization.Pipelines.Edges {
+// 		resolvedPipelines = append(resolvedPipelines, pipeline.Pipeline{Name: p.Node.GetName(), Org: p.Node.Organization.GetName()})
+// 	}
+//
+// 	if len(resolvedPipelines) > 0 {
+// 		return resolvedPipelines, nil
+// 	}
+//
+// 	return nil, nil
+// }
 
 func findPipelinesFromRepo(ctx context.Context, repo string, org string, f *factory.Factory) ([]pipeline.Pipeline, error) {
 	resolvedPipelines := make([]pipeline.Pipeline, 0)
