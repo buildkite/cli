@@ -71,6 +71,9 @@ func resolveFromRepository(ctx context.Context, f *factory.Factory) ([]pipeline.
 	//
 	// resolvedPipelines = append(resolvedPipelines, cwdPipelines...)
 
+  if len(resolvedPipelines) < 1 {
+    return nil, nil
+  }
 	return resolvedPipelines, nil
 }
 
