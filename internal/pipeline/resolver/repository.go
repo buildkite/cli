@@ -24,7 +24,7 @@ func ResolveFromRepository(f *factory.Factory, picker PipelinePicker) PipelineRe
 		spinErr := spinner.New().
 			Title("Resolving pipeline").
 			Action(func() {
-				pipelines, err = resolveFromRepository(f)
+				pipelines, err = resolveFromRepository(ctx, f)
 			}).
 			Run()
 		if spinErr != nil {
@@ -45,7 +45,7 @@ func ResolveFromRepository(f *factory.Factory, picker PipelinePicker) PipelineRe
 	}
 }
 
-func resolveFromRepository(f *factory.Factory) ([]pipeline.Pipeline, error) {
+func resolveFromRepository(ctx context.Context, f *factory.Factory) ([]pipeline.Pipeline, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, errors.New("Could not resolve current working directory")
@@ -64,7 +64,7 @@ func resolveFromRepository(f *factory.Factory) ([]pipeline.Pipeline, error) {
 		resolvedPipelines = append(resolvedPipelines, foundPipelines...)
 	}
 
-	cwdPipelines, err := findPipelinesFromCwd(filepath.Base(cwd), f.Config.OrganizationSlug(), f)
+	cwdPipelines, err := findPipelinesFromCwd(ctx, filepath.Base(cwd), f.Config.OrganizationSlug(), f)
 	if err != nil {
 		return resolvedPipelines, nil
 	}
@@ -74,9 +74,9 @@ func resolveFromRepository(f *factory.Factory) ([]pipeline.Pipeline, error) {
 	return resolvedPipelines, nil
 }
 
-func findPipelinesFromCwd(cwd string, org string, f *factory.Factory) ([]pipeline.Pipeline, error) {
+func findPipelinesFromCwd(ctx context.Context, cwd string, org string, f *factory.Factory) ([]pipeline.Pipeline, error) {
 	resolvedPipelines := make([]pipeline.Pipeline, 0)
-	res, err := graphql.FindPipelineFromCwd(context.Background(), f.GraphQLClient, org, &cwd)
+	res, err := graphql.FindPipelineFromCwd(ctx, f.GraphQLClient, org, &cwd)
 	if err != nil {
 		return nil, err
 	}
