@@ -102,6 +102,10 @@ func findPipelinesFromRepo(ctx context.Context, repo string, org string, f *fact
 		return nil, err
 	}
 
+  if len(res.Organization.Pipelines.Edges) < 1 {
+    return nil, nil
+  }
+
 	for _, p := range res.Organization.Pipelines.Edges {
 		resolvedPipelines = append(resolvedPipelines, pipeline.Pipeline{Name: p.Node.GetName(), Org: p.Node.Organization.GetName()})
 	}
