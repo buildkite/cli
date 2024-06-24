@@ -56,7 +56,7 @@ func resolveFromRepository(ctx context.Context, f *factory.Factory) ([]pipeline.
 		return nil, err
 	}
 	for _, repo := range repos {
-		foundPipelines, err := findPipelinesFromRepo(repo, f.Config.OrganizationSlug(), f)
+		foundPipelines, err := findPipelinesFromRepo(ctx, repo, f.Config.OrganizationSlug(), f)
 		if err != nil {
 			continue
 		}
@@ -85,12 +85,16 @@ func findPipelinesFromCwd(ctx context.Context, cwd string, org string, f *factor
 		resolvedPipelines = append(resolvedPipelines, pipeline.Pipeline{Name: p.Node.GetName(), Org: p.Node.Organization.GetName()})
 	}
 
-	return resolvedPipelines, nil
+	if len(resolvedPipelines) > 0 {
+		return resolvedPipelines, nil
+	}
+
+	return nil, nil
 }
 
-func findPipelinesFromRepo(repo string, org string, f *factory.Factory) ([]pipeline.Pipeline, error) {
+func findPipelinesFromRepo(ctx context.Context, repo string, org string, f *factory.Factory) ([]pipeline.Pipeline, error) {
 	resolvedPipelines := make([]pipeline.Pipeline, 0)
-	res, err := graphql.FindPipelineFromGitRepoUrl(context.Background(), f.GraphQLClient, org, repo)
+	res, err := graphql.FindPipelineFromGitRepoUrl(ctx, f.GraphQLClient, org, repo)
 	if err != nil {
 		return nil, err
 	}
