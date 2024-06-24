@@ -2,9 +2,9 @@ package resolver
 
 import (
 	"context"
-	"errors"
-	"os"
-	"path/filepath"
+	// "errors"
+	// "os"
+	// "path/filepath"
 
 	"github.com/buildkite/cli/v3/internal/graphql"
 	"github.com/buildkite/cli/v3/internal/pipeline"
@@ -46,10 +46,10 @@ func ResolveFromRepository(f *factory.Factory, picker PipelinePicker) PipelineRe
 }
 
 func resolveFromRepository(ctx context.Context, f *factory.Factory) ([]pipeline.Pipeline, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, errors.New("Could not resolve current working directory")
-	}
+	// cwd, err := os.Getwd()
+	// if err != nil {
+	// 	return nil, errors.New("Could not resolve current working directory")
+	// }
 	resolvedPipelines := make([]pipeline.Pipeline, 0)
 	repos, err := getRepoURLs(f.GitRepository)
 	if err != nil {
@@ -64,12 +64,12 @@ func resolveFromRepository(ctx context.Context, f *factory.Factory) ([]pipeline.
 		resolvedPipelines = append(resolvedPipelines, foundPipelines...)
 	}
 
-	cwdPipelines, err := findPipelinesFromCwd(ctx, filepath.Base(cwd), f.Config.OrganizationSlug(), f)
-	if err != nil {
-		return resolvedPipelines, nil
-	}
-
-	resolvedPipelines = append(resolvedPipelines, cwdPipelines...)
+	// cwdPipelines, err := findPipelinesFromCwd(ctx, filepath.Base(cwd), f.Config.OrganizationSlug(), f)
+	// if err != nil {
+	// 	return resolvedPipelines, nil
+	// }
+	//
+	// resolvedPipelines = append(resolvedPipelines, cwdPipelines...)
 
 	return resolvedPipelines, nil
 }
