@@ -30,7 +30,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		defer cancel()
 		// mock a response that doesn't match the current repository url
 		client := mockHttpClient(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/test.git"}]`)
-		f := testFactory(client, "testOrg", testRepository(false, false))
+		f := testFactory(client, "testOrg", testRepository(true, true))
 		pipelines, err := resolveFromRepository(ctx, f)
 		if err != nil {
 			t.Errorf("Error: %s", err)
