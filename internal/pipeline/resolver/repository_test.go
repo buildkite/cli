@@ -26,8 +26,8 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 
 	t.Run("no pipelines found", func(t *testing.T) {
 		t.Parallel()
-    ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
-    defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 		// mock a response that doesn't match the current repository url
 		client := mockHttpClient(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/test.git"}]`)
 		f := testFactory(client, "testOrg", testRepository(false, false))
@@ -42,8 +42,8 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 
 	t.Run("one pipeline", func(t *testing.T) {
 		t.Parallel()
-    ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
-    defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 		// mock an http client response with a single pipeline matching the current repo url
 		client := mockHttpClient(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/cli.git"}]`)
 		f := testFactory(client, "testOrg", testRepository(true, true))
@@ -58,8 +58,8 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 
 	t.Run("multiple pipelines", func(t *testing.T) {
 		t.Parallel()
-    ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
-    defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 		// mock an http client response with 2 pipelines matching the current repo url
 		client := mockHttpClient(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/cli.git"},
 		{"slug": "my-pipeline-2", "repository": "git@github.com:buildkite/cli.git"}]`)
@@ -74,8 +74,8 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	})
 
 	t.Run("no repository found", func(t *testing.T) {
-    ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
-    defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 		client := mockHttpClient(`[{"slug": "", "repository": ""}]`)
 		f := testFactory(client, "testOrg", nil)
 		pipelines, err := resolveFromRepository(ctx, f)
@@ -88,8 +88,8 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	})
 
 	t.Run("no remote repository found", func(t *testing.T) {
-    ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
-    defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 		client := mockHttpClient(`[{"slug": "", "repository": ""}]`)
 		f := testFactory(client, "testOrg", testRepository(true, true))
 		pipelines, err := resolveFromRepository(ctx, f)
@@ -106,8 +106,9 @@ func TestResolvePipelinesFromCwd(t *testing.T) {
 	t.Parallel()
 
 	t.Run("multiple pipelines", func(t *testing.T) {
-    ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
-    defer cancel()
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 		// mock an http client response with 2 pipelines matching the current repo url
 		client := mockHttpClient(`[{"slug": "this-is-testDir-pipeline-2"},
 		{"slug": "this-is-testDir-pipeline-2"}]`)
