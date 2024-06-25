@@ -4,10 +4,12 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/graphql"
+	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
@@ -17,9 +19,12 @@ import (
 const jobCommandPrefix = "JobTypeBlock---"
 
 func NewCmdJobUnblock(f *factory.Factory) *cobra.Command {
-	return &cobra.Command{
-		Use:   "unblock <job id>",
-		Short: "Unblock a job",
+	var data string
+
+	cmd := &cobra.Command{
+		Use:                   "unblock <job id>",
+		DisableFlagsInUseLine: true,
+		Short:                 "Unblock a job",
 		Long: heredoc.Doc(`
 			Use this command to unblock build jobs.
 			Currently, this does not support submitting fields to the step.
@@ -31,11 +36,29 @@ func NewCmdJobUnblock(f *factory.Factory) *cobra.Command {
 			uuid := args[0]
 			graphqlID := generateGraphQLID(uuid)
 
+			// get unblock step fields if available
+			var fields *string
+			if bk_io.HasDataAvailable(cmd.InOrStdin()) {
+				stdin := new(strings.Builder)
+				_, err := io.Copy(stdin, cmd.InOrStdin())
+				if err != nil {
+					return err
+				}
+				input := stdin.String()
+				fields = &input
+			} else if data != "" {
+				fields = &data
+			} else {
+				// the graphql API errors if providing a null fields value so we need to provide and empty json object
+				input := "{}"
+				fields = &input
+			}
+
 			var err error
 			spinErr := spinner.New().
 				Title("Unblocking job").
 				Action(func() {
-					_, err = graphql.UnblockJob(cmd.Context(), f.GraphQLClient, graphqlID)
+					_, err = graphql.UnblockJob(cmd.Context(), f.GraphQLClient, graphqlID, fields)
 				}).
 				Run()
 			if spinErr != nil {
@@ -61,6 +84,10 @@ func NewCmdJobUnblock(f *factory.Factory) *cobra.Command {
 			return err
 		},
 	}
+
+	cmd.Flags().StringVar(&data, "data", "", "JSON formatted data to unblock the job.")
+
+	return cmd
 }
 
 func generateGraphQLID(uuid string) string {

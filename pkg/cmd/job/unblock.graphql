@@ -1,5 +1,5 @@
-mutation UnblockJob($id: ID!) {
-    jobTypeBlockUnblock(input: {id: $id}) {
+mutation UnblockJob($id: ID!, $fields: JSON) {
+    jobTypeBlockUnblock(input: {id: $id, fields: $fields}) {
         jobTypeBlock {
             id
             state

@@ -7,3 +7,7 @@ operations:
 optional: pointer
 
 generated: internal/graphql/generated.go
+
+bindings:
+  JSON:
+    type: string

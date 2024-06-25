@@ -447,11 +447,15 @@ func (v *__RecentBuildsForBranchInput) GetPipelineSlug() string { return v.Pipel
 
 // __UnblockJobInput is used internally by genqlient
 type __UnblockJobInput struct {
-	Id string `json:"id"`
+	Id     string  `json:"id"`
+	Fields *string `json:"fields"`
 }
 
 // GetId returns __UnblockJobInput.Id, and is useful for accessing the field via an interface.
 func (v *__UnblockJobInput) GetId() string { return v.Id }
+
+// GetFields returns __UnblockJobInput.Fields, and is useful for accessing the field via an interface.
+func (v *__UnblockJobInput) GetFields() *string { return v.Fields }
 
 // The query or mutation executed by GetClusterQueueAgent.
 const GetClusterQueueAgent_Operation = `
@@ -602,8 +606,8 @@ func RecentBuildsForBranch(
 
 // The query or mutation executed by UnblockJob.
 const UnblockJob_Operation = `
-mutation UnblockJob ($id: ID!) {
-	jobTypeBlockUnblock(input: {id:$id}) {
+mutation UnblockJob ($id: ID!, $fields: JSON) {
+	jobTypeBlockUnblock(input: {id:$id,fields:$fields}) {
 		jobTypeBlock {
 			id
 			state
@@ -620,12 +624,14 @@ func UnblockJob(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	id string,
+	fields *string,
 ) (*UnblockJobResponse, error) {
 	req_ := &graphql.Request{
 		OpName: "UnblockJob",
 		Query:  UnblockJob_Operation,
 		Variables: &__UnblockJobInput{
-			Id: id,
+			Id:     id,
+			Fields: fields,
 		},
 	}
 	var err_ error
