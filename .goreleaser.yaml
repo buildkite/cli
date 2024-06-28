@@ -12,6 +12,26 @@ release:
 changelog:
   use: github
 
+brews:
+  - name: bk@3
+    ids:
+      - macos-archive
+      - linux-archive
+    directory: .
+    caveats: |
+      This is beta software
+
+      For any questions, issues or feedback, please file an issue at https://github.com/buildkite/cli/issues
+    homepage: https://github.com/buildkite/cli
+    description: Work with Buildkite from the command-line
+    license: MIT
+    skip_upload: true
+    test: system "#{bin}/bk --version"
+    repository:
+      owner: buildkite
+      name: homebrew-buildkite
+      branch: master
+
 builds:
   - id: macos
     goos: [darwin]
