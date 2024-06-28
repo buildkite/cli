@@ -26,7 +26,7 @@ brews:
     description: Work with Buildkite from the command-line
     license: MIT
     skip_upload: false
-    test: system "#{bin}/bk --version"
+    test: system "#{bin}/bk version"
     repository:
       owner: buildkite
       name: homebrew-buildkite
