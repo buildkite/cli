@@ -25,7 +25,7 @@ brews:
     homepage: https://github.com/buildkite/cli
     description: Work with Buildkite from the command-line
     license: MIT
-    skip_upload: true
+    skip_upload: false
     test: system "#{bin}/bk --version"
     repository:
       owner: buildkite
