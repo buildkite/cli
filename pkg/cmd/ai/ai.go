@@ -20,6 +20,7 @@ func NewCmdAI(f *factory.Factory) *cobra.Command {
 
 	cmd.AddCommand(NewCmdAIConfigure(f))
 	cmd.AddCommand(NewCmdAIAsk(f))
+	cmd.AddCommand(NewCmdAIDocs(f))
 
 	return &cmd
 }
