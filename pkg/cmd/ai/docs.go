@@ -34,13 +34,12 @@ func NewCmdAIDocs(f *factory.Factory) *cobra.Command {
 			}
 			defer gpt.Close(true)
 
-			// NOTES: see assemble.go Header usage for "custom"
-			// NOTES: prepend user input thing to tools before passing to below
 			prg := types.Program{
 				ToolSet: types.ToolSet{},
 			}
 			prg.ToolSet[tools.AlgoliaTool().Name] = tools.AlgoliaTool()
 			prg.ToolSet["sys.http.html2text"], _ = builtin.Builtin("sys.http.html2text")
+			prg.ToolSet[tools.SummariseText().Name] = tools.SummariseText()
 			prg.ToolSet["bk"] = types.Tool{
 				ID: "bk",
 				ToolDef: types.ToolDef{
@@ -49,16 +48,29 @@ func NewCmdAIDocs(f *factory.Factory) *cobra.Command {
 						Name:      "bk",
 						Tools: []string{
 							tools.AlgoliaTool().Name,
+							tools.SummariseText().Name,
 							"sys.http.html2text",
 						},
 					},
-					Instructions: "Search the buildkite documentation website for results matching the users query. Parse the returned URL and use that content to answer the users question",
+					Instructions: "Search the buildkite documentation website for results matching the users query. Load the found website and summarise it. Only load and summarise the first website found. Do not summarise more than 1 page. Then use the summary to answer the users question",
 				},
 				ToolMapping: map[string][]types.ToolReference{
-					"algolia": {
+					tools.AlgoliaTool().Name: {
 						{
-							Reference: "aloglia",
-							ToolID:    "algolia",
+							Reference: tools.AlgoliaTool().Name,
+							ToolID:    tools.AlgoliaTool().Name,
+						},
+					},
+					tools.SummariseText().Name: {
+						{
+							Reference: tools.SummariseText().Name,
+							ToolID:    tools.SummariseText().Name,
+						},
+					},
+					tools.SummariseURL().Name: {
+						{
+							Reference: tools.SummariseURL().Name,
+							ToolID:    tools.SummariseURL().Name,
 						},
 					},
 					"sys.http.html2text": {
@@ -70,11 +82,6 @@ func NewCmdAIDocs(f *factory.Factory) *cobra.Command {
 				},
 			}
 			prg.EntryToolID = "bk"
-			// prg needs to be populated with a toolset that combines all tools and the main entrypoint type thing
-			// inner tools dont necessarily need their mappings, but the entrypoint and custom ones do
-			if err != nil {
-				return err
-			}
 
 			res, err := gpt.Run(cmd.Context(), prg, nil, args[0])
 			if err != nil {
