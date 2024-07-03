@@ -9,7 +9,6 @@ import (
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 )
 
@@ -45,22 +44,8 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 				return fmt.Errorf("could not resolve a build")
 			}
 
-			form := huh.NewForm(
-				huh.NewGroup(
-					huh.NewConfirm().
-						Title(fmt.Sprintf("Cancel build #%d on %s", bld.BuildNumber, bld.Pipeline)).
-						Affirmative("Yes").
-						Negative("No").
-						Value(&confirmed),
-				).WithHide(confirmed), // user can bypass the prompt by passing the flag
-			)
-
-			err = form.Run()
+			err = io.Confirm(&confirmed, fmt.Sprintf("Cancel build #%d on %s", bld.BuildNumber, bld.Pipeline))
 			if err != nil {
-				// no need to return error if ctrl-c
-				if err == huh.ErrUserAborted {
-					return nil
-				}
 				return err
 			}
 
