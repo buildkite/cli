@@ -9,7 +9,6 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 )
 
@@ -45,22 +44,8 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 				return fmt.Errorf("could not resolve a pipeline")
 			}
 
-			form := huh.NewForm(
-				huh.NewGroup(
-					huh.NewConfirm().
-						Title(fmt.Sprintf("Create new build on %s?", pipeline.Name)).
-						Affirmative("Yes").
-						Negative("No").
-						Value(&confirmed),
-				).WithHide(confirmed), // user can bypass the prompt by passing the flag
-			)
-
-			err = form.Run()
+			err = io.Confirm(&confirmed, fmt.Sprintf("Create new build on %s?", pipeline.Name))
 			if err != nil {
-				// no need to return error if ctrl-c
-				if err == huh.ErrUserAborted {
-					return nil
-				}
 				return err
 			}
 
