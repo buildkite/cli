@@ -15,6 +15,7 @@ import (
 func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 	var web bool
 	var pipeline string
+	var confirmed bool
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
@@ -43,7 +44,16 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 				return fmt.Errorf("could not resolve a build")
 			}
 
-			return cancelBuild(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), web, f)
+			err = io.Confirm(&confirmed, fmt.Sprintf("Cancel build #%d on %s", bld.BuildNumber, bld.Pipeline))
+			if err != nil {
+				return err
+			}
+
+			if confirmed {
+				return cancelBuild(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), web, f)
+			} else {
+				return nil
+			}
 		},
 	}
 
@@ -51,6 +61,7 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVarP(&pipeline, "pipeline", "p", "", "The pipeline to cancel a build on. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
 		"If omitted, it will be resolved using the current directory.",
 	)
+	cmd.Flags().BoolVarP(&confirmed, "yes", "y", false, "Skip the confirmation prompt. Useful if being used in automation/CI.")
 	cmd.Flags().SortFlags = false
 
 	return &cmd
