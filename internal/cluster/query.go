@@ -62,5 +62,6 @@ func QueryCluster(ctx context.Context, OrganizationSlug string, ClusterID string
 		cluster.Queues = append(cluster.Queues, queue)
 
 	}
+	fmt.Println(errorChannel)
 	return &cluster, nil
 }
