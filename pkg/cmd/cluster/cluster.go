@@ -9,9 +9,10 @@ import (
 
 func NewCmdCluster(f *factory.Factory) *cobra.Command {
 	cmd := cobra.Command{
-		Use:  "cluster <command>",
-		Args: cobra.ArbitraryArgs,
-		Long: "View cluster information",
+		Use:   "cluster <command>",
+		Args:  cobra.ArbitraryArgs,
+		Long:  "Manage organization clusters",
+		Short: "Manage organization clusters",
 		Example: heredoc.Doc(`
 			# To view cluster details
 			$ bk cluster view "cluster_id"

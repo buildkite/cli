@@ -30,6 +30,7 @@ $ bk agent stop <agent ID>
 Available Commands:
   agent       Manage agents
   build       Manage pipeline builds
+  cluster     Manage organization clusters
   completion  Generate the autocompletion script for the specified shell
   configure   Configure Buildkite API token
   help        Help about any command
