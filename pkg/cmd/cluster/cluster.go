@@ -12,7 +12,7 @@ func NewCmdCluster(f *factory.Factory) *cobra.Command {
 		Use:   "cluster <command>",
 		Args:  cobra.ArbitraryArgs,
 		Long:  "View cluster information",
-		Short: "View cluster information",
+		Short: "Manage organization clusters",
 		Example: heredoc.Doc(`
 			# To view cluster details
 			$ bk cluster view "cluster_id"
