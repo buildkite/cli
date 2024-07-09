@@ -39,7 +39,11 @@ builds:
     binary: bk
     main: ./cmd/bk
     ldflags:
-      - -s -w -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}}
+      - >-
+        -s -w
+        -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}}
+        -X github.com/buildkite/cli/v3/internal/algolia.appID={{.Env.ALGOLIA_APPID}}
+        -X github.com/buildkite/cli/v3/internal/algolia.searchKey={{.Env.ALGOLIA_SEARCH_KEY}}
 
   - id: linux
     goos: [linux]
@@ -49,7 +53,11 @@ builds:
     binary: bk
     main: ./cmd/bk
     ldflags:
-      - -s -w -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}}
+      - >-
+        -s -w
+        -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}}
+        -X github.com/buildkite/cli/v3/internal/algolia.appID={{.Env.ALGOLIA_APPID}}
+        -X github.com/buildkite/cli/v3/internal/algolia.searchKey={{.Env.ALGOLIA_SEARCH_KEY}}
 
   - id: windows
     goos: [windows]
@@ -57,7 +65,11 @@ builds:
     binary: bk
     main: ./cmd/bk
     ldflags:
-      - -s -w -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}}
+      - >-
+        -s -w
+        -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}}
+        -X github.com/buildkite/cli/v3/internal/algolia.appID={{.Env.ALGOLIA_APPID}}
+        -X github.com/buildkite/cli/v3/internal/algolia.searchKey={{.Env.ALGOLIA_SEARCH_KEY}}
 
 archives:
   - id: macos-archive
