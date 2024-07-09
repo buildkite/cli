@@ -10,6 +10,12 @@ steps:
     artifact_paths:
       - dist/**/*
     plugins:
+      - aws-assume-role-with-web-identity:
+          role-arn: arn:aws:iam::445615400570:role/pipeline-buildkite-buildkite-cli-release
+      - aws-ssm#v1.0.0:
+          parameters:
+            ALGOLIA_APPID: /pipelines/buildkite/buildkite-cli-release/algolia-appid
+            ALGOLIA_SEARCH_KEY: /pipelines/buildkite/buildkite-cli-release/algolia-search-key
       - docker-compose#v5.2.0:
           command:
             - .buildkite/release.sh
