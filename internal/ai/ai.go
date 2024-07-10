@@ -32,8 +32,7 @@ func (ch *CompletionHandler) Complete(ctx context.Context, messages []openai.Cha
 		return "", err
 	}
 	if len(resp.Choices) == 0 {
-		// TODO
-		return "", fmt.Errorf("")
+		return "", fmt.Errorf("received no response choices from open ai")
 	}
 	switch message := resp.Choices[0].Message; resp.Choices[0].FinishReason {
 	case openai.FinishReasonStop: // AI has said this is the last message, return the string content
@@ -44,8 +43,7 @@ func (ch *CompletionHandler) Complete(ctx context.Context, messages []openai.Cha
 		for _, toolCall := range message.ToolCalls {
 			tool := ch.Tools.GetTool(toolCall.Function.Name)
 			if tool == nil {
-				// TODO
-				return "", fmt.Errorf("")
+				return "", fmt.Errorf("ai returned function name that doesn't exist: %s", toolCall.Function.Name)
 			}
 			output, err := (*tool).Execute(toolCall.Function.Arguments)
 			if err != nil {
@@ -63,6 +61,6 @@ func (ch *CompletionHandler) Complete(ctx context.Context, messages []openai.Cha
 		return ch.Complete(ctx, messages)
 	}
 
-	// TODO is this an error case?
-	return "", nil
+	// if we get here, something has gone wrong
+	return "", fmt.Errorf("unknown finish reason from ai: %s", resp.Choices[0].FinishReason)
 }
