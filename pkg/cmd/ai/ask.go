@@ -6,9 +6,12 @@ import (
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
+	"github.com/buildkite/cli/v3/internal/ai"
+	"github.com/buildkite/cli/v3/internal/algolia"
 	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
+	"github.com/charmbracelet/glamour"
 	"github.com/sashabaranov/go-openai"
 	"github.com/spf13/cobra"
 )
@@ -41,29 +44,38 @@ func NewCmdAIAsk(f *factory.Factory) *cobra.Command {
 				return errors.New("must supply a prompt")
 			}
 
-			client := *f.OpenAIClient
-			resp, err := client.CreateChatCompletion(cmd.Context(), openai.ChatCompletionRequest{
-				Model: openai.GPT3Dot5Turbo,
-				Messages: []openai.ChatCompletionMessage{
-					{
-						Role:    openai.ChatMessageRoleUser,
-						Content: input,
-					},
+			// build up the open ai request including our custom tools, system prompt and user input
+			tools := ai.EnabledTools{
+				&ai.DocumentationTool{Search: algolia.Search},
+			}
+			messages := []openai.ChatCompletionMessage{
+				// {
+				// 	Role:    openai.ChatMessageRoleSystem,
+				// 	Content: "Respond in markdown format",
+				// },
+				{
+					Role:    openai.ChatMessageRoleUser,
+					Content: input,
 				},
-			})
+			}
+
+			// now handle the ai chat until we get a string response we can output for the user
+			handler := ai.CompletionHandler{
+				Completer: f.OpenAIClient,
+				Tools:     tools,
+			}
+			output, err := handler.Complete(cmd.Context(), messages)
 			if err != nil {
 				return err
 			}
-			if len(resp.Choices) == 0 {
-				return errors.New("no response received")
-			}
-			var msg strings.Builder
-			for _, c := range resp.Choices {
-				msg.WriteString(c.Message.Content)
-				msg.WriteString("\n")
+
+			// render output as markdown
+			output, err = glamour.Render(output, glamour.AutoStyle)
+			if err != nil {
+				return err
 			}
 
-			_, err = cmd.OutOrStdout().Write([]byte(msg.String()))
+			_, err = cmd.OutOrStdout().Write([]byte(output))
 			return err
 		},
 	}
