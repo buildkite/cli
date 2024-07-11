@@ -8,7 +8,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
 )
 
@@ -70,33 +70,36 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 }
 
 func newBuild(org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool) error {
-	l := io.NewPendingCommand(func() tea.Msg {
-		if len(branch) == 0 {
-			p, _, err := f.RestAPIClient.Pipelines.Get(org, pipeline)
-			if err != nil {
-				return err
+	var err error
+	var build *buildkite.Build
+	spinErr := spinner.New().
+		Title(fmt.Sprintf("Starting new build for %s", pipeline)).
+		Action(func() {
+			if len(branch) == 0 {
+				p, _, err := f.RestAPIClient.Pipelines.Get(org, pipeline)
+				if err != nil {
+					return
+				}
+				branch = *p.DefaultBranch
 			}
-			branch = *p.DefaultBranch
-		}
 
-		newBuild := buildkite.CreateBuild{
-			Message: message,
-			Commit:  commit,
-			Branch:  branch,
-		}
+			newBuild := buildkite.CreateBuild{
+				Message: message,
+				Commit:  commit,
+				Branch:  branch,
+			}
 
-		build, _, err := f.RestAPIClient.Builds.Create(org, pipeline, &newBuild)
-		if err != nil {
-			return err
-		}
+			build, _, err = f.RestAPIClient.Builds.Create(org, pipeline, &newBuild)
+		}).
+		Run()
+	if spinErr != nil {
+		return spinErr
+	}
+	if err != nil {
+		return err
+	}
 
-		if err = openBuildInBrowser(web, *build.WebURL); err != nil {
-			return err
-		}
+	fmt.Printf("%s\n", renderResult(fmt.Sprintf("Build created: %s", *build.WebURL)))
 
-		return io.PendingOutput(renderResult(fmt.Sprintf("Build created: %s", *build.WebURL)))
-	}, fmt.Sprintf("Starting new build for %s", pipeline))
-	p := tea.NewProgram(l)
-	_, err := p.Run()
-	return err
+	return openBuildInBrowser(web, *build.WebURL)
 }
