@@ -12,7 +12,6 @@ import (
 
 // ResolveBuildForUser Finds the most recent build for the user and branch
 func ResolveBuildForUser(ctx context.Context, userInfo string, branch string, pipelineResolver pipelineResolver.PipelineResolverFn, f *factory.Factory) (*build.Build, error) {
-
 	pipeline, err := pipelineResolver(ctx)
 	if err != nil {
 		return nil, err
@@ -33,7 +32,6 @@ func ResolveBuildForUser(ctx context.Context, userInfo string, branch string, pi
 	}
 
 	builds, _, err := f.RestAPIClient.Builds.ListByPipeline(f.Config.OrganizationSlug(), pipeline.Name, opt)
-
 	if err != nil {
 		return nil, err
 	}

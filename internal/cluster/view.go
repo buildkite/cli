@@ -12,7 +12,6 @@ import (
 )
 
 func ClusterSummary(ctx context.Context, OrganizationSlug string, ClusterID string, f *factory.Factory) (string, error) {
-
 	clusterSummary, err := QueryCluster(ctx, OrganizationSlug, ClusterID, f)
 	if err != nil {
 		return err.Error(), err
@@ -34,9 +33,7 @@ func ClusterSummary(ctx context.Context, OrganizationSlug string, ClusterID stri
 			return tableOut.String(), nil
 		}
 		for _, queue := range clusterSummary.Queues {
-
 			t.Row(queue.Name, strconv.Itoa(queue.ActiveAgents))
-
 		}
 	}
 

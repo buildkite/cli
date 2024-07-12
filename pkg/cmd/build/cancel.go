@@ -8,7 +8,8 @@ import (
 	"github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
 )
 
@@ -68,21 +69,22 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 }
 
 func cancelBuild(org string, pipeline string, buildId string, web bool, f *factory.Factory) error {
-	l := io.NewPendingCommand(func() tea.Msg {
-		build, err := f.RestAPIClient.Builds.Cancel(org, pipeline, buildId)
-		if err != nil {
-			return err
-		}
+	var err error
+	var build *buildkite.Build
+	spinErr := spinner.New().
+		Title(fmt.Sprintf("Cancelling build #%s from pipeline %s", buildId, pipeline)).
+		Action(func() {
+			build, err = f.RestAPIClient.Builds.Cancel(org, pipeline, buildId)
+		}).
+		Run()
+	if spinErr != nil {
+		return spinErr
+	}
+	if err != nil {
+		return err
+	}
 
-		if err = openBuildInBrowser(web, *build.WebURL); err != nil {
-			return err
-		}
+	fmt.Printf("%s\n", renderResult(fmt.Sprintf("Build canceled: %s", *build.WebURL)))
 
-		return io.PendingOutput(renderResult(fmt.Sprintf("Build canceled: %s", *build.WebURL)))
-	}, fmt.Sprintf("Cancelling build #%s from pipeline %s", buildId, pipeline))
-
-	p := tea.NewProgram(l)
-	_, err := p.Run()
-
-	return err
+	return openBuildInBrowser(web, *build.WebURL)
 }
