@@ -1,11 +1,12 @@
 package cluster
 
 import (
+	"fmt"
+
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/cluster"
-	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
 )
 
@@ -21,28 +22,29 @@ func NewCmdClusterView(f *factory.Factory) *cobra.Command {
 			It accepts org slug and cluster id.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-
 			orgSlug := f.Config.OrganizationSlug()
 			clusterID := args[0]
 
-			l := io.NewPendingCommand(func() tea.Msg {
+			var err error
+			var output string
+			spinErr := spinner.New().
+				Title("Loading cluster information").
+				Action(func() {
+					output, err = cluster.ClusterSummary(cmd.Context(), orgSlug, clusterID, f)
+				}).
+				Run()
+			if spinErr != nil {
+				return spinErr
+			}
+			if err != nil {
+				return err
+			}
 
-				summary, err := cluster.ClusterSummary(cmd.Context(), orgSlug, clusterID, f)
-
-				if err != nil {
-					return err
-				}
-
-				return io.PendingOutput(summary)
-			}, "Loading cluster information")
-
-			p := tea.NewProgram(l)
-			_, err := p.Run()
+			fmt.Fprintf(cmd.OutOrStdout(), "%s\n", output)
 
 			return err
 		},
 	}
 
 	return &cmd
-
 }

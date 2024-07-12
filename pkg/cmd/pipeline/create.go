@@ -5,10 +5,9 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/MakeNowJust/heredoc"
-	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/huh/spinner"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
@@ -60,8 +59,6 @@ func NewCmdPipelineCreate(f *factory.Factory) *cobra.Command {
 				}
 			}
 
-			fmt.Printf("Creating pipeline %s with description %s, repo %s\n", answers.Pipeline, answers.Description, repoURL)
-
 			return createPipeline(f.RestAPIClient, f.Config.OrganizationSlug(), answers.Pipeline, answers.Description, repoURL)
 		},
 	}
@@ -86,35 +83,31 @@ func getRepoURLS(f *factory.Factory) []string {
 }
 
 func createPipeline(client *buildkite.Client, org, pipelineName, description, repoURL string) error {
-	l := io.NewPendingCommand(func() tea.Msg {
-		createPipeline := buildkite.CreatePipeline{
-			Name:          *buildkite.String(pipelineName),
-			Repository:    *buildkite.String(repoURL),
-			Description:   *buildkite.String(description),
-			Configuration: *buildkite.String("steps:\n  - label: \":pipeline:\"\n    command: buildkite-agent pipeline upload"),
-		}
+	var err error
+	var output string
 
-		pipeline, resp, err := client.Pipelines.Create(org, &createPipeline)
-		if err != nil {
-			// return renderOutput(fmt.Sprintf("Unable to create pipeline.: %s", err.Error()))
-			return io.PendingOutput(lipgloss.JoinVertical(lipgloss.Top,
-				lipgloss.NewStyle().Padding(1, 1).Render(fmt.Sprintf("Unable to create pipeline.: %s", err.Error()))))
-		}
+	spinErr := spinner.New().
+		Title(fmt.Sprintf("Creating new pipeline %s for %s", pipelineName, org)).
+		Action(func() {
+			createPipeline := buildkite.CreatePipeline{
+				Name:          *buildkite.String(pipelineName),
+				Repository:    *buildkite.String(repoURL),
+				Description:   *buildkite.String(description),
+				Configuration: *buildkite.String("steps:\n  - label: \":pipeline:\"\n    command: buildkite-agent pipeline upload"),
+			}
 
-		if resp == nil {
-			return io.PendingOutput(lipgloss.JoinVertical(lipgloss.Top,
-				lipgloss.NewStyle().Padding(1, 1).Render("Unable to create pipeline.")))
-		}
+			var pipeline *buildkite.Pipeline
+			pipeline, _, err = client.Pipelines.Create(org, &createPipeline)
 
-		if resp.StatusCode != 201 {
-			return io.PendingOutput(lipgloss.JoinVertical(lipgloss.Top,
-				lipgloss.NewStyle().Padding(1, 1).Render(fmt.Sprintf("Unable to create pipeline. %d: %s", resp.StatusCode, resp.Status))))
-		}
+			output = lipgloss.JoinVertical(lipgloss.Top, lipgloss.NewStyle().Padding(1, 1).Render(fmt.Sprintf("Pipeline created: %s", *pipeline.WebURL)))
+		}).
+		Run()
 
-		return io.PendingOutput(lipgloss.JoinVertical(lipgloss.Top,
-			lipgloss.NewStyle().Padding(1, 1).Render(fmt.Sprintf("Pipeline created: %s", *pipeline.WebURL))))
-	}, fmt.Sprintf("Creating new pipeline %s for %s", pipelineName, org))
-	p := tea.NewProgram(l)
-	_, err := p.Run()
+	fmt.Println(output)
+
+	if spinErr != nil {
+		return spinErr
+	}
+
 	return err
 }
