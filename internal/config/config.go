@@ -19,15 +19,11 @@ import (
 )
 
 const (
-	DefaultGraphQLEndpoint     = "https://graphql.buildkite.com/v1"
-	OrganizationsSlugConfigKey = "organizations"
-)
-
-const (
-	appData             = "AppData"
-	configFilePath      = "bk.yaml"
-	localConfigFilePath = "." + configFilePath
-	xdgConfigHome       = "XDG_CONFIG_HOME"
+	DefaultGraphQLEndpoint = "https://graphql.buildkite.com/v1"
+	appData                = "AppData"
+	configFilePath         = "bk.yaml"
+	localConfigFilePath    = "." + configFilePath
+	xdgConfigHome          = "XDG_CONFIG_HOME"
 )
 
 // Config contains the configuration for the currently selected organization

@@ -9,9 +9,7 @@ import (
 )
 
 func QueryCluster(ctx context.Context, OrganizationSlug string, ClusterID string, f *factory.Factory) (*Cluster, error) {
-
 	q, err := graphql.GetClusterQueues(ctx, f.GraphQLClient, OrganizationSlug, ClusterID)
-
 	if err != nil {
 		fmt.Println("Unable to read Cluster Queues: ", err.Error())
 		return nil, err
@@ -31,7 +29,6 @@ func QueryCluster(ctx context.Context, OrganizationSlug string, ClusterID string
 		agent, err := graphql.GetClusterQueueAgent(ctx, f.GraphQLClient, OrganizationSlug, []string{edge.Node.Id})
 		if err != nil {
 			return nil, fmt.Errorf("unable to read Cluster Queue Agents: %s", err.Error())
-
 		}
 
 		queue := Queue{
