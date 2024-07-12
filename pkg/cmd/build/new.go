@@ -2,6 +2,7 @@ package build
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/io"
@@ -75,6 +76,7 @@ func newBuild(org string, pipeline string, f *factory.Factory, message string, c
 	spinErr := spinner.New().
 		Title(fmt.Sprintf("Starting new build for %s", pipeline)).
 		Action(func() {
+			branch = strings.TrimSpace(branch)
 			if len(branch) == 0 {
 				p, _, err := f.RestAPIClient.Pipelines.Get(org, pipeline)
 				if err != nil {
