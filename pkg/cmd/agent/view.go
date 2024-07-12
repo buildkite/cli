@@ -5,9 +5,9 @@ import (
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/agent"
-	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/charmbracelet/huh/spinner"
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 )
@@ -35,19 +35,22 @@ func NewCmdAgentView(f *factory.Factory) *cobra.Command {
 				return browser.OpenURL(url)
 			}
 
-			l := io.NewPendingCommand(func() tea.Msg {
-				agentData, _, err := f.RestAPIClient.Agents.Get(org, id)
-				if err != nil {
-					return err
-				}
+			var err error
+			var agentData *buildkite.Agent
+			spinErr := spinner.New().
+				Title("Loading agent").
+				Action(func() {
+					agentData, _, err = f.RestAPIClient.Agents.Get(org, id)
+				}).
+				Run()
+			if spinErr != nil {
+				return spinErr
+			}
+			if err != nil {
+				return err
+			}
 
-				// Obtain agent table data output and return
-				agentTable := agent.AgentDataTable(agentData)
-				return io.PendingOutput(agentTable)
-			}, "Loading agent")
-
-			p := tea.NewProgram(l)
-			_, err := p.Run()
+			fmt.Fprintf(cmd.OutOrStdout(), "%s\n", agent.AgentDataTable(agentData))
 
 			return err
 		},
