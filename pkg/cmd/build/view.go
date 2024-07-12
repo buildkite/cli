@@ -8,15 +8,15 @@ import (
 	"github.com/buildkite/cli/v3/internal/artifact"
 	"github.com/buildkite/cli/v3/internal/build"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
-	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/job"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/huh/spinner"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 )
 
 func NewCmdBuildView(f *factory.Factory) *cobra.Command {
@@ -34,9 +34,6 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			You can pass an optional build number to view. If omitted, the most recent build on the current branch will be resolved.
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			buildArtifacts := make([]buildkite.Artifact, 0)
-			buildAnnotations := make([]buildkite.Annotation, 0)
-
 			pipelineRes := pipelineResolver.NewAggregateResolver(
 				pipelineResolver.ResolveFromFlag(pipeline, f.Config),
 				pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
@@ -64,57 +61,73 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 				return browser.OpenURL(buildUrl)
 			}
 
-			l := io.NewPendingCommand(func() tea.Msg {
-				b, _, err := f.RestAPIClient.Builds.Get(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.BuildsListOptions{})
-				if err != nil {
-					return err
-				}
+			var b *buildkite.Build
+			var buildArtifacts []buildkite.Artifact
+			var buildAnnotations []buildkite.Annotation
 
-				buildArtifacts, _, err = f.RestAPIClient.Artifacts.ListByBuild(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.ArtifactListOptions{})
-				if err != nil {
-					return err
-				}
+			group, _ := errgroup.WithContext(cmd.Context())
+			spinErr := spinner.New().
+				Title("Loading build information").
+				Action(func() {
+					group.Go(func() error {
+						var err error
+						b, _, err = f.RestAPIClient.Builds.Get(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.BuildsListOptions{})
+						return err
+					})
 
-				buildAnnotations, _, err = f.RestAPIClient.Annotations.ListByBuild(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.AnnotationListOptions{})
-				if err != nil {
-					return err
-				}
+					group.Go(func() error {
+						var err error
+						buildArtifacts, _, err = f.RestAPIClient.Artifacts.ListByBuild(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.ArtifactListOptions{})
+						return err
+					})
 
-				// Obtain build summary and return
-				summary := build.BuildSummary(b)
-				if len(b.Jobs) > 0 {
-					summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("\nJobs")
-					for _, j := range b.Jobs {
-						bkJob := *j
-						if *bkJob.Type == "script" {
-							summary += job.JobSummary(job.Job(bkJob))
-						}
+					group.Go(func() error {
+						var err error
+						buildAnnotations, _, err = f.RestAPIClient.Annotations.ListByBuild(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.AnnotationListOptions{})
+						return err
+					})
+
+					err = group.Wait()
+				}).
+				Run()
+			if spinErr != nil {
+				return spinErr
+			}
+			if err != nil {
+				return err
+			}
+
+			summary := build.BuildSummary(b)
+			if len(b.Jobs) > 0 {
+				summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("\nJobs")
+				for _, j := range b.Jobs {
+					bkJob := *j
+					if *bkJob.Type == "script" {
+						summary += job.JobSummary(job.Job(bkJob))
 					}
 				}
-				if len(buildArtifacts) > 0 {
-					summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("\n\nArtifacts")
-					for _, a := range buildArtifacts {
-						summary += artifact.ArtifactSummary(&a)
+			}
+			if len(buildArtifacts) > 0 {
+				summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("\n\nArtifacts")
+				for _, a := range buildArtifacts {
+					summary += artifact.ArtifactSummary(&a)
+				}
+			}
+			if len(buildAnnotations) > 0 {
+				for _, a := range buildAnnotations {
+					annotationCount := 0
+					if len(annotation.AnnotationSummary(&a)) < 230 {
+						continue
+					}
+					annotationCount += 1
+					if annotationCount > 0 {
+						summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("\n\nAnnotations")
+						summary += annotation.AnnotationSummary(&a)
 					}
 				}
-				if len(buildAnnotations) > 0 {
-					for _, a := range buildAnnotations {
-						annotationCount := 0
-						if len(annotation.AnnotationSummary(&a)) < 230 {
-							continue
-						}
-						annotationCount += 1
-						if annotationCount > 0 {
-							summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("\n\nAnnotations")
-							summary += annotation.AnnotationSummary(&a)
-						}
-					}
-				}
-				return io.PendingOutput(summary)
-			}, "Loading build information")
+			}
 
-			p := tea.NewProgram(l)
-			_, err = p.Run()
+			fmt.Fprintf(cmd.OutOrStdout(), "%s\n", summary)
 
 			return err
 		},
