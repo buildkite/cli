@@ -19,7 +19,7 @@ func TestCmdAgentStop(t *testing.T) {
 	t.Run("it reports an error when no agents supplied", func(t *testing.T) {
 		t.Parallel()
 
-		factory := factory.New("testing")
+		factory := &factory.Factory{}
 		cmd := agent.NewCmdAgentStop(factory)
 
 		err := cmd.Execute()
