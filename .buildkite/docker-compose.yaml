@@ -11,6 +11,8 @@ services:
     build:
       context: .
     environment:
+      - ALGOLIA_APPID
+      - ALGOLIA_SEARCH_KEY
       - BUILDKITE_AGENT_JOB_API_SOCKET
       - BUILDKITE_AGENT_JOB_API_TOKEN
     working_dir: /go/src/github.com/buildkite/cli

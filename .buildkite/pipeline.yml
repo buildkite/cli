@@ -45,6 +45,8 @@ steps:
           entrypoint: /bin/sh
           env:
             - GOOS={{matrix}}
+            - ALGOLIA_APPID=""
+            - ALGOLIA_SEARCH_KEY=""
           mount-buildkite-agent: true
           run: goreleaser
           shell: false
