@@ -1,6 +1,7 @@
 package build
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,13 +12,14 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 )
 
 func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
 		Use:                   "download [number [pipeline]] [flags]",
-		Short:                 "Download job logs for a build",
+		Short:                 "Download resources for a build",
 		Long:                  "Download allows you to download resources for a build.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pipelineRes := pipelineResolver.NewAggregateResolver(
@@ -40,9 +42,9 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 			}
 
 			spinErr := spinner.New().
-				Title("Downloading logs").
+				Title("Downloading build resources").
 				Action(func() {
-					err = download(*bld, f)
+					err = download(cmd.Context(), *bld, f)
 				}).
 				Run()
 			if spinErr != nil {
@@ -56,7 +58,7 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-func download(build build.Build, f *factory.Factory) error {
+func download(ctx context.Context, build build.Build, f *factory.Factory) error {
 	b, _, err := f.RestAPIClient.Builds.Get(build.Organization, build.Pipeline, fmt.Sprint(build.BuildNumber), nil)
 	if err != nil {
 		return err
@@ -65,33 +67,64 @@ func download(build build.Build, f *factory.Factory) error {
 		return fmt.Errorf("could not find build for %s #%d", build.Pipeline, build.BuildNumber)
 	}
 
-	directory := fmt.Sprintf("build-logs-%s", *b.ID)
+	directory := fmt.Sprintf("build-%s", *b.ID)
 	err = os.MkdirAll(directory, os.ModePerm)
 	if err != nil {
 		return err
 	}
 
+	eg, _ := errgroup.WithContext(ctx)
+
 	for _, job := range b.Jobs {
+		job := job
 		// only script (command) jobs will have logs
 		if job == nil || *job.Type != "script" {
 			continue
 		}
 
-		log, _, err := f.RestAPIClient.Jobs.GetJobLog(build.Organization, build.Pipeline, *b.ID, *job.ID)
-		if err != nil {
-			return err
-		}
-		if log == nil {
-			return fmt.Errorf("could not get logs for job %s", *job.ID)
-		}
+		eg.Go(func() error {
+			log, _, err := f.RestAPIClient.Jobs.GetJobLog(build.Organization, build.Pipeline, *b.ID, *job.ID)
+			if err != nil {
+				return err
+			}
+			if log == nil {
+				return fmt.Errorf("could not get logs for job %s", *job.ID)
+			}
 
-		err = os.WriteFile(filepath.Join(directory, *job.ID), []byte(*log.Content), 0o644)
-		if err != nil {
-			return err
-		}
+			err = os.WriteFile(filepath.Join(directory, *job.ID), []byte(*log.Content), 0o644)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
 	}
 
-	fmt.Printf("\nDownloaded logs to: %s\n", directory)
+	artifacts, _, err := f.RestAPIClient.Artifacts.ListByBuild(build.Organization, build.Pipeline, fmt.Sprint(build.BuildNumber), nil)
+	if err != nil {
+		return err
+	}
+
+	for _, artifact := range artifacts {
+		artifact := artifact
+		eg.Go(func() error {
+			out, err := os.Create(filepath.Join(directory, fmt.Sprintf("artifact-%s-%s", *artifact.ID, *artifact.Filename)))
+			if err != nil {
+				return err
+			}
+			_, err = f.RestAPIClient.Artifacts.DownloadArtifactByURL(*artifact.DownloadURL, out)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+	}
+
+	err = eg.Wait()
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("\nDownloaded build to: %s\n", directory)
 
 	return nil
 }
