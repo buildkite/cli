@@ -38,11 +38,9 @@ func NewCmdBuildRebuild(f *factory.Factory) *cobra.Command {
 			)
 
 			bld, err := buildRes.Resolve(cmd.Context())
-			if err != nil {
-				return err
-			}
-			if bld == nil {
-				return fmt.Errorf("could not resolve a build")
+			if bld == nil || err != nil {
+				fmt.Printf("No build found.\n")
+				return nil
 			}
 
 			return rebuild(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), web, f)

@@ -48,17 +48,9 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			)
 
 			bld, err := buildRes.Resolve(cmd.Context())
-			if err != nil {
-				return err
-			}
-			if bld == nil {
-				return fmt.Errorf("could not resolve a build")
-			}
-
-			if web {
-				buildUrl := fmt.Sprintf("https://buildkite.com/%s/%s/builds/%d", bld.Organization, bld.Pipeline, bld.BuildNumber)
-				fmt.Printf("Opening %s in your browser\n", buildUrl)
-				return browser.OpenURL(buildUrl)
+			if bld == nil || err != nil {
+				fmt.Printf("No build found.\n")
+				return nil
 			}
 
 			var b *buildkite.Build
@@ -67,7 +59,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 
 			group, _ := errgroup.WithContext(cmd.Context())
 			spinErr := spinner.New().
-				Title("Loading build information").
+				Title("Requesting build information").
 				Action(func() {
 					group.Go(func() error {
 						var err error
@@ -93,8 +85,20 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			if spinErr != nil {
 				return spinErr
 			}
+
+			if b == nil {
+				fmt.Printf("Could not find build #%d for pipeline %s\n", bld.BuildNumber, bld.Pipeline)
+				return nil
+			}
+
 			if err != nil {
 				return err
+			}
+
+			if web {
+				buildUrl := fmt.Sprintf("https://buildkite.com/%s/%s/builds/%d", bld.Organization, bld.Pipeline, bld.BuildNumber)
+				fmt.Printf("Opening %s in your browser\n", buildUrl)
+				return browser.OpenURL(buildUrl)
 			}
 
 			summary := build.BuildSummary(b)
