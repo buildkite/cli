@@ -85,12 +85,6 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			if spinErr != nil {
 				return spinErr
 			}
-
-			if b == nil {
-				fmt.Printf("Could not find build #%d for pipeline %s\n", bld.BuildNumber, bld.Pipeline)
-				return nil
-			}
-
 			if err != nil {
 				return err
 			}
