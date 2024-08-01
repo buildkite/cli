@@ -39,15 +39,18 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 				return fmt.Errorf("could not resolve a build")
 			}
 
+			var dir string
 			spinErr := spinner.New().
 				Title("Downloading logs").
 				Action(func() {
-					err = download(*bld, f)
+					dir, err = download(*bld, f)
 				}).
 				Run()
 			if spinErr != nil {
 				return spinErr
 			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Downloaded logs to: %s\n", dir)
 
 			return err
 		},
@@ -56,19 +59,19 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-func download(build build.Build, f *factory.Factory) error {
+func download(build build.Build, f *factory.Factory) (string, error) {
 	b, _, err := f.RestAPIClient.Builds.Get(build.Organization, build.Pipeline, fmt.Sprint(build.BuildNumber), nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if b == nil {
-		return fmt.Errorf("could not find build for %s #%d", build.Pipeline, build.BuildNumber)
+		return "", fmt.Errorf("could not find build for %s #%d", build.Pipeline, build.BuildNumber)
 	}
 
 	directory := fmt.Sprintf("build-logs-%s", *b.ID)
 	err = os.MkdirAll(directory, os.ModePerm)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	for _, job := range b.Jobs {
@@ -79,19 +82,17 @@ func download(build build.Build, f *factory.Factory) error {
 
 		log, _, err := f.RestAPIClient.Jobs.GetJobLog(build.Organization, build.Pipeline, *b.ID, *job.ID)
 		if err != nil {
-			return err
+			return "", err
 		}
 		if log == nil {
-			return fmt.Errorf("could not get logs for job %s", *job.ID)
+			return "", fmt.Errorf("could not get logs for job %s", *job.ID)
 		}
 
 		err = os.WriteFile(filepath.Join(directory, *job.ID), []byte(*log.Content), 0o644)
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
 
-	fmt.Printf("\nDownloaded logs to: %s\n", directory)
-
-	return nil
+	return directory, nil
 }
