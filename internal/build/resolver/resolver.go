@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"context"
-	"errors"
 
 	"github.com/buildkite/cli/v3/internal/build"
 )
@@ -43,9 +42,5 @@ func (ar AggregateResolver) WithResolverWhen(condition bool, resovler BuildResol
 // NewAggregateResolver creates an AggregateResolver from a list of BuildResolverFn, appending a final resolver for
 // capturing the case that no build is found by any resolver
 func NewAggregateResolver(resolvers ...BuildResolverFn) AggregateResolver {
-	return append(resolvers, errorResolver)
-}
-
-func errorResolver(context.Context) (*build.Build, error) {
-	return nil, errors.New("Failed to find a build.")
+	return resolvers
 }
