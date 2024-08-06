@@ -52,7 +52,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 				return err
 			}
 			if bld == nil {
-				fmt.Printf("No build found.\n")
+				fmt.Fprintf(cmd.OutOrStdout(), "No build found.\n")
 				return nil
 			}
 
@@ -62,7 +62,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 
 			group, _ := errgroup.WithContext(cmd.Context())
 			spinErr := spinner.New().
-				Title("Requesting build information").
+				Title("Loading build information").
 				Action(func() {
 					group.Go(func() error {
 						var err error

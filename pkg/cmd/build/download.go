@@ -38,7 +38,7 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 				return err
 			}
 			if bld == nil {
-				fmt.Printf("No build found.\n")
+				fmt.Fprintf(cmd.OutOrStdout(), "No build found.\n")
 				return nil
 			}
 
