@@ -23,15 +23,19 @@ type Factory struct {
 func New(version string) *Factory {
 	repo, _ := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{DetectDotGit: true, EnableDotGitCommonDir: true})
 	conf := config.New(nil, repo)
-	tk, _ := buildkite.NewTokenConfig(conf.APIToken(), false)
+	tk, err := buildkite.NewTokenConfig(conf.APIToken(), false)
+	var httpClient *http.Client
+	if err == nil {
+		httpClient = tk.Client()
+	}
 
 	return &Factory{
 		Config:        conf,
 		GitRepository: repo,
-		GraphQLClient: graphql.NewClient(config.DefaultGraphQLEndpoint, tk.Client()),
-		HttpClient:    tk.Client(),
+		GraphQLClient: graphql.NewClient(config.DefaultGraphQLEndpoint, httpClient),
+		HttpClient:    httpClient,
 		OpenAIClient:  openai.NewClient(conf.GetOpenAIToken()),
-		RestAPIClient: buildkite.NewClient(tk.Client()),
+		RestAPIClient: buildkite.NewClient(httpClient),
 		Version:       version,
 	}
 }
