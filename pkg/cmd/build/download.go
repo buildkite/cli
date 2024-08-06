@@ -41,15 +41,18 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 				return fmt.Errorf("could not resolve a build")
 			}
 
+			var dir string
 			spinErr := spinner.New().
 				Title("Downloading build resources").
 				Action(func() {
-					err = download(cmd.Context(), *bld, f)
+					dir, err = download(cmd.Context(), *bld, f)
 				}).
 				Run()
 			if spinErr != nil {
 				return spinErr
 			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Downloaded build to: %s\n", dir)
 
 			return err
 		},
@@ -58,19 +61,19 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-func download(ctx context.Context, build build.Build, f *factory.Factory) error {
+func download(ctx context.Context, build build.Build, f *factory.Factory) (string, error) {
 	b, _, err := f.RestAPIClient.Builds.Get(build.Organization, build.Pipeline, fmt.Sprint(build.BuildNumber), nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if b == nil {
-		return fmt.Errorf("could not find build for %s #%d", build.Pipeline, build.BuildNumber)
+		return "", fmt.Errorf("could not find build for %s #%d", build.Pipeline, build.BuildNumber)
 	}
 
 	directory := fmt.Sprintf("build-%s", *b.ID)
 	err = os.MkdirAll(directory, os.ModePerm)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	eg, _ := errgroup.WithContext(ctx)
@@ -101,7 +104,7 @@ func download(ctx context.Context, build build.Build, f *factory.Factory) error 
 
 	artifacts, _, err := f.RestAPIClient.Artifacts.ListByBuild(build.Organization, build.Pipeline, fmt.Sprint(build.BuildNumber), nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	for _, artifact := range artifacts {
@@ -121,10 +124,8 @@ func download(ctx context.Context, build build.Build, f *factory.Factory) error 
 
 	err = eg.Wait()
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	fmt.Printf("\nDownloaded build to: %s\n", directory)
-
-	return nil
+	return directory, nil
 }
