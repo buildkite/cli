@@ -1,13 +1,13 @@
 module github.com/buildkite/cli/v3
 
-go 1.21
+go 1.22
 
-toolchain go1.21.6
+toolchain go1.22.5
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/MakeNowJust/heredoc v1.0.0
-	github.com/buildkite/go-buildkite/v3 v3.11.0
+	github.com/buildkite/go-buildkite/v3 v3.11.1-0.20240808042909-3d43cd99fb1c
 	github.com/charmbracelet/bubbles v0.18.0
 	github.com/charmbracelet/bubbletea v0.26.6
 	github.com/charmbracelet/huh v0.5.2
@@ -15,7 +15,9 @@ require (
 	github.com/charmbracelet/lipgloss v0.12.1
 	github.com/charmbracelet/x/exp/teatest v0.0.0-20231215171016-7ba2b450712d
 	github.com/go-git/go-git/v5 v5.12.0
+	github.com/kr/pretty v0.3.1
 	github.com/muesli/reflow v0.3.0
+	github.com/oleiade/reflections v1.0.1
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/sashabaranov/go-openai v1.27.1
 	github.com/spf13/cobra v1.8.1
@@ -37,7 +39,9 @@ require (
 	github.com/charmbracelet/x/windows v0.1.2 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/mitchellh/hashstructure/v2 v2.0.2 // indirect
+	github.com/rogpeppe/go-internal v1.11.0 // indirect
 	github.com/vektah/gqlparser v1.3.1 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -88,7 +92,7 @@ require (
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.11.0
 	github.com/spf13/cast v1.6.0 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/spf13/pflag v1.0.5
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/suessflorian/gqlfetch v0.6.0
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
