@@ -52,7 +52,8 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 				return err
 			}
 			if bld == nil {
-				return fmt.Errorf("could not resolve a build")
+				fmt.Fprintf(cmd.OutOrStdout(), "No build found.\n")
+				return nil
 			}
 
 			if web {
