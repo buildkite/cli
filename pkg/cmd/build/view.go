@@ -56,6 +56,12 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 				return nil
 			}
 
+			if web {
+				buildUrl := fmt.Sprintf("https://buildkite.com/%s/%s/builds/%d", bld.Organization, bld.Pipeline, bld.BuildNumber)
+				fmt.Printf("Opening %s in your browser\n", buildUrl)
+				return browser.OpenURL(buildUrl)
+			}
+
 			var b *buildkite.Build
 			var buildArtifacts []buildkite.Artifact
 			var buildAnnotations []buildkite.Annotation
@@ -90,12 +96,6 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			}
 			if err != nil {
 				return err
-			}
-
-			if web {
-				buildUrl := fmt.Sprintf("https://buildkite.com/%s/%s/builds/%d", bld.Organization, bld.Pipeline, bld.BuildNumber)
-				fmt.Printf("Opening %s in your browser\n", buildUrl)
-				return browser.OpenURL(buildUrl)
 			}
 
 			summary := build.BuildSummary(b)
