@@ -23,16 +23,20 @@ type Factory struct {
 func New(version string) *Factory {
 	repo, _ := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{DetectDotGit: true, EnableDotGitCommonDir: true})
 	conf := config.New(nil, repo)
+	// we use separate clients for now until we upgrade the go-buildkite package to the 3.11+
 	tk, err := buildkite.NewTokenConfig(conf.APIToken(), false)
-	var httpClient *http.Client
+	gtk, _ := buildkite.NewTokenConfig(conf.APIToken(), false)
+	var httpClient, graphqlClient *http.Client
 	if err == nil {
+		// separate clients until we upgrade go-buildkite library
 		httpClient = tk.Client()
 	}
+	graphqlClient = &http.Client{Transport: gtk}
 
 	return &Factory{
 		Config:        conf,
 		GitRepository: repo,
-		GraphQLClient: graphql.NewClient(config.DefaultGraphQLEndpoint, httpClient),
+		GraphQLClient: graphql.NewClient(config.DefaultGraphQLEndpoint, graphqlClient),
 		HttpClient:    httpClient,
 		OpenAIClient:  openai.NewClient(conf.GetOpenAIToken()),
 		RestAPIClient: buildkite.NewClient(httpClient),
