@@ -33,6 +33,25 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 
 			You can pass an optional build number to view. If omitted, the most recent build on the current branch will be resolved.
 		`),
+		Example: heredoc.Doc(`
+			# by default, the most recent build for the current branch is shown
+			$ bk build view
+			# if not inside a repository or to use a specific pipeline, pass -p
+			$ bk build view -p monolith
+			# to view a specific build
+			$ bk build view 429
+			# add -w to any command to open the build in your web browser instead
+			$ bk build view -w 429
+			# to view the most recent build on feature-x branch
+			$ bk build view -b feature-y
+			# you can filter by a user name or id
+			$ bk build view -u "alice"
+			# a shortcut to view your builds is --mine
+			$ bk build view --mine
+			# you can combine most of these flags
+			# to view most recent build by greg on the deploy-pipeline
+			$ bk build view -p deploy-pipeline -u "greg"
+		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pipelineRes := pipelineResolver.NewAggregateResolver(
 				pipelineResolver.ResolveFromFlag(pipeline, f.Config),
