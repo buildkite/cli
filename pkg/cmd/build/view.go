@@ -180,6 +180,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 	)
 	// can only supply --user or --mine
 	cmd.MarkFlagsMutuallyExclusive("mine", "user")
+	cmd.Flags().SortFlags = false
 
 	return &cmd
 }
