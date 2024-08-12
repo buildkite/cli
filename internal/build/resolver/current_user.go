@@ -19,6 +19,6 @@ func ResolveBuildForCurrentUser(branch string, pipelineResolver pipelineResolver
 			return nil, err
 		}
 
-		return ResolveBuildForUser(ctx, *user.Email, branch, pipelineResolver, f)
+		return ResolveBuildForUser(ctx, *user.ID, branch, pipelineResolver, f)
 	}
 }

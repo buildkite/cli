@@ -11,7 +11,8 @@ import (
 )
 
 // ResolveBuildForUser Finds the most recent build for the user and branch
-func ResolveBuildForUser(ctx context.Context, userInfo string, branch string, pipelineResolver pipelineResolver.PipelineResolverFn, f *factory.Factory) (*build.Build, error) {
+// The userID parameter needs to be the UUID of a user
+func ResolveBuildForUser(ctx context.Context, userID string, branch string, pipelineResolver pipelineResolver.PipelineResolverFn, f *factory.Factory) (*build.Build, error) {
 	pipeline, err := pipelineResolver(ctx)
 	if err != nil {
 		return nil, err
@@ -21,7 +22,7 @@ func ResolveBuildForUser(ctx context.Context, userInfo string, branch string, pi
 	}
 
 	opt := &buildkite.BuildsListOptions{
-		Creator: userInfo,
+		Creator: userID,
 		ListOptions: buildkite.ListOptions{
 			PerPage: 1,
 		},
@@ -38,7 +39,7 @@ func ResolveBuildForUser(ctx context.Context, userInfo string, branch string, pi
 	if len(builds) == 0 {
 		// we error here because this resolver is explicitly used so any case where it doesn't resolve a build is a
 		// problem
-		return nil, fmt.Errorf("failed to find a build for current user (%s)", userInfo)
+		return nil, fmt.Errorf("failed to find a build for current user (%s)", userID)
 	}
 
 	return &build.Build{
