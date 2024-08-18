@@ -11,6 +11,7 @@ import (
 	initCmd "github.com/buildkite/cli/v3/pkg/cmd/init"
 	jobCmd "github.com/buildkite/cli/v3/pkg/cmd/job"
 	pipelineCmd "github.com/buildkite/cli/v3/pkg/cmd/pipeline"
+	packageCmd "github.com/buildkite/cli/v3/pkg/cmd/pkg"
 	useCmd "github.com/buildkite/cli/v3/pkg/cmd/use"
 	versionCmd "github.com/buildkite/cli/v3/pkg/cmd/version"
 	"github.com/spf13/cobra"
@@ -38,6 +39,7 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 	cmd.AddCommand(initCmd.NewCmdInit(f))
 	cmd.AddCommand(jobCmd.NewCmdJob(f))
 	cmd.AddCommand(pipelineCmd.NewCmdPipeline(f))
+	cmd.AddCommand(packageCmd.NewCmdPackage(f))
 	cmd.AddCommand(useCmd.NewCmdUse(f))
 	cmd.AddCommand(versionCmd.NewCmdVersion(f))
 
