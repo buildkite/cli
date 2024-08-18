@@ -15,7 +15,6 @@ type Factory struct {
 	Config        *config.Config
 	GitRepository *git.Repository
 	GraphQLClient graphql.Client
-	HttpClient    *http.Client
 	OpenAIClient  *openai.Client
 	RestAPIClient *buildkite.Client
 	Version       string
@@ -44,7 +43,6 @@ func New(version string) (*Factory, error) {
 	return &Factory{
 		Config:        conf,
 		GitRepository: repo,
-		HttpClient:    httpClient,
 		GraphQLClient: graphql.NewClient(config.DefaultGraphQLEndpoint, graphqlHTTPClient),
 		OpenAIClient:  openai.NewClient(conf.GetOpenAIToken()),
 		RestAPIClient: buildkiteClient,

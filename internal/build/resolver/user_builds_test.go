@@ -3,9 +3,8 @@ package resolver_test
 import (
 	"context"
 	"errors"
-	"io"
 	"net/http"
-	"strings"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/buildkite/cli/v3/internal/build/resolver"
@@ -24,15 +23,18 @@ func TestResolveBuildFromUserId(t *testing.T) {
 		return nil, errors.New("")
 	}
 
-	transport := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(strings.NewReader(``)),
-		}, nil
-	})
-	client := &http.Client{Transport: transport}
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(s.Close)
+
+	apiClient, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	f := &factory.Factory{
-		RestAPIClient: buildkite.NewClient(client),
+		RestAPIClient: apiClient,
 	}
 
 	t.Run("Errors if pipeline cannot be resolved", func(t *testing.T) {
@@ -54,10 +56,4 @@ func TestResolveBuildFromUserId(t *testing.T) {
 			t.Fatal("Resolver should return error if no pipeline resolved")
 		}
 	})
-}
-
-type roundTripperFunc func(*http.Request) (*http.Response, error)
-
-func (fn roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
-	return fn(r)
 }
