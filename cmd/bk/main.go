@@ -17,7 +17,11 @@ func main() {
 
 func mainRun() int {
 	ctx := context.Background()
-	f := factory.New(version.Version)
+	f, err := factory.New(version.Version)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to create factory: %s\n", err)
+		return 1
+	}
 
 	rootCmd, err := root.NewCmdRoot(f)
 	if err != nil {
