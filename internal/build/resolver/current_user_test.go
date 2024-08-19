@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -30,20 +31,21 @@ func TestResolveBuildForCurrentUser(t *testing.T) {
 	t.Run("Errors if user cannot be found", func(t *testing.T) {
 		t.Parallel()
 
-		// mock a failed repsonse
-		transport := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			return &http.Response{
-				StatusCode: http.StatusNotFound,
-			}, nil
-		})
-		client := &http.Client{Transport: transport}
-		f := &factory.Factory{
-			RestAPIClient: buildkite.NewClient(client),
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		t.Cleanup(s.Close)
+
+		apiClient, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+		if err != nil {
+			t.Fatal(err)
 		}
 
-		r := resolver.ResolveBuildForCurrentUser("main", pipelineResolver, f)
-		_, err := r(context.Background())
+		// mock a failed repsonse
+		f := &factory.Factory{RestAPIClient: apiClient}
 
+		r := resolver.ResolveBuildForCurrentUser("main", pipelineResolver, f)
+		_, err = r(context.Background())
 		if err == nil {
 			t.Fatal("Resolver should return error if user not found")
 		}
@@ -72,16 +74,24 @@ func TestResolveBuildForCurrentUser(t *testing.T) {
 				Body:       io.NopCloser(bytes.NewReader(in)),
 			},
 		}
+
 		// mock a failed repsonse
-		transport := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			resp := responses[callIndex]
 			callIndex++
-			return &resp, nil
-		})
-		client := &http.Client{Transport: transport}
+			w.WriteHeader(resp.StatusCode)
+			io.Copy(w, resp.Body)
+		}))
+		t.Cleanup(s.Close)
+
+		apiClient, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		fs := afero.NewMemMapFs()
 		f := &factory.Factory{
-			RestAPIClient: buildkite.NewClient(client),
+			RestAPIClient: apiClient,
 			Config:        config.New(fs, nil),
 		}
 
@@ -118,16 +128,24 @@ func TestResolveBuildForCurrentUser(t *testing.T) {
 				Body:       io.NopCloser(strings.NewReader("[]")),
 			},
 		}
+
 		// mock a failed repsonse
-		transport := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			resp := responses[callIndex]
 			callIndex++
-			return &resp, nil
-		})
-		client := &http.Client{Transport: transport}
+			w.WriteHeader(resp.StatusCode)
+			io.Copy(w, resp.Body)
+		}))
+		t.Cleanup(s.Close)
+
+		apiClient, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		fs := afero.NewMemMapFs()
 		f := &factory.Factory{
-			RestAPIClient: buildkite.NewClient(client),
+			RestAPIClient: apiClient,
 			Config:        config.New(fs, nil),
 		}
 

@@ -40,6 +40,8 @@ github.com/bradleyjkemp/cupaloy/v2 v2.6.0 h1:knToPYa2xtfg42U3I6punFEjaGFKWQRXJwj
 github.com/bradleyjkemp/cupaloy/v2 v2.6.0/go.mod h1:bm7JXdkRd4BHJk9HpwqAI8BoAY1lps46Enkdqw6aRX0=
 github.com/buildkite/go-buildkite/v3 v3.11.0 h1:A43KDOuNczqrY8wqlsHNtPoYbgWXYC/slkB/2JYXr5E=
 github.com/buildkite/go-buildkite/v3 v3.11.0/go.mod h1:TmZggyr5HqkOhNbTrcdOdmwuYbQqcfwr9MSyKyMQWAA=
+github.com/buildkite/go-buildkite/v3 v3.12.0 h1:VkJVwqx+5GD1434eyf2YuX3/LuCzSUlOycSvUA7YW04=
+github.com/buildkite/go-buildkite/v3 v3.12.0/go.mod h1:ux2rjcqNoE54wfFHO3Vlet+a57Tt2jqOqfc9Afs7R7g=
 github.com/bwesterb/go-ristretto v1.2.3/go.mod h1:fUIoIZaG73pV5biE2Blr2xEzDoMj7NFEuV9ekS419A0=
 github.com/catppuccin/go v0.2.0 h1:ktBeIrIP42b/8FGiScP9sgrWOss3lw0Z5SktRoithGA=
 github.com/catppuccin/go v0.2.0/go.mod h1:8IHJuMGaUUjQM82qBrGNBv7LFq6JI3NnQCF6MOlZjpc=

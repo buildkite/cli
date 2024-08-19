@@ -1,13 +1,13 @@
 module github.com/buildkite/cli/v3
 
-go 1.21
+go 1.22
 
-toolchain go1.21.6
+toolchain go1.22.5
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/MakeNowJust/heredoc v1.0.0
-	github.com/buildkite/go-buildkite/v3 v3.11.0
+	github.com/buildkite/go-buildkite/v3 v3.12.0
 	github.com/charmbracelet/bubbles v0.18.0
 	github.com/charmbracelet/bubbletea v0.26.6
 	github.com/charmbracelet/huh v0.5.2
