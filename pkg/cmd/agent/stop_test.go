@@ -3,6 +3,7 @@ package agent_test
 import (
 	"bytes"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -34,15 +35,23 @@ func TestCmdAgentStop(t *testing.T) {
 	t.Run("it handles invalid agents passed as arguments", func(t *testing.T) {
 		t.Parallel()
 
-		client := &http.Client{
-			Transport: &mockRoundTripper{&http.Response{StatusCode: 200}},
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		apiClient, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+		if err != nil {
+			t.Fatal(err)
 		}
+
 		conf := config.New(afero.NewMemMapFs(), nil)
 		conf.SelectOrganization("test")
+
 		factory := &factory.Factory{
 			Config:        conf,
-			RestAPIClient: buildkite.NewClient(client),
+			RestAPIClient: apiClient,
 		}
+
 		cmd := agent.NewCmdAgentStop(factory)
 		cmd.SetArgs([]string{"test agent", "", "  "})
 
@@ -50,7 +59,7 @@ func TestCmdAgentStop(t *testing.T) {
 		var b bytes.Buffer
 		cmd.SetOut(&b)
 
-		err := cmd.Execute()
+		err = cmd.Execute()
 		if err != nil {
 			t.Error(err)
 		}
@@ -65,14 +74,21 @@ func TestCmdAgentStop(t *testing.T) {
 	t.Run("it can read agents from input", func(t *testing.T) {
 		t.Parallel()
 
-		client := &http.Client{
-			Transport: &mockRoundTripper{&http.Response{StatusCode: 200}},
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		apiClient, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+		if err != nil {
+			t.Fatal(err)
 		}
+
 		conf := config.New(afero.NewMemMapFs(), nil)
 		conf.SelectOrganization("test")
+
 		factory := &factory.Factory{
 			Config:        conf,
-			RestAPIClient: buildkite.NewClient(client),
+			RestAPIClient: apiClient,
 		}
 
 		// create a command using the stubbed factory
@@ -85,7 +101,7 @@ func TestCmdAgentStop(t *testing.T) {
 		var b bytes.Buffer
 		cmd.SetOut(&b)
 
-		err := cmd.Execute()
+		err = cmd.Execute()
 		if err != nil {
 			t.Error(err)
 		}
@@ -98,14 +114,21 @@ func TestCmdAgentStop(t *testing.T) {
 	t.Run("it handles invalid agent ids passed as input", func(t *testing.T) {
 		t.Parallel()
 
-		client := &http.Client{
-			Transport: &mockRoundTripper{&http.Response{StatusCode: 200}},
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		apiClient, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+		if err != nil {
+			t.Fatal(err)
 		}
+
 		conf := config.New(afero.NewMemMapFs(), nil)
 		conf.SelectOrganization("test")
+
 		factory := &factory.Factory{
 			Config:        conf,
-			RestAPIClient: buildkite.NewClient(client),
+			RestAPIClient: apiClient,
 		}
 
 		// create a command using the stubbed factory
@@ -118,7 +141,7 @@ func TestCmdAgentStop(t *testing.T) {
 		var b bytes.Buffer
 		cmd.SetOut(&b)
 
-		err := cmd.Execute()
+		err = cmd.Execute()
 		if err != nil {
 			t.Error(err)
 		}
@@ -134,14 +157,21 @@ func TestCmdAgentStop(t *testing.T) {
 	t.Run("it returns an error if any agents fail", func(t *testing.T) {
 		t.Parallel()
 
-		client := &http.Client{
-			Transport: &mockRoundTripper{&http.Response{StatusCode: 404, Request: &http.Request{}}},
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+
+		apiClient, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+		if err != nil {
+			t.Fatal(err)
 		}
+
 		conf := config.New(afero.NewMemMapFs(), nil)
 		conf.SelectOrganization("test")
+
 		factory := &factory.Factory{
 			Config:        conf,
-			RestAPIClient: buildkite.NewClient(client),
+			RestAPIClient: apiClient,
 		}
 
 		// create a command using the stubbed factory
@@ -154,7 +184,7 @@ func TestCmdAgentStop(t *testing.T) {
 		var b bytes.Buffer
 		cmd.SetOut(&b)
 
-		err := cmd.Execute()
+		err = cmd.Execute()
 		if err == nil {
 			t.Error("Expected to return an error")
 		}
@@ -163,12 +193,4 @@ func TestCmdAgentStop(t *testing.T) {
 			t.Errorf("%s", v)
 		}
 	})
-}
-
-type mockRoundTripper struct {
-	resp *http.Response
-}
-
-func (rt *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	return rt.resp, nil
 }

@@ -1,9 +1,8 @@
 package resolver
 
 import (
-	"io"
 	"net/http"
-	"strings"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/buildkite/cli/v3/internal/config"
@@ -13,20 +12,16 @@ import (
 	"github.com/spf13/afero"
 )
 
-type roundTripperFunc func(*http.Request) (*http.Response, error)
-
-func (fn roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
-	return fn(r)
-}
-
 func TestResolvePipelinesFromPath(t *testing.T) {
 	t.Parallel()
 
 	t.Run("no pipelines found", func(t *testing.T) {
 		t.Parallel()
 		// mock a response that doesn't match the current repository url
-		client := mockHttpClient(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/test.git"}]`)
-		f := testFactory(client, "testOrg", testRepository())
+		s := mockHTTPServer(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/test.git"}]`)
+		t.Cleanup(s.Close)
+
+		f := testFactory(t, s.URL, "testOrg", testRepository())
 		pipelines, err := resolveFromRepository(f)
 		if err != nil {
 			t.Errorf("Error: %s", err)
@@ -39,8 +34,10 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	t.Run("one pipeline", func(t *testing.T) {
 		t.Parallel()
 		// mock an http client response with a single pipeline matching the current repo url
-		client := mockHttpClient(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/cli.git"}]`)
-		f := testFactory(client, "testOrg", testRepository())
+		s := mockHTTPServer(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/cli.git"}]`)
+		t.Cleanup(s.Close)
+
+		f := testFactory(t, s.URL, "testOrg", testRepository())
 		pipelines, err := resolveFromRepository(f)
 		if err != nil {
 			t.Errorf("Error: %s", err)
@@ -53,9 +50,10 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	t.Run("multiple pipelines", func(t *testing.T) {
 		t.Parallel()
 		// mock an http client response with 2 pipelines matching the current repo url
-		client := mockHttpClient(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/cli.git"},
-		{"slug": "my-pipeline-2", "repository": "git@github.com:buildkite/cli.git"}]`)
-		f := testFactory(client, "testOrg", testRepository())
+		s := mockHTTPServer(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/cli.git"}, {"slug": "my-pipeline-2", "repository": "git@github.com:buildkite/cli.git"}]`)
+		t.Cleanup(s.Close)
+
+		f := testFactory(t, s.URL, "testOrg", testRepository())
 		pipelines, err := resolveFromRepository(f)
 		if err != nil {
 			t.Errorf("Error: %s", err)
@@ -66,8 +64,10 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	})
 
 	t.Run("no repository found", func(t *testing.T) {
-		client := mockHttpClient(`[{"slug": "", "repository": ""}]`)
-		f := testFactory(client, "testOrg", nil)
+		s := mockHTTPServer(`[{"slug": "", "repository": ""}]`)
+		t.Cleanup(s.Close)
+
+		f := testFactory(t, s.URL, "testOrg", nil)
 		pipelines, err := resolveFromRepository(f)
 		if pipelines != nil {
 			t.Errorf("Expected nil, got %v", pipelines)
@@ -78,8 +78,10 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	})
 
 	t.Run("no remote repository found", func(t *testing.T) {
-		client := mockHttpClient(`[{"slug": "", "repository": ""}]`)
-		f := testFactory(client, "testOrg", testRepository())
+		s := mockHTTPServer(`[{"slug": "", "repository": ""}]`)
+		t.Cleanup(s.Close)
+
+		f := testFactory(t, s.URL, "testOrg", testRepository())
 		pipelines, err := resolveFromRepository(f)
 		if pipelines != nil {
 			t.Errorf("Expected nil, got %v", pipelines)
@@ -95,24 +97,26 @@ func testRepository() *git.Repository {
 	return repo
 }
 
-func testFactory(client *http.Client, org string, repo *git.Repository) *factory.Factory {
-	bkClient := buildkite.NewClient(client)
+func testFactory(t *testing.T, serverURL string, org string, repo *git.Repository) *factory.Factory {
+	t.Helper()
+
+	bkClient, err := buildkite.NewOpts(buildkite.WithBaseURL(serverURL))
+	if err != nil {
+		t.Errorf("Error creating buildkite client: %s", err)
+	}
+
 	conf := config.New(afero.NewMemMapFs(), nil)
 	conf.SelectOrganization(org)
 	return &factory.Factory{
 		Config:        conf,
 		RestAPIClient: bkClient,
-		HttpClient:    client,
 		GitRepository: repo,
 	}
 }
 
-func mockHttpClient(response string) *http.Client {
-	transport := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(strings.NewReader(response)),
-		}, nil
-	})
-	return &http.Client{Transport: transport}
+func mockHTTPServer(response string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(response))
+	}))
 }
