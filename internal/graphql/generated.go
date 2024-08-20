@@ -203,6 +203,154 @@ func (v *GetClusterQueuesResponse) GetOrganization() *GetClusterQueuesOrganizati
 	return v.Organization
 }
 
+// GetPipelinePipeline includes the requested fields of the GraphQL type Pipeline.
+// The GraphQL type's documentation follows.
+//
+// A pipeline
+type GetPipelinePipeline struct {
+	// The next build number in the sequence
+	NextBuildNumber int `json:"nextBuildNumber"`
+	// The short description of the pipeline
+	Description *string `json:"description"`
+	// The emoji of the pipeline
+	Emoji *string `json:"emoji"`
+	// The color of the pipeline
+	Color *string `json:"color"`
+	// The default branch for this pipeline
+	DefaultBranch *string `json:"defaultBranch"`
+	// The repository for this pipeline
+	Repository *GetPipelinePipelineRepository `json:"repository"`
+	// Returns true if the viewer has favorited this pipeline
+	Favorite bool                                                `json:"favorite"`
+	Steps    *GetPipelinePipelineSteps                           `json:"steps"`
+	Metrics  *GetPipelinePipelineMetricsPipelineMetricConnection `json:"metrics"`
+	// The URL for the pipeline
+	Url string `json:"url"`
+	// Tags that have been given to this pipeline
+	Tags []GetPipelinePipelineTagsPipelineTag `json:"tags"`
+}
+
+// GetNextBuildNumber returns GetPipelinePipeline.NextBuildNumber, and is useful for accessing the field via an interface.
+func (v *GetPipelinePipeline) GetNextBuildNumber() int { return v.NextBuildNumber }
+
+// GetDescription returns GetPipelinePipeline.Description, and is useful for accessing the field via an interface.
+func (v *GetPipelinePipeline) GetDescription() *string { return v.Description }
+
+// GetEmoji returns GetPipelinePipeline.Emoji, and is useful for accessing the field via an interface.
+func (v *GetPipelinePipeline) GetEmoji() *string { return v.Emoji }
+
+// GetColor returns GetPipelinePipeline.Color, and is useful for accessing the field via an interface.
+func (v *GetPipelinePipeline) GetColor() *string { return v.Color }
+
+// GetDefaultBranch returns GetPipelinePipeline.DefaultBranch, and is useful for accessing the field via an interface.
+func (v *GetPipelinePipeline) GetDefaultBranch() *string { return v.DefaultBranch }
+
+// GetRepository returns GetPipelinePipeline.Repository, and is useful for accessing the field via an interface.
+func (v *GetPipelinePipeline) GetRepository() *GetPipelinePipelineRepository { return v.Repository }
+
+// GetFavorite returns GetPipelinePipeline.Favorite, and is useful for accessing the field via an interface.
+func (v *GetPipelinePipeline) GetFavorite() bool { return v.Favorite }
+
+// GetSteps returns GetPipelinePipeline.Steps, and is useful for accessing the field via an interface.
+func (v *GetPipelinePipeline) GetSteps() *GetPipelinePipelineSteps { return v.Steps }
+
+// GetMetrics returns GetPipelinePipeline.Metrics, and is useful for accessing the field via an interface.
+func (v *GetPipelinePipeline) GetMetrics() *GetPipelinePipelineMetricsPipelineMetricConnection {
+	return v.Metrics
+}
+
+// GetUrl returns GetPipelinePipeline.Url, and is useful for accessing the field via an interface.
+func (v *GetPipelinePipeline) GetUrl() string { return v.Url }
+
+// GetTags returns GetPipelinePipeline.Tags, and is useful for accessing the field via an interface.
+func (v *GetPipelinePipeline) GetTags() []GetPipelinePipelineTagsPipelineTag { return v.Tags }
+
+// GetPipelinePipelineMetricsPipelineMetricConnection includes the requested fields of the GraphQL type PipelineMetricConnection.
+type GetPipelinePipelineMetricsPipelineMetricConnection struct {
+	Edges []*GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdge `json:"edges"`
+}
+
+// GetEdges returns GetPipelinePipelineMetricsPipelineMetricConnection.Edges, and is useful for accessing the field via an interface.
+func (v *GetPipelinePipelineMetricsPipelineMetricConnection) GetEdges() []*GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdge {
+	return v.Edges
+}
+
+// GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdge includes the requested fields of the GraphQL type PipelineMetricEdge.
+type GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdge struct {
+	Node *GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdgeNodePipelineMetric `json:"node"`
+}
+
+// GetNode returns GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdge.Node, and is useful for accessing the field via an interface.
+func (v *GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdge) GetNode() *GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdgeNodePipelineMetric {
+	return v.Node
+}
+
+// GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdgeNodePipelineMetric includes the requested fields of the GraphQL type PipelineMetric.
+// The GraphQL type's documentation follows.
+//
+// A metric for a pipeline
+type GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdgeNodePipelineMetric struct {
+	// The label of this metric
+	Label string `json:"label"`
+	// The value for this metric
+	Value *string `json:"value"`
+}
+
+// GetLabel returns GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdgeNodePipelineMetric.Label, and is useful for accessing the field via an interface.
+func (v *GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdgeNodePipelineMetric) GetLabel() string {
+	return v.Label
+}
+
+// GetValue returns GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdgeNodePipelineMetric.Value, and is useful for accessing the field via an interface.
+func (v *GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdgeNodePipelineMetric) GetValue() *string {
+	return v.Value
+}
+
+// GetPipelinePipelineRepository includes the requested fields of the GraphQL type Repository.
+// The GraphQL type's documentation follows.
+//
+// A repository associated with a pipeline
+type GetPipelinePipelineRepository struct {
+	// The git URL for this repository
+	Url string `json:"url"`
+}
+
+// GetUrl returns GetPipelinePipelineRepository.Url, and is useful for accessing the field via an interface.
+func (v *GetPipelinePipelineRepository) GetUrl() string { return v.Url }
+
+// GetPipelinePipelineSteps includes the requested fields of the GraphQL type PipelineSteps.
+// The GraphQL type's documentation follows.
+//
+// Steps defined on a pipeline
+type GetPipelinePipelineSteps struct {
+	// A YAML representation of the pipeline steps
+	Yaml *string `json:"yaml"`
+}
+
+// GetYaml returns GetPipelinePipelineSteps.Yaml, and is useful for accessing the field via an interface.
+func (v *GetPipelinePipelineSteps) GetYaml() *string { return v.Yaml }
+
+// GetPipelinePipelineTagsPipelineTag includes the requested fields of the GraphQL type PipelineTag.
+// The GraphQL type's documentation follows.
+//
+// A tag associated with a pipeline
+type GetPipelinePipelineTagsPipelineTag struct {
+	// The label for this tag
+	Label string `json:"label"`
+}
+
+// GetLabel returns GetPipelinePipelineTagsPipelineTag.Label, and is useful for accessing the field via an interface.
+func (v *GetPipelinePipelineTagsPipelineTag) GetLabel() string { return v.Label }
+
+// GetPipelineResponse is returned by GetPipeline on success.
+type GetPipelineResponse struct {
+	// Find a pipeline
+	Pipeline *GetPipelinePipeline `json:"pipeline"`
+}
+
+// GetPipeline returns GetPipelineResponse.Pipeline, and is useful for accessing the field via an interface.
+func (v *GetPipelineResponse) GetPipeline() *GetPipelinePipeline { return v.Pipeline }
+
 // All the possible states a job can be in
 type JobStates string
 
@@ -433,6 +581,14 @@ func (v *__GetClusterQueuesInput) GetOrgSlug() string { return v.OrgSlug }
 // GetClusterId returns __GetClusterQueuesInput.ClusterId, and is useful for accessing the field via an interface.
 func (v *__GetClusterQueuesInput) GetClusterId() string { return v.ClusterId }
 
+// __GetPipelineInput is used internally by genqlient
+type __GetPipelineInput struct {
+	Slug string `json:"slug"`
+}
+
+// GetSlug returns __GetPipelineInput.Slug, and is useful for accessing the field via an interface.
+func (v *__GetPipelineInput) GetSlug() string { return v.Slug }
+
 // __RecentBuildsForBranchInput is used internally by genqlient
 type __RecentBuildsForBranchInput struct {
 	Branch       string `json:"branch"`
@@ -546,6 +702,64 @@ func GetClusterQueues(
 	var err_ error
 
 	var data_ GetClusterQueuesResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
+
+// The query or mutation executed by GetPipeline.
+const GetPipeline_Operation = `
+query GetPipeline ($slug: ID!) {
+	pipeline(slug: $slug) {
+		nextBuildNumber
+		description
+		emoji
+		color
+		defaultBranch
+		repository {
+			url
+		}
+		favorite
+		steps {
+			yaml
+		}
+		metrics {
+			edges {
+				node {
+					label
+					value
+				}
+			}
+		}
+		url
+		tags {
+			label
+		}
+	}
+}
+`
+
+func GetPipeline(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	slug string,
+) (*GetPipelineResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "GetPipeline",
+		Query:  GetPipeline_Operation,
+		Variables: &__GetPipelineInput{
+			Slug: slug,
+		},
+	}
+	var err_ error
+
+	var data_ GetPipelineResponse
 	resp_ := &graphql.Response{Data: &data_}
 
 	err_ = client_.MakeRequest(

@@ -1,0 +1,28 @@
+query GetPipeline($slug: ID!) {
+    pipeline(slug: $slug) {
+        nextBuildNumber
+        description
+        emoji
+        color
+        defaultBranch
+        repository {
+            url
+        }
+        favorite
+        steps {
+            yaml
+        }
+        metrics {
+            edges {
+                node {
+                    label
+                    value
+                }
+            }
+        }
+        url
+        tags {
+            label
+        }
+    }
+}
