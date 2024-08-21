@@ -8,10 +8,13 @@ import (
 	view "github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 )
 
 func NewCmdPipelineView(f *factory.Factory) *cobra.Command {
+	var web bool
+
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
 		Use:                   "view [pipeline] [flags]",
@@ -28,6 +31,10 @@ func NewCmdPipelineView(f *factory.Factory) *cobra.Command {
 			pipeline, err := pipelineRes.Resolve(cmd.Context())
 			if err != nil {
 				return err
+			}
+
+			if web {
+				return browser.OpenURL(fmt.Sprintf("https://buildkite.com/%s/%s", pipeline.Org, pipeline.Name))
 			}
 
 			slug := fmt.Sprintf("%s/%s", pipeline.Org, pipeline.Name)
@@ -49,6 +56,8 @@ func NewCmdPipelineView(f *factory.Factory) *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the pipeline in a web browser.")
 
 	return &cmd
 }
