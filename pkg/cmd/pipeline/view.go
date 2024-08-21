@@ -33,11 +33,11 @@ func NewCmdPipelineView(f *factory.Factory) *cobra.Command {
 				return err
 			}
 
-			if web {
-				return browser.OpenURL(fmt.Sprintf("https://buildkite.com/%s/%s", pipeline.Org, pipeline.Name))
-			}
-
 			slug := fmt.Sprintf("%s/%s", pipeline.Org, pipeline.Name)
+
+			if web {
+				return browser.OpenURL(fmt.Sprintf("https://buildkite.com/%s", slug))
+			}
 
 			resp, err := graphql.GetPipeline(cmd.Context(), f.GraphQLClient, slug)
 			if err != nil {
