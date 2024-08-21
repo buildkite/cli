@@ -3,6 +3,7 @@ package pipeline
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/buildkite/cli/v3/internal/graphql"
@@ -98,12 +99,18 @@ func renderMetrics(metrics writer, p *graphql.GetPipelinePipeline) error {
 	if p.Metrics != nil && len(p.Metrics.Edges) > 0 {
 		for i, metric := range p.Metrics.Edges {
 			if metric != nil && metric.Node != nil && metric.Node.Value != nil {
-				val := *metric.Node.Value
+				value := *metric.Node.Value
+				percent, _ := strconv.Atoi(strings.Trim(value, "%"))
 				if metric.Node.Label == "Reliability" {
-					// TODO: change colour depending on percent threshold
-					val = lipgloss.NewStyle().Foreground(style.Green).Render(*metric.Node.Value)
+					color := style.Red
+					if percent >= 90 {
+						color = style.Green
+					} else if percent >= 70 {
+						color = style.Olive
+					}
+					value = lipgloss.NewStyle().Foreground(color).Render(value)
 				}
-				m := fmt.Sprintf("%s: %s", metric.Node.Label, val)
+				m := fmt.Sprintf("%s: %s", metric.Node.Label, value)
 				metrics.WriteString(m)
 
 				if i < len(p.Metrics.Edges)-1 {
