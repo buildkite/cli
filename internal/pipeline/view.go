@@ -45,14 +45,14 @@ func RenderPipeline(out io.StringWriter, p graphql.GetPipelinePipeline) error {
 		}
 	}
 
-	out.WriteString(lipgloss.JoinVertical(
+	_, _ = out.WriteString(lipgloss.JoinVertical(
 		lipgloss.Center,
 		// add in 4 extra spaces to the header to accommodate the indentation of the steps
 		hr.Width(w+4).AlignHorizontal(lipgloss.Center).Render(header.String()),
 		tags.String(),
 		metrics.String(),
 	))
-	out.WriteString(steps.String())
+	_, _ = out.WriteString(steps.String())
 
 	return nil
 }
@@ -62,17 +62,17 @@ func renderHeader(header io.StringWriter, p *graphql.GetPipelinePipeline) error 
 	bold := lipgloss.NewStyle().Bold(true)
 
 	if p.Emoji != nil {
-		header.WriteString(*p.Emoji)
-		header.WriteString(" ")
+		_, _ = header.WriteString(*p.Emoji)
+		_, _ = header.WriteString(" ")
 	}
-	header.WriteString(bold.Render(p.Name))
+	_, _ = header.WriteString(bold.Render(p.Name))
 
 	if p.Description != nil {
-		header.WriteString(fmt.Sprintf(": %s", italic.Render(*p.Description)))
+		_, _ = header.WriteString(fmt.Sprintf(": %s", italic.Render(*p.Description)))
 	}
 
 	if p.Favorite {
-		header.WriteString(" ⭐")
+		_, _ = header.WriteString(" ⭐")
 	}
 	return nil
 }
@@ -80,9 +80,9 @@ func renderHeader(header io.StringWriter, p *graphql.GetPipelinePipeline) error 
 func renderTags(tags io.StringWriter, p *graphql.GetPipelinePipeline) error {
 	if numTags := len(p.Tags); numTags > 0 {
 		for i, tag := range p.Tags {
-			tags.WriteString(tag.Label)
+			_, _ = tags.WriteString(tag.Label)
 			if i < numTags-1 {
-				tags.WriteString(" ")
+				_, _ = tags.WriteString(" ")
 			}
 		}
 	}
@@ -106,10 +106,10 @@ func renderMetrics(metrics io.StringWriter, p *graphql.GetPipelinePipeline) erro
 					value = lipgloss.NewStyle().Foreground(color).Render(value)
 				}
 				m := fmt.Sprintf("%s: %s", metric.Node.Label, value)
-				metrics.WriteString(m)
+				_, _ = metrics.WriteString(m)
 
 				if i < len(p.Metrics.Edges)-1 {
-					metrics.WriteString("    ")
+					_, _ = metrics.WriteString("    ")
 				}
 			}
 		}
@@ -121,7 +121,7 @@ func renderSteps(steps io.StringWriter, p *graphql.GetPipelinePipeline) error {
 	if p.Steps != nil && p.Steps.Yaml != nil {
 		render, _ := glamour.NewTermRenderer(glamour.WithAutoStyle(), glamour.WithEmoji(), glamour.WithWordWrap(0))
 		r, _ := render.Render(fmt.Sprintf("```yaml\n%s\n```\n", *p.Steps.Yaml))
-		steps.WriteString(r)
+		_, _ = steps.WriteString(r)
 	}
 	return nil
 }
