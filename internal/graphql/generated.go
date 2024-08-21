@@ -208,30 +208,24 @@ func (v *GetClusterQueuesResponse) GetOrganization() *GetClusterQueuesOrganizati
 //
 // A pipeline
 type GetPipelinePipeline struct {
-	// The next build number in the sequence
-	NextBuildNumber int `json:"nextBuildNumber"`
+	// The name of the pipeline
+	Name string `json:"name"`
 	// The short description of the pipeline
 	Description *string `json:"description"`
 	// The emoji of the pipeline
 	Emoji *string `json:"emoji"`
 	// The color of the pipeline
 	Color *string `json:"color"`
-	// The default branch for this pipeline
-	DefaultBranch *string `json:"defaultBranch"`
-	// The repository for this pipeline
-	Repository *GetPipelinePipelineRepository `json:"repository"`
 	// Returns true if the viewer has favorited this pipeline
 	Favorite bool                                                `json:"favorite"`
 	Steps    *GetPipelinePipelineSteps                           `json:"steps"`
 	Metrics  *GetPipelinePipelineMetricsPipelineMetricConnection `json:"metrics"`
-	// The URL for the pipeline
-	Url string `json:"url"`
 	// Tags that have been given to this pipeline
 	Tags []GetPipelinePipelineTagsPipelineTag `json:"tags"`
 }
 
-// GetNextBuildNumber returns GetPipelinePipeline.NextBuildNumber, and is useful for accessing the field via an interface.
-func (v *GetPipelinePipeline) GetNextBuildNumber() int { return v.NextBuildNumber }
+// GetName returns GetPipelinePipeline.Name, and is useful for accessing the field via an interface.
+func (v *GetPipelinePipeline) GetName() string { return v.Name }
 
 // GetDescription returns GetPipelinePipeline.Description, and is useful for accessing the field via an interface.
 func (v *GetPipelinePipeline) GetDescription() *string { return v.Description }
@@ -241,12 +235,6 @@ func (v *GetPipelinePipeline) GetEmoji() *string { return v.Emoji }
 
 // GetColor returns GetPipelinePipeline.Color, and is useful for accessing the field via an interface.
 func (v *GetPipelinePipeline) GetColor() *string { return v.Color }
-
-// GetDefaultBranch returns GetPipelinePipeline.DefaultBranch, and is useful for accessing the field via an interface.
-func (v *GetPipelinePipeline) GetDefaultBranch() *string { return v.DefaultBranch }
-
-// GetRepository returns GetPipelinePipeline.Repository, and is useful for accessing the field via an interface.
-func (v *GetPipelinePipeline) GetRepository() *GetPipelinePipelineRepository { return v.Repository }
 
 // GetFavorite returns GetPipelinePipeline.Favorite, and is useful for accessing the field via an interface.
 func (v *GetPipelinePipeline) GetFavorite() bool { return v.Favorite }
@@ -258,9 +246,6 @@ func (v *GetPipelinePipeline) GetSteps() *GetPipelinePipelineSteps { return v.St
 func (v *GetPipelinePipeline) GetMetrics() *GetPipelinePipelineMetricsPipelineMetricConnection {
 	return v.Metrics
 }
-
-// GetUrl returns GetPipelinePipeline.Url, and is useful for accessing the field via an interface.
-func (v *GetPipelinePipeline) GetUrl() string { return v.Url }
 
 // GetTags returns GetPipelinePipeline.Tags, and is useful for accessing the field via an interface.
 func (v *GetPipelinePipeline) GetTags() []GetPipelinePipelineTagsPipelineTag { return v.Tags }
@@ -305,18 +290,6 @@ func (v *GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEd
 func (v *GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdgeNodePipelineMetric) GetValue() *string {
 	return v.Value
 }
-
-// GetPipelinePipelineRepository includes the requested fields of the GraphQL type Repository.
-// The GraphQL type's documentation follows.
-//
-// A repository associated with a pipeline
-type GetPipelinePipelineRepository struct {
-	// The git URL for this repository
-	Url string `json:"url"`
-}
-
-// GetUrl returns GetPipelinePipelineRepository.Url, and is useful for accessing the field via an interface.
-func (v *GetPipelinePipelineRepository) GetUrl() string { return v.Url }
 
 // GetPipelinePipelineSteps includes the requested fields of the GraphQL type PipelineSteps.
 // The GraphQL type's documentation follows.
@@ -717,14 +690,10 @@ func GetClusterQueues(
 const GetPipeline_Operation = `
 query GetPipeline ($slug: ID!) {
 	pipeline(slug: $slug) {
-		nextBuildNumber
+		name
 		description
 		emoji
 		color
-		defaultBranch
-		repository {
-			url
-		}
 		favorite
 		steps {
 			yaml
@@ -737,7 +706,6 @@ query GetPipeline ($slug: ID!) {
 				}
 			}
 		}
-		url
 		tags {
 			label
 		}

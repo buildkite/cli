@@ -1,13 +1,9 @@
 query GetPipeline($slug: ID!) {
     pipeline(slug: $slug) {
-        nextBuildNumber
+        name
         description
         emoji
         color
-        defaultBranch
-        repository {
-            url
-        }
         favorite
         steps {
             yaml
@@ -20,7 +16,6 @@ query GetPipeline($slug: ID!) {
                 }
             }
         }
-        url
         tags {
             label
         }
