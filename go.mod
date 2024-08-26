@@ -7,7 +7,7 @@ toolchain go1.22.5
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/MakeNowJust/heredoc v1.0.0
-	github.com/buildkite/go-buildkite/v3 v3.12.0
+	github.com/buildkite/go-buildkite/v3 v3.13.0
 	github.com/charmbracelet/bubbles v0.19.0
 	github.com/charmbracelet/bubbletea v0.27.0
 	github.com/charmbracelet/huh v0.5.3
@@ -23,8 +23,6 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.16
 	golang.org/x/sync v0.8.0
 )
-
-replace github.com/buildkite/go-buildkite/v3 => ../go-buildkite
 
 require (
 	github.com/agnivade/levenshtein v1.1.1 // indirect
