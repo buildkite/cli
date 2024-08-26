@@ -58,17 +58,9 @@ func NewCmdPackagePush(f *factory.Factory) *cobra.Command {
 				from = cmd.InOrStdin()
 			}
 
-			r, w := io.Pipe()
-			go func() {
-				if _, err := io.Copy(w, from); err != nil {
-					w.CloseWithError(fmt.Errorf("failed to read package from input: %w", err))
-				}
-				w.Close()
-			}()
-
 			pkg, _, err := f.RestAPIClient.PackagesService.Create(f.Config.OrganizationSlug(), cfg.RegistrySlug, buildkite.CreatePackageInput{
 				Filename: packageName,
-				Package:  r,
+				Package:  from,
 			})
 			if err != nil {
 				return fmt.Errorf("%w: request to create package failed: %w", ErrAPIError, err)
