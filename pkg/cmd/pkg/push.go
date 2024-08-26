@@ -10,40 +10,42 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	"github.com/kr/pretty"
-	"github.com/oleiade/reflections"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-type newPackageConfig struct {
-	RegistrySlug string `flag:"registry"`
-	FilePath     string `flag:"file"`
-	FileName     string `flag:"file-name"`
+type pushPackageConfig struct {
+	RegistrySlug  string
+	FilePath      string
+	StdinFileName string
 }
+
+const stdinFileNameFlag = "stdin-file-name"
 
 func NewCmdPackagePush(f *factory.Factory) *cobra.Command {
 	cmd := cobra.Command{
-		Use:   "push --registry <registry> {--file <file> | --file-name <filename> -}",
+		Use:   "push registry-name {path/to/file | --stdin-file-name filename -}",
 		Short: "Push a new package to Buildkite Packages",
+		Long: heredoc.Doc(`
+			Push a new package to Buildkite Packages. The package can be passed as a path to a file in the second positional argument,
+			or via stdin. If passed via stdin, the filename must be provided with the --stdin-file-name flag, as Buildkite
+			Packages requires a filename for the package.`),
 		Example: heredoc.Doc(`
-			$ bk package push --registry my-registry --file my-package.tar.gz
-			$ cat my-package.tar.gz | bk package push --registry my-registry --file-name my-package.tar.gz - # Pass package via stdin, note hyphen as the argument
+			$ bk package push my-registry my-package.tar.gz
+			$ cat my-package.tar.gz | bk package push my-registry --stdin-file-name my-package.tar.gz - # Pass package via stdin, note hyphen as the argument
 		`),
-		Args:      cobra.MaximumNArgs(1),
-		ValidArgs: []string{"-"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := populateFlags[newPackageConfig](cmd.Flags())
+			cfg, err := loadAndValidateConfig(cmd.Flags(), args)
 			if err != nil {
-				return fmt.Errorf("failed to populate flags: %w", err)
-			}
-
-			if err := validateConfig(cfg, args); err != nil {
 				return fmt.Errorf("failed to validate flags and args: %w", err)
 			}
 
+			packageName := ""
 			var from io.Reader
 			switch {
 			case cfg.FilePath != "":
+				packageName = cfg.FilePath
+
 				file, err := os.Open(cfg.FilePath)
 				if err != nil {
 					return fmt.Errorf("couldn't open file %s: %w", cfg.FilePath, err)
@@ -52,7 +54,8 @@ func NewCmdPackagePush(f *factory.Factory) *cobra.Command {
 				defer file.Close()
 
 				from = file
-			case len(args) != 0 && args[0] == "-":
+			case cfg.StdinFileName != "":
+				packageName = cfg.StdinFileName
 				from = cmd.InOrStdin()
 			}
 
@@ -65,7 +68,7 @@ func NewCmdPackagePush(f *factory.Factory) *cobra.Command {
 			}()
 
 			pkg, _, err := f.RestAPIClient.PackagesService.Create(f.Config.OrganizationSlug(), cfg.RegistrySlug, buildkite.CreatePackageInput{
-				Filename: cfg.FileName,
+				Filename: packageName,
 				Package:  r,
 			})
 			if err != nil {
@@ -78,9 +81,7 @@ func NewCmdPackagePush(f *factory.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringP("registry", "r", "", "The slug for the registry to create the package in")
-	cmd.Flags().StringP("file", "f", "", "The path to the package file to upload. Cannot be used when package is passed via stdin")
-	cmd.Flags().StringP("file-name", "n", "", "The filename to use for the package, if it's passed via stdin. Invalid otherwise.")
+	cmd.Flags().StringP(stdinFileNameFlag, "n", "", "The filename to use for the package, if it's passed via stdin. Invalid otherwise.")
 
 	return &cmd
 }
@@ -105,38 +106,35 @@ func isStdinReadable() (bool, error) {
 	return readable, nil
 }
 
-func validateConfig(config *newPackageConfig, args []string) error {
-	if len(config.RegistrySlug) == 0 {
-		return fmt.Errorf("%w, --registry is required", ErrInvalidConfig)
+func loadAndValidateConfig(flags *pflag.FlagSet, args []string) (*pushPackageConfig, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("%w: Exactly 2 arguments are required, got: %d", ErrInvalidConfig, len(args))
 	}
 
-	stdInReadable, err := isStdInReadableFunc()
-	if err != nil {
-		return fmt.Errorf("failed to check if stdin is readable: %w", err)
-	}
-
-	if stdInReadable {
-		switch {
-		case len(args) == 0:
-			return fmt.Errorf("%w: the final argument must be '-' when passing package via stdin", ErrInvalidConfig)
-		case len(args) != 0 && args[0] == "-":
-			// We're reading the package file in from stdin
-			if len(config.FilePath) != 0 {
-				return fmt.Errorf("%w: cannot use --file when package is passed via stdin", ErrInvalidConfig)
-			}
-
-			if len(config.FileName) == 0 {
-				return fmt.Errorf("%w: --file-name is required when package is passed via stdin", ErrInvalidConfig)
-			}
-
-			return nil
+	if stdinFileName := flags.Lookup(stdinFileNameFlag); stdinFileName != nil && stdinFileName.Value.String() != "" {
+		if args[1] != "-" {
+			return nil, fmt.Errorf("%w: When passing a package via stdin, the final argument must be '-'", ErrInvalidConfig)
 		}
-	}
 
-	if config.FilePath != "" {
-		fi, err := os.Stat(config.FilePath)
+		stdInReadable, err := isStdInReadableFunc()
 		if err != nil {
-			return fmt.Errorf("%w: file %s did not exist: %w", ErrInvalidConfig, config.FilePath, err)
+			return nil, fmt.Errorf("failed to check if stdin is readable: %w", err)
+		}
+
+		if !stdInReadable {
+			return nil, fmt.Errorf("%w: stdin is not readable", ErrInvalidConfig)
+		}
+
+		return &pushPackageConfig{
+			RegistrySlug:  args[0],
+			StdinFileName: stdinFileName.Value.String(),
+		}, nil
+	} else {
+		// No stdin file name, so we expect a file path as the second argument
+		filePath := args[1]
+		fi, err := os.Stat(filePath)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrInvalidConfig, err)
 		}
 
 		if !fi.Mode().IsRegular() {
@@ -144,41 +142,12 @@ func validateConfig(config *newPackageConfig, args []string) error {
 			if !fi.Mode().IsDir() {
 				mode = fi.Mode().String()
 			}
-			return fmt.Errorf("%w: package file at %s is not a regular file, was: %s", ErrInvalidConfig, config.FilePath, mode)
+			return nil, fmt.Errorf("%w: file at %s is not a regular file, mode was: %s", ErrInvalidConfig, filePath, mode)
 		}
+
+		return &pushPackageConfig{
+			RegistrySlug: args[0],
+			FilePath:     filePath,
+		}, nil
 	}
-
-	return nil
-}
-
-func populateFlags[T any](flagSet *pflag.FlagSet) (*T, error) {
-	c := new(T)
-
-	fields, err := reflections.Fields(c)
-	if err != nil {
-		return new(T), fmt.Errorf("getting fields for newPackageConfig: %w", err)
-	}
-
-	fieldsForFlagName := map[string]string{}
-	for _, field := range fields {
-		tag, err := reflections.GetFieldTag(c, field, "flag")
-		if err != nil {
-			return new(T), fmt.Errorf("getting flag tag for field %s: %w", field, err)
-		}
-		fieldsForFlagName[tag] = field
-	}
-
-	var multiErr error
-	flagSet.VisitAll(func(f *pflag.Flag) {
-		if field, ok := fieldsForFlagName[f.Name]; ok {
-			if err := reflections.SetField(c, field, f.Value.String()); err != nil {
-				multiErr = errors.Join(multiErr, fmt.Errorf("setting field %s: %w", field, err))
-			}
-		}
-	})
-	if multiErr != nil {
-		return new(T), fmt.Errorf("errors populating flags: %w", multiErr)
-	}
-
-	return c, nil
 }

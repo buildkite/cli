@@ -58,60 +58,36 @@ func TestPackagePush(t *testing.T) {
 	}{
 		// Config validation errors
 		{
-			name:                 "no registry",
+			name:                 "no args",
 			flags:                map[string]string{},
 			args:                 []string{},
-			wantUnwrappedContain: "--registry is required",
+			wantUnwrappedContain: "Exactly 2 arguments are required, got: 0",
 			wantErr:              ErrInvalidConfig,
 		},
 		{
-			name: "stdin and file",
-			flags: map[string]string{
-				"registry": "my-registry",
-				"file":     "/path/to/some/file",
-			},
-			args:                 []string{"-"},
+			name:                 "too many args",
+			args:                 []string{"one", "two", "three"},
+			wantUnwrappedContain: "Exactly 2 arguments are required, got: 3",
 			wantErr:              ErrInvalidConfig,
-			wantUnwrappedContain: "cannot use --file when package is passed via stdin",
-			stdin:                strings.NewReader("test"),
 		},
 		{
-			name:                 "stdin with no file name",
-			flags:                map[string]string{"registry": "my-registry"},
-			args:                 []string{"-"},
+			name:                 "file that's a directory",
+			flags:                map[string]string{},
+			args:                 []string{"my-registry", "/"},
 			wantErr:              ErrInvalidConfig,
-			wantUnwrappedContain: "--file-name is required when package is passed via stdin",
-			stdin:                strings.NewReader("test"),
+			wantUnwrappedContain: "file at / is not a regular file, mode was: directory",
 		},
 		{
-			name: "file that's a directory",
-			flags: map[string]string{
-				"registry": "my-registry",
-				"file":     "/",
-			},
-			args:                 []string{},
+			name:                 "file that doesn't exist",
+			args:                 []string{"my-registry", "/does-not-exist"},
 			wantErr:              ErrInvalidConfig,
-			wantUnwrappedContain: "package file at / is not a regular file, was: directory",
-		},
-		{
-			name: "file that doesn't exist",
-			flags: map[string]string{
-				"registry": "my-registry",
-				"file":     "/does-not-exist",
-			},
-			args:                 []string{},
-			wantErr:              ErrInvalidConfig,
-			wantUnwrappedContain: "file /does-not-exist did not exist",
+			wantUnwrappedContain: "stat /does-not-exist: no such file or directory",
 		},
 
 		// Happy paths
 		{
 			name: "file upload",
-			flags: map[string]string{
-				"registry": "my-registry",
-				"file":     tempFile.Name(),
-			},
-			args: []string{"-"},
+			args: []string{"my-registry", tempFile.Name()},
 
 			apiResponseCode: http.StatusCreated,
 			apiResponseBody: packageResponseBytes,
@@ -119,11 +95,8 @@ func TestPackagePush(t *testing.T) {
 		{
 			name:  "file upload from stdin",
 			stdin: strings.NewReader("test package stream contents!"),
-			flags: map[string]string{
-				"registry":  "my-registry",
-				"file-name": "test.pkg",
-			},
-			args: []string{"-"},
+			flags: map[string]string{"stdin-file-name": "test.pkg"},
+			args:  []string{"my-registry", "-"},
 
 			apiResponseCode: http.StatusCreated,
 			apiResponseBody: packageResponseBytes,
@@ -132,11 +105,7 @@ func TestPackagePush(t *testing.T) {
 		// uh oh, the API returned an error!
 		{
 			name: "API error",
-			flags: map[string]string{
-				"registry": "my-registry",
-				"file":     tempFile.Name(),
-			},
-			args: []string{},
+			args: []string{"my-registry", tempFile.Name()},
 
 			apiResponseCode: http.StatusBadRequest,
 

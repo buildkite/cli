@@ -10,7 +10,7 @@ func NewCmdPackage(f *factory.Factory) *cobra.Command {
 	cmd := cobra.Command{
 		Use:               "package <command>",
 		Short:             "Manage packages",
-		Long:              "Work with Buildkite pipelines.",
+		Long:              "Work with Buildkite Packages",
 		PersistentPreRunE: validation.CheckValidConfiguration(f.Config),
 	}
 

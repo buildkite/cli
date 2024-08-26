@@ -17,7 +17,6 @@ require (
 	github.com/go-git/go-git/v5 v5.12.0
 	github.com/kr/pretty v0.3.1
 	github.com/muesli/reflow v0.3.0
-	github.com/oleiade/reflections v1.0.1
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/sashabaranov/go-openai v1.28.2
 	github.com/spf13/cobra v1.8.1
