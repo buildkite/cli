@@ -9,7 +9,6 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
-	"github.com/kr/pretty"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -75,8 +74,8 @@ func NewCmdPackagePush(f *factory.Factory) *cobra.Command {
 				return fmt.Errorf("%w: request to create package failed: %w", ErrAPIError, err)
 			}
 
-			fmt.Fprintln(cmd.OutOrStdout(), "Created package:")
-			pretty.Fprintf(cmd.OutOrStdout(), "%# v\n", pkg)
+			fmt.Fprintf(cmd.OutOrStdout(), "Created package: %s\n", pkg.Name)
+			fmt.Fprintf(cmd.OutOrStdout(), "View it on the web at: %s\n", pkg.WebURL)
 			return nil
 		},
 	}
