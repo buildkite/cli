@@ -30,7 +30,7 @@ func mainRun() int {
 	}
 
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to execute command: %s\n", err)
+		// Errors already get printed by the cobra command runner
 		return 1
 	}
 
