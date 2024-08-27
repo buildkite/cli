@@ -39,8 +39,11 @@ func NewCmdPackagePush(f *factory.Factory) *cobra.Command {
 				return fmt.Errorf("failed to validate flags and args: %w", err)
 			}
 
-			packageName := ""
-			var from io.Reader
+			var (
+				from        io.Reader
+				packageName string
+			)
+
 			switch {
 			case cfg.FilePath != "":
 				packageName = cfg.FilePath
@@ -99,7 +102,11 @@ func isStdinReadable() (bool, error) {
 
 func loadAndValidateConfig(flags *pflag.FlagSet, args []string) (*pushPackageConfig, error) {
 	if len(args) != 2 {
-		return nil, fmt.Errorf("%w: Exactly 2 arguments are required, got: %d", ErrInvalidConfig, len(args))
+		errS := fmt.Sprintf("Exactly 2 arguments are required, got: %d", len(args))
+		if f := flags.Lookup(stdinFileNameFlag); f != nil && f.Value.String() != "" {
+			errS += " (when passing packages via stdin, the final argument must be '-')"
+		}
+		return nil, fmt.Errorf("%w: %s", ErrInvalidConfig, errS)
 	}
 
 	if stdinFileName := flags.Lookup(stdinFileNameFlag); stdinFileName != nil && stdinFileName.Value.String() != "" {
