@@ -11,7 +11,7 @@ import (
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 )
 
-func ResolveBuildWithOpts(f *factory.Factory, pipelineResolver pipelineResolver.PipelineResolverFn, listOpts ...options.OptionsResolverFn) BuildResolverFn {
+func ResolveBuildWithOpts(f *factory.Factory, pipelineResolver pipelineResolver.PipelineResolverFn, listOpts ...options.OptionsFn) BuildResolverFn {
 	return func(ctx context.Context) (*build.Build, error) {
 		pipeline, err := pipelineResolver(ctx)
 		if err != nil {
@@ -27,8 +27,7 @@ func ResolveBuildWithOpts(f *factory.Factory, pipelineResolver pipelineResolver.
 			},
 		}
 		for _, opt := range listOpts {
-			optFunc := opt(ctx)
-			err = optFunc(opts)
+			err = opt(opts)
 			if err != nil {
 				return nil, err
 			}
@@ -47,6 +46,5 @@ func ResolveBuildWithOpts(f *factory.Factory, pipelineResolver pipelineResolver.
 			Pipeline:     pipeline.Name,
 			BuildNumber:  *builds[0].Number,
 		}, nil
-
 	}
 }
