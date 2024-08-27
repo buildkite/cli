@@ -52,13 +52,15 @@ func NewCmdPackagePush(f *factory.Factory) *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("couldn't open file %s: %w", cfg.FilePath, err)
 				}
-
 				defer file.Close()
 
 				from = file
 			case cfg.StdinFileName != "":
 				packageName = cfg.StdinFileName
 				from = cmd.InOrStdin()
+
+			default:
+				panic("Neither file path nor stdin file name are available, there has been an error in the config validation. Report this to support@buildkite.com")
 			}
 
 			pkg, _, err := f.RestAPIClient.PackagesService.Create(f.Config.OrganizationSlug(), cfg.RegistrySlug, buildkite.CreatePackageInput{
