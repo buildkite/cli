@@ -53,35 +53,42 @@ func TestPackagePush(t *testing.T) {
 		apiResponseCode int
 		apiResponseBody []byte
 
-		wantUnwrappedContain string
-		wantErr              error
+		wantErrContain string
+		wantErr        error
 	}{
 		// Config validation errors
 		{
-			name:                 "no args",
-			flags:                map[string]string{},
-			args:                 []string{},
-			wantUnwrappedContain: "Exactly 2 arguments are required, got: 0",
-			wantErr:              ErrInvalidConfig,
+			name:           "no args",
+			flags:          map[string]string{},
+			args:           []string{},
+			wantErrContain: "Exactly 2 arguments are required, got: 0",
+			wantErr:        ErrInvalidConfig,
 		},
 		{
-			name:                 "too many args",
-			args:                 []string{"one", "two", "three"},
-			wantUnwrappedContain: "Exactly 2 arguments are required, got: 3",
-			wantErr:              ErrInvalidConfig,
+			name:           "too many args",
+			args:           []string{"one", "two", "three"},
+			wantErrContain: "Exactly 2 arguments are required, got: 3",
+			wantErr:        ErrInvalidConfig,
 		},
 		{
-			name:                 "file that's a directory",
-			flags:                map[string]string{},
-			args:                 []string{"my-registry", "/"},
-			wantErr:              ErrInvalidConfig,
-			wantUnwrappedContain: "file at / is not a regular file, mode was: directory",
+			name:           "file that's a directory",
+			flags:          map[string]string{},
+			args:           []string{"my-registry", "/"},
+			wantErr:        ErrInvalidConfig,
+			wantErrContain: "file at / is not a regular file, mode was: directory",
 		},
 		{
-			name:                 "file that doesn't exist",
-			args:                 []string{"my-registry", "/does-not-exist"},
-			wantErr:              ErrInvalidConfig,
-			wantUnwrappedContain: "stat /does-not-exist: no such file or directory",
+			name:           "file that doesn't exist",
+			args:           []string{"my-registry", "/does-not-exist"},
+			wantErr:        ErrInvalidConfig,
+			wantErrContain: "stat /does-not-exist: no such file or directory",
+		},
+		{
+			name:           "stdin without --stdin-file-name",
+			stdin:          strings.NewReader("test package stream contents!"),
+			args:           []string{"my-registry", "-"},
+			wantErr:        ErrInvalidConfig,
+			wantErrContain: "When passing a package via stdin, the --stdin-file-name flag must be provided",
 		},
 
 		// Happy paths
@@ -109,8 +116,8 @@ func TestPackagePush(t *testing.T) {
 
 			apiResponseCode: http.StatusBadRequest,
 
-			wantErr:              ErrAPIError,
-			wantUnwrappedContain: "/v2/packages/organizations/test/registries/my-registry/packages: 400",
+			wantErr:        ErrAPIError,
+			wantErrContain: "/v2/packages/organizations/test/registries/my-registry/packages: 400",
 		},
 	}
 
@@ -120,7 +127,11 @@ func TestPackagePush(t *testing.T) {
 			// t.Parallel()
 
 			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(tc.apiResponseCode)
+				code := tc.apiResponseCode
+				if code == 0 {
+					code = http.StatusOK
+				}
+				w.WriteHeader(code)
 				if len(tc.apiResponseBody) != 0 {
 					w.Write(tc.apiResponseBody)
 				}
@@ -141,8 +152,8 @@ func TestPackagePush(t *testing.T) {
 				t.Errorf("Expected error %v, got %v", tc.wantErr, err)
 			}
 
-			if err != nil && !strings.Contains(err.Error(), tc.wantUnwrappedContain) {
-				t.Errorf("Expected error to contain %q, got %q", tc.wantUnwrappedContain, err.Error())
+			if err != nil && !strings.Contains(err.Error(), tc.wantErrContain) {
+				t.Errorf("Expected error to contain %q, got %q", tc.wantErrContain, err.Error())
 			}
 		})
 	}

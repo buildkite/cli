@@ -101,15 +101,26 @@ func isStdinReadable() (bool, error) {
 }
 
 func loadAndValidateConfig(flags *pflag.FlagSet, args []string) (*pushPackageConfig, error) {
+	stdinFileName := flags.Lookup(stdinFileNameFlag)
+	if stdinFileName == nil {
+		// This should never happen, as we're setting the flag in NewCmdPackagePush.
+		// Seeing this panic indicates a bug in the code.
+		panic(fmt.Sprintf("%s flag not found", stdinFileNameFlag))
+	}
+
 	if len(args) != 2 {
 		errS := fmt.Sprintf("Exactly 2 arguments are required, got: %d", len(args))
-		if f := flags.Lookup(stdinFileNameFlag); f != nil && f.Value.String() != "" {
+		if stdinFileName.Value.String() != "" {
 			errS += " (when passing packages via stdin, the final argument must be '-')"
 		}
 		return nil, fmt.Errorf("%w: %s", ErrInvalidConfig, errS)
 	}
 
-	if stdinFileName := flags.Lookup(stdinFileNameFlag); stdinFileName != nil && stdinFileName.Value.String() != "" {
+	if args[1] == "-" && stdinFileName.Value.String() == "" {
+		return nil, fmt.Errorf("%w: When passing a package via stdin, the --stdin-file-name flag must be provided", ErrInvalidConfig)
+	}
+
+	if stdinFileName.Value.String() != "" {
 		if args[1] != "-" {
 			return nil, fmt.Errorf("%w: When passing a package via stdin, the final argument must be '-'", ErrInvalidConfig)
 		}
