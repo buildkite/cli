@@ -30,7 +30,6 @@ func QueryCluster(ctx context.Context, OrganizationSlug string, ClusterID string
 
 		i, edge := i, edge
 		eg.Go(func() error {
-
 			agent, err := graphql.GetClusterQueueAgent(ctx, f.GraphQLClient, OrganizationSlug, []string{edge.Node.Id})
 			if err != nil {
 				return fmt.Errorf("unable to read Cluster Queue Agents %s: %s", edge.Node.Id, err.Error())
