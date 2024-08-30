@@ -67,6 +67,8 @@ steps:
     command: ".buildkite/tag.sh"
     branches:
       - 3.x
+    env:
+      AWS_REGION: us-east-1
     plugins:
       - aws-assume-role-with-web-identity:
           role-arn: arn:aws:iam::445615400570:role/pipeline-buildkite-buildkite-cli
