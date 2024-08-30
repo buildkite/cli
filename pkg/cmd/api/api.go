@@ -53,6 +53,9 @@ func NewCmdAPI(f *factory.Factory) *cobra.Command {
       `),
 		PersistentPreRunE: validation.CheckValidConfiguration(f.Config),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if data != "" && !cmd.Flags().Changed("method") {
+				method = "POST"
+			}
 			return apiCaller(cmd, args, f)
 		},
 	}
