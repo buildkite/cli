@@ -29,8 +29,24 @@ func NewCmdAPI(f *factory.Factory) *cobra.Command {
 		Long:  "Interact with either the REST or GraphQL Buildkite APIs",
 		Args:  cobra.MaximumNArgs(1),
 		Example: heredoc.Doc(`
-      # To make an API call
-      $ bk api pipelines/example-pipeline/builds/420
+      # To get a build
+      $ bk api /pipelines/example-pipeline/builds/420
+
+      # To create a pipeline
+      $ bk api --method POST /pipelines --data '
+      {
+        "name": "My Cool Pipeline",
+        "repository": "git@github.com:acme-inc/my-pipeline.git",
+        "configuration": "steps:\n - command: env"
+      }
+      '
+
+      # To update a cluster
+      $ bk api --method PUT /clusters/CLUSTER_UUID --data '
+      {
+        "name": "My Updated Cluster",
+      }
+      '
       `),
 		PersistentPreRunE: validation.CheckValidConfiguration(f.Config),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -96,7 +112,6 @@ func apiCaller(cmd *cobra.Command, args []string, f *factory.Factory) error {
 	if err != nil {
 		return fmt.Errorf("error making request: %w", err)
 	}
-
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
@@ -107,14 +122,15 @@ func apiCaller(cmd *cobra.Command, args []string, f *factory.Factory) error {
 	var jsonResponse interface{}
 	err = json.Unmarshal(body, &jsonResponse)
 	if err != nil {
-		return fmt.Errorf("error parsing JSON response: %w", err)
+		fmt.Println("Response is not valid JSON. Raw response:")
+		fmt.Println(string(body))
+		return fmt.Errorf("error parsing response as JSON: %w", err)
 	}
 
 	var prettyJSON bytes.Buffer
 	err = json.Indent(&prettyJSON, body, "", "  ")
 	if err != nil {
-		fmt.Println(string(body))
-		return fmt.Errorf("error parsing JSON response: %w", err)
+		return fmt.Errorf("error formatting JSON response: %w", err)
 	}
 
 	fmt.Println(prettyJSON.String())
