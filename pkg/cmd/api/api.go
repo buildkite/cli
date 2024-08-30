@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,12 +15,11 @@ import (
 )
 
 var (
-	method      string
-	headers     []string
-	data        string
-	baseURL     string
-	graphqlFlag bool
-	queryFile   string
+	method    string
+	headers   []string
+	data      string
+	analytics bool
+	queryFile string
 )
 
 func NewCmdAPI(f *factory.Factory) *cobra.Command {
@@ -43,8 +41,7 @@ func NewCmdAPI(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVarP(&method, "method", "X", "GET", "HTTP method to use")
 	cmd.Flags().StringArrayVarP(&headers, "header", "H", []string{}, "Headers to include in the request")
 	cmd.Flags().StringVarP(&data, "data", "d", "", "Data to send in the request body")
-	cmd.Flags().StringVar(&baseURL, "base-url", fmt.Sprintf("https://api.buildkite.com/v2/organizations/%s", f.Config.OrganizationSlug()), "Base URL for the API")
-	cmd.Flags().BoolVar(&graphqlFlag, "graphql", false, "Use GraphQL API")
+	cmd.Flags().BoolVar(&analytics, "analytics", false, "Use the Test Analytics endpoint")
 	cmd.Flags().StringVarP(&queryFile, "file", "f", "", "File containing GraphQL query")
 
 	return &cmd
@@ -52,9 +49,10 @@ func NewCmdAPI(f *factory.Factory) *cobra.Command {
 
 func apiCaller(cmd *cobra.Command, args []string, f *factory.Factory) error {
 	var endpoint string
+	var endpointPrefix string
 
 	if len(args) > 1 {
-		return fmt.Errorf("Incorrect numebr of arguments. Expected 1, got %d", len(args))
+		return fmt.Errorf("Incorrect number of arguments. Expected 1, got %d", len(args))
 	}
 
 	if len(args) == 0 {
@@ -62,14 +60,17 @@ func apiCaller(cmd *cobra.Command, args []string, f *factory.Factory) error {
 	} else {
 		endpoint = args[0]
 	}
-	url := baseURL + endpoint
+
+	if analytics {
+		endpointPrefix = fmt.Sprintf("v2/analytics/organizations/%s", f.Config.OrganizationSlug())
+	} else {
+		endpointPrefix = fmt.Sprintf("v2/organizations/%s", f.Config.OrganizationSlug())
+	}
+
+	url := f.RestAPIClient.BaseURL.String() + endpointPrefix + endpoint
 
 	var req *http.Request
 	var err error
-
-	if graphqlFlag {
-		return errors.New("GraphQL not supported at this time.")
-	}
 
 	if data != "" {
 		req, err = http.NewRequest(method, url, strings.NewReader(data))
