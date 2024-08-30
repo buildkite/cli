@@ -47,6 +47,9 @@ func NewCmdAPI(f *factory.Factory) *cobra.Command {
         "name": "My Updated Cluster",
       }
       '
+
+      # To get all test suites
+      $ bk api --analytics /suites
       `),
 		PersistentPreRunE: validation.CheckValidConfiguration(f.Config),
 		RunE: func(cmd *cobra.Command, args []string) error {
