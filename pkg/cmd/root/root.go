@@ -4,6 +4,7 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	agentCmd "github.com/buildkite/cli/v3/pkg/cmd/agent"
 	aiCmd "github.com/buildkite/cli/v3/pkg/cmd/ai"
+	apiCmd "github.com/buildkite/cli/v3/pkg/cmd/api"
 	buildCmd "github.com/buildkite/cli/v3/pkg/cmd/build"
 	clusterCmd "github.com/buildkite/cli/v3/pkg/cmd/cluster"
 	configureCmd "github.com/buildkite/cli/v3/pkg/cmd/configure"
@@ -11,6 +12,7 @@ import (
 	initCmd "github.com/buildkite/cli/v3/pkg/cmd/init"
 	jobCmd "github.com/buildkite/cli/v3/pkg/cmd/job"
 	pipelineCmd "github.com/buildkite/cli/v3/pkg/cmd/pipeline"
+	packageCmd "github.com/buildkite/cli/v3/pkg/cmd/pkg"
 	useCmd "github.com/buildkite/cli/v3/pkg/cmd/use"
 	versionCmd "github.com/buildkite/cli/v3/pkg/cmd/version"
 	"github.com/spf13/cobra"
@@ -32,12 +34,14 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 
 	cmd.AddCommand(agentCmd.NewCmdAgent(f))
 	cmd.AddCommand(aiCmd.NewCmdAI(f))
+	cmd.AddCommand(apiCmd.NewCmdAPI(f))
 	cmd.AddCommand(buildCmd.NewCmdBuild(f))
 	cmd.AddCommand(clusterCmd.NewCmdCluster(f))
 	cmd.AddCommand(configureCmd.NewCmdConfigure(f))
 	cmd.AddCommand(initCmd.NewCmdInit(f))
 	cmd.AddCommand(jobCmd.NewCmdJob(f))
 	cmd.AddCommand(pipelineCmd.NewCmdPipeline(f))
+	cmd.AddCommand(packageCmd.NewCmdPackage(f))
 	cmd.AddCommand(useCmd.NewCmdUse(f))
 	cmd.AddCommand(versionCmd.NewCmdVersion(f))
 

@@ -64,11 +64,11 @@ steps:
   # this tags the commit with the input from the previous block step and pushes it to github
   # that will trigger the buildkite-cli-release pipeline off the tag which will create a release in github
   - label: ":rocket: Pushing a tag to release"
-    agents:
-      queue: untrusted
     command: ".buildkite/tag.sh"
     branches:
       - 3.x
+    env:
+      AWS_REGION: us-east-1
     plugins:
       - aws-assume-role-with-web-identity:
           role-arn: arn:aws:iam::445615400570:role/pipeline-buildkite-buildkite-cli

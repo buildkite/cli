@@ -15,8 +15,7 @@ Use `bk` to interact with your Buildkite organization without leaving the termin
 
 ## Usage
 
-```sh
-$ bk --help
+```
 Work with Buildkite from the command line.
 
 Usage:
@@ -24,17 +23,19 @@ Usage:
 
 Examples:
 $ bk build view
-$ bk agent stop <agent ID>
 
 
 Available Commands:
   agent       Manage agents
+  api         Interact with the Buildkite API
   build       Manage pipeline builds
   cluster     Manage organization clusters
   completion  Generate the autocompletion script for the specified shell
   configure   Configure Buildkite API token
   help        Help about any command
   init        Initialize a pipeline.yaml file
+  job         Manage jobs within a build
+  pipeline    Manage pipelines
   use         Select an organization
 
 Flags:
