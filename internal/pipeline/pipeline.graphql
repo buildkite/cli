@@ -1,0 +1,23 @@
+query GetPipeline($slug: ID!) {
+    pipeline(slug: $slug) {
+        name
+        description
+        emoji
+        color
+        favorite
+        steps {
+            yaml
+        }
+        metrics {
+            edges {
+                node {
+                    label
+                    value
+                }
+            }
+        }
+        tags {
+            label
+        }
+    }
+}

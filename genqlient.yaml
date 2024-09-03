@@ -11,3 +11,5 @@ generated: internal/graphql/generated.go
 bindings:
   JSON:
     type: string
+  YAML:
+    type: string
