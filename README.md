@@ -35,6 +35,7 @@ Available Commands:
   help        Help about any command
   init        Initialize a pipeline.yaml file
   job         Manage jobs within a build
+  package     Manage packages
   pipeline    Manage pipelines
   use         Select an organization
 
