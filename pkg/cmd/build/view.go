@@ -8,6 +8,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/artifact"
 	"github.com/buildkite/cli/v3/internal/build"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
+	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	"github.com/buildkite/cli/v3/internal/job"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -20,8 +21,8 @@ import (
 )
 
 func NewCmdBuildView(f *factory.Factory) *cobra.Command {
-	var web bool
-	var pipeline string
+	var web, mine bool
+	var branch, pipeline, user string
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
@@ -33,18 +34,54 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 
 			You can pass an optional build number to view. If omitted, the most recent build on the current branch will be resolved.
 		`),
+		Example: heredoc.Doc(`
+			# by default, the most recent build for the current branch is shown
+			$ bk build view
+			# if not inside a repository or to use a specific pipeline, pass -p
+			$ bk build view -p monolith
+			# to view a specific build
+			$ bk build view 429
+			# add -w to any command to open the build in your web browser instead
+			$ bk build view -w 429
+			# to view the most recent build on feature-x branch
+			$ bk build view -b feature-y
+			# you can filter by a user name or id
+			$ bk build view -u "alice"
+			# a shortcut to view your builds is --mine
+			$ bk build view --mine
+			# you can combine most of these flags
+			# to view most recent build by greg on the deploy-pipeline
+			$ bk build view -p deploy-pipeline -u "greg"
+		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// we find the pipeline based on the following rules:
+			// 1. an explicit flag is passed
+			// 2. a configured pipeline for this directory
+			// 3. find pipelines matching the current repository from the API
 			pipelineRes := pipelineResolver.NewAggregateResolver(
 				pipelineResolver.ResolveFromFlag(pipeline, f.Config),
 				pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
 				pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOne)),
 			)
 
+			// we resolve a build based on the following rules:
+			// 1. an optional argument
+			// 2. resolve from API using some context
+			//    a. filter by branch if --branch or use current repo
+			//    b. filter by user if --user or --mine given
+			optionsResolver := options.AggregateResolver{
+				options.ResolveBranchFromFlag(branch),
+				options.ResolveBranchFromRepository(f.GitRepository),
+			}.WithResolverWhen(
+				user != "",
+				options.ResolveUserFromFlag(user),
+			).WithResolverWhen(
+				mine || user == "",
+				options.ResolveCurrentUser(f),
+			)
 			buildRes := buildResolver.NewAggregateResolver(
 				buildResolver.ResolveFromPositionalArgument(args, 0, pipelineRes.Resolve, f.Config),
-			).WithResolverWhen(
-				f.GitRepository != nil,
-				buildResolver.ResolveBuildFromCurrentBranch(f.GitRepository, pipelineRes.Resolve, f),
+				buildResolver.ResolveBuildWithOpts(f, pipelineRes.Resolve, optionsResolver...),
 			)
 
 			bld, err := buildRes.Resolve(cmd.Context())
@@ -134,10 +171,16 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 		},
 	}
 
+	cmd.Flags().BoolVarP(&mine, "mine", "m", false, "Filter builds to only my user.")
 	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the build in a web browser.")
+	cmd.Flags().StringVarP(&branch, "branch", "b", "", "Filter builds to this branch.")
+	cmd.Flags().StringVarP(&user, "user", "u", "", "Filter builds to this user. You can use name or email.")
 	cmd.Flags().StringVarP(&pipeline, "pipeline", "p", "", "The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
 		"If omitted, it will be resolved using the current directory.",
 	)
+	// can only supply --user or --mine
+	cmd.MarkFlagsMutuallyExclusive("mine", "user")
+	cmd.Flags().SortFlags = false
 
 	return &cmd
 }
