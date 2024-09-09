@@ -9,6 +9,7 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -63,10 +64,19 @@ func NewCmdPackagePush(f *factory.Factory) *cobra.Command {
 				panic("Neither file path nor stdin file name are available, there has been an error in the config validation. Report this to support@buildkite.com")
 			}
 
-			pkg, _, err := f.RestAPIClient.PackagesService.Create(f.Config.OrganizationSlug(), cfg.RegistrySlug, buildkite.CreatePackageInput{
-				Filename: packageName,
-				Package:  from,
-			})
+			var pkg buildkite.Package
+			spinErr := spinner.New().
+				Title("Pushing package").
+				Action(func() {
+					pkg, _, err = f.RestAPIClient.PackagesService.Create(f.Config.OrganizationSlug(), cfg.RegistrySlug, buildkite.CreatePackageInput{
+						Filename: packageName,
+						Package:  from,
+					})
+				}).
+				Run()
+			if spinErr != nil {
+				return spinErr
+			}
 			if err != nil {
 				return fmt.Errorf("%w: request to create package failed: %w", ErrAPIError, err)
 			}
