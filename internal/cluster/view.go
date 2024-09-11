@@ -2,42 +2,35 @@ package cluster
 
 import (
 	"bytes"
-	"context"
 	"fmt"
-	"strconv"
 
-	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
 )
 
-func ClusterSummary(ctx context.Context, OrganizationSlug string, ClusterID string, f *factory.Factory) (string, error) {
-	clusterSummary, err := QueryCluster(ctx, OrganizationSlug, ClusterID, f)
-	if err != nil {
-		return err.Error(), err
-	}
+func ClusterViewTable(c ...Cluster) string {
 	tableOut := &bytes.Buffer{}
 
-	bold := lipgloss.NewStyle().Bold(true)
-
-	t := table.New().Border(lipgloss.HiddenBorder()).StyleFunc(func(row, col int) lipgloss.Style {
+	t := table.New().Headers("Name", "ID", "Queues").Border(lipgloss.HiddenBorder()).StyleFunc(func(row, col int) lipgloss.Style {
 		return lipgloss.NewStyle().PaddingRight(2)
-	}).Headers("Queues", "No of agents")
+	})
 
-	if len(clusterSummary.ClusterID) > 0 {
-		fmt.Fprint(tableOut, bold.Render("Cluster name: "+clusterSummary.Name, "\n"))
-		fmt.Fprint(tableOut, bold.Render("\nCluster Description: "+clusterSummary.Description, "\n"))
-
-		if len(clusterSummary.Queues) == 0 {
-			fmt.Fprint(tableOut, "\n No Queues found for this cluster \n")
-			return tableOut.String(), nil
-		}
-		for _, queue := range clusterSummary.Queues {
-			t.Row(queue.Name, strconv.Itoa(queue.ActiveAgents))
+	if len(c) == 1 {
+		t.Row(c[0].Name, c[0].ID, parseQueuesAsString(c[0].Queues...))
+	} else {
+		for _, cl := range c {
+			t.Row(cl.Name, cl.ID, parseQueuesAsString(cl.Queues...))
 		}
 	}
 
 	fmt.Fprint(tableOut, t.Render())
+	return tableOut.String()
+}
 
-	return tableOut.String(), nil
+func parseQueuesAsString(queues ...ClusterQueue) string {
+	queuesString := ""
+	for _, q := range queues {
+		queuesString = queuesString + q.Key + ", "
+	}
+	return queuesString[:len(queuesString)-2]
 }

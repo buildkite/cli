@@ -26,6 +26,7 @@ type gqlHTTPClient struct {
 }
 
 func (a *gqlHTTPClient) Do(req *http.Request) (*http.Response, error) {
+
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", a.token))
 	return a.client.Do(req)
 }
