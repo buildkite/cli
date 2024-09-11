@@ -43,6 +43,10 @@ func NewCmdPipelineView(f *factory.Factory) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if resp == nil || resp.Pipeline == nil {
+				fmt.Fprintf(cmd.OutOrStdout(), "Could not find pipeline: %s\n", slug)
+				return nil
+			}
 
 			var output strings.Builder
 

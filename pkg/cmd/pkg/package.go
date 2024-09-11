@@ -9,6 +9,7 @@ import (
 func NewCmdPackage(f *factory.Factory) *cobra.Command {
 	cmd := cobra.Command{
 		Use:               "package <command>",
+		Aliases:           []string{"pkg"},
 		Short:             "Manage packages",
 		Long:              "Work with Buildkite Packages",
 		PersistentPreRunE: validation.CheckValidConfiguration(f.Config),
