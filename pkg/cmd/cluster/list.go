@@ -1,17 +1,16 @@
 package cluster
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/cluster"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	"github.com/spf13/cobra"
-	"golang.org/x/sync/errgroup"
 )
 
 func NewCmdClusterList(f *factory.Factory) *cobra.Command {
@@ -25,7 +24,7 @@ func NewCmdClusterList(f *factory.Factory) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var listOptions buildkite.ClustersListOptions
 
-			clusters, err := listClusters(cmd.Context(), &listOptions, f)
+			clusters, err := listClusters(&listOptions, f)
 			if err != nil {
 				return err
 			}
@@ -40,7 +39,7 @@ func NewCmdClusterList(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-func listClusters(ctx context.Context, lo *buildkite.ClustersListOptions, f *factory.Factory) ([]cluster.Cluster, error) {
+func listClusters(lo *buildkite.ClustersListOptions, f *factory.Factory) ([]buildkite.Cluster, error) {
 	clusters, _, err := f.RestAPIClient.Clusters.List(f.Config.OrganizationSlug(), lo)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching cluster list: %v", err)
@@ -50,37 +49,40 @@ func listClusters(ctx context.Context, lo *buildkite.ClustersListOptions, f *fac
 		return nil, errors.New("no clusters found in organization")
 	}
 
-	eg, ctx := errgroup.WithContext(ctx)
-	clusterList := make([]cluster.Cluster, len(clusters))
+	clusterList := make([]buildkite.Cluster, len(clusters))
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(clusters))
 	for i, c := range clusters {
-		cQs, err := cluster.GetQueues(ctx, f, f.Config.OrganizationSlug(), *c.ID, (*buildkite.ClusterQueuesListOptions)(lo))
-		if err != nil {
-			return nil, err
-		}
-		i, c := i, c
-		eg.Go(func() error {
-			clusterList[i] = cluster.Cluster{
+		wg.Add(1)
+		go func(i int, c buildkite.Cluster) {
+			defer wg.Done()
+			clusterList[i] = buildkite.Cluster{
 				Color:           c.Color,
-				CreatedAt:       *c.CreatedAt,
-				CreatedBy:       *c.CreatedBy,
+				CreatedAt:       c.CreatedAt,
+				CreatedBy:       c.CreatedBy,
 				DefaultQueueID:  c.DefaultQueueID,
 				DefaultQueueURL: c.DefaultQueueURL,
 				Description:     c.Description,
 				Emoji:           c.Emoji,
-				GraphQLID:       *c.GraphQLID,
-				ID:              *c.ID,
-				Name:            *c.Name,
-				Queues:          cQs,
-				QueuesURL:       *c.QueuesURL,
-				URL:             *c.URL,
-				WebURL:          *c.WebURL,
+				GraphQLID:       c.GraphQLID,
+				ID:              c.ID,
+				Name:            c.Name,
+				QueuesURL:       c.QueuesURL,
+				URL:             c.URL,
+				WebURL:          c.WebURL,
 			}
-			return nil
-		})
+		}(i, c)
 	}
 
-	if err := eg.Wait(); err != nil {
-		return nil, err
+	go func() {
+		wg.Wait()
+		close(errChan)
+	}()
+
+	for err := range errChan {
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return clusterList, nil

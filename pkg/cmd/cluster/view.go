@@ -36,12 +36,10 @@ func NewCmdClusterView(f *factory.Factory) *cobra.Command {
 			spinErr := spinner.New().
 				Title("Loading cluster information").
 				Action(func() {
-					queues, _ := cluster.GetQueues(cmd.Context(), f, orgSlug, *clusterRes.ID, &buildkite.ClusterQueuesListOptions{})
-					output = cluster.ClusterViewTable(cluster.Cluster{
-						Name:           *clusterRes.Name,
-						ID:             *clusterRes.ID,
+					output = cluster.ClusterViewTable(buildkite.Cluster{
+						Name:           clusterRes.Name,
+						ID:             clusterRes.ID,
 						DefaultQueueID: clusterRes.DefaultQueueID,
-						Queues:         queues,
 						Color:          clusterRes.Color,
 					})
 				}).
