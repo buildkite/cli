@@ -15,7 +15,7 @@ func GetQueues(ctx context.Context, f *factory.Factory, orgSlug string, clusterI
 		return nil, err
 	}
 
-	eg, ctx := errgroup.WithContext(ctx)
+	eg, _ := errgroup.WithContext(ctx)
 	queuesResponse := make([]ClusterQueue, len(queues))
 	for i, q := range queues {
 		i, q := i, q
