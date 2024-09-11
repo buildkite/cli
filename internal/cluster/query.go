@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"sync"
 
 	"github.com/buildkite/cli/v3/internal/graphql"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -15,8 +16,12 @@ func GetQueues(ctx context.Context, f *factory.Factory, orgSlug string, clusterI
 	}
 
 	queuesResponse := make([]buildkite.ClusterQueue, len(queues))
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(queues))
 	for i, q := range queues {
-		go func() {
+		wg.Add(1)
+		go func(i int, q buildkite.ClusterQueue) {
+			defer wg.Done()
 			queuesResponse[i] = buildkite.ClusterQueue{
 				CreatedAt:          q.CreatedAt,
 				CreatedBy:          q.CreatedBy,
@@ -30,7 +35,18 @@ func GetQueues(ctx context.Context, f *factory.Factory, orgSlug string, clusterI
 				URL:                q.URL,
 				WebURL:             q.WebURL,
 			}
-		}()
+		}(i, q)
+	}
+
+	go func() {
+		wg.Wait()
+		close(errChan)
+	}()
+
+	for err := range errChan {
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return queuesResponse, nil
