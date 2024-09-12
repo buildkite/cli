@@ -32,7 +32,7 @@ func PickOne(pipelines []pipeline.Pipeline) *pipeline.Pipeline {
 		names[i] = p.Name
 	}
 
-	chosen, err := io.PromptForOne(names)
+	chosen, err := io.PromptForOne("pipeline", names)
 	if err != nil {
 		return nil
 	}
