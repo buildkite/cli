@@ -8,9 +8,11 @@ import (
 	"github.com/buildkite/cli/v3/internal/build"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
+	"github.com/buildkite/cli/v3/internal/job"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
 
@@ -81,7 +83,7 @@ func NewCmdBuildWatch(f *factory.Factory) *cobra.Command {
 						return err
 					}
 
-					summary := build.BuildSummary(b)
+					summary := buildSummaryWithJobs(b)
 					fmt.Fprintf(cmd.OutOrStdout(), "\033[2J\033[H%s\n", summary) // Clear screen and move cursor to top-left
 
 					if b.FinishedAt != nil {
@@ -99,4 +101,20 @@ func NewCmdBuildWatch(f *factory.Factory) *cobra.Command {
 	cmd.Flags().IntVar(&intervalSeconds, "interval", 1, "Polling interval in seconds")
 
 	return &cmd
+}
+
+func buildSummaryWithJobs(b *buildkite.Build) string {
+	summary := build.BuildSummary(b)
+
+	if len(b.Jobs) > 0 {
+		summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("\nJobs")
+		for _, j := range b.Jobs {
+			bkJob := *j
+			if *bkJob.Type == "script" {
+				summary += job.JobSummary(job.Job(bkJob))
+			}
+		}
+	}
+
+	return summary
 }
