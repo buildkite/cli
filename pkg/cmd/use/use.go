@@ -34,7 +34,7 @@ func useRun(org *string, conf *config.Config) error {
 	// prompt to choose from configured orgs if one is not already selected
 	if org == nil {
 		var err error
-		selected, err = io.PromptForOne(conf.ConfiguredOrganizations())
+		selected, err = io.PromptForOne("organization", conf.ConfiguredOrganizations())
 		if err != nil {
 			return err
 		}
