@@ -1,4 +1,4 @@
 # This uses the upstream image without any changes intentionally.
 # This allows dependabot to keep this version up-to-date for us automatically, since it does not work with
 # docker-compose directly
-FROM goreleaser/goreleaser-pro:v2.2.0-pro@sha256:a9851999af1350e13f3b4c3bac94f15c8e56f69d540c2cc07edab8c7a1824523
+FROM goreleaser/goreleaser-pro:v2.3.1-pro@sha256:9706f408afc05e18528c3840c6e58cb2359346ca860d51030d1c6638058a2358
