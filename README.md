@@ -6,9 +6,6 @@ A command line interface for [Buildkite](https://buildkite.com/).
 
 Use `bk` to interact with your Buildkite organization without leaving the terminal 🙌.
 
-> [!NOTE]  
-> The `3.x` (default) branch is under current active development. If you'd like to use the most recent released version of the Buildkite CLI, please refer to the `main` [branch](https://github.com/buildkite/cli/tree/main) and [releases](https://github.com/buildkite/cli/releases) page for details and installation instructions.
-
 ## Installing
 
 `bk` is available as a downloadable binary from the [releases page](https://github.com/buildkite/cli/releases).
