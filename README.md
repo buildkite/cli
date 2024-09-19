@@ -6,6 +6,8 @@ A command line interface for [Buildkite](https://buildkite.com/).
 
 Use `bk` to interact with your Buildkite organization without leaving the terminal 🙌.
 
+![bk cli](./images/demo.gif)
+
 ## Installing
 
 ### Using the binary
