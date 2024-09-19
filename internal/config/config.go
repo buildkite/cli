@@ -97,17 +97,6 @@ func (conf *Config) SelectOrganization(org string) error {
 	return conf.localConfig.WriteConfig()
 }
 
-// SetOpenAIToken sets the user's OpenAI token in the user config file
-func (conf *Config) SetOpenAIToken(token string) error {
-	conf.userConfig.Set("openai_token", token)
-	return conf.userConfig.WriteConfig()
-}
-
-// GetOpenAIToken reads the user's OpenAI token from the user config file
-func (conf *Config) GetOpenAIToken() string {
-	return conf.userConfig.GetString("openai_token")
-}
-
 // APIToken gets the API token configured for the currently selected organization
 func (conf *Config) APIToken() string {
 	slug := conf.OrganizationSlug()
