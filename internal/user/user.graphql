@@ -1,0 +1,7 @@
+mutation InviteUser($organization: ID!, $emails: [String!]!) {
+  organizationInvitationCreate(
+    input: { organizationID: $organization, emails: $emails }
+  ) {
+    clientMutationId
+  }
+}
