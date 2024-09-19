@@ -6,9 +6,19 @@ A command line interface for [Buildkite](https://buildkite.com/).
 
 Use `bk` to interact with your Buildkite organization without leaving the terminal 🙌.
 
+![bk cli](./images/demo.gif)
+
 ## Installing
 
+### Using the binary
+
 `bk` is available as a downloadable binary from the [releases page](https://github.com/buildkite/cli/releases).
+
+### Using Brew
+
+```sh
+brew tap buildkite/buildkite && brew install buildkite/buildkite/bk
+```
 
 ## Usage
 
