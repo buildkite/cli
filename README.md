@@ -8,7 +8,15 @@ Use `bk` to interact with your Buildkite organization without leaving the termin
 
 ## Installing
 
+### Using the binary
+
 `bk` is available as a downloadable binary from the [releases page](https://github.com/buildkite/cli/releases).
+
+### Using Brew
+
+```sh
+brew tap buildkite/buildkite && brew install buildkite/buildkite/bk
+```
 
 ## Usage
 
