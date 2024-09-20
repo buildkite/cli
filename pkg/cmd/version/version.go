@@ -11,10 +11,10 @@ import (
 
 func NewCmdVersion(f *factory.Factory) *cobra.Command {
 	return &cobra.Command{
-		Use:    "version",
-		Hidden: true,
+		Use:   "version",
+		Short: "Print the version of the CLI being used",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Fprintf(os.Stdout, "%s\n", f.Version)
+			fmt.Fprintf(os.Stdout, Format(f.Version))
 		},
 	}
 }
