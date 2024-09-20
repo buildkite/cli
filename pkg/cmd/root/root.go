@@ -1,6 +1,8 @@
 package root
 
 import (
+	"fmt"
+
 	"github.com/MakeNowJust/heredoc"
 	agentCmd "github.com/buildkite/cli/v3/pkg/cmd/agent"
 	apiCmd "github.com/buildkite/cli/v3/pkg/cmd/api"
@@ -28,7 +30,15 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 		Annotations: map[string]string{
 			"versionInfo": versionCmd.Format(f.Version),
 		},
-		SilenceUsage: true,
+		Run: func(cmd *cobra.Command, args []string) {
+			versionFlag, _ := cmd.Flags().GetBool("version")
+			if versionFlag {
+				fmt.Println(versionCmd.Format(f.Version))
+				return
+			}
+			// If --version flag is not used, show help
+			_ = cmd.Help()
+		},
 	}
 
 	cmd.AddCommand(agentCmd.NewCmdAgent(f))
@@ -42,6 +52,8 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 	cmd.AddCommand(packageCmd.NewCmdPackage(f))
 	cmd.AddCommand(useCmd.NewCmdUse(f))
 	cmd.AddCommand(versionCmd.NewCmdVersion(f))
+
+	cmd.Flags().BoolP("version", "v", false, "Print the version number")
 
 	return cmd, nil
 }
