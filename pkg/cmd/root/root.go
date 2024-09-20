@@ -37,7 +37,7 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 				return
 			}
 			// If --version flag is not used, show help
-			cmd.Help()
+			_ = cmd.Help()
 		},
 	}
 

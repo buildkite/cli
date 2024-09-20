@@ -14,7 +14,7 @@ func NewCmdVersion(f *factory.Factory) *cobra.Command {
 		Use:   "version",
 		Short: "Print the version of the CLI being used",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Fprintf(os.Stdout, Format(f.Version))
+			fmt.Fprintf(os.Stdout, "%s\n", Format(f.Version))
 		},
 	}
 }
