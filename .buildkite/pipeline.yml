@@ -53,7 +53,7 @@ steps:
   - block: ":package: Create a release?"
     prompt: "Fill out the tag to create for this release"
     branches:
-      - 3.x
+      - main
     blocked_state: passed
     fields:
       - key: release-tag
