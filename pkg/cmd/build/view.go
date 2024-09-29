@@ -2,6 +2,7 @@ package build
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/annotation"
@@ -17,7 +18,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
-	"golang.org/x/sync/errgroup"
 )
 
 func NewCmdBuildView(f *factory.Factory) *cobra.Command {
@@ -54,6 +54,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			$ bk build view -p deploy-pipeline -u "greg"
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			var err error
 			// we find the pipeline based on the following rules:
 			// 1. an explicit flag is passed
 			// 2. a configured pipeline for this directory
@@ -103,29 +104,47 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			var buildArtifacts []buildkite.Artifact
 			var buildAnnotations []buildkite.Annotation
 
-			group, _ := errgroup.WithContext(cmd.Context())
+			var wg sync.WaitGroup
+			var mu sync.Mutex
+
 			spinErr := spinner.New().
 				Title("Loading build information").
 				Action(func() {
-					group.Go(func() error {
-						var err error
-						b, _, err = f.RestAPIClient.Builds.Get(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.BuildsListOptions{})
-						return err
-					})
+					wg.Add(3)
+					go func() {
+						defer wg.Done()
+						var apiErr error
+						b, _, apiErr = f.RestAPIClient.Builds.Get(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.BuildsListOptions{})
+						if apiErr != nil {
+							mu.Lock()
+							err = apiErr
+							mu.Unlock()
+						}
+					}()
 
-					group.Go(func() error {
-						var err error
-						buildArtifacts, _, err = f.RestAPIClient.Artifacts.ListByBuild(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.ArtifactListOptions{})
-						return err
-					})
+					go func() {
+						defer wg.Done()
+						var apiErr error
+						buildArtifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByBuild(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.ArtifactListOptions{})
+						if apiErr != nil {
+							mu.Lock()
+							err = apiErr
+							mu.Unlock()
+						}
+					}()
 
-					group.Go(func() error {
-						var err error
-						buildAnnotations, _, err = f.RestAPIClient.Annotations.ListByBuild(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.AnnotationListOptions{})
-						return err
-					})
+					go func() {
+						defer wg.Done()
+						var apiErr error
+						buildAnnotations, _, apiErr = f.RestAPIClient.Annotations.ListByBuild(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.AnnotationListOptions{})
+						if apiErr != nil {
+							mu.Lock()
+							err = apiErr
+							mu.Unlock()
+						}
+					}()
 
-					err = group.Wait()
+					wg.Wait()
 				}).
 				Run()
 			if spinErr != nil {
