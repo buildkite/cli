@@ -31,6 +31,13 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 		Long: heredoc.Doc(`
 			Create a new build on a pipeline.
 			The web URL to the build will be printed to stdout.
+
+			## To create a new build
+			$ bk build new
+
+			## To create a new build with environment variables set
+			$ bk build new -e "FOO=BAR" -e "BAR=BAZ"
+			
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			resolvers := resolver.NewAggregateResolver(
