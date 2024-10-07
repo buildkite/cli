@@ -20,6 +20,8 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	var pipeline string
 	var confirmed bool
 	var web bool
+	var env []string
+	var envMap = make(map[string]string)
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
@@ -29,6 +31,13 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 		Long: heredoc.Doc(`
 			Create a new build on a pipeline.
 			The web URL to the build will be printed to stdout.
+
+			## To create a new build
+			$ bk build new
+
+			## To create a new build with environment variables set
+			$ bk build new -e "FOO=BAR" -e "BAR=BAZ"
+			
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			resolvers := resolver.NewAggregateResolver(
@@ -51,7 +60,13 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 			}
 
 			if confirmed {
-				return newBuild(pipeline.Org, pipeline.Name, f, message, commit, branch, web)
+				for _, e := range env {
+					parts := strings.Split(e, "=")
+					if len(parts) == 2 {
+						envMap[parts[0]] = parts[1]
+					}
+				}
+				return newBuild(pipeline.Org, pipeline.Name, f, message, commit, branch, web, envMap)
 			} else {
 				return nil
 			}
@@ -65,12 +80,13 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVarP(&pipeline, "pipeline", "p", "", "The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
 		"If omitted, it will be resolved using the current directory.",
 	)
+	cmd.Flags().StringArrayVarP(&env, "env", "e", []string{}, "Set environment variables for the build")
 	cmd.Flags().BoolVarP(&confirmed, "yes", "y", false, "Skip the confirmation prompt. Useful if being used in automation/CI.")
 	cmd.Flags().SortFlags = false
 	return &cmd
 }
 
-func newBuild(org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool) error {
+func newBuild(org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool, env map[string]string) error {
 	var err error
 	var build *buildkite.Build
 	spinErr := spinner.New().
@@ -89,6 +105,7 @@ func newBuild(org string, pipeline string, f *factory.Factory, message string, c
 				Message: message,
 				Commit:  commit,
 				Branch:  branch,
+				Env:     env,
 			}
 
 			build, _, err = f.RestAPIClient.Builds.Create(org, pipeline, &newBuild)
