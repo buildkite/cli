@@ -9,7 +9,6 @@ import (
 	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/go-buildkite/v3/buildkite"
 	"github.com/go-git/go-git/v5"
-	"github.com/sashabaranov/go-openai"
 )
 
 var userAgent string
@@ -18,7 +17,6 @@ type Factory struct {
 	Config        *config.Config
 	GitRepository *git.Repository
 	GraphQLClient graphql.Client
-	OpenAIClient  *openai.Client
 	RestAPIClient *buildkite.Client
 	Version       string
 }
@@ -56,7 +54,6 @@ func New(version string) (*Factory, error) {
 		Config:        conf,
 		GitRepository: repo,
 		GraphQLClient: graphql.NewClient(config.DefaultGraphQLEndpoint, graphqlHTTPClient),
-		OpenAIClient:  openai.NewClient(conf.GetOpenAIToken()),
 		RestAPIClient: buildkiteClient,
 		Version:       version,
 	}, nil
