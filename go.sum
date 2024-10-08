@@ -241,8 +241,8 @@ github.com/suessflorian/gqlfetch v0.6.0 h1:6e+Oe9mWbbjSmJez+6I4tyskQMy6lQlFFQYj6
 github.com/suessflorian/gqlfetch v0.6.0/go.mod h1:Xlz+o2ate8M/Hr237HJpFyJD0l05uh3NAX3zmXVmjxU=
 github.com/vektah/gqlparser v1.3.1 h1:8b0IcD3qZKWJQHSzynbDlrtP3IxVydZ2DZepCGofqfU=
 github.com/vektah/gqlparser v1.3.1/go.mod h1:bkVf0FX+Stjg/MHnm8mEyubuaArhNEqfQhF+OTiAL74=
-github.com/vektah/gqlparser/v2 v2.5.16 h1:1gcmLTvs3JLKXckwCwlUagVn/IlV2bwqle0vJ0vy5p8=
-github.com/vektah/gqlparser/v2 v2.5.16/go.mod h1:1lz1OeCqgQbQepsGxPVywrjdBHW2T08PUS3pJqepRww=
+github.com/vektah/gqlparser/v2 v2.5.17 h1:9At7WblLV7/36nulgekUgIaqHZWn5hxqluxrxGUhOmI=
+github.com/vektah/gqlparser/v2 v2.5.17/go.mod h1:1lz1OeCqgQbQepsGxPVywrjdBHW2T08PUS3pJqepRww=
 github.com/xanzy/ssh-agent v0.3.3 h1:+/15pJfg/RsTxqYcX6fHqOXZwwMP+2VyYWJeWM2qQFM=
 github.com/xanzy/ssh-agent v0.3.3/go.mod h1:6dzNDKs0J9rVPHPhaGCukekBHKqfl+L3KghI1Bc68Uw=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
