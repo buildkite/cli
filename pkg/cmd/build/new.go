@@ -1,7 +1,9 @@
 package build
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
@@ -21,7 +23,8 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	var confirmed bool
 	var web bool
 	var env []string
-	var envMap = make(map[string]string)
+	envMap := make(map[string]string)
+	var envFile string
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
@@ -66,6 +69,20 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 						envMap[parts[0]] = parts[1]
 					}
 				}
+				if envFile != "" {
+					file, err := os.Open(envFile)
+					if err != nil {
+						return err
+					}
+					defer file.Close()
+					content := bufio.NewScanner(file)
+					for content.Scan() {
+						parts := strings.Split(content.Text(), "=")
+						if len(parts) == 2 {
+							envMap[parts[0]] = parts[1]
+						}
+					}
+				}
 				return newBuild(pipeline.Org, pipeline.Name, f, message, commit, branch, web, envMap)
 			} else {
 				return nil
@@ -81,6 +98,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 		"If omitted, it will be resolved using the current directory.",
 	)
 	cmd.Flags().StringArrayVarP(&env, "env", "e", []string{}, "Set environment variables for the build")
+	cmd.Flags().StringVarP(&envFile, "envFile", "f", "", "Set the environment variables for the build via an environment file")
 	cmd.Flags().BoolVarP(&confirmed, "yes", "y", false, "Skip the confirmation prompt. Useful if being used in automation/CI.")
 	cmd.Flags().SortFlags = false
 	return &cmd
