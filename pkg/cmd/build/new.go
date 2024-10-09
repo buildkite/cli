@@ -23,7 +23,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	var confirmed bool
 	var web bool
 	var env []string
-	var envMap = make(map[string]string)
+	envMap := make(map[string]string)
 	var envFile string
 
 	cmd := cobra.Command{
