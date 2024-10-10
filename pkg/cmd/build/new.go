@@ -1,7 +1,9 @@
 package build
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
@@ -23,6 +25,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	var ignoreBranchFilters bool
 	var env []string
 	envMap := make(map[string]string)
+	var envFile string
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
@@ -67,6 +70,20 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 						envMap[parts[0]] = parts[1]
 					}
 				}
+				if envFile != "" {
+					file, err := os.Open(envFile)
+					if err != nil {
+						return err
+					}
+					defer file.Close()
+					content := bufio.NewScanner(file)
+					for content.Scan() {
+						parts := strings.Split(content.Text(), "=")
+						if len(parts) == 2 {
+							envMap[parts[0]] = parts[1]
+						}
+					}
+				}
 				return newBuild(pipeline.Org, pipeline.Name, f, message, commit, branch, web, envMap, ignoreBranchFilters)
 			} else {
 				return nil
@@ -84,6 +101,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringArrayVarP(&env, "env", "e", []string{}, "Set environment variables for the build")
 	cmd.Flags().BoolVarP(&ignoreBranchFilters, "ignore-branch-filters", "i", false, "Ignore branch filters for the pipeline")
 	cmd.Flags().BoolVarP(&confirmed, "yes", "y", false, "Skip the confirmation prompt. Useful if being used in automation/CI")
+	cmd.Flags().StringVarP(&envFile, "envFile", "f", "", "Set the environment variables for the build via an environment file")
 	cmd.Flags().SortFlags = false
 	return &cmd
 }
