@@ -20,6 +20,7 @@ func NewCmdCluster(f *factory.Factory) *cobra.Command {
 		PersistentPreRunE: validation.CheckValidConfiguration(f.Config),
 	}
 	cmd.AddCommand(NewCmdClusterView(f))
+	cmd.AddCommand(NewCmdClusterList(f))
 
 	return &cmd
 }
