@@ -2,53 +2,65 @@ package cluster
 
 import (
 	"context"
-	"fmt"
+	"sync"
 
 	"github.com/buildkite/cli/v3/internal/graphql"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"golang.org/x/sync/errgroup"
+	"github.com/buildkite/go-buildkite/v3/buildkite"
 )
 
-func QueryCluster(ctx context.Context, OrganizationSlug string, ClusterID string, f *factory.Factory) (*Cluster, error) {
-	q, err := graphql.GetClusterQueues(ctx, f.GraphQLClient, OrganizationSlug, ClusterID)
+func GetQueues(ctx context.Context, f *factory.Factory, orgSlug string, clusterID string, lo *buildkite.ClusterQueuesListOptions) ([]buildkite.ClusterQueue, error) {
+	queues, _, err := f.RestAPIClient.ClusterQueues.List(orgSlug, clusterID, lo)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read Cluster Queues: %s", err.Error())
-	}
-
-	ClusterDescription := q.Organization.Cluster.Description
-	cluster := Cluster{
-		OrganizationSlug: OrganizationSlug,
-		ClusterID:        ClusterID,
-		Name:             q.Organization.Cluster.Name,
-		Description:      string(*ClusterDescription),
-		Queues:           make([]Queue, len(q.Organization.Cluster.Queues.Edges)),
-	}
-
-	eg, ctx := errgroup.WithContext(ctx)
-
-	for i, edge := range q.Organization.Cluster.Queues.Edges {
-
-		i, edge := i, edge
-		eg.Go(func() error {
-			agent, err := graphql.GetClusterQueueAgent(ctx, f.GraphQLClient, OrganizationSlug, []string{edge.Node.Id})
-			if err != nil {
-				return fmt.Errorf("unable to read Cluster Queue Agents %s: %s", edge.Node.Id, err.Error())
-			}
-
-			cluster.Queues[i] = Queue{
-				Id:           edge.Node.Id,
-				Name:         edge.Node.Key,
-				ActiveAgents: len(agent.Organization.Agents.Edges),
-			}
-
-			return nil
-		})
-
-	}
-
-	if err := eg.Wait(); err != nil {
 		return nil, err
 	}
 
-	return &cluster, nil
+	queuesResponse := make([]buildkite.ClusterQueue, len(queues))
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(queues))
+	for i, q := range queues {
+		wg.Add(1)
+		go func(i int, q buildkite.ClusterQueue) {
+			defer wg.Done()
+			queuesResponse[i] = buildkite.ClusterQueue{
+				CreatedAt:          q.CreatedAt,
+				CreatedBy:          q.CreatedBy,
+				Description:        q.Description,
+				DispatchPaused:     q.DispatchPaused,
+				DispatchPausedAt:   q.DispatchPausedAt,
+				DispatchPausedBy:   q.DispatchPausedBy,
+				DispatchPausedNote: q.DispatchPausedNote,
+				ID:                 q.ID,
+				Key:                q.Key,
+				URL:                q.URL,
+				WebURL:             q.WebURL,
+			}
+		}(i, q)
+	}
+
+	go func() {
+		wg.Wait()
+		close(errChan)
+	}()
+
+	for err := range errChan {
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return queuesResponse, nil
+}
+
+func GetQueueAgentCount(ctx context.Context, f *factory.Factory, orgSlug string, queues ...buildkite.ClusterQueue) (int, error) {
+	queueIDs := []string{}
+	for _, q := range queues {
+		queueIDs = append(queueIDs, *q.ID)
+	}
+	agent, err := graphql.GetClusterQueueAgent(ctx, f.GraphQLClient, orgSlug, queueIDs)
+	if err != nil {
+		return 0, err
+	}
+
+	return len(agent.Organization.Agents.Edges), nil
 }
