@@ -20,8 +20,9 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	var pipeline string
 	var confirmed bool
 	var web bool
+	var ignoreBranchFilters bool
 	var env []string
-	var envMap = make(map[string]string)
+	envMap := make(map[string]string)
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
@@ -66,7 +67,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 						envMap[parts[0]] = parts[1]
 					}
 				}
-				return newBuild(pipeline.Org, pipeline.Name, f, message, commit, branch, web, envMap)
+				return newBuild(pipeline.Org, pipeline.Name, f, message, commit, branch, web, envMap, ignoreBranchFilters)
 			} else {
 				return nil
 			}
@@ -81,12 +82,13 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 		"If omitted, it will be resolved using the current directory.",
 	)
 	cmd.Flags().StringArrayVarP(&env, "env", "e", []string{}, "Set environment variables for the build")
-	cmd.Flags().BoolVarP(&confirmed, "yes", "y", false, "Skip the confirmation prompt. Useful if being used in automation/CI.")
+	cmd.Flags().BoolVarP(&ignoreBranchFilters, "ignore-branch-filters", "i", false, "Ignore branch filters for the pipeline")
+	cmd.Flags().BoolVarP(&confirmed, "yes", "y", false, "Skip the confirmation prompt. Useful if being used in automation/CI")
 	cmd.Flags().SortFlags = false
 	return &cmd
 }
 
-func newBuild(org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool, env map[string]string) error {
+func newBuild(org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool, env map[string]string, ignoreBranchFilters bool) error {
 	var err error
 	var build *buildkite.Build
 	spinErr := spinner.New().
@@ -102,10 +104,11 @@ func newBuild(org string, pipeline string, f *factory.Factory, message string, c
 			}
 
 			newBuild := buildkite.CreateBuild{
-				Message: message,
-				Commit:  commit,
-				Branch:  branch,
-				Env:     env,
+				Message:                     message,
+				Commit:                      commit,
+				Branch:                      branch,
+				Env:                         env,
+				IgnorePipelineBranchFilters: ignoreBranchFilters,
 			}
 
 			build, _, err = f.RestAPIClient.Builds.Create(org, pipeline, &newBuild)
