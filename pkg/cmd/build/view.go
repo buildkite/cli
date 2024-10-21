@@ -13,7 +13,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/job"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pkg/browser"
@@ -100,7 +100,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 				return browser.OpenURL(buildUrl)
 			}
 
-			var b *buildkite.Build
+			var b buildkite.Build
 			var buildArtifacts []buildkite.Artifact
 			var buildAnnotations []buildkite.Annotation
 
@@ -114,7 +114,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 					go func() {
 						defer wg.Done()
 						var apiErr error
-						b, _, apiErr = f.RestAPIClient.Builds.Get(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.BuildsListOptions{})
+						b, _, apiErr = f.RestAPIClient.Builds.Get(cmd.Context(), bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), nil)
 						if apiErr != nil {
 							mu.Lock()
 							err = apiErr
@@ -125,7 +125,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 					go func() {
 						defer wg.Done()
 						var apiErr error
-						buildArtifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByBuild(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.ArtifactListOptions{})
+						buildArtifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByBuild(cmd.Context(), bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), nil)
 						if apiErr != nil {
 							mu.Lock()
 							err = apiErr
@@ -136,7 +136,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 					go func() {
 						defer wg.Done()
 						var apiErr error
-						buildAnnotations, _, apiErr = f.RestAPIClient.Annotations.ListByBuild(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.AnnotationListOptions{})
+						buildAnnotations, _, apiErr = f.RestAPIClient.Annotations.ListByBuild(cmd.Context(), bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), nil)
 						if apiErr != nil {
 							mu.Lock()
 							err = apiErr
@@ -158,9 +158,8 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			if len(b.Jobs) > 0 {
 				summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("\nJobs")
 				for _, j := range b.Jobs {
-					bkJob := *j
-					if *bkJob.Type == "script" {
-						summary += job.JobSummary(job.Job(bkJob))
+					if j.Type == "script" {
+						summary += job.JobSummary(job.Job(j))
 					}
 				}
 			}

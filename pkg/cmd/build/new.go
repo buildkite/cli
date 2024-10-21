@@ -2,6 +2,7 @@ package build
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -10,7 +11,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
 )
@@ -41,7 +42,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 
 			## To create a new build with environment variables set
 			$ bk build new -e "FOO=BAR" -e "BAR=BAZ"
-			
+
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			resolvers := resolver.NewAggregateResolver(
@@ -84,7 +85,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 						}
 					}
 				}
-				return newBuild(pipeline.Org, pipeline.Name, f, message, commit, branch, web, envMap, ignoreBranchFilters)
+				return newBuild(cmd.Context(), pipeline.Org, pipeline.Name, f, message, commit, branch, web, envMap, ignoreBranchFilters)
 			} else {
 				return nil
 			}
@@ -106,19 +107,19 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-func newBuild(org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool, env map[string]string, ignoreBranchFilters bool) error {
+func newBuild(ctx context.Context, org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool, env map[string]string, ignoreBranchFilters bool) error {
 	var err error
-	var build *buildkite.Build
+	var build buildkite.Build
 	spinErr := spinner.New().
 		Title(fmt.Sprintf("Starting new build for %s", pipeline)).
 		Action(func() {
 			branch = strings.TrimSpace(branch)
 			if len(branch) == 0 {
-				p, _, err := f.RestAPIClient.Pipelines.Get(org, pipeline)
+				p, _, err := f.RestAPIClient.Pipelines.Get(ctx, org, pipeline)
 				if err != nil {
 					return
 				}
-				branch = *p.DefaultBranch
+				branch = p.DefaultBranch
 			}
 
 			newBuild := buildkite.CreateBuild{
@@ -129,7 +130,7 @@ func newBuild(org string, pipeline string, f *factory.Factory, message string, c
 				IgnorePipelineBranchFilters: ignoreBranchFilters,
 			}
 
-			build, _, err = f.RestAPIClient.Builds.Create(org, pipeline, &newBuild)
+			build, _, err = f.RestAPIClient.Builds.Create(ctx, org, pipeline, newBuild)
 		}).
 		Run()
 	if spinErr != nil {
@@ -139,7 +140,7 @@ func newBuild(org string, pipeline string, f *factory.Factory, message string, c
 		return err
 	}
 
-	fmt.Printf("%s\n", renderResult(fmt.Sprintf("Build created: %s", *build.WebURL)))
+	fmt.Printf("%s\n", renderResult(fmt.Sprintf("Build created: %s", build.WebURL)))
 
-	return openBuildInBrowser(web, *build.WebURL)
+	return openBuildInBrowser(web, build.WebURL)
 }

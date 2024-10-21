@@ -6,7 +6,7 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/agent"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
@@ -36,7 +36,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 						},
 					}
 
-					agents, resp, err := f.RestAPIClient.Agents.List(f.Config.OrganizationSlug(), &opts)
+					agents, resp, err := f.RestAPIClient.Agents.List(cmd.Context(), f.Config.OrganizationSlug(), &opts)
 					items := make([]agent.AgentListItem, len(agents))
 
 					if err != nil {
@@ -45,9 +45,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 
 					for i, a := range agents {
 						a := a
-						items[i] = agent.AgentListItem{
-							Agent: &a,
-						}
+						items[i] = agent.AgentListItem{Agent: a}
 					}
 
 					return agent.NewAgentItemsMsg(items, resp.LastPage)

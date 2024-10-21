@@ -6,11 +6,11 @@ import (
 
 	"github.com/buildkite/cli/v3/internal/graphql"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 )
 
 func GetQueues(ctx context.Context, f *factory.Factory, orgSlug string, clusterID string, lo *buildkite.ClusterQueuesListOptions) ([]buildkite.ClusterQueue, error) {
-	queues, _, err := f.RestAPIClient.ClusterQueues.List(orgSlug, clusterID, lo)
+	queues, _, err := f.RestAPIClient.ClusterQueues.List(ctx, orgSlug, clusterID, lo)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func GetQueues(ctx context.Context, f *factory.Factory, orgSlug string, clusterI
 func GetQueueAgentCount(ctx context.Context, f *factory.Factory, orgSlug string, queues ...buildkite.ClusterQueue) (int, error) {
 	queueIDs := []string{}
 	for _, q := range queues {
-		queueIDs = append(queueIDs, *q.ID)
+		queueIDs = append(queueIDs, q.ID)
 	}
 	agent, err := graphql.GetClusterQueueAgent(ctx, f.GraphQLClient, orgSlug, queueIDs)
 	if err != nil {

@@ -1,6 +1,7 @@
 package build
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc"
@@ -8,7 +9,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
 )
@@ -41,9 +42,6 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if bld == nil {
-				return fmt.Errorf("could not resolve a build")
-			}
 
 			err = io.Confirm(&confirmed, fmt.Sprintf("Cancel build #%d on %s", bld.BuildNumber, bld.Pipeline))
 			if err != nil {
@@ -51,7 +49,7 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 			}
 
 			if confirmed {
-				return cancelBuild(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), web, f)
+				return cancelBuild(cmd.Context(), bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), web, f)
 			} else {
 				return nil
 			}
@@ -68,13 +66,13 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-func cancelBuild(org string, pipeline string, buildId string, web bool, f *factory.Factory) error {
+func cancelBuild(ctx context.Context, org string, pipeline string, buildId string, web bool, f *factory.Factory) error {
 	var err error
-	var build *buildkite.Build
+	var build buildkite.Build
 	spinErr := spinner.New().
 		Title(fmt.Sprintf("Cancelling build #%s from pipeline %s", buildId, pipeline)).
 		Action(func() {
-			build, err = f.RestAPIClient.Builds.Cancel(org, pipeline, buildId)
+			build, err = f.RestAPIClient.Builds.Cancel(ctx, org, pipeline, buildId)
 		}).
 		Run()
 	if spinErr != nil {
@@ -84,7 +82,7 @@ func cancelBuild(org string, pipeline string, buildId string, web bool, f *facto
 		return err
 	}
 
-	fmt.Printf("%s\n", renderResult(fmt.Sprintf("Build canceled: %s", *build.WebURL)))
+	fmt.Printf("%s\n", renderResult(fmt.Sprintf("Build canceled: %s", build.WebURL)))
 
-	return openBuildInBrowser(web, *build.WebURL)
+	return openBuildInBrowser(web, build.WebURL)
 }

@@ -1,8 +1,10 @@
 package options
 
 import (
+	"context"
+
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 	"github.com/go-git/go-git/v5"
 )
 
@@ -62,14 +64,12 @@ func ResolveCurrentUser(f *factory.Factory) OptionsFn {
 		if options.Creator != "" {
 			return nil
 		}
-		user, _, err := f.RestAPIClient.User.Get()
+		user, _, err := f.RestAPIClient.User.CurrentUser(context.TODO())
 		if err != nil {
 			return err
 		}
 		// set the user filter if the given user exists and a filter is not already set
-		if user != nil {
-			options.Creator = *user.ID
-		}
+		options.Creator = user.ID
 		return nil
 	}
 }

@@ -70,7 +70,7 @@ func RunStop(cmd *cobra.Command, args []string, opts *AgentStopOptions) error {
 			id := scanner.Text()
 			if strings.TrimSpace(id) != "" {
 				wg.Add(1)
-				agents = append(agents, agent.NewStoppableAgent(id, stopper(id, opts.f, &opts.force, sem, &wg)))
+				agents = append(agents, agent.NewStoppableAgent(id, stopper(cmd.Context(), id, opts.f, opts.force, sem, &wg)))
 			}
 		}
 
@@ -81,7 +81,7 @@ func RunStop(cmd *cobra.Command, args []string, opts *AgentStopOptions) error {
 		for _, id := range args {
 			if strings.TrimSpace(id) != "" {
 				wg.Add(1)
-				agents = append(agents, agent.NewStoppableAgent(id, stopper(id, opts.f, &opts.force, sem, &wg)))
+				agents = append(agents, agent.NewStoppableAgent(id, stopper(cmd.Context(), id, opts.f, opts.force, sem, &wg)))
 			}
 		}
 	} else {
@@ -119,7 +119,7 @@ func RunStop(cmd *cobra.Command, args []string, opts *AgentStopOptions) error {
 // indicate success/failure
 // the sync.WaitGroup also needs to be marked as done so we can stop the entire application after all agents
 // are stopped
-func stopper(id string, f *factory.Factory, force *bool, sem *semaphore.Weighted, wg *sync.WaitGroup) agent.StopFn {
+func stopper(ctx context.Context, id string, f *factory.Factory, force bool, sem *semaphore.Weighted, wg *sync.WaitGroup) agent.StopFn {
 	org, agentID := parseAgentArg(id, f.Config)
 	return func() agent.StatusUpdate {
 		// before attempting to stop the agent, acquire a semaphore lock to limit parallelisation
@@ -133,7 +133,7 @@ func stopper(id string, f *factory.Factory, force *bool, sem *semaphore.Weighted
 				// defer the semaphore and waitgroup release until the whole operation is completed
 				defer sem.Release(1)
 				defer wg.Done()
-				_, err := f.RestAPIClient.Agents.Stop(org, agentID, *force)
+				_, err := f.RestAPIClient.Agents.Stop(ctx, org, agentID, force)
 				if err != nil {
 					return agent.StatusUpdate{
 						ID:  id,

@@ -6,7 +6,7 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/cluster"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
 )
@@ -26,7 +26,7 @@ func NewCmdClusterView(f *factory.Factory) *cobra.Command {
 			var err error
 			orgSlug := f.Config.OrganizationSlug()
 			clusterID := args[0]
-			clusterRes, _, err := f.RestAPIClient.Clusters.Get(orgSlug, clusterID)
+			clusterRes, _, err := f.RestAPIClient.Clusters.Get(cmd.Context(), orgSlug, clusterID)
 
 			if err != nil {
 				return err

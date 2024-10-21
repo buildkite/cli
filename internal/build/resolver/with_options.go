@@ -8,7 +8,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 )
 
 func ResolveBuildWithOpts(f *factory.Factory, pipelineResolver pipelineResolver.PipelineResolverFn, listOpts ...options.OptionsFn) BuildResolverFn {
@@ -33,7 +33,8 @@ func ResolveBuildWithOpts(f *factory.Factory, pipelineResolver pipelineResolver.
 			}
 		}
 
-		builds, _, err := f.RestAPIClient.Builds.ListByPipeline(f.Config.OrganizationSlug(), pipeline.Name, opts)
+		builds, _, err := f.RestAPIClient.Builds.ListByPipeline(context.TODO(), f.Config.OrganizationSlug(), pipeline.Name, opts)
+		fmt.Println(builds, err)
 		if err != nil {
 			return nil, err
 		}
@@ -44,7 +45,7 @@ func ResolveBuildWithOpts(f *factory.Factory, pipelineResolver pipelineResolver.
 		return &build.Build{
 			Organization: f.Config.OrganizationSlug(),
 			Pipeline:     pipeline.Name,
-			BuildNumber:  *builds[0].Number,
+			BuildNumber:  builds[0].Number,
 		}, nil
 	}
 }

@@ -8,7 +8,7 @@ import (
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -68,7 +68,7 @@ func NewCmdPackagePush(f *factory.Factory) *cobra.Command {
 			spinErr := spinner.New().
 				Title("Pushing package").
 				Action(func() {
-					pkg, _, err = f.RestAPIClient.PackagesService.Create(f.Config.OrganizationSlug(), cfg.RegistrySlug, buildkite.CreatePackageInput{
+					pkg, _, err = f.RestAPIClient.PackagesService.Create(cmd.Context(), f.Config.OrganizationSlug(), cfg.RegistrySlug, buildkite.CreatePackageInput{
 						Filename: packageName,
 						Package:  from,
 					})

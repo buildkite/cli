@@ -7,7 +7,7 @@ import (
 
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 	"github.com/go-git/go-git/v5"
 	"github.com/spf13/afero"
 )
