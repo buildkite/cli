@@ -2,7 +2,7 @@ version: '3.5'
 
 services:
   golangci-lint:
-    image: golangci/golangci-lint:v1.54.1
+    image: golangci/golangci-lint:v1.61.0
     working_dir: /app
     volumes:
       - ..:/app
