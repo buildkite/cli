@@ -6,7 +6,7 @@ import (
 
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/go-git/go-git/v5"
 )
@@ -63,15 +63,15 @@ func filterPipelines(repoURLs []string, org string, client *buildkite.Client) ([
 			},
 		}
 
-		pipelines, resp, err := client.Pipelines.List(org, &opts)
+		pipelines, resp, err := client.Pipelines.List(context.TODO(), org, &opts)
 		if err != nil {
 			return nil, err
 		}
 		for _, p := range pipelines {
 			for _, u := range repoURLs {
 				gitUrl := u[strings.LastIndex(u, "/")+1:]
-				if strings.Contains(*p.Repository, gitUrl) {
-					currentPipelines = append(currentPipelines, pipeline.Pipeline{Name: *p.Slug, Org: org})
+				if strings.Contains(p.Repository, gitUrl) {
+					currentPipelines = append(currentPipelines, pipeline.Pipeline{Name: p.Slug, Org: org})
 				}
 			}
 		}

@@ -1,7 +1,7 @@
 package build
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -70,7 +70,7 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 			spinErr := spinner.New().
 				Title("Downloading build resources").
 				Action(func() {
-					dir, err = download(*bld, f)
+					dir, err = download(cmd.Context(), bld, f)
 				}).
 				Run()
 			if spinErr != nil {
@@ -96,48 +96,38 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-func download(build build.Build, f *factory.Factory) (string, error) {
+func download(ctx context.Context, build *build.Build, f *factory.Factory) (string, error) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	b, _, err := f.RestAPIClient.Builds.Get(build.Organization, build.Pipeline, fmt.Sprint(build.BuildNumber), nil)
+	b, _, err := f.RestAPIClient.Builds.Get(ctx, build.Organization, build.Pipeline, fmt.Sprint(build.BuildNumber), nil)
 	if err != nil {
 		return "", err
 	}
-	if b == nil {
-		return "", fmt.Errorf("could not find build for %s #%d", build.Pipeline, build.BuildNumber)
-	}
 
-	directory := fmt.Sprintf("build-%s", *b.ID)
+	directory := fmt.Sprintf("build-%s", b.ID)
 	err = os.MkdirAll(directory, os.ModePerm)
 	if err != nil {
 		return "", err
 	}
 
 	for _, job := range b.Jobs {
-		job := job
 		// only script (command) jobs will have logs
-		if job == nil || *job.Type != "script" {
+		if job.Type != "script" {
 			continue
 		}
 
 		go func() {
 			defer wg.Done()
 			wg.Add(1)
-			log, _, apiErr := f.RestAPIClient.Jobs.GetJobLog(build.Organization, build.Pipeline, *b.ID, *job.ID)
+			log, _, apiErr := f.RestAPIClient.Jobs.GetJobLog(ctx, build.Organization, build.Pipeline, b.ID, job.ID)
 			if err != nil {
 				mu.Lock()
 				err = apiErr
 				mu.Unlock()
 				return
 			}
-			if log == nil || log.Content == nil {
-				mu.Lock()
-				err = errors.New("empty log found")
-				mu.Unlock()
-				return
-			}
 
-			fileErr := os.WriteFile(filepath.Join(directory, *job.ID), []byte(*log.Content), 0o644)
+			fileErr := os.WriteFile(filepath.Join(directory, job.ID), []byte(log.Content), 0o644)
 			if fileErr != nil {
 				mu.Lock()
 				err = fileErr
@@ -146,21 +136,20 @@ func download(build build.Build, f *factory.Factory) (string, error) {
 		}()
 	}
 
-	artifacts, _, err := f.RestAPIClient.Artifacts.ListByBuild(build.Organization, build.Pipeline, fmt.Sprint(build.BuildNumber), nil)
+	artifacts, _, err := f.RestAPIClient.Artifacts.ListByBuild(ctx, build.Organization, build.Pipeline, fmt.Sprint(build.BuildNumber), nil)
 	if err != nil {
 		return "", err
 	}
 
 	for _, artifact := range artifacts {
-		artifact := artifact
 		go func() {
 			defer wg.Done()
 			wg.Add(1)
-			out, fileErr := os.Create(filepath.Join(directory, fmt.Sprintf("artifact-%s-%s", *artifact.ID, *artifact.Filename)))
+			out, fileErr := os.Create(filepath.Join(directory, fmt.Sprintf("artifact-%s-%s", artifact.ID, artifact.Filename)))
 			if err != nil {
 				err = fileErr
 			}
-			_, apiErr := f.RestAPIClient.Artifacts.DownloadArtifactByURL(*artifact.DownloadURL, out)
+			_, apiErr := f.RestAPIClient.Artifacts.DownloadArtifactByURL(ctx, artifact.DownloadURL, out)
 			if err != nil {
 				err = apiErr
 			}

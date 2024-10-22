@@ -3,16 +3,16 @@ package agent
 import (
 	"strings"
 
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 )
 
 // AgentListItem implements list.Item for displaying in a list
 type AgentListItem struct {
-	*buildkite.Agent
+	buildkite.Agent
 }
 
 func (ali AgentListItem) FilterValue() string {
-	return strings.Join([]string{*ali.Name, ali.QueueName(), *ali.ConnectedState, *ali.Version}, " ")
+	return strings.Join([]string{ali.Name, ali.QueueName(), ali.ConnectedState, ali.Version}, " ")
 }
 
 func (ali AgentListItem) QueueName() string {

@@ -11,7 +11,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/job"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
@@ -78,7 +78,7 @@ func NewCmdBuildWatch(f *factory.Factory) *cobra.Command {
 			for {
 				select {
 				case <-ticker.C:
-					b, _, err := f.RestAPIClient.Builds.Get(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), &buildkite.BuildsListOptions{})
+					b, _, err := f.RestAPIClient.Builds.Get(cmd.Context(), bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), nil)
 					if err != nil {
 						return err
 					}
@@ -103,15 +103,14 @@ func NewCmdBuildWatch(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-func buildSummaryWithJobs(b *buildkite.Build) string {
+func buildSummaryWithJobs(b buildkite.Build) string {
 	summary := build.BuildSummary(b)
 
 	if len(b.Jobs) > 0 {
 		summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("\nJobs")
 		for _, j := range b.Jobs {
-			bkJob := *j
-			if *bkJob.Type == "script" {
-				summary += job.JobSummary(job.Job(bkJob))
+			if j.Type == "script" {
+				summary += job.JobSummary(job.Job(j))
 			}
 		}
 	}

@@ -7,7 +7,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/internal/version"
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 	"github.com/go-git/go-git/v5"
 )
 
@@ -31,7 +31,6 @@ func init() {
 }
 
 func (a *gqlHTTPClient) Do(req *http.Request) (*http.Response, error) {
-
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", a.token))
 	req.Header.Set("User-Agent", userAgent)
 	return a.client.Do(req)

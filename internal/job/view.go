@@ -3,7 +3,7 @@ package job
 import (
 	"time"
 
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -19,7 +19,7 @@ func (j Job) Summarise() string {
 	var jobName string
 	var jobDuration time.Duration
 
-	jobState = renderJobState(*j.State)
+	jobState = renderJobState(j.State)
 
 	if j.getJobType() != "script" {
 		jobName = j.getJobType()
@@ -42,19 +42,19 @@ func (j Job) Summarise() string {
 }
 
 func (j Job) getJobType() string {
-	return *j.Type
+	return j.Type
 }
 
 func (j Job) getJobName() string {
 	var jobName string
 
 	switch {
-	case j.Name != nil:
-		jobName = *j.Name
-	case j.Label != nil:
-		jobName = *j.Label
+	case j.Name != "":
+		jobName = j.Name
+	case j.Label != "":
+		jobName = j.Label
 	default:
-		jobName = *j.Command
+		jobName = j.Command
 	}
 
 	return jobName

@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -9,7 +10,7 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/cluster"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 	"github.com/spf13/cobra"
 )
 
@@ -22,9 +23,7 @@ func NewCmdClusterList(f *factory.Factory) *cobra.Command {
       List the clusters for an organization.
     `),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var listOptions buildkite.ClustersListOptions
-
-			clusters, err := listClusters(&listOptions, f)
+			clusters, err := listClusters(cmd.Context(), f)
 			if err != nil {
 				return err
 			}
@@ -39,8 +38,8 @@ func NewCmdClusterList(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-func listClusters(lo *buildkite.ClustersListOptions, f *factory.Factory) ([]buildkite.Cluster, error) {
-	clusters, _, err := f.RestAPIClient.Clusters.List(f.Config.OrganizationSlug(), lo)
+func listClusters(ctx context.Context, f *factory.Factory) ([]buildkite.Cluster, error) {
+	clusters, _, err := f.RestAPIClient.Clusters.List(ctx, f.Config.OrganizationSlug(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching cluster list: %v", err)
 	}

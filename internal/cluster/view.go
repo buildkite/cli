@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
 )
@@ -17,10 +17,10 @@ func ClusterViewTable(c ...buildkite.Cluster) string {
 	})
 
 	if len(c) == 1 {
-		t.Row(*c[0].Name, *c[0].ID, *c[0].DefaultQueueID)
+		t.Row(c[0].Name, c[0].ID, c[0].DefaultQueueID)
 	} else {
 		for _, cl := range c {
-			t.Row(*cl.Name, *cl.ID, *cl.DefaultQueueID)
+			t.Row(cl.Name, cl.ID, cl.DefaultQueueID)
 		}
 	}
 

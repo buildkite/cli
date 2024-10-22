@@ -130,7 +130,7 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "w":
 			if agent, ok := m.agentList.SelectedItem().(AgentListItem); ok {
-				if err := browser.OpenURL(*agent.WebURL); err != nil {
+				if err := browser.OpenURL(agent.WebURL); err != nil {
 					return m, m.agentList.NewStatusMessage(fmt.Sprintf("Failed opening agent web url: %s", err.Error()))
 				}
 			}

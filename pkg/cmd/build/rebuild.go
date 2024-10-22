@@ -1,6 +1,7 @@
 package build
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc"
@@ -8,7 +9,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
 )
@@ -66,7 +67,7 @@ func NewCmdBuildRebuild(f *factory.Factory) *cobra.Command {
 				return nil
 			}
 
-			return rebuild(bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), web, f)
+			return rebuild(cmd.Context(), bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), web, f)
 		},
 	}
 
@@ -83,13 +84,13 @@ func NewCmdBuildRebuild(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-func rebuild(org string, pipeline string, buildId string, web bool, f *factory.Factory) error {
+func rebuild(ctx context.Context, org string, pipeline string, buildId string, web bool, f *factory.Factory) error {
 	var err error
-	var build *buildkite.Build
+	var build buildkite.Build
 	spinErr := spinner.New().
 		Title(fmt.Sprintf("Rerunning build #%s for pipeline %s", buildId, pipeline)).
 		Action(func() {
-			build, err = f.RestAPIClient.Builds.Rebuild(org, pipeline, buildId)
+			build, err = f.RestAPIClient.Builds.Rebuild(ctx, org, pipeline, buildId)
 		}).
 		Run()
 	if spinErr != nil {
@@ -99,7 +100,7 @@ func rebuild(org string, pipeline string, buildId string, web bool, f *factory.F
 		return err
 	}
 
-	fmt.Printf("%s\n", renderResult(fmt.Sprintf("Build created: %s", *build.WebURL)))
+	fmt.Printf("%s\n", renderResult(fmt.Sprintf("Build created: %s", build.WebURL)))
 
-	return openBuildInBrowser(web, *build.WebURL)
+	return openBuildInBrowser(web, build.WebURL)
 }

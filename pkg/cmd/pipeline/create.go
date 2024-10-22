@@ -1,12 +1,13 @@
 package pipeline
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
@@ -59,7 +60,7 @@ func NewCmdPipelineCreate(f *factory.Factory) *cobra.Command {
 				}
 			}
 
-			return createPipeline(f.RestAPIClient, f.Config.OrganizationSlug(), answers.Pipeline, answers.Description, repoURL)
+			return createPipeline(cmd.Context(), f.RestAPIClient, f.Config.OrganizationSlug(), answers.Pipeline, answers.Description, repoURL)
 		},
 	}
 
@@ -82,7 +83,7 @@ func getRepoURLS(f *factory.Factory) []string {
 	return c.Remotes["origin"].URLs
 }
 
-func createPipeline(client *buildkite.Client, org, pipelineName, description, repoURL string) error {
+func createPipeline(ctx context.Context, client *buildkite.Client, org, pipelineName, description, repoURL string) error {
 	var err error
 	var output string
 
@@ -90,16 +91,16 @@ func createPipeline(client *buildkite.Client, org, pipelineName, description, re
 		Title(fmt.Sprintf("Creating new pipeline %s for %s", pipelineName, org)).
 		Action(func() {
 			createPipeline := buildkite.CreatePipeline{
-				Name:          *buildkite.String(pipelineName),
-				Repository:    *buildkite.String(repoURL),
-				Description:   *buildkite.String(description),
-				Configuration: *buildkite.String("steps:\n  - label: \":pipeline:\"\n    command: buildkite-agent pipeline upload"),
+				Name:          pipelineName,
+				Repository:    repoURL,
+				Description:   description,
+				Configuration: "steps:\n  - label: \":pipeline:\"\n    command: buildkite-agent pipeline upload",
 			}
 
-			var pipeline *buildkite.Pipeline
-			pipeline, _, err = client.Pipelines.Create(org, &createPipeline)
+			var pipeline buildkite.Pipeline
+			pipeline, _, err = client.Pipelines.Create(ctx, org, createPipeline)
 
-			output = lipgloss.JoinVertical(lipgloss.Top, lipgloss.NewStyle().Padding(1, 1).Render(fmt.Sprintf("Pipeline created: %s", *pipeline.WebURL)))
+			output = lipgloss.JoinVertical(lipgloss.Top, lipgloss.NewStyle().Padding(1, 1).Render(fmt.Sprintf("Pipeline created: %s", pipeline.WebURL)))
 		}).
 		Run()
 

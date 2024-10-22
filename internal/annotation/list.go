@@ -3,14 +3,14 @@ package annotation
 import (
 	"fmt"
 
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/lipgloss"
 )
 
 func AnnotationSummary(annotation *buildkite.Annotation) string {
 	summary := lipgloss.JoinVertical(lipgloss.Top,
 		lipgloss.NewStyle().Align(lipgloss.Left).Padding(0, 1).Render(),
-		lipgloss.NewStyle().Padding(0, 1).Border(lipgloss.RoundedBorder()).BorderForeground(renderAnnotationState(*annotation.Style)).Render(fmt.Sprintf("%s\t%s", renderAnnotationIcon(*annotation.Style), StripTags(*annotation.BodyHTML))),
+		lipgloss.NewStyle().Padding(0, 1).Border(lipgloss.RoundedBorder()).BorderForeground(renderAnnotationState(annotation.Style)).Render(fmt.Sprintf("%s\t%s", renderAnnotationIcon(annotation.Style), StripTags(annotation.BodyHTML))),
 	)
 	return summary
 }

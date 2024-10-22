@@ -12,7 +12,7 @@ import (
 
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v3/buildkite"
+	"github.com/buildkite/go-buildkite/v4"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 )
@@ -117,7 +117,7 @@ func TestPackagePush(t *testing.T) {
 			apiResponseCode: http.StatusBadRequest,
 
 			wantErr:        ErrAPIError,
-			wantErrContain: "/v2/packages/organizations/test/registries/my-registry/packages: 400",
+			wantErrContain: "/v2/packages/organizations/test/registries/my-registry/packages/upload: 400",
 		},
 	}
 
@@ -127,6 +127,33 @@ func TestPackagePush(t *testing.T) {
 			// t.Parallel()
 
 			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Package upload is a three-step process:
+				// 1. Request a presigned URL from the API
+				// 2. Upload the file to the presigned URL
+				// 3. "Finalize" the upload by telling the API that the upload is complete
+				// This test server really jankily simulates that process - it's not a real presigned URL, and we're just responding
+				// with a 200 to the upload and finalize requests, and returning the absolute minimum response for the presigned URL
+				// request
+				if r.URL.Path == "/v2/packages/organizations/test/registries/my-registry/packages/upload" {
+					// Return juuuust enough of a response to make the client happy, we don't want to be testing the internals
+					// of the API client here (any more than we absolutely have to)
+					w.WriteHeader(tc.apiResponseCode)
+					payload := buildkite.PackagePresignedUpload{
+						Form: buildkite.PackagePresignedUploadForm{
+							URL:    "http://" + r.Host + "/upload",
+							Method: "POST",
+							Data: map[string]string{
+								"key": "pkg-123",
+							},
+						},
+					}
+					err := json.NewEncoder(w).Encode(payload)
+					if err != nil {
+						t.Fatalf("encoding response: %v", err)
+					}
+					return
+				}
+
 				code := tc.apiResponseCode
 				if code == 0 {
 					code = http.StatusOK
