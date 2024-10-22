@@ -18,10 +18,6 @@ brews:
       - macos-archive
       - linux-archive
     directory: .
-    caveats: |
-      This is beta software
-
-      For any questions, issues or feedback, please file an issue at https://github.com/buildkite/cli/issues
     homepage: https://github.com/buildkite/cli
     description: Work with Buildkite from the command-line
     license: MIT
