@@ -66,10 +66,8 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 
 			if confirmed {
 				for _, e := range env {
-					parts := strings.Split(e, "=")
-					if len(parts) == 2 {
-						envMap[parts[0]] = parts[1]
-					}
+					key, value, _ := strings.Cut(e, "=")
+					envMap[key] = value
 				}
 				if envFile != "" {
 					file, err := os.Open(envFile)
@@ -79,10 +77,8 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 					defer file.Close()
 					content := bufio.NewScanner(file)
 					for content.Scan() {
-						parts := strings.Split(content.Text(), "=")
-						if len(parts) == 2 {
-							envMap[parts[0]] = parts[1]
-						}
+						key, value, _ := strings.Cut(content.Text(), "=")
+						envMap[key] = value
 					}
 				}
 				return newBuild(cmd.Context(), pipeline.Org, pipeline.Name, f, message, commit, branch, web, envMap, ignoreBranchFilters)
