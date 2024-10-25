@@ -1,7 +1,6 @@
 package job
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -10,13 +9,14 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/graphql"
 	bk_io "github.com/buildkite/cli/v3/internal/io"
+	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
-const jobCommandPrefix = "JobTypeBlock---"
+const jobBlockPrefix = "JobTypeBlock---"
 
 func NewCmdJobUnblock(f *factory.Factory) *cobra.Command {
 	var data string
@@ -34,7 +34,7 @@ func NewCmdJobUnblock(f *factory.Factory) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// given a job UUID argument, we need to generate the GraphQL ID matching
 			uuid := args[0]
-			graphqlID := generateGraphQLID(uuid)
+			graphqlID := util.GenerateGraphQLID(jobBlockPrefix, uuid)
 
 			// get unblock step fields if available
 			var fields *string
@@ -88,13 +88,4 @@ func NewCmdJobUnblock(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&data, "data", "", "JSON formatted data to unblock the job.")
 
 	return cmd
-}
-
-func generateGraphQLID(uuid string) string {
-	var graphqlID strings.Builder
-	wr := base64.NewEncoder(base64.StdEncoding, &graphqlID)
-	fmt.Fprintf(wr, "%s%s", jobCommandPrefix, uuid)
-	wr.Close()
-
-	return graphqlID.String()
 }
