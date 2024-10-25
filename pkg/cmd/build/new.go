@@ -136,6 +136,10 @@ func newBuild(ctx context.Context, org string, pipeline string, f *factory.Facto
 		return err
 	}
 
+	if build.WebURL == "" {
+		return fmt.Errorf("no build was created")
+	}
+
 	fmt.Printf("%s\n", renderResult(fmt.Sprintf("Build created: %s", build.WebURL)))
 
 	return openBuildInBrowser(web, build.WebURL)
