@@ -1,13 +1,10 @@
 package build
 
 import (
-	"fmt"
-
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 )
 
@@ -38,17 +35,6 @@ func NewCmdBuild(f *factory.Factory) *cobra.Command {
 	cmd.AddCommand(NewCmdBuildWatch(f))
 
 	return &cmd
-}
-
-func openBuildInBrowser(openInWeb bool, webUrl string) error {
-	if openInWeb {
-		err := browser.OpenURL(webUrl)
-		if err != nil {
-			fmt.Println("Error opening browser: ", err)
-			return err
-		}
-	}
-	return nil
 }
 
 func renderResult(result string) string {
