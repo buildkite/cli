@@ -10,6 +10,7 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
+	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/huh/spinner"
@@ -142,5 +143,5 @@ func newBuild(ctx context.Context, org string, pipeline string, f *factory.Facto
 
 	fmt.Printf("%s\n", renderResult(fmt.Sprintf("Build created: %s", build.WebURL)))
 
-	return openBuildInBrowser(web, build.WebURL)
+	return util.OpenInWebBrowser(web, build.WebURL)
 }

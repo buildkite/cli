@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/MakeNowJust/heredoc"
+	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/huh/spinner"
@@ -23,6 +24,8 @@ type pushPackageConfig struct {
 const stdinFileNameFlag = "stdin-file-name"
 
 func NewCmdPackagePush(f *factory.Factory) *cobra.Command {
+	var web bool
+
 	cmd := cobra.Command{
 		Use:   "push registry-name {path/to/file | --stdin-file-name filename -}",
 		Short: "Push a new package to Buildkite Packages",
@@ -31,8 +34,14 @@ func NewCmdPackagePush(f *factory.Factory) *cobra.Command {
 			or via stdin. If passed via stdin, the filename must be provided with the --stdin-file-name flag, as Buildkite
 			Packages requires a filename for the package.`),
 		Example: heredoc.Doc(`
+			Push a package to a Buildkite registry
+			The web URL of the uploaded package will be printed to stdout.
+
 			$ bk package push my-registry my-package.tar.gz
 			$ cat my-package.tar.gz | bk package push my-registry --stdin-file-name my-package.tar.gz - # Pass package via stdin, note hyphen as the argument
+			
+			# add -w to open the build in your web browser 
+			$ bk package push my-registry my-package.tar.gz -w
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadAndValidateConfig(cmd.Flags(), args)
@@ -83,11 +92,12 @@ func NewCmdPackagePush(f *factory.Factory) *cobra.Command {
 
 			fmt.Fprintf(cmd.OutOrStdout(), "Created package: %s\n", pkg.Name)
 			fmt.Fprintf(cmd.OutOrStdout(), "View it on the web at: %s\n", pkg.WebURL)
-			return nil
+			return util.OpenInWebBrowser(web, pkg.WebURL)
 		},
 	}
 
 	cmd.Flags().StringP(stdinFileNameFlag, "n", "", "The filename to use for the package, if it's passed via stdin. Invalid otherwise.")
+	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open in a web browser the package information after it has been uploaded.")
 
 	return &cmd
 }
