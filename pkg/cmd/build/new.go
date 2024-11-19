@@ -102,7 +102,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	cmd.Flags().BoolVarP(&confirmed, "yes", "y", false, "Skip the confirmation prompt. Useful if being used in automation/CI")
 	cmd.Flags().StringVarP(&envFile, "env-file", "f", "", "Set the environment variables for the build via an environment file")
 	cmd.Flags().StringVarP(&envFile, "envFile", "", "", "Set the environment variables for the build via an environment file")
-	cmd.Flags().MarkDeprecated("envFile", "use --env-file instead")
+	_ = cmd.Flags().MarkDeprecated("envFile", "use --env-file instead")
 	cmd.Flags().SetNormalizeFunc(normaliseFlags)
 	cmd.Flags().SortFlags = false
 	return &cmd
@@ -154,7 +154,6 @@ func normaliseFlags(pf *pflag.FlagSet, name string) pflag.NormalizedName {
 	switch name {
 	case "envFile":
 		name = "env-file"
-		break
 	}
 	return pflag.NormalizedName(name)
 }
