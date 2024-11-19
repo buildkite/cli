@@ -15,6 +15,7 @@ import (
 	"github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
@@ -99,7 +100,10 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringArrayVarP(&env, "env", "e", []string{}, "Set environment variables for the build")
 	cmd.Flags().BoolVarP(&ignoreBranchFilters, "ignore-branch-filters", "i", false, "Ignore branch filters for the pipeline")
 	cmd.Flags().BoolVarP(&confirmed, "yes", "y", false, "Skip the confirmation prompt. Useful if being used in automation/CI")
-	cmd.Flags().StringVarP(&envFile, "envFile", "f", "", "Set the environment variables for the build via an environment file")
+	cmd.Flags().StringVarP(&envFile, "env-file", "f", "", "Set the environment variables for the build via an environment file")
+	cmd.Flags().StringVarP(&envFile, "envFile", "", "", "Set the environment variables for the build via an environment file")
+	cmd.Flags().MarkDeprecated("envFile", "use --env-file instead")
+	cmd.Flags().SetNormalizeFunc(normaliseFlags)
 	cmd.Flags().SortFlags = false
 	return &cmd
 }
@@ -144,4 +148,13 @@ func newBuild(ctx context.Context, org string, pipeline string, f *factory.Facto
 	fmt.Printf("%s\n", renderResult(fmt.Sprintf("Build created: %s", build.WebURL)))
 
 	return util.OpenInWebBrowser(web, build.WebURL)
+}
+
+func normaliseFlags(pf *pflag.FlagSet, name string) pflag.NormalizedName {
+	switch name {
+	case "envFile":
+		name = "env-file"
+		break
+	}
+	return pflag.NormalizedName(name)
 }
