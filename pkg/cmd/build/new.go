@@ -109,7 +109,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 }
 
 func newBuild(ctx context.Context, org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool, env map[string]string, ignoreBranchFilters bool) error {
-	var err error
+	var actionErr error
 	var build buildkite.Build
 	spinErr := spinner.New().
 		Title(fmt.Sprintf("Starting new build for %s", pipeline)).
@@ -118,6 +118,7 @@ func newBuild(ctx context.Context, org string, pipeline string, f *factory.Facto
 			if len(branch) == 0 {
 				p, _, err := f.RestAPIClient.Pipelines.Get(ctx, org, pipeline)
 				if err != nil {
+					actionErr = fmt.Errorf("Error getting pipeline: %w", err)
 					return
 				}
 				branch = p.DefaultBranch
@@ -131,14 +132,20 @@ func newBuild(ctx context.Context, org string, pipeline string, f *factory.Facto
 				IgnorePipelineBranchFilters: ignoreBranchFilters,
 			}
 
+			var err error
 			build, _, err = f.RestAPIClient.Builds.Create(ctx, org, pipeline, newBuild)
+			if err != nil {
+				actionErr = fmt.Errorf("Error creating build: %w", err)
+				return
+			}
 		}).
 		Run()
 	if spinErr != nil {
 		return spinErr
 	}
-	if err != nil {
-		return err
+
+	if actionErr != nil {
+		return actionErr
 	}
 
 	if build.WebURL == "" {
