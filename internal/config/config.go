@@ -121,6 +121,14 @@ func (conf *Config) ConfiguredOrganizations() []string {
 	return keys
 }
 
+func (conf *Config) GetGraphQLEndpoint() string {
+	value := os.Getenv("BUILDKITE_GRAPHQL_ENDPOINT")
+	if value != "" {
+		return value
+	}
+	return DefaultGraphQLEndpoint
+}
+
 func (conf *Config) HasConfiguredOrganization(slug string) bool {
 	m := conf.userConfig.GetStringMap("organizations")
 	_, ok := m[slug]
