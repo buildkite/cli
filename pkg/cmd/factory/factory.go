@@ -52,7 +52,7 @@ func New(version string) (*Factory, error) {
 	return &Factory{
 		Config:        conf,
 		GitRepository: repo,
-		GraphQLClient: graphql.NewClient(config.DefaultGraphQLEndpoint, graphqlHTTPClient),
+		GraphQLClient: graphql.NewClient(conf.GetGraphQLEndpoint(), graphqlHTTPClient),
 		RestAPIClient: buildkiteClient,
 		Version:       version,
 	}, nil
