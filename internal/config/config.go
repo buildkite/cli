@@ -15,6 +15,7 @@ import (
 	"slices"
 
 	"github.com/buildkite/cli/v3/internal/pipeline"
+	"github.com/buildkite/go-buildkite/v4"
 	"github.com/go-git/go-git/v5"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
@@ -22,10 +23,11 @@ import (
 
 const (
 	DefaultGraphQLEndpoint = "https://graphql.buildkite.com/v1"
-	appData                = "AppData"
-	configFilePath         = "bk.yaml"
-	localConfigFilePath    = "." + configFilePath
-	xdgConfigHome          = "XDG_CONFIG_HOME"
+
+	appData             = "AppData"
+	configFilePath      = "bk.yaml"
+	localConfigFilePath = "." + configFilePath
+	xdgConfigHome       = "XDG_CONFIG_HOME"
 )
 
 // Config contains the configuration for the currently selected organization
@@ -133,6 +135,15 @@ func (conf *Config) GetGraphQLEndpoint() string {
 		return value
 	}
 	return DefaultGraphQLEndpoint
+}
+
+func (conf *Config) RESTAPIEndpoint() string {
+	value := os.Getenv("BUILDKITE_REST_API_ENDPOINT")
+	if value != "" {
+		return value
+	}
+
+	return buildkite.DefaultBaseURL
 }
 
 func (conf *Config) HasConfiguredOrganization(slug string) bool {
