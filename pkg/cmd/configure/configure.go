@@ -9,7 +9,11 @@ import (
 )
 
 func NewCmdConfigure(f *factory.Factory) *cobra.Command {
-	var force bool
+	var (
+		force bool
+		org   string
+		token string
+	)
 
 	cmd := &cobra.Command{
 		Use:     "configure",
@@ -22,11 +26,19 @@ func NewCmdConfigure(f *factory.Factory) *cobra.Command {
 				return errors.New("API token already configured. You must use --force.")
 			}
 
+			// If flags are provided, use them directly
+			if org != "" && token != "" {
+				return addCmd.ConfigureWithCredentials(f, org, token)
+			}
+
+			// Otherwise fall back to interactive mode
 			return addCmd.ConfigureRun(f)
 		},
 	}
 
 	cmd.Flags().BoolVar(&force, "force", false, "Force setting a new token")
+	cmd.Flags().StringVar(&org, "org", "", "Organization slug")
+	cmd.Flags().StringVar(&token, "token", "", "API token")
 
 	cmd.AddCommand(addCmd.NewCmdAdd(f))
 

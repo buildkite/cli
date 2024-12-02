@@ -22,6 +22,13 @@ func NewCmdAdd(f *factory.Factory) *cobra.Command {
 	return cmd
 }
 
+func ConfigureWithCredentials(f *factory.Factory, org, token string) error {
+	if err := f.Config.SelectOrganization(org); err != nil {
+		return err
+	}
+	return f.Config.SetTokenForOrg(org, token)
+}
+
 func ConfigureRun(f *factory.Factory) error {
 	var org, token string
 	nonEmpty := func(s string) error {
@@ -43,12 +50,5 @@ func ConfigureRun(f *factory.Factory) error {
 		return err
 	}
 
-	err = f.Config.SelectOrganization(org)
-	if err != nil {
-		return err
-	}
-
-	err = f.Config.SetTokenForOrg(org, token)
-
-	return err
+	return ConfigureWithCredentials(f, org, token)
 }
