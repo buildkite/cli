@@ -17,6 +17,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/go-buildkite/v4"
 	"github.com/go-git/go-git/v5"
+	"github.com/mattn/go-isatty"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
 )
@@ -84,6 +85,17 @@ func New(fs afero.Fs, repo *git.Repository) *Config {
 		localConfig: localConfig,
 		userConfig:  userConfig,
 	}
+}
+
+// Is the current environment interactive, i.e. can we ask questions and
+// display rich progress.
+func (conf *Config) IsInteractive() bool {
+	// Always no in any CI environment
+	if len(os.Getenv("CI")) > 0 {
+		return false
+	}
+
+	return isatty.IsTerminal(os.Stdout.Fd())
 }
 
 // OrganizationSlug gets the slug for the currently selected organization. This can be configured locally or per user.
