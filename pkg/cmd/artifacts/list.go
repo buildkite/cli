@@ -56,14 +56,19 @@ func NewCmdArtifactsList(f *factory.Factory) *cobra.Command {
 			var mu sync.Mutex
 
 			spinErr := spinner.New().
-				Title("Loading build information").
+				Title("Loading artifacts information").
 				Action(func() {
 					wg.Add(1)
 
 					go func() {
 						defer wg.Done()
 						var apiErr error
-						buildArtifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByBuild(cmd.Context(), bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), nil)
+
+						if job != "" { // list artifacts for a specific job
+							buildArtifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByJob(cmd.Context(), bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), job, nil)
+						} else {
+							buildArtifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByBuild(cmd.Context(), bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), nil)
+						}
 						if apiErr != nil {
 							mu.Lock()
 							err = apiErr
@@ -81,15 +86,16 @@ func NewCmdArtifactsList(f *factory.Factory) *cobra.Command {
 				return err
 			}
 
-			summary := lipgloss.JoinVertical(lipgloss.Top,
-				lipgloss.NewStyle().Bold(true).Padding(0, 1).Render(fmt.Sprintf("Artifacts for build: %d", bld.BuildNumber)),
-			)
+			var summary string
 			if len(buildArtifacts) > 0 {
-				summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("\n\nArtifacts")
+				summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("Artifacts")
 				for _, a := range buildArtifacts {
 					summary += artifact.ArtifactSummary(&a)
 				}
+			} else {
+				summary += lipgloss.NewStyle().Padding(0, 1).Render("No artifacts found.")
 			}
+
 			fmt.Fprintf(cmd.OutOrStdout(), "%s\n", summary)
 
 			return err
