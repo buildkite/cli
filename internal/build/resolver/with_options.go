@@ -34,7 +34,6 @@ func ResolveBuildWithOpts(f *factory.Factory, pipelineResolver pipelineResolver.
 		}
 
 		builds, _, err := f.RestAPIClient.Builds.ListByPipeline(context.TODO(), f.Config.OrganizationSlug(), pipeline.Name, opts)
-		fmt.Println(builds, err)
 		if err != nil {
 			return nil, err
 		}
