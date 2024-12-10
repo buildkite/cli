@@ -18,7 +18,7 @@ func NewCmdArtifactsList(f *factory.Factory) *cobra.Command {
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
-		Use:                   "list [number] [flags]",
+		Use:                   "list [build number] [flags]",
 		Short:                 "List artifacts for a build or a job in a build.",
 		Args:                  cobra.MaximumNArgs(1),
 		Long: heredoc.Doc(`
@@ -28,13 +28,13 @@ func NewCmdArtifactsList(f *factory.Factory) *cobra.Command {
 	`),
 		Example: heredoc.Doc(`
 			# by default, artifacts of the most recent build for the current branch is shown
-			$ bk artifacts list 
+			$ bk artifacts list
 			# to list artifacts of a specific build
 			$ bk artifacts list 429 
 			# to list artifacts of a specific job in a build
 			$ bk artifacts list 429 --job 0193903e-ecd9-4c51-9156-0738da987e87  
 			# if not inside a repository or to use a specific pipeline, pass -p
-			$ bk artifacts list -p monolith 
+			$ bk artifacts list 429 -p monolith 
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var err error
