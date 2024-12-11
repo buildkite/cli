@@ -9,7 +9,8 @@ func ArtifactSummary(artifact *buildkite.Artifact) string {
 	artifactSummary := lipgloss.JoinVertical(lipgloss.Top,
 		lipgloss.NewStyle().Align(lipgloss.Left).Padding(0, 1).Render(),
 		lipgloss.JoinHorizontal(lipgloss.Left,
-			lipgloss.NewStyle().Width(60).Align(lipgloss.Left).Padding(0, 1).Render(artifact.Path),
+			lipgloss.NewStyle().Width(38).Align(lipgloss.Left).Padding(0, 1).Render(artifact.ID),
+			lipgloss.NewStyle().Width(50).Align(lipgloss.Left).Padding(0, 1).Render(artifact.Path),
 			lipgloss.NewStyle().Align(lipgloss.Right).Padding(0, 1).Render(FormatBytes(artifact.FileSize)),
 		),
 	)
