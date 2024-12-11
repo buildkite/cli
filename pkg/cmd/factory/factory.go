@@ -40,6 +40,7 @@ func New(version string) (*Factory, error) {
 	repo, _ := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{DetectDotGit: true, EnableDotGitCommonDir: true})
 	conf := config.New(nil, repo)
 	buildkiteClient, err := buildkite.NewOpts(
+		buildkite.WithBaseURL(conf.RESTAPIEndpoint()),
 		buildkite.WithTokenAuth(conf.APIToken()),
 		buildkite.WithUserAgent(userAgent),
 	)
