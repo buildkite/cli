@@ -10,6 +10,7 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
+	"github.com/buildkite/cli/v3/internal/scopes"
 	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v4"
@@ -46,6 +47,23 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 			$ bk build new -e "FOO=BAR" -e "BAR=BAZ"
 
 		`),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			// Get the command's required and optional scopes
+			cmdScopes := scopes.GetCommandScopes(cmd)
+
+			// Get the token scopes from the factory
+			tokenScopes := f.Config.GetTokenScopes()
+			if len(tokenScopes) == 0 {
+				return fmt.Errorf("no scopes found in token. Please ensure you're using a token with appropriate scopes")
+			}
+
+			// Validate the scopes
+			if err := scopes.ValidateScopes(cmdScopes, tokenScopes); err != nil {
+				return err
+			}
+
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			resolvers := resolver.NewAggregateResolver(
 				resolver.ResolveFromFlag(pipeline, f.Config),
@@ -88,6 +106,10 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 				return nil
 			}
 		},
+	}
+
+	cmd.Annotations = map[string]string{
+		"requiredScopes": string(scopes.WriteBuilds),
 	}
 
 	cmd.Flags().StringVarP(&message, "message", "m", "", "Description of the build. If left blank, the commit message will be used once the build starts.")
