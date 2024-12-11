@@ -40,6 +40,7 @@ func New(version string) (*Factory, error) {
 	repo, _ := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{DetectDotGit: true, EnableDotGitCommonDir: true})
 	conf := config.New(nil, repo)
 	buildkiteClient, err := buildkite.NewOpts(
+		buildkite.WithBaseURL(conf.RESTAPIEndpoint()),
 		buildkite.WithTokenAuth(conf.APIToken()),
 		buildkite.WithUserAgent(userAgent),
 	)
@@ -52,7 +53,7 @@ func New(version string) (*Factory, error) {
 	return &Factory{
 		Config:        conf,
 		GitRepository: repo,
-		GraphQLClient: graphql.NewClient(config.DefaultGraphQLEndpoint, graphqlHTTPClient),
+		GraphQLClient: graphql.NewClient(conf.GetGraphQLEndpoint(), graphqlHTTPClient),
 		RestAPIClient: buildkiteClient,
 		Version:       version,
 	}, nil

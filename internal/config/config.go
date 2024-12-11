@@ -8,11 +8,14 @@ package config
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 
 	"github.com/buildkite/cli/v3/internal/pipeline"
+	"github.com/buildkite/go-buildkite/v4"
 	"github.com/go-git/go-git/v5"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
@@ -20,10 +23,11 @@ import (
 
 const (
 	DefaultGraphQLEndpoint = "https://graphql.buildkite.com/v1"
-	appData                = "AppData"
-	configFilePath         = "bk.yaml"
-	localConfigFilePath    = "." + configFilePath
-	xdgConfigHome          = "XDG_CONFIG_HOME"
+
+	appData             = "AppData"
+	configFilePath      = "bk.yaml"
+	localConfigFilePath = "." + configFilePath
+	xdgConfigHome       = "XDG_CONFIG_HOME"
 )
 
 // Config contains the configuration for the currently selected organization
@@ -86,6 +90,7 @@ func New(fs afero.Fs, repo *git.Repository) *Config {
 // This will search for configuration in that order.
 func (conf *Config) OrganizationSlug() string {
 	return firstNonEmpty(
+		os.Getenv("BUILDKITE_ORGANIZATION_SLUG"),
 		conf.localConfig.GetString("selected_org"),
 		conf.userConfig.GetString("selected_org"),
 	)
@@ -101,7 +106,10 @@ func (conf *Config) SelectOrganization(org string) error {
 func (conf *Config) APIToken() string {
 	slug := conf.OrganizationSlug()
 	key := fmt.Sprintf("organizations.%s.api_token", slug)
-	return conf.userConfig.GetString(key)
+	return firstNonEmpty(
+		os.Getenv("BUILDKITE_API_TOKEN"),
+		conf.userConfig.GetString(key),
+	)
 }
 
 // SetTokenForOrg sets the token for the given org in the user configuration file. Tokens are not stored in the local
@@ -114,17 +122,32 @@ func (conf *Config) SetTokenForOrg(org, token string) error {
 
 func (conf *Config) ConfiguredOrganizations() []string {
 	m := conf.userConfig.GetStringMap("organizations")
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
+	orgs := slices.Collect(maps.Keys(m))
+	if o := os.Getenv("BUILDKITE_ORGANIZATION_SLUG"); o != "" {
+		orgs = append(orgs, o)
 	}
-	return keys
+	return orgs
+}
+
+func (conf *Config) GetGraphQLEndpoint() string {
+	value := os.Getenv("BUILDKITE_GRAPHQL_ENDPOINT")
+	if value != "" {
+		return value
+	}
+	return DefaultGraphQLEndpoint
+}
+
+func (conf *Config) RESTAPIEndpoint() string {
+	value := os.Getenv("BUILDKITE_REST_API_ENDPOINT")
+	if value != "" {
+		return value
+	}
+
+	return buildkite.DefaultBaseURL
 }
 
 func (conf *Config) HasConfiguredOrganization(slug string) bool {
-	m := conf.userConfig.GetStringMap("organizations")
-	_, ok := m[slug]
-	return ok
+	return slices.Contains(conf.ConfiguredOrganizations(), slug)
 }
 
 // PreferredPipelines will retrieve the list of pipelines from local configuration
@@ -161,16 +184,14 @@ func (conf *Config) SetPreferredPipelines(pipelines []pipeline.Pipeline) error {
 	return conf.localConfig.WriteConfig()
 }
 
-func firstNonEmpty[T comparable](t ...T) T {
-	var empty T
-
-	for _, k := range t {
-		if k != empty {
+func firstNonEmpty(s ...string) string {
+	for _, k := range s {
+		if k != "" {
 			return k
 		}
 	}
 
-	return empty
+	return ""
 }
 
 // Config path precedence: XDG_CONFIG_HOME, AppData (windows only), HOME.

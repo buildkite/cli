@@ -23,9 +23,10 @@ import (
 
 func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:   "bk <command> <subcommand> [flags]",
-		Short: "Buildkite CLI",
-		Long:  "Work with Buildkite from the command line.",
+		Use:          "bk <command> <subcommand> [flags]",
+		Short:        "Buildkite CLI",
+		Long:         "Work with Buildkite from the command line.",
+		SilenceUsage: true,
 		Example: heredoc.Doc(`
 			$ bk build view
 		`),
