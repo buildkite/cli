@@ -77,12 +77,10 @@ const (
 
 type CommandScopes struct {
 	Required []Scope
-	Optional []Scope
 }
 
 func GetCommandScopes(cmd *cobra.Command) CommandScopes {
 	required := []Scope{}
-	optional := []Scope{}
 
 	if reqScopes, ok := cmd.Annotations["requiredScopes"]; ok {
 		for _, scope := range strings.Split(reqScopes, ",") {
@@ -90,15 +88,8 @@ func GetCommandScopes(cmd *cobra.Command) CommandScopes {
 		}
 	}
 
-	if optScopes, ok := cmd.Annotations["optionalScopes"]; ok {
-		for _, scope := range strings.Split(optScopes, ",") {
-			optional = append(optional, Scope(strings.TrimSpace(scope)))
-		}
-	}
-
 	return CommandScopes{
 		Required: required,
-		Optional: optional,
 	}
 }
 

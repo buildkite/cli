@@ -110,7 +110,6 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 
 	cmd.Annotations = map[string]string{
 		"requiredScopes": string(scopes.WriteBuilds),
-		"optionalScopes": string(scopes.ReadPipelines),
 	}
 
 	cmd.Flags().StringVarP(&message, "message", "m", "", "Description of the build. If left blank, the commit message will be used once the build starts.")
