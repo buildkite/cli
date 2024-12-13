@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Buildkite Community Forum
+    url: https://forum.buildkite.community/
+    about: Discuss issues and requests in the forum.
+  - name: Contact Buildkite Support
+    url: https://buildkite.com/about/contact/
+    about: Get in contact with Buildkite's support team.
