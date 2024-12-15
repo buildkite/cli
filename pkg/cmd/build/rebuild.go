@@ -8,6 +8,7 @@ import (
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
+	"github.com/buildkite/cli/v3/internal/scopes"
 	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v4"
@@ -28,6 +29,23 @@ func NewCmdBuildRebuild(f *factory.Factory) *cobra.Command {
 			Rebuild a build.
 			The web URL to the build will be printed to stdout.
 		`),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			// Get the command's required and optional scopes
+			cmdScopes := scopes.GetCommandScopes(cmd)
+
+			// Get the token scopes from the factory
+			tokenScopes := f.Config.GetTokenScopes()
+			if len(tokenScopes) == 0 {
+				return fmt.Errorf("no scopes found in token. Please ensure you're using a token with appropriate scopes")
+			}
+
+			// Validate the scopes
+			if err := scopes.ValidateScopes(cmdScopes, tokenScopes); err != nil {
+				return err
+			}
+
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// we find the pipeline based on the following rules:
 			// 1. an explicit flag is passed
@@ -70,6 +88,10 @@ func NewCmdBuildRebuild(f *factory.Factory) *cobra.Command {
 
 			return rebuild(cmd.Context(), bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), web, f)
 		},
+	}
+
+	cmd.Annotations = map[string]string{
+		"requiredScopes": string(scopes.WriteBuilds),
 	}
 
 	cmd.Flags().BoolVarP(&mine, "mine", "m", false, "Filter build to only my user.")
