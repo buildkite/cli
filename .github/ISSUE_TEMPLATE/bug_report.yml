@@ -4,7 +4,7 @@ title: "[Bug]: "
 labels: ["bug", "triage"]
 projects: ["buildkite/cli"]
 assignees:
-  - @buildkite/technical-services
+  - buildkite/technical-services
 body:
   - type: markdown
     attributes:
