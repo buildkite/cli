@@ -12,6 +12,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	"github.com/buildkite/cli/v3/internal/job"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
+	"github.com/buildkite/cli/v3/internal/scopes"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/huh/spinner"
@@ -53,6 +54,23 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			# to view most recent build by greg on the deploy-pipeline
 			$ bk build view -p deploy-pipeline -u "greg"
 		`),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			// Get the command's required and optional scopes
+			cmdScopes := scopes.GetCommandScopes(cmd)
+
+			// Get the token scopes from the factory
+			tokenScopes := f.Config.GetTokenScopes()
+			if len(tokenScopes) == 0 {
+				return fmt.Errorf("no scopes found in token. Please ensure you're using a token with appropriate scopes")
+			}
+
+			// Validate the scopes
+			if err := scopes.ValidateScopes(cmdScopes, tokenScopes); err != nil {
+				return err
+			}
+
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var err error
 			// we find the pipeline based on the following rules:
@@ -187,6 +205,10 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 
 			return err
 		},
+	}
+
+	cmd.Annotations = map[string]string{
+		"requiredScopes": string(scopes.ReadBuilds),
 	}
 
 	cmd.Flags().BoolVarP(&mine, "mine", "m", false, "Filter builds to only my user.")

@@ -10,6 +10,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	"github.com/buildkite/cli/v3/internal/job"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
+	"github.com/buildkite/cli/v3/internal/scopes"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/lipgloss"
@@ -45,6 +46,23 @@ func NewCmdBuildWatch(f *factory.Factory) *cobra.Command {
 			# Set a custom polling interval (in seconds)
 			$ bk build watch --interval 5
 		`),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			// Get the command's required and optional scopes
+			cmdScopes := scopes.GetCommandScopes(cmd)
+
+			// Get the token scopes from the factory
+			tokenScopes := f.Config.GetTokenScopes()
+			if len(tokenScopes) == 0 {
+				return fmt.Errorf("no scopes found in token. Please ensure you're using a token with appropriate scopes")
+			}
+
+			// Validate the scopes
+			if err := scopes.ValidateScopes(cmdScopes, tokenScopes); err != nil {
+				return err
+			}
+
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pipelineRes := pipelineResolver.NewAggregateResolver(
 				pipelineResolver.ResolveFromFlag(pipeline, f.Config),
@@ -94,6 +112,10 @@ func NewCmdBuildWatch(f *factory.Factory) *cobra.Command {
 				}
 			}
 		},
+	}
+
+	cmd.Annotations = map[string]string{
+		"requiredeScopes": string(scopes.ReadBuilds),
 	}
 
 	cmd.Flags().StringVarP(&pipeline, "pipeline", "p", "", "The pipeline to watch. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.")

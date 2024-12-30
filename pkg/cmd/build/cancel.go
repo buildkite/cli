@@ -8,6 +8,7 @@ import (
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
+	"github.com/buildkite/cli/v3/internal/scopes"
 	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v4"
@@ -28,6 +29,23 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 		Long: heredoc.Doc(`
 			Cancel the given build.
 		`),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			// Get the command's required and optional scopes
+			cmdScopes := scopes.GetCommandScopes(cmd)
+
+			// Get the token scopes from the factory
+			tokenScopes := f.Config.GetTokenScopes()
+			if len(tokenScopes) == 0 {
+				return fmt.Errorf("no scopes found in token. Please ensure you're using a token with appropriate scopes")
+			}
+
+			// Validate the scopes
+			if err := scopes.ValidateScopes(cmdScopes, tokenScopes); err != nil {
+				return err
+			}
+
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pipelineRes := pipelineResolver.NewAggregateResolver(
 				pipelineResolver.ResolveFromFlag(pipeline, f.Config),
@@ -55,6 +73,10 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 				return nil
 			}
 		},
+	}
+
+	cmd.Annotations = map[string]string{
+		"requiredScopes": string(scopes.WriteBuilds),
 	}
 
 	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the build in a web browser after it has been cancelled.")
