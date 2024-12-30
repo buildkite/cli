@@ -143,6 +143,12 @@ func newBuild(ctx context.Context, org string, pipeline string, f *factory.Facto
 					actionErr = fmt.Errorf("Error getting pipeline: %w", err)
 					return
 				}
+
+				// Check if the pipeline has a default branch set
+				if p.DefaultBranch == "" {
+					actionErr = fmt.Errorf("No default branch set for pipeline %s. Please specify a branch using --branch (-b)", pipeline)
+					return
+				}
 				branch = p.DefaultBranch
 			}
 
