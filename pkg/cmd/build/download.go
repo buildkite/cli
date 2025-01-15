@@ -149,7 +149,6 @@ func download(ctx context.Context, build *build.Build, f *factory.Factory) (stri
 			if err != nil {
 				err = fileErr
 			}
-			fmt.Println(artifact.DownloadURL)
 			_, apiErr := f.RestAPIClient.Artifacts.DownloadArtifactByURL(ctx, artifact.DownloadURL, out)
 			if err != nil {
 				err = apiErr
