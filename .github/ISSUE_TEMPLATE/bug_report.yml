@@ -4,7 +4,7 @@ title: "[Bug]: "
 labels: ["bug", "triage"]
 projects: ["buildkite/cli"]
 assignees:
-  - @buildkite/technical-services
+  - buildkite/technical-services
 body:
   - type: markdown
     attributes:
@@ -27,7 +27,7 @@ body:
       value: "A bug happened!"
     validations:
       required: true
-  - type: dropdown
+  - type: input
     id: version
     attributes:
       label: Version
