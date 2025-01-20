@@ -6,6 +6,9 @@ import (
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/artifact"
+	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
+	"github.com/buildkite/cli/v3/internal/build/resolver/options"
+	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/huh/spinner"
@@ -39,7 +42,23 @@ func NewCmdArtifactsList(f *factory.Factory) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var err error
 
-			buildRes := resolveFrom(pipeline, f, args)
+			//resolve a pipeline based on how bk build resolves the pipeline
+			pipelineRes := pipelineResolver.NewAggregateResolver(
+				pipelineResolver.ResolveFromFlag(pipeline, f.Config),
+				pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
+				pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOne)),
+			)
+
+			// we resolve a build  an optional argument or positional argument
+			optionsResolver := options.AggregateResolver{
+				options.ResolveBranchFromFlag(""),
+				options.ResolveBranchFromRepository(f.GitRepository),
+			}
+
+			buildRes := buildResolver.NewAggregateResolver(
+				buildResolver.ResolveFromPositionalArgument(args, 0, pipelineRes.Resolve, f.Config),
+				buildResolver.ResolveBuildWithOpts(f, pipelineRes.Resolve, optionsResolver...),
+			)
 
 			bld, err := buildRes.Resolve(cmd.Context())
 			if err != nil {

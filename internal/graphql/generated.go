@@ -8,6 +8,37 @@ import (
 	"github.com/Khan/genqlient/graphql"
 )
 
+// GetArtifactsArtifact includes the requested fields of the GraphQL type Artifact.
+// The GraphQL type's documentation follows.
+//
+// A file uploaded from the agent whilst running a job
+type GetArtifactsArtifact struct {
+	// The public UUID for this artifact
+	Uuid string `json:"uuid"`
+	// The path of the uploaded artifact
+	Path string `json:"path"`
+	// The download URL for the artifact. Unless you've used your own artifact storage, the URL will be valid for only 10 minutes.
+	DownloadURL string `json:"downloadURL"`
+}
+
+// GetUuid returns GetArtifactsArtifact.Uuid, and is useful for accessing the field via an interface.
+func (v *GetArtifactsArtifact) GetUuid() string { return v.Uuid }
+
+// GetPath returns GetArtifactsArtifact.Path, and is useful for accessing the field via an interface.
+func (v *GetArtifactsArtifact) GetPath() string { return v.Path }
+
+// GetDownloadURL returns GetArtifactsArtifact.DownloadURL, and is useful for accessing the field via an interface.
+func (v *GetArtifactsArtifact) GetDownloadURL() string { return v.DownloadURL }
+
+// GetArtifactsResponse is returned by GetArtifacts on success.
+type GetArtifactsResponse struct {
+	// Find an artifact by its UUID
+	Artifact *GetArtifactsArtifact `json:"artifact"`
+}
+
+// GetArtifact returns GetArtifactsResponse.Artifact, and is useful for accessing the field via an interface.
+func (v *GetArtifactsResponse) GetArtifact() *GetArtifactsArtifact { return v.Artifact }
+
 // GetClusterQueueAgentOrganization includes the requested fields of the GraphQL type Organization.
 // The GraphQL type's documentation follows.
 //
@@ -542,6 +573,14 @@ func (v *UnblockJobResponse) GetJobTypeBlockUnblock() *UnblockJobJobTypeBlockUnb
 	return v.JobTypeBlockUnblock
 }
 
+// __GetArtifactsInput is used internally by genqlient
+type __GetArtifactsInput struct {
+	ArtifactId string `json:"artifactId"`
+}
+
+// GetArtifactId returns __GetArtifactsInput.ArtifactId, and is useful for accessing the field via an interface.
+func (v *__GetArtifactsInput) GetArtifactId() string { return v.ArtifactId }
+
 // __GetClusterQueueAgentInput is used internally by genqlient
 type __GetClusterQueueAgentInput struct {
 	OrgSlug string   `json:"orgSlug"`
@@ -613,6 +652,43 @@ func (v *__UnblockJobInput) GetId() string { return v.Id }
 
 // GetFields returns __UnblockJobInput.Fields, and is useful for accessing the field via an interface.
 func (v *__UnblockJobInput) GetFields() *string { return v.Fields }
+
+// The query or mutation executed by GetArtifacts.
+const GetArtifacts_Operation = `
+query GetArtifacts ($artifactId: ID!) {
+	artifact(uuid: $artifactId) {
+		uuid
+		path
+		downloadURL
+	}
+}
+`
+
+func GetArtifacts(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	artifactId string,
+) (*GetArtifactsResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "GetArtifacts",
+		Query:  GetArtifacts_Operation,
+		Variables: &__GetArtifactsInput{
+			ArtifactId: artifactId,
+		},
+	}
+	var err_ error
+
+	var data_ GetArtifactsResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
 
 // The query or mutation executed by GetClusterQueueAgent.
 const GetClusterQueueAgent_Operation = `
