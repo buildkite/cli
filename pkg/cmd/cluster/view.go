@@ -27,7 +27,6 @@ func NewCmdClusterView(f *factory.Factory) *cobra.Command {
 			orgSlug := f.Config.OrganizationSlug()
 			clusterID := args[0]
 			clusterRes, _, err := f.RestAPIClient.Clusters.Get(cmd.Context(), orgSlug, clusterID)
-
 			if err != nil {
 				return err
 			}

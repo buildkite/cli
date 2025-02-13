@@ -11,7 +11,7 @@ import (
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
-	"github.com/buildkite/cli/v3/internal/scopes"
+	"github.com/buildkite/cli/v3/internal/validation/scopes"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"

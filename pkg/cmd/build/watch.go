@@ -5,21 +5,40 @@ import (
 	"time"
 
 	"github.com/MakeNowJust/heredoc"
-	"github.com/buildkite/cli/v3/internal/build"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
-	"github.com/buildkite/cli/v3/internal/job"
+	"github.com/buildkite/cli/v3/internal/build/view/shared"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
-	"github.com/buildkite/cli/v3/internal/scopes"
+	"github.com/buildkite/cli/v3/internal/validation"
+	"github.com/buildkite/cli/v3/internal/validation/scopes"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v4"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
 
+type WatchOptions struct {
+	Pipeline        string
+	Branch          string
+	IntervalSeconds int
+}
+
+func (o *WatchOptions) Validate() error {
+	v := validation.New()
+	v.AddRule("IntervalSeconds", validation.MinValue(1))
+
+	if o.Pipeline != "" {
+		v.AddRule("Pipeline", validation.Slug)
+	}
+
+	return v.Validate(map[string]interface{}{
+		"Pipeline":        o.Pipeline,
+		"IntervalSeconds": o.IntervalSeconds,
+	})
+}
+
 func NewCmdBuildWatch(f *factory.Factory) *cobra.Command {
-	var pipeline, branch string
-	var intervalSeconds int
+	opts := &WatchOptions{
+		IntervalSeconds: 1, // default value
+	}
 
 	cmd := cobra.Command{
 		Use:   "watch [number] [flags]",
@@ -47,31 +66,23 @@ func NewCmdBuildWatch(f *factory.Factory) *cobra.Command {
 			$ bk build watch --interval 5
 		`),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			// Get the command's required and optional scopes
-			cmdScopes := scopes.GetCommandScopes(cmd)
-
-			// Get the token scopes from the factory
-			tokenScopes := f.Config.GetTokenScopes()
-			if len(tokenScopes) == 0 {
-				return fmt.Errorf("no scopes found in token. Please ensure you're using a token with appropriate scopes")
-			}
-
-			// Validate the scopes
-			if err := scopes.ValidateScopes(cmdScopes, tokenScopes); err != nil {
+			// Validate command options
+			if err := opts.Validate(); err != nil {
 				return err
 			}
 
-			return nil
+			// Validate required scopes
+			return scopes.ValidateCommandScopes(cmd, f.Config.GetTokenScopes())
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pipelineRes := pipelineResolver.NewAggregateResolver(
-				pipelineResolver.ResolveFromFlag(pipeline, f.Config),
+				pipelineResolver.ResolveFromFlag(opts.Pipeline, f.Config),
 				pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
 				pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOne)),
 			)
 
 			optionsResolver := options.AggregateResolver{
-				options.ResolveBranchFromFlag(branch),
+				options.ResolveBranchFromFlag(opts.Branch),
 				options.ResolveBranchFromRepository(f.GitRepository),
 			}
 
@@ -90,7 +101,7 @@ func NewCmdBuildWatch(f *factory.Factory) *cobra.Command {
 
 			fmt.Fprintf(cmd.OutOrStdout(), "Watching build %d on %s/%s\n", bld.BuildNumber, bld.Organization, bld.Pipeline)
 
-			ticker := time.NewTicker(time.Duration(intervalSeconds) * time.Second)
+			ticker := time.NewTicker(time.Duration(opts.IntervalSeconds) * time.Second)
 			defer ticker.Stop()
 
 			for {
@@ -101,7 +112,7 @@ func NewCmdBuildWatch(f *factory.Factory) *cobra.Command {
 						return err
 					}
 
-					summary := buildSummaryWithJobs(b)
+					summary := shared.BuildSummaryWithJobs(&b)
 					fmt.Fprintf(cmd.OutOrStdout(), "\033[2J\033[H%s\n", summary) // Clear screen and move cursor to top-left
 
 					if b.FinishedAt != nil {
@@ -115,27 +126,12 @@ func NewCmdBuildWatch(f *factory.Factory) *cobra.Command {
 	}
 
 	cmd.Annotations = map[string]string{
-		"requiredeScopes": string(scopes.ReadBuilds),
+		"requiredScopes": string(scopes.ReadBuilds),
 	}
 
-	cmd.Flags().StringVarP(&pipeline, "pipeline", "p", "", "The pipeline to watch. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.")
-	cmd.Flags().StringVarP(&branch, "branch", "b", "", "The branch to watch builds for.")
-	cmd.Flags().IntVar(&intervalSeconds, "interval", 1, "Polling interval in seconds")
+	cmd.Flags().StringVarP(&opts.Pipeline, "pipeline", "p", "", "The pipeline to watch. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.")
+	cmd.Flags().StringVarP(&opts.Branch, "branch", "b", "", "The branch to watch builds for.")
+	cmd.Flags().IntVar(&opts.IntervalSeconds, "interval", opts.IntervalSeconds, "Polling interval in seconds")
 
 	return &cmd
-}
-
-func buildSummaryWithJobs(b buildkite.Build) string {
-	summary := build.BuildSummary(b)
-
-	if len(b.Jobs) > 0 {
-		summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("\nJobs")
-		for _, j := range b.Jobs {
-			if j.Type == "script" {
-				summary += job.JobSummary(job.Job(j))
-			}
-		}
-	}
-
-	return summary
 }

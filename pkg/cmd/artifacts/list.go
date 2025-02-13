@@ -42,7 +42,7 @@ func NewCmdArtifactsList(f *factory.Factory) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var err error
 
-			//resolve a pipeline based on how bk build resolves the pipeline
+			// resolve a pipeline based on how bk build resolves the pipeline
 			pipelineRes := pipelineResolver.NewAggregateResolver(
 				pipelineResolver.ResolveFromFlag(pipeline, f.Config),
 				pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),

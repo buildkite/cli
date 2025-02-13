@@ -16,7 +16,6 @@ import (
 )
 
 func NewCmdArtifactsDownload(f *factory.Factory) *cobra.Command {
-
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
 		Use:                   "download <artifact UUID>",
