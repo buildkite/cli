@@ -60,11 +60,11 @@ func NewCmdPrompt(f *factory.Factory) *cobra.Command {
 }
 
 func detectShell() string {
-    shell := os.Getenv("SHELL")
-    if strings.Contains(shell, "zsh") {
-        return "zsh"
-    } else if strings.Contains(shell, "fish") {
-        return "fish"
-    }
-    return "bash"
+	shell := os.Getenv("SHELL")
+	if strings.Contains(shell, "zsh") {
+		return "zsh"
+	} else if strings.Contains(shell, "fish") {
+		return "fish"
+	}
+	return "bash"
 }
