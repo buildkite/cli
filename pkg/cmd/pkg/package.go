@@ -11,7 +11,7 @@ func NewCmdPackage(f *factory.Factory) *cobra.Command {
 		Use:               "package <command>",
 		Aliases:           []string{"pkg"},
 		Short:             "Manage packages",
-		Long:              "Work with Buildkite Packages",
+		Long:              "Work with Buildkite Package Registries",
 		PersistentPreRunE: validation.CheckValidConfiguration(f.Config),
 	}
 

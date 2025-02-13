@@ -27,12 +27,12 @@ func NewCmdPackagePush(f *factory.Factory) *cobra.Command {
 	var web bool
 
 	cmd := cobra.Command{
-		Use:   "push registry-name {path/to/file | --stdin-file-name filename -}",
-		Short: "Push a new package to Buildkite Packages",
+		Use:   "push registry-slug {path/to/file | --stdin-file-name filename -}",
+		Short: "Push a new package to a Buildkite registry",
 		Long: heredoc.Doc(`
-			Push a new package to Buildkite Packages. The package can be passed as a path to a file in the second positional argument,
-			or via stdin. If passed via stdin, the filename must be provided with the --stdin-file-name flag, as Buildkite
-			Packages requires a filename for the package.`),
+			Push a new package to a Buildkite registry. The package can be passed as a path to a file in the second positional argument,
+			or via stdin. If passed via stdin, the filename must be provided with the --stdin-file-name flag, as a Buildkite
+			registry requires a filename for the package.`),
 		Example: heredoc.Doc(`
 			Push a package to a Buildkite registry
 			The web URL of the uploaded package will be printed to stdout.
@@ -74,7 +74,7 @@ func NewCmdPackagePush(f *factory.Factory) *cobra.Command {
 			}
 
 			var pkg buildkite.Package
-			spinErr := bk_io.SpinWhile("Pushing package", func() {
+			spinErr := bk_io.SpinWhile("Pushing file", func() {
 				pkg, _, err = f.RestAPIClient.PackagesService.Create(cmd.Context(), f.Config.OrganizationSlug(), cfg.RegistrySlug, buildkite.CreatePackageInput{
 					Filename: packageName,
 					Package:  from,
@@ -87,13 +87,13 @@ func NewCmdPackagePush(f *factory.Factory) *cobra.Command {
 				return fmt.Errorf("%w: request to create package failed: %w", ErrAPIError, err)
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Created package: %s\n", pkg.Name)
-			fmt.Fprintf(cmd.OutOrStdout(), "View it on the web at: %s\n", pkg.WebURL)
+			fmt.Fprintf(cmd.OutOrStdout(), "Created package file: %s\n", pkg.Name)
+			fmt.Fprintf(cmd.OutOrStdout(), "View this file on the web at: %s\n", pkg.WebURL)
 			return util.OpenInWebBrowser(web, pkg.WebURL)
 		},
 	}
 
-	cmd.Flags().StringP(stdinFileNameFlag, "n", "", "The filename to use for the package, if it's passed via stdin. Invalid otherwise.")
+	cmd.Flags().StringP(stdinFileNameFlag, "n", "", "The name to use for the package file, if it is passed via stdin. Invalid otherwise.")
 	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open in a web browser the package information after it has been uploaded.")
 
 	return &cmd
@@ -136,12 +136,12 @@ func loadAndValidateConfig(flags *pflag.FlagSet, args []string) (*pushPackageCon
 	}
 
 	if args[1] == "-" && stdinFileName.Value.String() == "" {
-		return nil, fmt.Errorf("%w: When passing a package via stdin, the --stdin-file-name flag must be provided", ErrInvalidConfig)
+		return nil, fmt.Errorf("%w: When passing a package file via stdin, the --stdin-file-name flag must be provided", ErrInvalidConfig)
 	}
 
 	if stdinFileName.Value.String() != "" {
 		if args[1] != "-" {
-			return nil, fmt.Errorf("%w: When passing a package via stdin, the final argument must be '-'", ErrInvalidConfig)
+			return nil, fmt.Errorf("%w: When passing a package file via stdin, the final argument must be '-'", ErrInvalidConfig)
 		}
 
 		stdInReadable, err := isStdInReadableFunc()

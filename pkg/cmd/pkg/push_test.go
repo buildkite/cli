@@ -88,7 +88,7 @@ func TestPackagePush(t *testing.T) {
 			stdin:          strings.NewReader("test package stream contents!"),
 			args:           []string{"my-registry", "-"},
 			wantErr:        ErrInvalidConfig,
-			wantErrContain: "When passing a package via stdin, the --stdin-file-name flag must be provided",
+			wantErrContain: "When passing a package file via stdin, the --stdin-file-name flag must be provided",
 		},
 
 		// Happy paths
