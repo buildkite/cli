@@ -57,6 +57,10 @@ Use "bk [command] --help" for more information about a command.
 
 You'll need to run `bk configure` first to set up your organization and API token.
 
+### Shell Prompt Integration
+
+Want to display your current Buildkite organization in your shell prompt? Check out our [Shell Prompt Integration Guide](/docs/shell-prompt-integration.md) for detailed instructions for Zsh, Bash, and Powerlevel10k.
+
 ## 💬 Feedback
 
 We'd love to hear any feedback and questions you might have. Please [file an issue on GitHub](https://github.com/buildkite/cli/issues) and let us know!
