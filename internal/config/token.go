@@ -2,12 +2,11 @@ package config
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"sync"
+
+	httpClient "github.com/buildkite/cli/v3/internal/http"
 )
 
 type AccessToken struct {
@@ -44,32 +43,15 @@ func (c *Config) GetTokenScopes() []string {
 
 // fetchTokenInfo retrieves the token information from the Buildkite API
 func (c *Config) fetchTokenInfo(ctx context.Context) (*AccessToken, error) {
-	req, err := http.NewRequestWithContext(
-		ctx,
-		"GET",
-		fmt.Sprintf("%s/v2/access-token", c.RESTAPIEndpoint()),
-		nil,
+	client := httpClient.NewClient(
+		c.APIToken(),
+		httpClient.WithBaseURL(c.RESTAPIEndpoint()),
 	)
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.APIToken()))
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("fetching token info: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
 
 	var token AccessToken
-	if err := json.NewDecoder(resp.Body).Decode(&token); err != nil {
-		return nil, fmt.Errorf("decoding response: %w", err)
+	err := client.Get(ctx, "/v2/access-token", &token)
+	if err != nil {
+		return nil, fmt.Errorf("fetching token info: %w", err)
 	}
 
 	return &token, nil
