@@ -57,7 +57,7 @@ func RenderBuildSummary(b *buildkite.Build) string {
 // RenderJobSummary renders a summary of a job
 func RenderJobSummary(job buildkite.Job) string {
 	jobState := RenderStatus(job.State)
-	
+
 	// Get the job name
 	var jobName string
 	switch {
@@ -68,19 +68,19 @@ func RenderJobSummary(job buildkite.Job) string {
 	default:
 		jobName = job.Command
 	}
-	
+
 	// Calculate duration
 	var jobDuration time.Duration
 	if job.Type == "script" && job.StartedAt != nil && job.FinishedAt != nil {
 		jobDuration = job.FinishedAt.Time.Sub(job.StartedAt.Time)
 	}
-	
+
 	// Render the duration with grey color
 	durationStr := ""
 	if jobDuration > 0 {
 		durationStr = Faint.Render(FormatDuration(jobDuration))
 	}
-	
+
 	return lipgloss.JoinVertical(lipgloss.Top,
 		lipgloss.NewStyle().Padding(0, 1).Render(""),
 		Row(Bold.Render(jobState), jobName, durationStr),
@@ -91,13 +91,13 @@ func RenderJobSummary(job buildkite.Job) string {
 func RenderAnnotation(annotation *buildkite.Annotation) string {
 	style := StatusStyle(annotation.Style)
 	icon := StatusIcon(annotation.Style)
-	
+
 	body := TruncateAndStripTags(annotation.BodyHTML, MaxPreviewLength)
-	
+
 	border := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(style.GetForeground())
-	
+
 	return lipgloss.JoinVertical(lipgloss.Top,
 		lipgloss.NewStyle().Padding(0, 1).Render(""),
 		border.Render(fmt.Sprintf("%s\t%s", icon, body)),
@@ -129,7 +129,7 @@ func RenderAgentSummary(agent buildkite.Agent) string {
 	if queue == "" {
 		queue = "default"
 	}
-	
+
 	// Style the agent state
 	stateStyle := lipgloss.NewStyle().Bold(true)
 	if agent.ConnectedState == "connected" {
@@ -137,7 +137,7 @@ func RenderAgentSummary(agent buildkite.Agent) string {
 	} else {
 		stateStyle = stateStyle.Foreground(ColorPending)
 	}
-	
+
 	return lipgloss.JoinVertical(lipgloss.Top,
 		lipgloss.NewStyle().Padding(0, 1).Render(""),
 		Row(
@@ -153,6 +153,6 @@ func RenderAgentSummary(agent buildkite.Agent) string {
 func RenderClusterSummary(cluster buildkite.Cluster) string {
 	var rows [][]string
 	rows = append(rows, []string{cluster.Name, cluster.ID, cluster.DefaultQueueID})
-	
+
 	return Table([]string{"Name", "ID", "Default Queue ID"}, rows)
 }
