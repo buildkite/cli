@@ -55,21 +55,21 @@ func TestValidatePipeline(t *testing.T) {
 			fileContent: `steps:
   - label: "Hello, world! 👋"
     command: echo "Hello, world!"`,
-			expectError: false,
+			expectError:  false,
 			expectOutput: "✅ Pipeline file is valid",
 		},
 		{
 			name: "valid pipeline with command only",
 			fileContent: `steps:
   - command: echo "Hello, world!"`,
-			expectError: false,
+			expectError:  false,
 			expectOutput: "✅ Pipeline file is valid",
 		},
 		{
 			name: "invalid pipeline missing command",
 			fileContent: `steps:
   - label: "Hello, world!"`,
-			expectError: true,
+			expectError:  true,
 			expectOutput: "❌ Pipeline file is invalid",
 		},
 		{
@@ -77,7 +77,7 @@ func TestValidatePipeline(t *testing.T) {
 			fileContent: `steps:
   - label: 123
     command: echo "Hello, world!"`,
-			expectError: true,
+			expectError:  true,
 			expectOutput: "❌ Pipeline file is invalid",
 		},
 	}
@@ -240,7 +240,7 @@ func TestFindPipelineFile(t *testing.T) {
 		// Mock fileExists to return true for both files
 		findPipelineFileFn := mockFindPipelineFile(func(path string) bool {
 			return path == filepath.Join(".buildkite", "pipeline.yaml") ||
-				   path == filepath.Join(".buildkite", "pipeline.yml")
+				path == filepath.Join(".buildkite", "pipeline.yml")
 		})
 
 		path, err := findPipelineFileFn()
