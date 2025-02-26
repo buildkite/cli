@@ -3,10 +3,9 @@ package view
 import (
 	"strings"
 
-	"github.com/buildkite/cli/v3/internal/build/view/shared"
+	"github.com/buildkite/cli/v3/internal/ui"
 	"github.com/buildkite/cli/v3/internal/validation"
 	"github.com/buildkite/go-buildkite/v4"
-	"github.com/charmbracelet/lipgloss"
 )
 
 // ViewOptions represents options for viewing a build
@@ -50,30 +49,58 @@ func NewBuildView(build *buildkite.Build, artifacts []buildkite.Artifact, annota
 func (v *BuildView) Render() string {
 	var sections []string
 
-	// Use shared summary rendering
-	sections = append(sections, shared.BuildSummary(v.Build))
+	// Add build summary
+	sections = append(sections, ui.RenderBuildSummary(v.Build))
 
 	// Add job details if present
 	if len(v.Build.Jobs) > 0 {
-		title := lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("\nJobs")
-		sections = append(sections, title)
-
-		for _, j := range v.Build.Jobs {
-			if j.Type == "script" {
-				sections = append(sections, shared.RenderJobSummary(j))
-			}
-		}
+		jobsSection := ui.Section("Jobs", v.renderJobs())
+		sections = append(sections, jobsSection)
 	}
 
 	// Add artifacts if present
 	if len(v.Artifacts) > 0 {
-		sections = append(sections, v.renderArtifacts())
+		artifactsSection := ui.Section("Artifacts", v.renderArtifacts())
+		sections = append(sections, artifactsSection)
 	}
 
 	// Add annotations if present
 	if len(v.Annotations) > 0 {
-		sections = append(sections, v.renderAnnotations())
+		annotationsSection := ui.Section("Annotations", v.renderAnnotations())
+		sections = append(sections, annotationsSection)
 	}
 
-	return strings.Join(sections, "\n\n")
+	return ui.SpacedVertical(sections...)
+}
+
+func (v *BuildView) renderJobs() string {
+	var jobSections []string
+
+	for _, j := range v.Build.Jobs {
+		if j.Type == "script" {
+			jobSections = append(jobSections, ui.RenderJobSummary(j))
+		}
+	}
+
+	return strings.Join(jobSections, "\n")
+}
+
+func (v *BuildView) renderArtifacts() string {
+	var artifactSections []string
+
+	for _, artifact := range v.Artifacts {
+		artifactSections = append(artifactSections, ui.RenderArtifact(&artifact))
+	}
+
+	return strings.Join(artifactSections, "\n")
+}
+
+func (v *BuildView) renderAnnotations() string {
+	var annotationSections []string
+
+	for _, annotation := range v.Annotations {
+		annotationSections = append(annotationSections, ui.RenderAnnotation(&annotation))
+	}
+
+	return strings.Join(annotationSections, "\n")
 }
