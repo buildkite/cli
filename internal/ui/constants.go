@@ -52,8 +52,8 @@ var (
 
 	// Layout styles
 	Padding = lipgloss.NewStyle().Padding(0, 1)
-	Header  = Bold.Copy().Padding(0, 1).Underline(true)
-	Title   = Bold.Copy().Padding(0, 0)
+	Header  = lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true)
+	Title   = lipgloss.NewStyle().Bold(true).Padding(0, 0)
 
 	// Border styles
 	BorderRounded = lipgloss.NewStyle().Border(lipgloss.RoundedBorder())

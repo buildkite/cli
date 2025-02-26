@@ -49,19 +49,20 @@ func Table(headers []string, rows [][]string) string {
 // Card creates a bordered card with title and content
 func Card(title, content string, opts ...CardOption) string {
 	options := processCardOptions(opts...)
-
+	
 	titleText := Title.Render(title)
-
+	
 	if options.bordered {
-		border := BorderRounded.Copy()
+		border := lipgloss.NewStyle().Border(lipgloss.RoundedBorder())
 		if options.borderColor != nil {
 			border = border.BorderForeground(*options.borderColor)
 		}
 		return border.Render(lipgloss.JoinVertical(lipgloss.Top, titleText, content))
 	}
-
+	
 	return lipgloss.JoinVertical(lipgloss.Top, titleText, content)
 }
+
 
 // CardOptions contains options for card rendering
 type CardOptions struct {

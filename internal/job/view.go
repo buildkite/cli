@@ -18,24 +18,3 @@ func (j Job) Summarise() string {
 	bkJob := buildkite.Job(j)
 	return ui.RenderJobSummary(bkJob)
 }
-
-// getJobType returns the job type
-func (j Job) getJobType() string {
-	return j.Type
-}
-
-// getJobName returns the job name, using the first non-empty value from Name, Label, or Command
-func (j Job) getJobName() string {
-	var jobName string
-
-	switch {
-	case j.Name != "":
-		jobName = j.Name
-	case j.Label != "":
-		jobName = j.Label
-	default:
-		jobName = j.Command
-	}
-
-	return jobName
-}
