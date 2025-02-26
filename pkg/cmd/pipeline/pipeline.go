@@ -15,11 +15,16 @@ func NewCmdPipeline(f *factory.Factory) *cobra.Command {
 		Example: heredoc.Doc(`
 			# To create a new pipeline
 			$ bk pipeline create my-org/my-pipeline
+			
+			# To validate a pipeline configuration
+			$ bk pipeline validate
 		`),
 		PersistentPreRunE: validation.CheckValidConfiguration(f.Config),
 	}
 
 	cmd.AddCommand(NewCmdPipelineCreate(f))
 	cmd.AddCommand(NewCmdPipelineView(f))
+	cmd.AddCommand(NewCmdPipelineValidate(f))
+
 	return &cmd
 }
