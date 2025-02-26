@@ -4,11 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
+	httpClient "github.com/buildkite/cli/v3/internal/http"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/spf13/cobra"
@@ -89,52 +88,59 @@ func apiCaller(cmd *cobra.Command, args []string, f *factory.Factory) error {
 		endpointPrefix = fmt.Sprintf("v2/organizations/%s", f.Config.OrganizationSlug())
 	}
 
-	url := f.RestAPIClient.BaseURL.String() + endpointPrefix + endpoint
+	fullEndpoint := endpointPrefix + endpoint
 
-	var req *http.Request
-	var err error
+	// Create an HTTP client with appropriate configuration
+	client := httpClient.NewClient(
+		f.Config.APIToken(),
+		httpClient.WithBaseURL(f.RestAPIClient.BaseURL.String()),
+	)
 
-	if data != "" {
-		req, err = http.NewRequest(method, url, strings.NewReader(data))
-	} else {
-		req, err = http.NewRequest(method, url, nil)
-	}
-
-	if err != nil {
-		return fmt.Errorf("error creating request: %w", err)
-	}
-
+	// Process custom headers
+	customHeaders := make(map[string]string)
 	for _, header := range headers {
 		parts := strings.SplitN(header, ":", 2)
 		if len(parts) == 2 {
-			req.Header.Add(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+			customHeaders[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
 		}
 	}
 
-	req.Header.Set("Authorization", "Bearer "+f.Config.APIToken())
+	var requestData interface{}
+	if data != "" {
+		// Try to parse as JSON first
+		if err := json.Unmarshal([]byte(data), &requestData); err != nil {
+			// If not JSON, use raw string
+			requestData = data
+		}
+	}
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	var response interface{}
+	var err error
+
+	switch method {
+	case "GET":
+		err = client.Get(cmd.Context(), fullEndpoint, &response)
+	case "POST":
+		err = client.Post(cmd.Context(), fullEndpoint, requestData, &response)
+	case "PUT":
+		err = client.Put(cmd.Context(), fullEndpoint, requestData, &response)
+	default:
+		// For other methods, use the Do method directly
+		err = client.Do(cmd.Context(), method, fullEndpoint, requestData, &response)
+	}
+
 	if err != nil {
 		return fmt.Errorf("error making request: %w", err)
 	}
-	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("error reading response: %w", err)
-	}
-
-	var jsonResponse interface{}
-	err = json.Unmarshal(body, &jsonResponse)
-	if err != nil {
-		fmt.Println("Response is not valid JSON. Raw response:")
-		fmt.Println(string(body))
-		return fmt.Errorf("error parsing response as JSON: %w", err)
-	}
-
+	// Format and print the response
 	var prettyJSON bytes.Buffer
-	err = json.Indent(&prettyJSON, body, "", "  ")
+	responseBytes, err := json.Marshal(response)
+	if err != nil {
+		return fmt.Errorf("error marshaling response: %w", err)
+	}
+
+	err = json.Indent(&prettyJSON, responseBytes, "", "  ")
 	if err != nil {
 		return fmt.Errorf("error formatting JSON response: %w", err)
 	}
