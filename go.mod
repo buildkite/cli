@@ -18,7 +18,7 @@ require (
 	github.com/go-git/go-git/v5 v5.13.2
 	github.com/muesli/reflow v0.3.0
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
-	github.com/spf13/cobra v1.8.1
+	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.19.0
 	github.com/vektah/gqlparser/v2 v2.5.22
 	github.com/xeipuuv/gojsonschema v1.2.0
