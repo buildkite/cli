@@ -28,11 +28,11 @@ func StripHTMLTags(html string) string {
 	// Remove closing tags first
 	re := regexp.MustCompile(`</[^>]+>`)
 	html = re.ReplaceAllString(html, "")
-	
+
 	// Then remove opening tags
 	re = regexp.MustCompile(`<[^>]*>`)
 	html = re.ReplaceAllString(html, "")
-	
+
 	return html
 }
 
@@ -50,7 +50,7 @@ func FormatBytes(bytes int64) string {
 		GB = 1024 * MB
 		TB = 1024 * GB
 	)
-	
+
 	switch {
 	case bytes >= TB:
 		return fmt.Sprintf("%.1fTB", float64(bytes)/TB)

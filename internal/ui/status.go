@@ -25,7 +25,7 @@ func StatusStyle(state string) lipgloss.Style {
 // StatusIcon returns the appropriate icon for a status state
 func StatusIcon(state string, opts ...StatusOption) string {
 	options := processStatusOptions(opts...)
-	
+
 	var icon string
 	switch state {
 	case "passed", "success":
@@ -51,11 +51,11 @@ func StatusIcon(state string, opts ...StatusOption) string {
 	default:
 		icon = IconDefault
 	}
-	
+
 	if options.blocked && state == "passed" {
 		return icon + "(blocked)"
 	}
-	
+
 	return icon
 }
 

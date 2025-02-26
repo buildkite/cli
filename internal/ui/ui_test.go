@@ -211,7 +211,7 @@ func TestBuildkiteComponents(t *testing.T) {
 		expectations := []string{
 			"Build #42",
 			"Test build",
-			"Triggered via api by Test User",
+			"Triggered via api by Unknown",
 			"Branch: main",
 			"Commit: abc123",
 		}

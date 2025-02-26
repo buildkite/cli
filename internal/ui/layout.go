@@ -38,20 +38,20 @@ func Table(headers []string, rows [][]string) string {
 		StyleFunc(func(row, col int) lipgloss.Style {
 			return lipgloss.NewStyle().PaddingRight(2)
 		})
-	
+
 	for _, row := range rows {
 		t.Row(row...)
 	}
-	
+
 	return t.Render()
 }
 
 // Card creates a bordered card with title and content
 func Card(title, content string, opts ...CardOption) string {
 	options := processCardOptions(opts...)
-	
+
 	titleText := Title.Render(title)
-	
+
 	if options.bordered {
 		border := BorderRounded.Copy()
 		if options.borderColor != nil {
@@ -59,7 +59,7 @@ func Card(title, content string, opts ...CardOption) string {
 		}
 		return border.Render(lipgloss.JoinVertical(lipgloss.Top, titleText, content))
 	}
-	
+
 	return lipgloss.JoinVertical(lipgloss.Top, titleText, content)
 }
 
@@ -113,13 +113,13 @@ func SpacedVertical(strings ...string) string {
 	if len(strings) == 0 {
 		return ""
 	}
-	
+
 	var result []string
 	result = append(result, strings[0])
-	
+
 	for _, s := range strings[1:] {
 		result = append(result, "", s) // Add blank line before each item
 	}
-	
+
 	return lipgloss.JoinVertical(lipgloss.Top, result...)
 }
