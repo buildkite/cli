@@ -147,14 +147,7 @@ func validatePipeline(w io.Writer, filePath string) error {
 
 // formatValidationError formats a validation error for better readability
 func formatValidationError(err gojsonschema.ResultError) string {
-	// Clean up the context to make it more readable
-	context := err.Context().String()
 	field := err.Field()
-
-	// If the context is just the root, simplify it
-	if context == "(root)" {
-		context = ""
-	}
 
 	// For array items, make the error message more readable
 	if strings.Contains(field, "[") && strings.Contains(field, "]") {

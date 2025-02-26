@@ -188,6 +188,7 @@ func TestFindPipelineFile(t *testing.T) {
 
 	// Test finding no file
 	t.Run("no file exists", func(t *testing.T) {
+		t.Parallel()
 		// Mock fileExists to always return false
 		findPipelineFileFn := mockFindPipelineFile(func(path string) bool {
 			return false
@@ -201,6 +202,7 @@ func TestFindPipelineFile(t *testing.T) {
 
 	// Test finding pipeline.yml
 	t.Run("find pipeline.yml", func(t *testing.T) {
+		t.Parallel()
 		// Mock fileExists to return true only for pipeline.yml
 		findPipelineFileFn := mockFindPipelineFile(func(path string) bool {
 			return path == filepath.Join(".buildkite", "pipeline.yml")
@@ -219,6 +221,7 @@ func TestFindPipelineFile(t *testing.T) {
 
 	// Test finding pipeline.yaml
 	t.Run("find pipeline.yaml", func(t *testing.T) {
+		t.Parallel()
 		// Mock fileExists to return true only for pipeline.yaml
 		findPipelineFileFn := mockFindPipelineFile(func(path string) bool {
 			return path == filepath.Join(".buildkite", "pipeline.yaml")
@@ -237,6 +240,7 @@ func TestFindPipelineFile(t *testing.T) {
 
 	// Test preference for pipeline.yaml over pipeline.yml
 	t.Run("prefer pipeline.yaml over pipeline.yml", func(t *testing.T) {
+		t.Parallel()
 		// Mock fileExists to return true for both files
 		findPipelineFileFn := mockFindPipelineFile(func(path string) bool {
 			return path == filepath.Join(".buildkite", "pipeline.yaml") ||
