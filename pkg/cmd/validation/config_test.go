@@ -86,7 +86,6 @@ func TestCheckValidConfigurationExemptions(t *testing.T) {
 		// Check configuration for the pipeline validate command
 		validator := CheckValidConfiguration(conf)
 		err := validator(validateCmd, nil)
-
 		// Should not error even with empty config
 		if err != nil {
 			t.Errorf("Expected no error for exempted command, got: %v", err)
@@ -119,7 +118,6 @@ func TestCheckValidConfigurationExemptions(t *testing.T) {
 		// Check configuration for the pipeline validate command
 		validator := CheckValidConfiguration(conf)
 		err := validator(validateCmd, nil)
-
 		// Should not error - should recognize "pipeline validate" pattern
 		if err != nil {
 			t.Errorf("Expected no error for command with pattern matching 'pipeline validate', got: %v", err)

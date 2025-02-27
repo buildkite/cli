@@ -86,7 +86,7 @@ func NewCmdPipelineValidate(f *factory.Factory) *cobra.Command {
 			// Track validation errors
 			var validationErrors []string
 			fileCount := len(filePaths)
-			
+
 			fmt.Fprintf(cmd.OutOrStdout(), "Validating %d pipeline file(s)...\n\n", fileCount)
 
 			// Validate each file
@@ -103,7 +103,7 @@ func NewCmdPipelineValidate(f *factory.Factory) *cobra.Command {
 				fmt.Fprintf(cmd.OutOrStdout(), "\n%d of %d file(s) failed validation.\n", errorCount, fileCount)
 				return fmt.Errorf("pipeline validation failed")
 			}
-			
+
 			fmt.Fprintf(cmd.OutOrStdout(), "\nAll pipeline files passed validation successfully!\n")
 			return nil
 		},
@@ -188,7 +188,7 @@ func validatePipeline(w io.Writer, filePath string) error {
 		// If online schema access fails, try the fallback schema
 		fmt.Fprintf(w, "⚠️  Warning: Could not access online pipeline schema: %s\n", err.Error())
 		fmt.Fprintf(w, "   Using simplified fallback schema for basic validation.\n\n")
-		
+
 		// Create a schema loader using the fallback schema
 		fallbackLoader := gojsonschema.NewBytesLoader(fallbackSchema)
 		result, err = gojsonschema.Validate(fallbackLoader, documentLoader)
@@ -235,7 +235,7 @@ func formatValidationError(err gojsonschema.ResultError) string {
 	}
 
 	message := err.Description()
-	
+
 	// Format the message with the field highlighted
 	if field != "" {
 		message = fmt.Sprintf("%s: %s", field, message)
@@ -243,7 +243,7 @@ func formatValidationError(err gojsonschema.ResultError) string {
 
 	// Include details about what was received vs what was expected if available
 	details := err.Details()
-	
+
 	// Add more context about expected values
 	var contextParts []string
 	if val, ok := details["field"]; ok && val != field {
@@ -255,12 +255,12 @@ func formatValidationError(err gojsonschema.ResultError) string {
 	if val, ok := details["actual"]; ok {
 		contextParts = append(contextParts, fmt.Sprintf("got: %v", val))
 	}
-	
+
 	// If we have context parts, add them to the message
 	if len(contextParts) > 0 {
 		message += fmt.Sprintf(" (%s)", strings.Join(contextParts, ", "))
 	}
-	
+
 	// Add a helpful hint based on the error type
 	switch err.Type() {
 	case "required":
