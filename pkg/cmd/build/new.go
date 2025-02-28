@@ -135,9 +135,11 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 				}
 
 				return newBuild(cmd.Context(), resolvedPipeline.Org, resolvedPipeline.Name, f, message, commit, branch, web, envMap, ignoreBranchFilters)
+			} else {
+				// User chose not to proceed - provide feedback
+				fmt.Fprintf(cmd.OutOrStdout(), "Build creation canceled\n")
+				return nil
 			}
-
-			return nil // User chose not to proceed
 		}),
 	}
 
