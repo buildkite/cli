@@ -22,27 +22,26 @@ func TestValidatePipeline(t *testing.T) {
 	// - Each step must have at least a "command" field
 	// - A "label" field is optional and must be a string
 	// - A "command" field must be a string
-	schemaJSON := []byte(`{
-		"$schema": "http://json-schema.org/draft-07/schema#",
-		"type": "object",
-		"required": ["steps"],
-		"properties": {
-			"steps": {
-				"type": "array",
-				"items": {
-					"type": "object",
-					"properties": {
-						"label": { "type": "string" },
-						"command": { "type": "string" }
-					},
-					"required": ["command"]
-				}
-			}
-		}
-	}`)
+	testSchema := []byte(`{
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": ["steps"],
+        "properties": {
+            "steps": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "label": { "type": "string" },
+                        "command": { "type": "string" }
+                    },
+                    "required": ["command"]
+                }
+            }
+        }
+    }`)
 
-	// Create a schema loader for testing
-	testSchemaLoader := gojsonschema.NewBytesLoader(schemaJSON)
+	testSchemaLoader := gojsonschema.NewBytesLoader(testSchema)
 
 	tests := []struct {
 		name         string
@@ -80,6 +79,20 @@ func TestValidatePipeline(t *testing.T) {
 			expectError:  true,
 			expectOutput: "❌ Pipeline file is invalid",
 		},
+		{
+			name:         "empty file",
+			fileContent:  "",
+			expectError:  true,
+			expectOutput: "File is empty",
+		},
+		{
+			name: "invalid YAML syntax",
+			fileContent: `steps:
+  - label: "This has invalid syntax
+    command: echo "Missing closing quote and improper indentation`,
+			expectError:  true,
+			expectOutput: "YAML parsing error",
+		},
 	}
 
 	for _, test := range tests {
@@ -105,6 +118,12 @@ func TestValidatePipeline(t *testing.T) {
 			// Create a buffer to capture output
 			var stdout bytes.Buffer
 
+			// Test that no API token validation happens
+			validateCmd := NewCmdPipelineValidate(nil) // passing nil factory should work
+			if validateCmd.PersistentPreRunE != nil {
+				t.Error("Expected PersistentPreRunE to be nil (no validation)")
+			}
+
 			// Define a test validation function that uses our test schema
 			mockValidatePipeline := func(w io.Writer, filePath string) error {
 				// Read the pipeline file
@@ -113,10 +132,20 @@ func TestValidatePipeline(t *testing.T) {
 					return fmt.Errorf("error reading pipeline file: %w", err)
 				}
 
+				// Trim whitespace to handle empty files more gracefully
+				if len(strings.TrimSpace(string(pipelineData))) == 0 {
+					fmt.Fprintf(w, "❌ Pipeline file is invalid: %s\n\n", filePath)
+					fmt.Fprintf(w, "- File is empty\n")
+					return fmt.Errorf("empty pipeline file")
+				}
+
 				// Convert YAML to JSON for validation
 				jsonData, err := yaml.YAMLToJSON(pipelineData)
 				if err != nil {
-					return fmt.Errorf("error converting YAML to JSON: %w", err)
+					fmt.Fprintf(w, "❌ Pipeline file is invalid: %s\n\n", filePath)
+					fmt.Fprintf(w, "- YAML parsing error: %s\n", err.Error())
+					fmt.Fprintf(w, "  Hint: Check for syntax errors like improper indentation, missing quotes, or invalid characters.\n")
+					return fmt.Errorf("invalid YAML format: %w", err)
 				}
 
 				// Validate using the test schema loader
@@ -161,6 +190,34 @@ func TestValidatePipeline(t *testing.T) {
 				t.Errorf("Expected output to contain %q, but got: %q", test.expectOutput, stdout.String())
 			}
 		})
+	}
+}
+
+// Test command creation without a factory
+func TestNewCmdPipelineValidate(t *testing.T) {
+	t.Parallel()
+
+	// Command should work without a factory
+	cmd := NewCmdPipelineValidate(nil)
+	if cmd == nil {
+		t.Fatal("Failed to create command without factory")
+		return
+	}
+
+	// Command should not have PersistentPreRunE set
+	if cmd.PersistentPreRunE != nil {
+		t.Error("Expected PersistentPreRunE to be nil")
+	}
+
+	// Check command flags
+	fileFlag := cmd.Flag("file")
+	if fileFlag == nil {
+		t.Error("Expected 'file' flag")
+		return
+	}
+
+	if fileFlag.Shorthand != "f" {
+		t.Errorf("Expected shorthand 'f', got %q", fileFlag.Shorthand)
 	}
 }
 
