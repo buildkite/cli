@@ -180,13 +180,20 @@ func (h *Handler) HandleWithDetails(err error, operation string) {
 	if operation != "" {
 		// Check if it's already a CLI error
 		if cliErr, ok := err.(*Error); ok {
+			// Create a copy to avoid modifying the original error
+			newCliErr := &Error{
+				Original:    cliErr.Original,
+				Category:    cliErr.Category,
+				Suggestions: append([]string{}, cliErr.Suggestions...),
+			}
+			
 			// Add operation to details
 			if cliErr.Details == "" {
-				cliErr.Details = fmt.Sprintf("failed during: %s", operation)
+				newCliErr.Details = fmt.Sprintf("failed during: %s", operation)
 			} else {
-				cliErr.Details = fmt.Sprintf("%s (during: %s)", cliErr.Details, operation)
+				newCliErr.Details = fmt.Sprintf("%s (during: %s)", cliErr.Details, operation)
 			}
-			contextualErr = cliErr
+			contextualErr = newCliErr
 		} else {
 			// Wrap in a new error with operation details
 			contextualErr = NewError(err, nil, fmt.Sprintf("failed during: %s", operation))

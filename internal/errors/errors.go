@@ -57,10 +57,21 @@ func (e *Error) Error() string {
 		msg.WriteString(": ")
 	}
 
+	// First include the original error, if present
 	if e.Original != nil {
 		msg.WriteString(e.Original.Error())
-	} else if e.Details != "" {
-		msg.WriteString(e.Details)
+	}
+
+	// Then include details if present, regardless of whether Original is present
+	if e.Details != "" {
+		// Only add a separator if we've already written something
+		if e.Original != nil {
+			msg.WriteString(" (")
+			msg.WriteString(e.Details)
+			msg.WriteString(")")
+		} else {
+			msg.WriteString(e.Details)
+		}
 	}
 
 	return msg.String()
@@ -130,7 +141,7 @@ func WithSuggestions(err error, suggestions ...string) error {
 		cliErr.Suggestions = append(cliErr.Suggestions, suggestions...)
 		return cliErr
 	}
-	
+
 	// If it's not already a CLI error, create a new one
 	return NewError(err, nil, "", suggestions...)
 }
@@ -145,7 +156,7 @@ func WithDetails(err error, details string) error {
 		}
 		return cliErr
 	}
-	
+
 	// If it's not already a CLI error, create a new one
 	return NewError(err, nil, details)
 }
@@ -207,7 +218,7 @@ func IsAPIError(err error) bool {
 
 // IsAuthenticationError returns true if the error indicates an authentication failure
 func IsAuthenticationError(err error) bool {
-	return errors.Is(err, ErrAuthentication) 
+	return errors.Is(err, ErrAuthentication)
 }
 
 // IsPermissionDeniedError returns true if the error indicates a permission issue
