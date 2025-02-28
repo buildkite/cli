@@ -7,6 +7,7 @@ import (
 	agentCmd "github.com/buildkite/cli/v3/pkg/cmd/agent"
 	apiCmd "github.com/buildkite/cli/v3/pkg/cmd/api"
 	artifactsCmd "github.com/buildkite/cli/v3/pkg/cmd/artifacts"
+	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	buildCmd "github.com/buildkite/cli/v3/pkg/cmd/build"
 	clusterCmd "github.com/buildkite/cli/v3/pkg/cmd/cluster"
 	configureCmd "github.com/buildkite/cli/v3/pkg/cmd/configure"
@@ -23,6 +24,8 @@ import (
 )
 
 func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
+	var verbose bool
+
 	cmd := &cobra.Command{
 		Use:          "bk <command> <subcommand> [flags]",
 		Short:        "Buildkite CLI",
@@ -43,6 +46,11 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 			// If --version flag is not used, show help
 			_ = cmd.Help()
 		},
+		// This function will run after command execution and handle any errors
+		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
+			// This will be overridden by ExecuteWithErrorHandling
+			return nil
+		},
 	}
 
 	cmd.AddCommand(agentCmd.NewCmdAgent(f))
@@ -61,6 +69,7 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 	cmd.AddCommand(versionCmd.NewCmdVersion(f))
 
 	cmd.Flags().BoolP("version", "v", false, "Print the version number")
+	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "V", false, "Enable verbose error output")
 
 	return cmd, nil
 }
