@@ -1,10 +1,10 @@
 package errors
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -25,10 +25,10 @@ const (
 
 // Styling for error output
 var (
-	errorStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true) // Red
-	warningStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true) // Yellow
+	errorStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true) // Red
+	warningStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true) // Yellow
 	suggestionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))            // Cyan
-	detailStyle    = lipgloss.NewStyle().Faint(true)                               // Faint
+	detailStyle     = lipgloss.NewStyle().Faint(true)                                // Faint
 )
 
 // Handler processes errors from commands and formats them appropriately
