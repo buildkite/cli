@@ -200,7 +200,8 @@ func TestNewCmdPipelineValidate(t *testing.T) {
 	// Command should work without a factory
 	cmd := NewCmdPipelineValidate(nil)
 	if cmd == nil {
-		t.Error("Failed to create command without factory")
+		t.Fatal("Failed to create command without factory")
+		return
 	}
 
 	// Command should not have PersistentPreRunE set
@@ -212,7 +213,9 @@ func TestNewCmdPipelineValidate(t *testing.T) {
 	fileFlag := cmd.Flag("file")
 	if fileFlag == nil {
 		t.Error("Expected 'file' flag")
+		return
 	}
+
 	if fileFlag.Shorthand != "f" {
 		t.Errorf("Expected shorthand 'f', got %q", fileFlag.Shorthand)
 	}
