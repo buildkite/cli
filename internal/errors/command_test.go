@@ -42,6 +42,10 @@ func TestCommandErrorHandler(t *testing.T) {
 				return NewValidationError(nil, "Invalid input")
 			},
 		}
+
+		cmd.SilenceUsage = true
+		cmd.SilenceErrors = true
+
 		cmd.SetErr(&buf)
 
 		handler := NewCommandErrorHandler()
@@ -100,6 +104,9 @@ func TestCommandErrorHandler(t *testing.T) {
 						return tc.originalError
 					}),
 				}
+
+				cmd.SilenceUsage = true
+				cmd.SilenceErrors = true
 
 				// Run the command
 				err := cmd.Execute()

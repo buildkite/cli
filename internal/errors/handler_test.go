@@ -170,7 +170,8 @@ func TestHandler(t *testing.T) {
 			WithWriter(&buf).
 			WithExitFunc(func(int) {})
 
-		err := fmt.Errorf("something went wrong")
+		// Create a simple error that won't be shared with other tests
+		err := fmt.Errorf("test error: something went wrong")
 		operation := "fetching data"
 
 		handler.HandleWithDetails(err, operation)
