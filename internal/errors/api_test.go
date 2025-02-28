@@ -22,7 +22,7 @@ func TestWrapAPIError(t *testing.T) {
 		t.Parallel()
 		original := NewValidationError(nil, "Invalid input")
 		result := WrapAPIError(original, "test operation")
-		
+
 		if !IsValidationError(result) {
 			t.Error("Expected validation error category to be preserved")
 		}
@@ -32,12 +32,12 @@ func TestWrapAPIError(t *testing.T) {
 		t.Parallel()
 		original := NewValidationError(nil, "Invalid input")
 		result := WrapAPIError(original, "test operation")
-		
+
 		cliErr, ok := result.(*Error)
 		if !ok {
 			t.Fatal("Expected result to be a *Error")
 		}
-		
+
 		if cliErr.Details != "test operation: Invalid input" {
 			t.Errorf("Expected details to include operation, got: %q", cliErr.Details)
 		}
@@ -47,7 +47,7 @@ func TestWrapAPIError(t *testing.T) {
 		t.Parallel()
 		original := &simpleError{message: "something went wrong"}
 		result := WrapAPIError(original, "test operation")
-		
+
 		if !IsAPIError(result) {
 			t.Error("Expected generic error to be wrapped as API error")
 		}
@@ -65,19 +65,19 @@ func TestHandleHTTPError(t *testing.T) {
 			URL:        "https://api.buildkite.com/v2/pipelines/missing",
 			Body:       []byte(`{"message":"Pipeline not found"}`),
 		}
-		
+
 		result := handleHTTPError(httpErr, "get pipeline")
-		
+
 		if !IsNotFound(result) {
 			t.Error("Expected result to be a not found error")
 		}
-		
+
 		// Check for pipeline-specific suggestion
 		cliErr, ok := result.(*Error)
 		if !ok {
 			t.Fatal("Expected result to be a *Error")
 		}
-		
+
 		foundSuggestion := false
 		for _, suggestion := range cliErr.Suggestions {
 			if suggestion == "Verify the pipeline slug is correct" {
@@ -85,7 +85,7 @@ func TestHandleHTTPError(t *testing.T) {
 				break
 			}
 		}
-		
+
 		if !foundSuggestion {
 			t.Error("Expected pipeline-specific suggestion for not found error")
 		}
@@ -99,19 +99,19 @@ func TestHandleHTTPError(t *testing.T) {
 			URL:        "https://api.buildkite.com/v2/user",
 			Body:       []byte(`{"message":"Unauthorized"}`),
 		}
-		
+
 		result := handleHTTPError(httpErr, "get user")
-		
+
 		if !IsAuthenticationError(result) {
 			t.Error("Expected result to be an authentication error")
 		}
-		
+
 		// Check for token suggestion
 		cliErr, ok := result.(*Error)
 		if !ok {
 			t.Fatal("Expected result to be a *Error")
 		}
-		
+
 		foundSuggestion := false
 		for _, suggestion := range cliErr.Suggestions {
 			if suggestion == "Check your API token in the configuration" {
@@ -119,7 +119,7 @@ func TestHandleHTTPError(t *testing.T) {
 				break
 			}
 		}
-		
+
 		if !foundSuggestion {
 			t.Error("Expected token-specific suggestion for unauthorized error")
 		}
@@ -133,9 +133,9 @@ func TestHandleHTTPError(t *testing.T) {
 			URL:        "https://api.buildkite.com/v2/builds",
 			Body:       []byte(`{"message":"Forbidden"}`),
 		}
-		
+
 		result := handleHTTPError(httpErr, "cancel build")
-		
+
 		if !IsPermissionDeniedError(result) {
 			t.Error("Expected result to be a permission denied error")
 		}
@@ -150,7 +150,7 @@ func TestHandleHTTPError(t *testing.T) {
 				"url":  "invalid format",
 			},
 		}
-		
+
 		body, _ := json.Marshal(apiErr)
 		httpErr := &httpClient.ErrorResponse{
 			StatusCode: 400,
@@ -158,19 +158,19 @@ func TestHandleHTTPError(t *testing.T) {
 			URL:        "https://api.buildkite.com/v2/pipelines",
 			Body:       body,
 		}
-		
+
 		result := handleHTTPError(httpErr, "create pipeline")
-		
+
 		if !IsValidationError(result) {
 			t.Error("Expected result to be a validation error")
 		}
-		
+
 		// Check that field errors are included in suggestions
 		cliErr, ok := result.(*Error)
 		if !ok {
 			t.Fatal("Expected result to be a *Error")
 		}
-		
+
 		foundNameError := false
 		foundURLError := false
 		for _, suggestion := range cliErr.Suggestions {
@@ -181,7 +181,7 @@ func TestHandleHTTPError(t *testing.T) {
 				foundURLError = true
 			}
 		}
-		
+
 		if !foundNameError || !foundURLError {
 			t.Error("Expected field-specific errors to be included in suggestions")
 		}
@@ -195,19 +195,19 @@ func TestHandleHTTPError(t *testing.T) {
 			URL:        "https://api.buildkite.com/v2/builds",
 			Body:       []byte(`{"message":"Internal server error"}`),
 		}
-		
+
 		result := handleHTTPError(httpErr, "list builds")
-		
+
 		if !IsAPIError(result) {
 			t.Error("Expected result to be an API error")
 		}
-		
+
 		// Check for server error suggestion
 		cliErr, ok := result.(*Error)
 		if !ok {
 			t.Fatal("Expected result to be a *Error")
 		}
-		
+
 		foundSuggestion := false
 		for _, suggestion := range cliErr.Suggestions {
 			if suggestion == "This appears to be a server-side error" {
@@ -215,7 +215,7 @@ func TestHandleHTTPError(t *testing.T) {
 				break
 			}
 		}
-		
+
 		if !foundSuggestion {
 			t.Error("Expected server error suggestion")
 		}

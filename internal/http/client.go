@@ -1,4 +1,3 @@
-// Package http provides a common HTTP client with standardized headers and error handling
 package http
 
 import (
@@ -195,21 +194,4 @@ func (c *Client) Do(ctx context.Context, method, endpoint string, body interface
 	}
 
 	return nil
-}
-
-// ErrorResponse represents an error response from the API
-type ErrorResponse struct {
-	StatusCode int
-	Status     string
-	URL        string
-	Body       []byte
-}
-
-// Error implements the error interface
-func (e *ErrorResponse) Error() string {
-	msg := fmt.Sprintf("HTTP request failed: %d %s (%s)", e.StatusCode, e.Status, e.URL)
-	if len(e.Body) > 0 {
-		msg += fmt.Sprintf(": %s", e.Body)
-	}
-	return msg
 }

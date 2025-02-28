@@ -3,10 +3,8 @@ package build
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
@@ -58,7 +56,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 			tokenScopes := f.Config.GetTokenScopes()
 			if len(tokenScopes) == 0 {
 				return bkErrors.NewAuthenticationError(
-					nil, 
+					nil,
 					"no scopes found in token",
 					"Please ensure you're using a token with appropriate scopes",
 					"Run 'bk configure' to update your API token",
@@ -68,7 +66,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 			// Validate the scopes
 			if err := scopes.ValidateScopes(cmdScopes, tokenScopes); err != nil {
 				return bkErrors.NewPermissionDeniedError(
-					err, 
+					err,
 					"insufficient token permissions",
 					"Your API token needs the 'write_builds' scope to create builds",
 					"Create a new token with the required permissions in your Buildkite account settings",
@@ -90,7 +88,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 			}
 			if resolvedPipeline == nil {
 				return bkErrors.NewResourceNotFoundError(
-					nil, 
+					nil,
 					"could not resolve a pipeline",
 					"Specify a pipeline with --pipeline (-p)",
 					"Run 'bk pipeline list' to see available pipelines",
@@ -108,37 +106,37 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 					key, value, _ := strings.Cut(e, "=")
 					envMap[key] = value
 				}
-				
+
 				// Process environment file if specified
 				if envFile != "" {
 					file, err := os.Open(envFile)
 					if err != nil {
 						return bkErrors.NewValidationError(
-							err, 
+							err,
 							fmt.Sprintf("could not open environment file: %s", envFile),
 							"Check that the file exists and is readable",
 						)
 					}
 					defer file.Close()
-					
+
 					content := bufio.NewScanner(file)
 					for content.Scan() {
 						key, value, _ := strings.Cut(content.Text(), "=")
 						envMap[key] = value
 					}
-					
+
 					if err := content.Err(); err != nil {
 						return bkErrors.NewValidationError(
-							err, 
+							err,
 							"error reading environment file",
 							"Ensure the file contains valid environment variables in KEY=VALUE format",
 						)
 					}
 				}
-				
+
 				return newBuild(cmd.Context(), resolvedPipeline.Org, resolvedPipeline.Name, f, message, commit, branch, web, envMap, ignoreBranchFilters)
-			} 
-			
+			}
+
 			return nil // User chose not to proceed
 		}),
 	}
@@ -182,7 +180,7 @@ func newBuild(ctx context.Context, org string, pipeline string, f *factory.Facto
 				// Check if the pipeline has a default branch set
 				if p.DefaultBranch == "" {
 					actionErr = bkErrors.NewValidationError(
-						nil, 
+						nil,
 						fmt.Sprintf("No default branch set for pipeline %s", pipeline),
 						"Please specify a branch using --branch (-b)",
 						"Set a default branch in your pipeline settings on Buildkite",
@@ -218,7 +216,7 @@ func newBuild(ctx context.Context, org string, pipeline string, f *factory.Facto
 
 	if build.WebURL == "" {
 		return bkErrors.NewAPIError(
-			nil, 
+			nil,
 			"build was created but no URL was returned",
 			"This may be due to an API version mismatch",
 		)
@@ -229,7 +227,7 @@ func newBuild(ctx context.Context, org string, pipeline string, f *factory.Facto
 	if err := util.OpenInWebBrowser(web, build.WebURL); err != nil {
 		return bkErrors.NewInternalError(err, "failed to open web browser")
 	}
-	
+
 	return nil
 }
 

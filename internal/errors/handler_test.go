@@ -208,10 +208,10 @@ func TestHandler(t *testing.T) {
 
 		err := NewValidationError(nil, "Invalid input")
 		message := MessageForError(err)
-		
+
 		// Strip ANSI codes for testing
 		plainMessage := stripANSI(message)
-		
+
 		if !strings.Contains(plainMessage, "Validation Error:") {
 			t.Errorf("Expected message to contain error category, got: %q", plainMessage)
 		}

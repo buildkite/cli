@@ -2,7 +2,6 @@ package errors
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -60,25 +59,22 @@ func getCommandPath(cmd *cobra.Command) string {
 }
 
 // ExecuteWithErrorHandling runs a cobra command with standardized error handling
-func ExecuteWithErrorHandling(cmd *cobra.Command, verbose bool) {
+func ExecuteWithErrorHandling(cmd *cobra.Command, verbose bool) int {
+	// Silence Cobra's error printing
+	cmd.SilenceErrors = true
+
 	// Create an error handler
 	errorHandler := NewCommandErrorHandler().WithVerbose(verbose)
-
-	// Set the PersistentPostRun to handle errors
-	originalPersistentPostRun := cmd.PersistentPostRunE
-	cmd.PersistentPostRunE = func(cmd *cobra.Command, args []string) error {
-		if originalPersistentPostRun != nil {
-			return originalPersistentPostRun(cmd, args)
-		}
-		return nil
-	}
 
 	// Execute the command
 	err := cmd.Execute()
 	if err != nil {
+		// Handle the error
 		errorHandler.HandleCommandError(cmd, err)
-		os.Exit(GetExitCodeForError(err))
+		return GetExitCodeForError(err)
 	}
+
+	return ExitCodeSuccess
 }
 
 // WrapRunE wraps a RunE function with standard error handling

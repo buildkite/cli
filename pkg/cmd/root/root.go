@@ -7,7 +7,6 @@ import (
 	agentCmd "github.com/buildkite/cli/v3/pkg/cmd/agent"
 	apiCmd "github.com/buildkite/cli/v3/pkg/cmd/api"
 	artifactsCmd "github.com/buildkite/cli/v3/pkg/cmd/artifacts"
-	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	buildCmd "github.com/buildkite/cli/v3/pkg/cmd/build"
 	clusterCmd "github.com/buildkite/cli/v3/pkg/cmd/cluster"
 	configureCmd "github.com/buildkite/cli/v3/pkg/cmd/configure"

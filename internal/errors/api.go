@@ -43,7 +43,7 @@ func WrapAPIError(err error, operation string) error {
 func handleHTTPError(httpErr *httpClient.ErrorResponse, operation string) error {
 	statusCode := httpErr.StatusCode
 	details := fmt.Sprintf("%s failed with status %d", operation, statusCode)
-	
+
 	// Try to parse the response body as JSON
 	var apiErr APIErrorResponse
 	if len(httpErr.Body) > 0 {
@@ -70,7 +70,7 @@ func handleHTTPError(httpErr *httpClient.ErrorResponse, operation string) error 
 	case statusCode == http.StatusNotFound:
 		err = NewResourceNotFoundError(httpErr, details, suggestForNotFound(httpErr.URL)...)
 	case statusCode == http.StatusUnauthorized:
-		err = NewAuthenticationError(httpErr, details, 
+		err = NewAuthenticationError(httpErr, details,
 			"Check your API token in the configuration",
 			"Run 'bk configure' to set up your token correctly")
 	case statusCode == http.StatusForbidden:
@@ -93,7 +93,7 @@ func handleHTTPError(httpErr *httpClient.ErrorResponse, operation string) error 
 // handleBadRequestError processes a 400 Bad Request error
 func handleBadRequestError(httpErr *httpClient.ErrorResponse, details string, apiErr APIErrorResponse) error {
 	suggestions := []string{}
-	
+
 	// Add specific errors as suggestions
 	if len(apiErr.Errors) > 0 {
 		for _, errMsg := range apiErr.Errors {

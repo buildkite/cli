@@ -186,7 +186,7 @@ func (h *Handler) HandleWithDetails(err error, operation string) {
 				Category:    cliErr.Category,
 				Suggestions: append([]string{}, cliErr.Suggestions...),
 			}
-			
+
 			// Add operation to details
 			if cliErr.Details == "" {
 				newCliErr.Details = fmt.Sprintf("failed during: %s", operation)
