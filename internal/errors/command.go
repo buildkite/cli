@@ -47,6 +47,12 @@ func getCommandPath(cmd *cobra.Command) string {
 		return ""
 	}
 
+	// Use the command's CommandPath() function if available (more reliable)
+	if cmdPath := cmd.CommandPath(); cmdPath != "" {
+		return cmdPath
+	}
+
+	// Fallback to manually building the path
 	names := []string{cmd.Name()}
 	parent := cmd.Parent()
 

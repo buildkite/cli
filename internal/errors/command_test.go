@@ -33,32 +33,45 @@ func TestCommandErrorHandler(t *testing.T) {
 	})
 
 	t.Run("HandleCommandError formats error with command context", func(t *testing.T) {
-		t.Parallel()
+		// Skip parallelism for this test
+		// t.Parallel()
 
+		// Create a unique buffer for this test
 		var buf bytes.Buffer
-		cmd := &cobra.Command{
-			Use: "test",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return NewValidationError(nil, "Invalid input")
-			},
+		testCmd := &cobra.Command{
+			Use: "test-handling-cmd",
 		}
 
-		cmd.SilenceUsage = true
-		cmd.SilenceErrors = true
+		// Set the error output
+		testCmd.SetErr(&buf)
 
-		cmd.SetErr(&buf)
+		// Silence any cobra output
+		testCmd.SilenceUsage = true
+		testCmd.SilenceErrors = true
 
+		// Create a specific test error
+		testErr := NewValidationError(nil, "Test validation error")
+
+		// Create a handler and handle the error
 		handler := NewCommandErrorHandler()
-		handler.HandleCommandError(cmd, NewValidationError(nil, "Invalid input"))
+		handler.handler.WithExitFunc(func(int) {}) // Override exit function to prevent test exits
+		handler.HandleCommandError(testCmd, testErr)
 
+		// Check output
 		output := stripANSI(buf.String())
+
+		// Test for the error type prefix
 		if !strings.Contains(output, "Validation Error:") {
 			t.Errorf("Expected output to contain error type, got: %q", output)
 		}
-		if !strings.Contains(output, "Invalid input") {
+
+		// Test for the error message
+		if !strings.Contains(output, "Test validation error") {
 			t.Errorf("Expected output to contain error message, got: %q", output)
 		}
-		if !strings.Contains(output, "test") {
+
+		// Test for the command name
+		if !strings.Contains(output, "test-handling-cmd") {
 			t.Errorf("Expected output to contain command name, got: %q", output)
 		}
 	})
@@ -74,19 +87,19 @@ func TestCommandErrorHandler(t *testing.T) {
 		}{
 			{
 				name:                 "resource not found error",
-				originalError:        NewResourceNotFoundError(nil, "Resource not found"),
+				originalError:        NewResourceNotFoundError(nil, "Resource not found for test 1"),
 				expectSuggestionHelp: true,
 				expectCommandContext: false,
 			},
 			{
 				name:                 "validation error",
-				originalError:        NewValidationError(nil, "Invalid input"),
+				originalError:        NewValidationError(nil, "Invalid input for test 2"),
 				expectSuggestionHelp: false,
 				expectCommandContext: true,
 			},
 			{
 				name:                 "other error",
-				originalError:        fmt.Errorf("generic error"),
+				originalError:        fmt.Errorf("generic error for test 3"),
 				expectSuggestionHelp: false,
 				expectCommandContext: false,
 			},
@@ -98,13 +111,15 @@ func TestCommandErrorHandler(t *testing.T) {
 				t.Parallel()
 
 				// Create a command with a wrapped RunE function
+				// Use a unique command name per test case to avoid collisions
 				cmd := &cobra.Command{
-					Use: "test",
+					Use: "test-" + tc.name,
 					RunE: WrapRunE(func(cmd *cobra.Command, args []string) error {
 						return tc.originalError
 					}),
 				}
 
+				// Silence usage and errors to prevent output during tests
 				cmd.SilenceUsage = true
 				cmd.SilenceErrors = true
 
