@@ -96,9 +96,7 @@ func handleBadRequestError(httpErr *httpClient.ErrorResponse, details string, ap
 
 	// Add specific errors as suggestions
 	if len(apiErr.Errors) > 0 {
-		for _, errMsg := range apiErr.Errors {
-			suggestions = append(suggestions, errMsg)
-		}
+		suggestions = append(suggestions, apiErr.Errors...)
 	} else {
 		suggestions = append(suggestions, "Check the request parameters for invalid values")
 	}

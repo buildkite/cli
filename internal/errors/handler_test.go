@@ -193,7 +193,7 @@ func TestHandler(t *testing.T) {
 			WithWriter(&buf)
 
 		warningMsg := "Something might be wrong"
-		handler.PrintWarning(warningMsg)
+		handler.PrintWarning("%s", warningMsg)
 
 		output := stripANSI(buf.String())
 		if !strings.Contains(output, "Warning:") {
