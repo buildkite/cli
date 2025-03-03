@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
+	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/util"
@@ -47,65 +48,99 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 			$ bk build new -e "FOO=BAR" -e "BAR=BAZ"
 
 		`),
-		PreRunE: func(cmd *cobra.Command, args []string) error {
+		PreRunE: bkErrors.WrapRunE(func(cmd *cobra.Command, args []string) error {
 			// Get the command's required and optional scopes
 			cmdScopes := scopes.GetCommandScopes(cmd)
 
 			// Get the token scopes from the factory
 			tokenScopes := f.Config.GetTokenScopes()
 			if len(tokenScopes) == 0 {
-				return fmt.Errorf("no scopes found in token. Please ensure you're using a token with appropriate scopes")
+				return bkErrors.NewAuthenticationError(
+					nil,
+					"no scopes found in token",
+					"Please ensure you're using a token with appropriate scopes",
+					"Run 'bk configure' to update your API token",
+				)
 			}
 
 			// Validate the scopes
 			if err := scopes.ValidateScopes(cmdScopes, tokenScopes); err != nil {
-				return err
+				return bkErrors.NewPermissionDeniedError(
+					err,
+					"insufficient token permissions",
+					"Your API token needs the 'write_builds' scope to create builds",
+					"Create a new token with the required permissions in your Buildkite account settings",
+				)
 			}
 
 			return nil
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
+		}),
+		RunE: bkErrors.WrapRunE(func(cmd *cobra.Command, args []string) error {
 			resolvers := resolver.NewAggregateResolver(
 				resolver.ResolveFromFlag(pipeline, f.Config),
 				resolver.ResolveFromConfig(f.Config, resolver.PickOne),
 				resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOne)),
 			)
 
-			pipeline, err := resolvers.Resolve(cmd.Context())
+			resolvedPipeline, err := resolvers.Resolve(cmd.Context())
 			if err != nil {
-				return err
+				return err // Already wrapped by resolver
 			}
-			if pipeline == nil {
-				return fmt.Errorf("could not resolve a pipeline")
+			if resolvedPipeline == nil {
+				return bkErrors.NewResourceNotFoundError(
+					nil,
+					"could not resolve a pipeline",
+					"Specify a pipeline with --pipeline (-p)",
+					"Run 'bk pipeline list' to see available pipelines",
+				)
 			}
 
-			err = io.Confirm(&confirmed, fmt.Sprintf("Create new build on %s?", pipeline.Name))
+			err = io.Confirm(&confirmed, fmt.Sprintf("Create new build on %s?", resolvedPipeline.Name))
 			if err != nil {
-				return err
+				return bkErrors.NewUserAbortedError(err, "confirmation canceled")
 			}
 
 			if confirmed {
+				// Process environment variables
 				for _, e := range env {
 					key, value, _ := strings.Cut(e, "=")
 					envMap[key] = value
 				}
+
+				// Process environment file if specified
 				if envFile != "" {
 					file, err := os.Open(envFile)
 					if err != nil {
-						return err
+						return bkErrors.NewValidationError(
+							err,
+							fmt.Sprintf("could not open environment file: %s", envFile),
+							"Check that the file exists and is readable",
+						)
 					}
 					defer file.Close()
+
 					content := bufio.NewScanner(file)
 					for content.Scan() {
 						key, value, _ := strings.Cut(content.Text(), "=")
 						envMap[key] = value
 					}
+
+					if err := content.Err(); err != nil {
+						return bkErrors.NewValidationError(
+							err,
+							"error reading environment file",
+							"Ensure the file contains valid environment variables in KEY=VALUE format",
+						)
+					}
 				}
-				return newBuild(cmd.Context(), pipeline.Org, pipeline.Name, f, message, commit, branch, web, envMap, ignoreBranchFilters)
+
+				return newBuild(cmd.Context(), resolvedPipeline.Org, resolvedPipeline.Name, f, message, commit, branch, web, envMap, ignoreBranchFilters)
 			} else {
+				// User chose not to proceed - provide feedback
+				fmt.Fprintf(cmd.OutOrStdout(), "Build creation canceled\n")
 				return nil
 			}
-		},
+		}),
 	}
 
 	cmd.Annotations = map[string]string{
@@ -140,13 +175,18 @@ func newBuild(ctx context.Context, org string, pipeline string, f *factory.Facto
 			if len(branch) == 0 {
 				p, _, err := f.RestAPIClient.Pipelines.Get(ctx, org, pipeline)
 				if err != nil {
-					actionErr = fmt.Errorf("Error getting pipeline: %w", err)
+					actionErr = bkErrors.WrapAPIError(err, "fetching pipeline information")
 					return
 				}
 
 				// Check if the pipeline has a default branch set
 				if p.DefaultBranch == "" {
-					actionErr = fmt.Errorf("No default branch set for pipeline %s. Please specify a branch using --branch (-b)", pipeline)
+					actionErr = bkErrors.NewValidationError(
+						nil,
+						fmt.Sprintf("No default branch set for pipeline %s", pipeline),
+						"Please specify a branch using --branch (-b)",
+						"Set a default branch in your pipeline settings on Buildkite",
+					)
 					return
 				}
 				branch = p.DefaultBranch
@@ -163,13 +203,13 @@ func newBuild(ctx context.Context, org string, pipeline string, f *factory.Facto
 			var err error
 			build, _, err = f.RestAPIClient.Builds.Create(ctx, org, pipeline, newBuild)
 			if err != nil {
-				actionErr = fmt.Errorf("Error creating build: %w", err)
+				actionErr = bkErrors.WrapAPIError(err, "creating build")
 				return
 			}
 		}).
 		Run()
 	if spinErr != nil {
-		return spinErr
+		return bkErrors.NewInternalError(spinErr, "error in spinner UI")
 	}
 
 	if actionErr != nil {
@@ -177,12 +217,20 @@ func newBuild(ctx context.Context, org string, pipeline string, f *factory.Facto
 	}
 
 	if build.WebURL == "" {
-		return fmt.Errorf("no build was created")
+		return bkErrors.NewAPIError(
+			nil,
+			"build was created but no URL was returned",
+			"This may be due to an API version mismatch",
+		)
 	}
 
 	fmt.Printf("%s\n", renderResult(fmt.Sprintf("Build created: %s", build.WebURL)))
 
-	return util.OpenInWebBrowser(web, build.WebURL)
+	if err := util.OpenInWebBrowser(web, build.WebURL); err != nil {
+		return bkErrors.NewInternalError(err, "failed to open web browser")
+	}
+
+	return nil
 }
 
 func normaliseFlags(pf *pflag.FlagSet, name string) pflag.NormalizedName {

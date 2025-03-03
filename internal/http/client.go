@@ -1,4 +1,3 @@
-// Package http provides a common HTTP client with standardized headers and error handling
 package http
 
 import (
@@ -11,6 +10,28 @@ import (
 	"net/url"
 	"strings"
 )
+
+// ErrorResponse represents an error response from the API
+type ErrorResponse struct {
+	StatusCode int
+	Status     string
+	URL        string
+	Body       []byte
+}
+
+// Error implements the error interface
+func (e *ErrorResponse) Error() string {
+	msg := fmt.Sprintf("HTTP request failed: %d %s (%s)", e.StatusCode, e.Status, e.URL)
+	if len(e.Body) > 0 {
+		// Truncate body if it's very long for the error message
+		bodyStr := string(e.Body)
+		if len(bodyStr) > 200 {
+			bodyStr = bodyStr[:200] + "..."
+		}
+		msg += fmt.Sprintf(": %s", bodyStr)
+	}
+	return msg
+}
 
 // Client is an HTTP client that handles common operations for Buildkite API requests
 type Client struct {
@@ -78,6 +99,31 @@ func (c *Client) Put(ctx context.Context, endpoint string, body interface{}, v i
 // Delete performs a DELETE request to the specified endpoint
 func (c *Client) Delete(ctx context.Context, endpoint string, v interface{}) error {
 	return c.Do(ctx, http.MethodDelete, endpoint, nil, v)
+}
+
+// IsNotFound returns true if the error is a 404 Not Found
+func (e *ErrorResponse) IsNotFound() bool {
+	return e.StatusCode == http.StatusNotFound
+}
+
+// IsUnauthorized returns true if the error is a 401 Unauthorized
+func (e *ErrorResponse) IsUnauthorized() bool {
+	return e.StatusCode == http.StatusUnauthorized
+}
+
+// IsForbidden returns true if the error is a 403 Forbidden
+func (e *ErrorResponse) IsForbidden() bool {
+	return e.StatusCode == http.StatusForbidden
+}
+
+// IsBadRequest returns true if the error is a 400 Bad Request
+func (e *ErrorResponse) IsBadRequest() bool {
+	return e.StatusCode == http.StatusBadRequest
+}
+
+// IsServerError returns true if the error is a 5xx Server Error
+func (e *ErrorResponse) IsServerError() bool {
+	return e.StatusCode >= 500
 }
 
 // Do performs an HTTP request with the given method, endpoint, and body
@@ -148,21 +194,4 @@ func (c *Client) Do(ctx context.Context, method, endpoint string, body interface
 	}
 
 	return nil
-}
-
-// ErrorResponse represents an error response from the API
-type ErrorResponse struct {
-	StatusCode int
-	Status     string
-	URL        string
-	Body       []byte
-}
-
-// Error implements the error interface
-func (e *ErrorResponse) Error() string {
-	msg := fmt.Sprintf("HTTP request failed: %d %s (%s)", e.StatusCode, e.Status, e.URL)
-	if len(e.Body) > 0 {
-		msg += fmt.Sprintf(": %s", e.Body)
-	}
-	return msg
 }
