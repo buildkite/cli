@@ -6,6 +6,7 @@ import (
 
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
+	"github.com/buildkite/cli/v3/internal/testutil"
 	"github.com/spf13/afero"
 )
 
@@ -41,15 +42,10 @@ func TestParsePipelineArg(t *testing.T) {
 			conf.SelectOrganization("testing")
 			f := resolver.ResolveFromPositionalArgument([]string{testcase.url}, 0, conf)
 			pipeline, err := f(context.Background())
-			if err != nil {
-				t.Error(err)
-			}
-			if pipeline.Org != testcase.org {
-				t.Error("parsed organization slug did not match expected")
-			}
-			if pipeline.Name != testcase.pipeline {
-				t.Error("parsed pipeline name did not match expected")
-			}
+
+			testutil.AssertNoError(t, err)
+			testutil.AssertEqual(t, pipeline.Org, testcase.org, "organization slug")
+			testutil.AssertEqual(t, pipeline.Name, testcase.pipeline, "pipeline name")
 		})
 	}
 
@@ -60,11 +56,8 @@ func TestParsePipelineArg(t *testing.T) {
 		conf.SelectOrganization("testing")
 		f := resolver.ResolveFromPositionalArgument([]string{"https://buildkite.com/"}, 0, conf)
 		pipeline, err := f(context.Background())
-		if err == nil {
-			t.Error("Should have failed parsing pipeline")
-		}
-		if pipeline != nil {
-			t.Error("No pipeline should be returned")
-		}
+
+		testutil.AssertEqual(t, err != nil, true, "expected error")
+		testutil.AssertEqual(t, pipeline == nil, true, "expected nil pipeline")
 	})
 }

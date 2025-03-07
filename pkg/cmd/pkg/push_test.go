@@ -2,7 +2,6 @@ package pkg
 
 import (
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,11 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/buildkite/cli/v3/internal/config"
-	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/internal/testutil"
 	"github.com/buildkite/go-buildkite/v4"
-	"github.com/spf13/afero"
-	"github.com/spf13/cobra"
 )
 
 func TestPackagePush(t *testing.T) {
@@ -164,69 +160,36 @@ func TestPackagePush(t *testing.T) {
 				}
 			}))
 
-			cmd, err := createCommand(t, createCommandInput{
-				testServer: s,
-				flags:      tc.flags,
-				args:       tc.args,
-				stdin:      tc.stdin,
+			// Create custom stdin readable function for testing
+			if tc.stdin != nil {
+				// Override the isStdInReadableFunc to always return true
+				was := isStdInReadableFunc
+				isStdInReadableFunc = func() (bool, error) { return true, nil }
+				t.Cleanup(func() { isStdInReadableFunc = was })
+			}
+
+			cmd, err := testutil.CreateCommand(t, testutil.CommandInput{
+				TestServerURL: s.URL,
+				Flags:         tc.flags,
+				Args:          tc.args,
+				Stdin:         tc.stdin,
+				NewCmd:        NewCmdPackagePush,
 			})
 			if err != nil {
 				t.Fatalf("creating test command: %v", err)
 			}
 
 			err = cmd.Execute()
-			if !errors.Is(err, tc.wantErr) {
-				t.Errorf("Expected error %v, got %v", tc.wantErr, err)
+
+			if tc.wantErr != nil {
+				testutil.AssertErrorIs(t, err, tc.wantErr)
+			} else {
+				testutil.AssertNoError(t, err)
 			}
 
-			if err != nil && !strings.Contains(err.Error(), tc.wantErrContain) {
-				t.Errorf("Expected error to contain %q, got %q", tc.wantErrContain, err.Error())
+			if tc.wantErrContain != "" {
+				testutil.AssertErrorContains(t, err, tc.wantErrContain)
 			}
 		})
 	}
-}
-
-type createCommandInput struct {
-	testServer *httptest.Server
-	flags      map[string]string
-	args       []string
-	stdin      io.Reader
-}
-
-func createCommand(t *testing.T, cci createCommandInput) (*cobra.Command, error) {
-	t.Helper()
-
-	client, err := buildkite.NewOpts(buildkite.WithBaseURL(cci.testServer.URL))
-	if err != nil {
-		return nil, err
-	}
-
-	conf := config.New(afero.NewMemMapFs(), nil)
-	conf.SelectOrganization("test")
-
-	f := &factory.Factory{Config: conf, RestAPIClient: client}
-
-	cmd := NewCmdPackagePush(f)
-
-	args := []string{}
-	for k, v := range cci.flags {
-		args = append(args, "--"+k, v)
-	}
-
-	args = append(args, cci.args...)
-	cmd.SetArgs(args)
-
-	if cci.stdin != nil {
-		cmd.SetIn(cci.stdin)
-		// Override the isStdInReadableFunc to always return true, we want to test
-		// the validation logic, not the actual stdin
-		was := isStdInReadableFunc
-		isStdInReadableFunc = func() (bool, error) { return true, nil }
-		t.Cleanup(func() { isStdInReadableFunc = was })
-	}
-
-	cmd.SetOut(io.Discard)
-	cmd.SetErr(io.Discard)
-
-	return cmd, nil
 }
