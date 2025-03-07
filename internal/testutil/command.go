@@ -33,7 +33,10 @@ func CreateCommand(t *testing.T, input CommandInput) (*cobra.Command, error) {
 		}
 
 		conf := config.New(afero.NewMemMapFs(), nil)
-		conf.SelectOrganization("test")
+		err = conf.SelectOrganization("test")
+		if err != nil {
+			t.Errorf("Error selecting organization: %s", err)
+		}
 
 		input.Factory = &factory.Factory{Config: conf, RestAPIClient: client}
 	}

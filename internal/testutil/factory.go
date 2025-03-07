@@ -21,7 +21,10 @@ func CreateFactory(t *testing.T, serverURL, org string, repo *git.Repository) *f
 	}
 
 	conf := config.New(afero.NewMemMapFs(), nil)
-	conf.SelectOrganization(org)
+	err = conf.SelectOrganization(org)
+	if err != nil {
+		t.Errorf("Error selecting organization: %s", err)
+	}
 	return &factory.Factory{
 		Config:        conf,
 		RestAPIClient: bkClient,

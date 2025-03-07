@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"log"
 	"net/http"
 	"net/http/httptest"
 )
@@ -9,7 +10,10 @@ import (
 func MockHTTPServer(response string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(response))
+		_, err := w.Write([]byte(response))
+		if err != nil {
+			log.Fatalf("error writing response: %v", err)
+		}
 	}))
 }
 
