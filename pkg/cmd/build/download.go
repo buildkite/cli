@@ -102,7 +102,7 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 	}
 
 	cmd.Annotations = map[string]string{
-		"requiredScopes": fmt.Sprint(string(scopes.ReadBuilds), string(scopes.ReadArtifacts), string(scopes.ReadBuildLogs)),
+		"requiredScopes": scopes.NewScopes(scopes.ReadBuilds, scopes.ReadArtifacts, scopes.ReadBuildLogs).String(),
 	}
 
 	cmd.Flags().BoolVarP(&mine, "mine", "m", false, "Filter builds to only my user.")

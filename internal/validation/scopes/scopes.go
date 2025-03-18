@@ -2,13 +2,40 @@ package scopes
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
 )
 
+// Scopes is a helper class to manipulate a list of scopes.
+type Scopes []Scope
+
+// NewScopes creates a new Scopes from the given list of scopes.
+func NewScopes(scopes ...Scope) Scopes {
+	return scopes
+}
+
+// NewScopesFromString a list of scopes separated by "," from string s.
+func NewScopesFromString(s string) Scopes {
+	var scopes Scopes
+	for _, scope := range strings.Split(s, ",") {
+		scopes = append(scopes, Scope(strings.TrimSpace(scope)))
+	}
+	return scopes
+}
+
+// String builds a string with the list of scopes joined by ",".
+func (scopes Scopes) String() string {
+	var strs []string
+	for _, scope := range scopes {
+		strs = append(strs, string(scope))
+	}
+	return strings.Join(strs, ",")
+}
+
 type CommandScopes struct {
-	Required []Scope
+	Required Scopes
 }
 
 func ValidateCommandScopes(cmd *cobra.Command, tokenScopes []string) error {
@@ -17,12 +44,10 @@ func ValidateCommandScopes(cmd *cobra.Command, tokenScopes []string) error {
 }
 
 func GetCommandScopes(cmd *cobra.Command) CommandScopes {
-	required := []Scope{}
+	required := Scopes{}
 
 	if reqScopes, ok := cmd.Annotations["requiredScopes"]; ok {
-		for _, scope := range strings.Split(reqScopes, ",") {
-			required = append(required, Scope(strings.TrimSpace(scope)))
-		}
+		required = NewScopesFromString(reqScopes)
 	}
 
 	return CommandScopes{
@@ -34,14 +59,7 @@ func ValidateScopes(cmdScopes CommandScopes, tokenScopes []string) error {
 	missingRequired := []string{}
 
 	for _, requiredScope := range cmdScopes.Required {
-		found := false
-		for _, tokenScope := range tokenScopes {
-			if string(requiredScope) == tokenScope {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if !slices.Contains(tokenScopes, string(requiredScope)) {
 			missingRequired = append(missingRequired, string(requiredScope))
 		}
 	}
