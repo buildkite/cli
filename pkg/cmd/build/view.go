@@ -8,6 +8,7 @@ import (
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	"github.com/buildkite/cli/v3/internal/build/view"
+	"github.com/buildkite/cli/v3/internal/models"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v4"
@@ -20,6 +21,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 	var opts view.ViewOptions
 	var mine bool
 	var branch, user string
+	var pipelineStr string // For handling pipeline flag, since Pipeline is now a struct
 
 	cmd := &cobra.Command{
 		DisableFlagsInUseLine: true,
@@ -50,9 +52,16 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 					$ bk build view -p deploy-pipeline -u "greg"
 				`),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Initially set Pipeline struct from flag if provided
+			if pipelineStr != "" {
+				opts.Pipeline = &models.Pipeline{
+					Slug: pipelineStr,
+				}
+			}
+			
 			// Resolve pipeline first
 			pipelineRes := pipelineResolver.NewAggregateResolver(
-				pipelineResolver.ResolveFromFlag(opts.Pipeline, f.Config),
+				pipelineResolver.ResolveFromFlag(pipelineStr, f.Config),
 				pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
 				pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOne)),
 			)
@@ -85,7 +94,12 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			}
 
 			opts.Organization = bld.Organization
-			opts.Pipeline = bld.Pipeline
+			// Set Pipeline as a struct not a string
+			if bld.Pipeline != "" {
+				opts.Pipeline = &models.Pipeline{
+					Slug: bld.Pipeline,
+				}
+			}
 			opts.BuildNumber = bld.BuildNumber
 
 			if err := opts.Validate(); err != nil {
@@ -93,8 +107,14 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			}
 
 			if opts.Web {
+				// Extract pipeline slug for URL
+				pipelineSlug := ""
+				if opts.Pipeline != nil {
+					pipelineSlug = opts.Pipeline.Slug
+				}
+				
 				buildURL := fmt.Sprintf("https://buildkite.com/%s/%s/builds/%d",
-					opts.Organization, opts.Pipeline, opts.BuildNumber)
+					opts.Organization, pipelineSlug, opts.BuildNumber)
 				fmt.Printf("Opening %s in your browser\n", buildURL)
 				return browser.OpenURL(buildURL)
 			}
@@ -112,10 +132,17 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 					go func() {
 						defer wg.Done()
 						var apiErr error
+						
+						// Extract pipeline slug
+						pipelineSlug := ""
+						if opts.Pipeline != nil {
+							pipelineSlug = opts.Pipeline.Slug
+						}
+						
 						build, _, apiErr = f.RestAPIClient.Builds.Get(
 							cmd.Context(),
 							opts.Organization,
-							opts.Pipeline,
+							pipelineSlug,
 							fmt.Sprint(opts.BuildNumber),
 							nil,
 						)
@@ -129,10 +156,17 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 					go func() {
 						defer wg.Done()
 						var apiErr error
+						
+						// Extract pipeline slug
+						pipelineSlug := ""
+						if opts.Pipeline != nil {
+							pipelineSlug = opts.Pipeline.Slug
+						}
+						
 						artifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByBuild(
 							cmd.Context(),
 							opts.Organization,
-							opts.Pipeline,
+							pipelineSlug,
 							fmt.Sprint(opts.BuildNumber),
 							nil,
 						)
@@ -146,10 +180,17 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 					go func() {
 						defer wg.Done()
 						var apiErr error
+						
+						// Extract pipeline slug
+						pipelineSlug := ""
+						if opts.Pipeline != nil {
+							pipelineSlug = opts.Pipeline.Slug
+						}
+						
 						annotations, _, apiErr = f.RestAPIClient.Annotations.ListByBuild(
 							cmd.Context(),
 							opts.Organization,
-							opts.Pipeline,
+							pipelineSlug,
 							fmt.Sprint(opts.BuildNumber),
 							nil,
 						)
@@ -181,7 +222,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 	cmd.Flags().BoolVar(&opts.Web, "web", false, "Open the build in a web browser.")
 	cmd.Flags().StringVar(&branch, "branch", "", "Filter builds to this branch.")
 	cmd.Flags().StringVar(&user, "user", "", "Filter builds to this user. You can use name or email.")
-	cmd.Flags().StringVar(&opts.Pipeline, "pipeline", "", "The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
+	cmd.Flags().StringVar(&pipelineStr, "pipeline", "", "The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
 		"If omitted, it will be resolved using the current directory.",
 	)
 
