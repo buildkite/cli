@@ -1,7 +1,5 @@
 package models
 
-import "time"
-
 // Build represents a Buildkite build
 type Build struct {
 	// API fields

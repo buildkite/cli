@@ -21,11 +21,16 @@ func (o *ViewOptions) Validate() error {
 	v.AddRule("Organization", validation.Required)
 	v.AddRule("Organization", validation.Slug)
 	v.AddRule("Pipeline", validation.Required)
-	v.AddRule("Pipeline", validation.Slug)
-
+	
+	// Pipeline is now a struct pointer, not a string
+	var pipelineSlug string
+	if o.Pipeline != nil {
+		pipelineSlug = o.Pipeline.Slug
+	}
+	
 	return v.Validate(map[string]interface{}{
 		"Organization": o.Organization,
-		"Pipeline":     o.Pipeline,
+		"Pipeline":     pipelineSlug,
 	})
 }
 

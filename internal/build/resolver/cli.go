@@ -8,6 +8,7 @@ import (
 
 	"github.com/buildkite/cli/v3/internal/build"
 	"github.com/buildkite/cli/v3/internal/config"
+	"github.com/buildkite/cli/v3/internal/models"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 )
 
@@ -48,11 +49,18 @@ func parseBuildArg(ctx context.Context, arg string, pipeline pipelineResolver.Pi
 		if err != nil {
 			return nil
 		}
-		return &build.Build{
+		
+		// Create using our internal model first
+		modelBuild := &models.Build{
 			Organization: part[0],
-			Pipeline:     part[1],
+			Pipeline:     &models.Pipeline{
+				Slug: part[1],
+			},
 			BuildNumber:  num,
 		}
+		
+		// Then convert to the package-specific struct
+		return build.FromModel(modelBuild)
 	}
 
 	num, err := strconv.Atoi(arg)
@@ -63,9 +71,16 @@ func parseBuildArg(ctx context.Context, arg string, pipeline pipelineResolver.Pi
 	if err != nil || p == nil {
 		return nil
 	}
-	return &build.Build{
+	
+	// Create using our internal model first
+	modelBuild := &models.Build{
 		Organization: p.Org,
-		Pipeline:     p.Name,
+		Pipeline:     &models.Pipeline{
+			Slug: p.Name,
+		},
 		BuildNumber:  num,
 	}
+	
+	// Then convert to the package-specific struct
+	return build.FromModel(modelBuild)
 }

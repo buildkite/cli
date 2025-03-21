@@ -15,18 +15,32 @@ type Build struct {
 
 // ToModel converts the Build to a models.Build
 func (b *Build) ToModel() *models.Build {
-	return &models.Build{
+	modelBuild := &models.Build{
 		Organization: b.Organization,
-		Pipeline:     b.Pipeline,
 		BuildNumber:  b.BuildNumber,
 	}
+	
+	// Pipeline is now a struct, not a string
+	if b.Pipeline != "" {
+		modelBuild.Pipeline = &models.Pipeline{
+			Slug: b.Pipeline,
+		}
+	}
+	
+	return modelBuild
 }
 
 // FromModel creates a Build from a models.Build
 func FromModel(mb *models.Build) *Build {
-	return &Build{
+	build := &Build{
 		Organization: mb.Organization,
-		Pipeline:     mb.Pipeline,
 		BuildNumber:  mb.BuildNumber,
 	}
+	
+	// Pipeline is now a struct, not a string
+	if mb.Pipeline != nil {
+		build.Pipeline = mb.Pipeline.Slug
+	}
+	
+	return build
 }
