@@ -3,17 +3,17 @@ package view
 import (
 	"strings"
 
+	"github.com/buildkite/cli/v3/internal/models"
 	"github.com/buildkite/cli/v3/internal/ui"
 	"github.com/buildkite/cli/v3/internal/validation"
 	"github.com/buildkite/go-buildkite/v4"
 )
 
 // ViewOptions represents options for viewing a build
+// It uses the models.Build struct plus a web flag
 type ViewOptions struct {
-	Organization string
-	Pipeline     string
-	BuildNumber  int
-	Web          bool
+	models.Build
+	Web bool
 }
 
 func (o *ViewOptions) Validate() error {
@@ -32,16 +32,34 @@ func (o *ViewOptions) Validate() error {
 // BuildView encapsulates the build view functionality
 type BuildView struct {
 	Build       *buildkite.Build
-	Artifacts   []buildkite.Artifact
-	Annotations []buildkite.Annotation
+	Artifacts   []models.Artifact
+	Annotations []models.Annotation
 }
 
 // NewBuildView creates a new BuildView instance
 func NewBuildView(build *buildkite.Build, artifacts []buildkite.Artifact, annotations []buildkite.Annotation) *BuildView {
+	// Convert buildkite.Artifact to models.Artifact
+	modelArtifacts := make([]models.Artifact, len(artifacts))
+	for i, a := range artifacts {
+		artifact := models.FromBuildkiteArtifact(&a)
+		if artifact != nil {
+			modelArtifacts[i] = *artifact
+		}
+	}
+
+	// Convert buildkite.Annotation to models.Annotation
+	modelAnnotations := make([]models.Annotation, len(annotations))
+	for i, a := range annotations {
+		annotation := models.FromBuildkiteAnnotation(&a)
+		if annotation != nil {
+			modelAnnotations[i] = *annotation
+		}
+	}
+
 	return &BuildView{
 		Build:       build,
-		Artifacts:   artifacts,
-		Annotations: annotations,
+		Artifacts:   modelArtifacts,
+		Annotations: modelAnnotations,
 	}
 }
 
@@ -89,7 +107,11 @@ func (v *BuildView) renderArtifacts() string {
 	var artifactSections []string
 
 	for _, artifact := range v.Artifacts {
-		artifactSections = append(artifactSections, ui.RenderArtifact(&artifact))
+		// Convert to buildkite Artifact for now using our conversion utility
+		bkArtifact := artifact.ToBuildkiteArtifact()
+		if bkArtifact != nil {
+			artifactSections = append(artifactSections, ui.RenderArtifact(bkArtifact))
+		}
 	}
 
 	return strings.Join(artifactSections, "\n")
@@ -99,7 +121,11 @@ func (v *BuildView) renderAnnotations() string {
 	var annotationSections []string
 
 	for _, annotation := range v.Annotations {
-		annotationSections = append(annotationSections, ui.RenderAnnotation(&annotation))
+		// Convert to buildkite Annotation for now using our conversion utility
+		bkAnnotation := annotation.ToBuildkiteAnnotation()
+		if bkAnnotation != nil {
+			annotationSections = append(annotationSections, ui.RenderAnnotation(bkAnnotation))
+		}
 	}
 
 	return strings.Join(annotationSections, "\n")
