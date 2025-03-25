@@ -22,10 +22,10 @@ func NewCmdArtifactsDownload(f *factory.Factory) *cobra.Command {
 		Short:                 "Download an artifact by its UUID",
 		Args:                  cobra.ExactArgs(1),
 		Long: heredoc.Doc(`
-			Use this command to download a specific artifact. 
+			Use this command to download a specific artifact.
 		`),
-		Example: heredoc.Doc(`			
-			$ bk artifacts download 0191727d-b5ce-4576-b37d-477ae0ca830c 
+		Example: heredoc.Doc(`
+			$ bk artifacts download 0191727d-b5ce-4576-b37d-477ae0ca830c
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			artifactId := args[0]
@@ -42,7 +42,6 @@ func NewCmdArtifactsDownload(f *factory.Factory) *cobra.Command {
 				return spinErr
 			}
 			if err != nil {
-				fmt.Println("EXITING due to ERROR HERE")
 				return err
 			}
 
@@ -62,6 +61,10 @@ func download(ctx context.Context, f *factory.Factory, artifactId string) (strin
 	resp, err = graphql.GetArtifacts(ctx, f.GraphQLClient, artifactId)
 	if err != nil {
 		return "", err
+	}
+
+	if resp == nil || resp.Artifact == nil {
+		return "", fmt.Errorf("no artifact found with ID: %s", artifactId)
 	}
 
 	directory := fmt.Sprintf("artifact-%s", artifactId)
