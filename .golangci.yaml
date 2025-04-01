@@ -16,4 +16,4 @@ issues:
     # ignore typecheck errors for imports
     - linters:
         - typecheck
-      text: "undefined:"
+      text: "undefined: .*"
