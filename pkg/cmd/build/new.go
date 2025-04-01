@@ -29,7 +29,9 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	var web bool
 	var ignoreBranchFilters bool
 	var env []string
+	var metaData []string
 	envMap := make(map[string]string)
+	metaDataMap := make(map[string]string)
 	var envFile string
 
 	cmd := cobra.Command{
@@ -47,6 +49,8 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 			## To create a new build with environment variables set
 			$ bk build new -e "FOO=BAR" -e "BAR=BAZ"
 
+			## To create a new build with metadata
+			$ bk build new -M "key=value" -M "foo=bar"
 		`),
 		PreRunE: bkErrors.WrapRunE(func(cmd *cobra.Command, args []string) error {
 			// Get the command's required and optional scopes
@@ -107,6 +111,12 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 					envMap[key] = value
 				}
 
+				// Process metadata variables
+				for _, m := range metaData {
+					key, value, _ := strings.Cut(m, "=")
+					metaDataMap[key] = value
+				}
+
 				// Process environment file if specified
 				if envFile != "" {
 					file, err := os.Open(envFile)
@@ -134,7 +144,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 					}
 				}
 
-				return newBuild(cmd.Context(), resolvedPipeline.Org, resolvedPipeline.Name, f, message, commit, branch, web, envMap, ignoreBranchFilters)
+				return newBuild(cmd.Context(), resolvedPipeline.Org, resolvedPipeline.Name, f, message, commit, branch, web, envMap, metaDataMap, ignoreBranchFilters)
 			} else {
 				// User chose not to proceed - provide feedback
 				fmt.Fprintf(cmd.OutOrStdout(), "Build creation canceled\n")
@@ -155,6 +165,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 		"If omitted, it will be resolved using the current directory.",
 	)
 	cmd.Flags().StringArrayVarP(&env, "env", "e", []string{}, "Set environment variables for the build")
+	cmd.Flags().StringArrayVarP(&metaData, "metadata", "M", []string{}, "Set metadata for the build (KEY=VALUE)")
 	cmd.Flags().BoolVarP(&ignoreBranchFilters, "ignore-branch-filters", "i", false, "Ignore branch filters for the pipeline")
 	cmd.Flags().BoolVarP(&confirmed, "yes", "y", false, "Skip the confirmation prompt. Useful if being used in automation/CI")
 	cmd.Flags().StringVarP(&envFile, "env-file", "f", "", "Set the environment variables for the build via an environment file")
@@ -165,7 +176,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-func newBuild(ctx context.Context, org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool, env map[string]string, ignoreBranchFilters bool) error {
+func newBuild(ctx context.Context, org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool, env map[string]string, metaData map[string]string, ignoreBranchFilters bool) error {
 	var actionErr error
 	var build buildkite.Build
 	spinErr := spinner.New().
@@ -197,6 +208,7 @@ func newBuild(ctx context.Context, org string, pipeline string, f *factory.Facto
 				Commit:                      commit,
 				Branch:                      branch,
 				Env:                         env,
+				MetaData:                    metaData,
 				IgnorePipelineBranchFilters: ignoreBranchFilters,
 			}
 

@@ -64,6 +64,10 @@ func download(ctx context.Context, f *factory.Factory, artifactId string) (strin
 		return "", err
 	}
 
+	if resp == nil || resp.Artifact == nil {
+		return "", fmt.Errorf("no artifact found with ID: %s", artifactId)
+	}
+
 	directory := fmt.Sprintf("artifact-%s", artifactId)
 	err = os.MkdirAll(directory, os.ModePerm)
 	if err != nil {
