@@ -3,6 +3,7 @@ linters:
   - gofmt
   - nolintlint
   - tparallel
+  - goimports
 
 issues:
   max-issues-per-linter: 0
@@ -12,3 +13,7 @@ issues:
     - path: _test.go
       linters:
         - errcheck
+    # ignore typecheck errors for imports
+    - linters:
+        - typecheck
+      text: "undefined:"
