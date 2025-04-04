@@ -13,7 +13,7 @@ func TestCmdUse(t *testing.T) {
 	t.Run("uses already selected org", func(t *testing.T) {
 		t.Parallel()
 		conf := config.New(afero.NewMemMapFs(), nil)
-		conf.SelectOrganization("testing")
+		conf.SelectOrganization("testing", true)
 		selected := "testing"
 		err := useRun(&selected, conf)
 		if err != nil {
@@ -30,7 +30,7 @@ func TestCmdUse(t *testing.T) {
 		// add some configurations
 		fs := afero.NewMemMapFs()
 		conf := config.New(fs, nil)
-		conf.SelectOrganization("testing")
+		conf.SelectOrganization("testing", true)
 		conf.SetTokenForOrg("testing", "token")
 		conf.SetTokenForOrg("default", "token")
 		// now get a new empty config

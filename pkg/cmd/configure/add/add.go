@@ -2,6 +2,7 @@ package add
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/charmbracelet/huh"
@@ -23,9 +24,15 @@ func NewCmdAdd(f *factory.Factory) *cobra.Command {
 }
 
 func ConfigureWithCredentials(f *factory.Factory, org, token string) error {
-	if err := f.Config.SelectOrganization(org); err != nil {
+	if err := f.Config.SelectOrganization(org, token); err != nil {
 		return err
 	}
+
+	if f.GitRepository == nil {
+		fmt.Println("Notice: Not in a git repository. Organization selection will only apply globally.")
+		fmt.Println("If you want to configure a specific project, run this command from a git repository root.")
+	}
+
 	return f.Config.SetTokenForOrg(org, token)
 }
 

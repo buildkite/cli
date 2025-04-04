@@ -45,7 +45,7 @@ func TestCmdAgentStop(t *testing.T) {
 		}
 
 		conf := config.New(afero.NewMemMapFs(), nil)
-		conf.SelectOrganization("test")
+		conf.SelectOrganization("test", true)
 
 		factory := &factory.Factory{
 			Config:        conf,
@@ -84,7 +84,7 @@ func TestCmdAgentStop(t *testing.T) {
 		}
 
 		conf := config.New(afero.NewMemMapFs(), nil)
-		conf.SelectOrganization("test")
+		conf.SelectOrganization("test", true)
 
 		factory := &factory.Factory{
 			Config:        conf,
@@ -124,7 +124,7 @@ func TestCmdAgentStop(t *testing.T) {
 		}
 
 		conf := config.New(afero.NewMemMapFs(), nil)
-		conf.SelectOrganization("test")
+		conf.SelectOrganization("test", true)
 
 		factory := &factory.Factory{
 			Config:        conf,
@@ -167,7 +167,7 @@ func TestCmdAgentStop(t *testing.T) {
 		}
 
 		conf := config.New(afero.NewMemMapFs(), nil)
-		conf.SelectOrganization("test")
+		conf.SelectOrganization("test", true)
 
 		factory := &factory.Factory{
 			Config:        conf,
