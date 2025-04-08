@@ -26,7 +26,7 @@ func TestCmdAgentStop(t *testing.T) {
 		err := cmd.Execute()
 
 		got := err.Error()
-		want := "Must supply agents to stop."
+		want := "must supply agents to stop"
 		if !strings.Contains(got, want) {
 			t.Errorf("Output error did not contain expected string. %s != %s", got, want)
 		}
