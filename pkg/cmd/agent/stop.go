@@ -85,7 +85,7 @@ func RunStop(cmd *cobra.Command, args []string, opts *AgentStopOptions) error {
 			}
 		}
 	} else {
-		return errors.New("Must supply agents to stop.")
+		return errors.New("must supply agents to stop")
 	}
 
 	bulkAgent := agent.BulkAgent{
@@ -107,7 +107,7 @@ func RunStop(cmd *cobra.Command, args []string, opts *AgentStopOptions) error {
 
 	for _, agent := range agents {
 		if agent.Errored() {
-			return errors.New("At least one agent failed to stop")
+			return errors.New("at least one agent failed to stop")
 		}
 	}
 	return nil

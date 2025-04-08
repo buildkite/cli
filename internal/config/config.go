@@ -15,8 +15,8 @@ import (
 	"slices"
 
 	"github.com/buildkite/cli/v3/internal/pipeline"
-	"github.com/buildkite/go-buildkite/v4"
-	"github.com/go-git/go-git/v5"
+	buildkite "github.com/buildkite/go-buildkite/v4"
+	git "github.com/go-git/go-git/v5"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
 )

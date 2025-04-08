@@ -1,19 +1,33 @@
+version: "2"
 linters:
   enable:
-  - gofmt
-  - nolintlint
-  - tparallel
-  - goimports
-
+    - nolintlint
+    - tparallel
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+        path: _test.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-rules:
-    # dont worry about checking error returns in test files
-    - path: _test.go
-      linters:
-        - errcheck
-    # ignore typecheck errors for imports
-    - linters:
-        - typecheck
-      text: "undefined: .*"
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

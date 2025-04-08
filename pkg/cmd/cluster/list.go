@@ -10,7 +10,7 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/cluster"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/spf13/cobra"
 )
 

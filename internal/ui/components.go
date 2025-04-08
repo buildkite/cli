@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -72,7 +72,7 @@ func RenderJobSummary(job buildkite.Job) string {
 	// Calculate duration
 	var jobDuration time.Duration
 	if job.Type == "script" && job.StartedAt != nil && job.FinishedAt != nil {
-		jobDuration = job.FinishedAt.Time.Sub(job.StartedAt.Time)
+		jobDuration = job.FinishedAt.Sub(job.StartedAt.Time)
 	}
 
 	// Render the duration with grey color

@@ -3,7 +3,7 @@ package agent
 import (
 	"strings"
 
-	"github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
 // AgentListItem implements list.Item for displaying in a list

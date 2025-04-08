@@ -23,7 +23,7 @@ func NewCmdConfigure(f *factory.Factory) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// if the token already exists and --force is not used
 			if !force && f.Config.APIToken() != "" {
-				return errors.New("API token already configured. You must use --force.")
+				return errors.New("API token already configured. You must use --force")
 			}
 
 			// If flags are provided, use them directly

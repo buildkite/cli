@@ -5,7 +5,7 @@ import (
 
 	"github.com/buildkite/cli/v3/internal/ui"
 	"github.com/buildkite/cli/v3/internal/validation"
-	"github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
 // ViewOptions represents options for viewing a build
