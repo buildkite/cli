@@ -37,7 +37,13 @@ func (a *gqlHTTPClient) Do(req *http.Request) (*http.Response, error) {
 }
 
 func New(version string) (*Factory, error) {
-	repo, _ := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{DetectDotGit: true, EnableDotGitCommonDir: true})
+	repo, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{DetectDotGit: true, EnableDotGitCommonDir: true})
+	if err != nil {
+		if err == git.ErrRepositoryNotExists {
+			repo = nil
+		}
+	}
+
 	conf := config.New(nil, repo)
 	buildkiteClient, err := buildkite.NewOpts(
 		buildkite.WithBaseURL(conf.RESTAPIEndpoint()),

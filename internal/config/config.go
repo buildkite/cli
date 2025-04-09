@@ -96,7 +96,7 @@ func (conf *Config) OrganizationSlug() string {
 	)
 }
 
-// SelectOrganization sets the selected organization in the local configuration file
+// SelectOrganization sets the selected organization in the configuration file
 func (conf *Config) SelectOrganization(org string, inGitRepo bool) error {
 	if !inGitRepo {
 		conf.userConfig.Set("selected_org", org)
@@ -182,7 +182,6 @@ func (conf *Config) SetPreferredPipelines(pipelines []pipeline.Pipeline, inGitRe
 	}
 
 	if !inGitRepo {
-		// We could either return an error or silently skip
 		return fmt.Errorf("cannot save preferred pipelines: not in a git repository")
 	}
 
