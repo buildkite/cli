@@ -10,7 +10,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/pkg/cmd/agent"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/spf13/afero"
 )
 
@@ -26,7 +26,7 @@ func TestCmdAgentStop(t *testing.T) {
 		err := cmd.Execute()
 
 		got := err.Error()
-		want := "Must supply agents to stop."
+		want := "must supply agents to stop"
 		if !strings.Contains(got, want) {
 			t.Errorf("Output error did not contain expected string. %s != %s", got, want)
 		}

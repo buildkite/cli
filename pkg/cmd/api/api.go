@@ -73,7 +73,7 @@ func apiCaller(cmd *cobra.Command, args []string, f *factory.Factory) error {
 	var endpointPrefix string
 
 	if len(args) > 1 {
-		return fmt.Errorf("Incorrect number of arguments. Expected 1, got %d", len(args))
+		return fmt.Errorf("incorrect number of arguments. expected 1, got %d", len(args))
 	}
 
 	if len(args) == 0 {

@@ -10,7 +10,7 @@ import (
 	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -39,8 +39,8 @@ func NewCmdPackagePush(f *factory.Factory) *cobra.Command {
 
 			$ bk package push my-registry my-package.tar.gz
 			$ cat my-package.tar.gz | bk package push my-registry --stdin-file-name my-package.tar.gz - # Pass package via stdin, note hyphen as the argument
-			
-			# add -w to open the build in your web browser 
+
+			# add -w to open the build in your web browser
 			$ bk package push my-registry my-package.tar.gz -w
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {

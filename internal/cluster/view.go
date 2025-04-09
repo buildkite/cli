@@ -2,7 +2,7 @@ package cluster
 
 import (
 	"github.com/buildkite/cli/v3/internal/ui"
-	"github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
 // ClusterViewTable renders a table view of one or more clusters

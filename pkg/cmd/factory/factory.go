@@ -7,8 +7,8 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/internal/version"
-	"github.com/buildkite/go-buildkite/v4"
-	"github.com/go-git/go-git/v5"
+	buildkite "github.com/buildkite/go-buildkite/v4"
+	git "github.com/go-git/go-git/v5"
 )
 
 var userAgent string
