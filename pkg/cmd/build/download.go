@@ -52,7 +52,7 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 			pipelineRes := pipelineResolver.NewAggregateResolver(
 				pipelineResolver.ResolveFromFlag(pipeline, f.Config),
 				pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
-				pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOne)),
+				pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOne, f.GitRepository != nil)),
 			)
 
 			// we resolve a build based on the following rules:

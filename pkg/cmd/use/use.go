@@ -21,14 +21,14 @@ func NewCmdUse(f *factory.Factory) *cobra.Command {
 			if len(args) > 0 {
 				org = &args[0]
 			}
-			return useRun(org, f.Config)
+			return useRun(org, f.Config, f.GitRepository != nil)
 		},
 	}
 
 	return cmd
 }
 
-func useRun(org *string, conf *config.Config) error {
+func useRun(org *string, conf *config.Config, inGitRepo bool) error {
 	var selected string
 
 	// prompt to choose from configured orgs if one is not already selected
@@ -51,7 +51,7 @@ func useRun(org *string, conf *config.Config) error {
 	// if the selected org exists, use it
 	if conf.HasConfiguredOrganization(selected) {
 		fmt.Printf("Using configuration for `%s`\n", selected)
-		return conf.SelectOrganization(selected)
+		return conf.SelectOrganization(selected, inGitRepo)
 	}
 
 	// if the selected org doesnt exist, recommend configuring it and error out
