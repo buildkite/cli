@@ -20,7 +20,7 @@ require (
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
-	github.com/vektah/gqlparser/v2 v2.5.25
+	github.com/vektah/gqlparser/v2 v2.5.26
 	github.com/xeipuuv/gojsonschema v1.2.0
 	golang.org/x/sync v0.13.0
 	gopkg.in/yaml.v3 v3.0.1
