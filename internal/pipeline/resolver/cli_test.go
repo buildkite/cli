@@ -38,7 +38,7 @@ func TestParsePipelineArg(t *testing.T) {
 			t.Parallel()
 
 			conf := config.New(afero.NewMemMapFs(), nil)
-			conf.SelectOrganization("testing")
+			conf.SelectOrganization("testing", true)
 			f := resolver.ResolveFromPositionalArgument([]string{testcase.url}, 0, conf)
 			pipeline, err := f(context.Background())
 			if err != nil {
@@ -57,7 +57,7 @@ func TestParsePipelineArg(t *testing.T) {
 		t.Parallel()
 
 		conf := config.New(afero.NewMemMapFs(), nil)
-		conf.SelectOrganization("testing")
+		conf.SelectOrganization("testing", true)
 		f := resolver.ResolveFromPositionalArgument([]string{"https://buildkite.com/"}, 0, conf)
 		pipeline, err := f(context.Background())
 		if err == nil {
