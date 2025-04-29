@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
 // stripANSI removes ANSI escape sequences from a string

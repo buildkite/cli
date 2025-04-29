@@ -41,5 +41,5 @@ func NewAggregateResolver(resolvers ...PipelineResolverFn) AggregateResolver {
 }
 
 func errorResolver(context.Context) (*pipeline.Pipeline, error) {
-	return nil, errors.New("Failed to resolve a pipeline.")
+	return nil, errors.New("failed to resolve a pipeline")
 }

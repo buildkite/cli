@@ -2,7 +2,7 @@ package shared
 
 import (
 	"github.com/buildkite/cli/v3/internal/ui"
-	"github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
 // BuildSummary renders a build summary that can be used by multiple commands

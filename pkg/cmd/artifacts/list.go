@@ -10,7 +10,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
@@ -33,11 +33,11 @@ func NewCmdArtifactsList(f *factory.Factory) *cobra.Command {
 			# by default, artifacts of the most recent build for the current branch is shown
 			$ bk artifacts list
 			# to list artifacts of a specific build
-			$ bk artifacts list 429 
+			$ bk artifacts list 429
 			# to list artifacts of a specific job in a build
-			$ bk artifacts list 429 --job 0193903e-ecd9-4c51-9156-0738da987e87  
+			$ bk artifacts list 429 --job 0193903e-ecd9-4c51-9156-0738da987e87
 			# if not inside a repository or to use a specific pipeline, pass -p
-			$ bk artifacts list 429 -p monolith 
+			$ bk artifacts list 429 -p monolith
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var err error

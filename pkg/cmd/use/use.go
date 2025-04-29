@@ -55,5 +55,5 @@ func useRun(org *string, conf *config.Config, inGitRepo bool) error {
 	}
 
 	// if the selected org doesnt exist, recommend configuring it and error out
-	return fmt.Errorf("No configuration found for `%s`. Run `bk configure` to add it.", selected)
+	return fmt.Errorf("no configuration found for `%s`. run `bk configure` to add it", selected)
 }
