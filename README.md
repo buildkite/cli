@@ -65,6 +65,10 @@ Want to display your current Buildkite organization in your shell prompt? Check 
 
 We'd love to hear any feedback and questions you might have. Please [file an issue on GitHub](https://github.com/buildkite/cli/issues) and let us know!
 
+## LLM Documentation
+
+We provide a comprehensive [LLM-optimized documentation file](https://github.com/buildkite/cli/releases/latest/download/llms.txt) for AI language models to better understand the CLI.
+
 ## 🔨 Development
 
 Developed using Golang 1.20+ with modules.
