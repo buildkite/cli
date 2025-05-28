@@ -54,7 +54,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			pipelineRes := pipelineResolver.NewAggregateResolver(
 				pipelineResolver.ResolveFromFlag(opts.Pipeline, f.Config),
 				pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
-				pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOne)),
+				pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOne, f.GitRepository != nil)),
 			)
 
 			// Resolve build options

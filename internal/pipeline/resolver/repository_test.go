@@ -106,7 +106,7 @@ func testFactory(t *testing.T, serverURL string, org string, repo *git.Repositor
 	}
 
 	conf := config.New(afero.NewMemMapFs(), nil)
-	conf.SelectOrganization(org)
+	conf.SelectOrganization(org, true)
 	return &factory.Factory{
 		Config:        conf,
 		RestAPIClient: bkClient,
