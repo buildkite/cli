@@ -14,9 +14,9 @@ func TestBuildViewStructured_TextOutput(t *testing.T) {
 	t.Parallel()
 
 	// Create test data
-	createdAt := time.Date(2025, 05, 31, 10, 30, 0, 0, time.UTC)
-	startedAt := time.Date(2025, 05, 31, 10, 31, 0, 0, time.UTC)
-	finishedAt := time.Date(2025, 05, 31, 10, 35, 0, 0, time.UTC)
+	createdAt := time.Date(2025, 0o5, 31, 10, 30, 0, 0, time.UTC)
+	startedAt := time.Date(2025, 0o5, 31, 10, 31, 0, 0, time.UTC)
+	finishedAt := time.Date(2025, 0o5, 31, 10, 35, 0, 0, time.UTC)
 
 	view := models.BuildView{
 		ID:         "build-123",
@@ -109,7 +109,7 @@ func TestBuildViewStructured_TextOutput(t *testing.T) {
 func TestBuildViewStructured_JSONSerialization(t *testing.T) {
 	t.Parallel()
 
-	createdAt := time.Date(2025, 05, 31, 10, 30, 0, 0, time.UTC)
+	createdAt := time.Date(2025, 0o5, 31, 10, 30, 0, 0, time.UTC)
 
 	view := models.BuildView{
 		ID:        "build-123",
@@ -174,7 +174,7 @@ func TestBuildViewStructured_JSONSerialization(t *testing.T) {
 func TestBuildViewStructured_YAMLSerialization(t *testing.T) {
 	t.Parallel()
 
-	createdAt := time.Date(2025, 05, 31, 10, 30, 0, 0, time.UTC)
+	createdAt := time.Date(2025, 0o5, 31, 10, 30, 0, 0, time.UTC)
 
 	view := models.BuildView{
 		ID:        "build-123",
@@ -369,7 +369,7 @@ func TestBuildViewStructured_OutputFormats(t *testing.T) {
 
 	// Import the output package for testing
 	// This test demonstrates how the JSON/YAML output would be used
-	createdAt := time.Date(2025, 05, 31, 10, 30, 0, 0, time.UTC)
+	createdAt := time.Date(2025, 0o5, 31, 10, 30, 0, 0, time.UTC)
 
 	view := models.BuildView{
 		ID:        "build-123",

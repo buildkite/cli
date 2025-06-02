@@ -11,9 +11,9 @@ import (
 func TestNewBuildView(t *testing.T) {
 	t.Parallel()
 
-	createdAt := time.Date(2025, 05, 31, 10, 30, 0, 0, time.UTC)
-	startedAt := time.Date(2025, 05, 31, 10, 31, 0, 0, time.UTC)
-	finishedAt := time.Date(2025, 05, 31, 10, 35, 0, 0, time.UTC)
+	createdAt := time.Date(2025, 0o5, 31, 10, 30, 0, 0, time.UTC)
+	startedAt := time.Date(2025, 0o5, 31, 10, 31, 0, 0, time.UTC)
+	finishedAt := time.Date(2025, 0o5, 31, 10, 35, 0, 0, time.UTC)
 
 	// Create buildkite types
 	build := &buildkite.Build{
@@ -208,7 +208,7 @@ func TestNewBuildView(t *testing.T) {
 func TestBuildViewTextOutput(t *testing.T) {
 	t.Parallel()
 
-	createdAt := time.Date(2025, 05, 31, 10, 30, 0, 0, time.UTC)
+	createdAt := time.Date(2025, 0o5, 31, 10, 30, 0, 0, time.UTC)
 
 	view := BuildView{
 		ID:        "build-123",
@@ -287,7 +287,7 @@ func TestNewBuildViewWithNilValues(t *testing.T) {
 func TestNewBuildViewWithAgent(t *testing.T) {
 	t.Parallel()
 
-	createdAt := time.Date(2025, 05, 31, 10, 30, 0, 0, time.UTC)
+	createdAt := time.Date(2025, 0o5, 31, 10, 30, 0, 0, time.UTC)
 
 	build := &buildkite.Build{
 		ID:        "build-123",

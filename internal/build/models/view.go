@@ -46,25 +46,25 @@ type RetrySourceView struct {
 
 // PipelineView represents pipeline information
 type PipelineView struct {
-	ID                                string                 `json:"id" yaml:"id"`
-	GraphQLID                         string                 `json:"graphql_id" yaml:"graphql_id"`
-	URL                               string                 `json:"url" yaml:"url"`
-	Name                              string                 `json:"name" yaml:"name"`
-	Slug                              string                 `json:"slug" yaml:"slug"`
-	Repository                        string                 `json:"repository" yaml:"repository"`
-	Provider                          map[string]interface{} `json:"provider,omitempty" yaml:"provider,omitempty"`
-	SkipQueuedBranchBuilds            bool                   `json:"skip_queued_branch_builds" yaml:"skip_queued_branch_builds"`
-	SkipQueuedBranchBuildsFilter      *string                `json:"skip_queued_branch_builds_filter" yaml:"skip_queued_branch_builds_filter"`
-	CancelRunningBranchBuilds         bool                   `json:"cancel_running_branch_builds" yaml:"cancel_running_branch_builds"`
-	CancelRunningBranchBuildsFilter   *string                `json:"cancel_running_branch_builds_filter" yaml:"cancel_running_branch_builds_filter"`
-	BuildsURL                         string                 `json:"builds_url" yaml:"builds_url"`
-	BadgeURL                          string                 `json:"badge_url" yaml:"badge_url"`
-	CreatedAt                         time.Time              `json:"created_at" yaml:"created_at"`
-	ScheduledBuildsCount              int                    `json:"scheduled_builds_count" yaml:"scheduled_builds_count"`
-	RunningBuildsCount                int                    `json:"running_builds_count" yaml:"running_builds_count"`
-	ScheduledJobsCount                int                    `json:"scheduled_jobs_count" yaml:"scheduled_jobs_count"`
-	RunningJobsCount                  int                    `json:"running_jobs_count" yaml:"running_jobs_count"`
-	WaitingJobsCount                  int                    `json:"waiting_jobs_count" yaml:"waiting_jobs_count"`
+	ID                              string                 `json:"id" yaml:"id"`
+	GraphQLID                       string                 `json:"graphql_id" yaml:"graphql_id"`
+	URL                             string                 `json:"url" yaml:"url"`
+	Name                            string                 `json:"name" yaml:"name"`
+	Slug                            string                 `json:"slug" yaml:"slug"`
+	Repository                      string                 `json:"repository" yaml:"repository"`
+	Provider                        map[string]interface{} `json:"provider,omitempty" yaml:"provider,omitempty"`
+	SkipQueuedBranchBuilds          bool                   `json:"skip_queued_branch_builds" yaml:"skip_queued_branch_builds"`
+	SkipQueuedBranchBuildsFilter    *string                `json:"skip_queued_branch_builds_filter" yaml:"skip_queued_branch_builds_filter"`
+	CancelRunningBranchBuilds       bool                   `json:"cancel_running_branch_builds" yaml:"cancel_running_branch_builds"`
+	CancelRunningBranchBuildsFilter *string                `json:"cancel_running_branch_builds_filter" yaml:"cancel_running_branch_builds_filter"`
+	BuildsURL                       string                 `json:"builds_url" yaml:"builds_url"`
+	BadgeURL                        string                 `json:"badge_url" yaml:"badge_url"`
+	CreatedAt                       time.Time              `json:"created_at" yaml:"created_at"`
+	ScheduledBuildsCount            int                    `json:"scheduled_builds_count" yaml:"scheduled_builds_count"`
+	RunningBuildsCount              int                    `json:"running_builds_count" yaml:"running_builds_count"`
+	ScheduledJobsCount              int                    `json:"scheduled_jobs_count" yaml:"scheduled_jobs_count"`
+	RunningJobsCount                int                    `json:"running_jobs_count" yaml:"running_jobs_count"`
+	WaitingJobsCount                int                    `json:"waiting_jobs_count" yaml:"waiting_jobs_count"`
 }
 
 // RebuiltFromView represents rebuilt from information
@@ -83,40 +83,40 @@ type AuthorView struct {
 
 // JobView represents job information
 type JobView struct {
-	ID                   string           `json:"id" yaml:"id"`
-	GraphQLID            string           `json:"graphql_id" yaml:"graphql_id"`
-	Type                 string           `json:"type" yaml:"type"`
-	Name                 string           `json:"name,omitempty" yaml:"name,omitempty"`
-	Label                string           `json:"label,omitempty" yaml:"label,omitempty"`
-	StepKey              string           `json:"step_key,omitempty" yaml:"step_key,omitempty"`
-	Step                 *StepView        `json:"step,omitempty" yaml:"step,omitempty"`
-	Command              string           `json:"command,omitempty" yaml:"command,omitempty"`
-	State                string           `json:"state" yaml:"state"`
-	WebURL               string           `json:"web_url" yaml:"web_url"`
-	LogURL               string           `json:"log_url,omitempty" yaml:"log_url,omitempty"`
-	RawLogURL            string           `json:"raw_log_url,omitempty" yaml:"raw_log_url,omitempty"`
-	SoftFailed           bool             `json:"soft_failed" yaml:"soft_failed"`
-	ArtifactPaths        string           `json:"artifact_paths,omitempty" yaml:"artifact_paths,omitempty"`
-	Agent                *AgentView       `json:"agent,omitempty" yaml:"agent,omitempty"`
-	CreatedAt            time.Time        `json:"created_at" yaml:"created_at"`
-	ScheduledAt          *time.Time       `json:"scheduled_at,omitempty" yaml:"scheduled_at,omitempty"`
-	RunnableAt           *time.Time       `json:"runnable_at,omitempty" yaml:"runnable_at,omitempty"`
-	StartedAt            *time.Time       `json:"started_at,omitempty" yaml:"started_at,omitempty"`
-	FinishedAt           *time.Time       `json:"finished_at,omitempty" yaml:"finished_at,omitempty"`
-	ExitStatus           *int             `json:"exit_status,omitempty" yaml:"exit_status,omitempty"`
-	Retried              bool             `json:"retried" yaml:"retried"`
-	RetriedInJobID       *string          `json:"retried_in_job_id" yaml:"retried_in_job_id"`
-	RetriesCount         int              `json:"retries_count" yaml:"retries_count"`
-	RetrySource          *RetrySourceView `json:"retry_source,omitempty" yaml:"retry_source,omitempty"`
-	RetryType            *string          `json:"retry_type" yaml:"retry_type"`
-	ParallelGroupIndex   *int             `json:"parallel_group_index" yaml:"parallel_group_index"`
-	ParallelGroupTotal   *int             `json:"parallel_group_total" yaml:"parallel_group_total"`
-	Matrix               interface{}      `json:"matrix" yaml:"matrix"`
-	ClusterID            *string          `json:"cluster_id" yaml:"cluster_id"`
-	ClusterURL           *string          `json:"cluster_url" yaml:"cluster_url"`
-	ClusterQueueID       *string          `json:"cluster_queue_id" yaml:"cluster_queue_id"`
-	ClusterQueueURL      *string          `json:"cluster_queue_url" yaml:"cluster_queue_url"`
-	AgentQueryRules      []string         `json:"agent_query_rules,omitempty" yaml:"agent_query_rules,omitempty"`
+	ID                 string           `json:"id" yaml:"id"`
+	GraphQLID          string           `json:"graphql_id" yaml:"graphql_id"`
+	Type               string           `json:"type" yaml:"type"`
+	Name               string           `json:"name,omitempty" yaml:"name,omitempty"`
+	Label              string           `json:"label,omitempty" yaml:"label,omitempty"`
+	StepKey            string           `json:"step_key,omitempty" yaml:"step_key,omitempty"`
+	Step               *StepView        `json:"step,omitempty" yaml:"step,omitempty"`
+	Command            string           `json:"command,omitempty" yaml:"command,omitempty"`
+	State              string           `json:"state" yaml:"state"`
+	WebURL             string           `json:"web_url" yaml:"web_url"`
+	LogURL             string           `json:"log_url,omitempty" yaml:"log_url,omitempty"`
+	RawLogURL          string           `json:"raw_log_url,omitempty" yaml:"raw_log_url,omitempty"`
+	SoftFailed         bool             `json:"soft_failed" yaml:"soft_failed"`
+	ArtifactPaths      string           `json:"artifact_paths,omitempty" yaml:"artifact_paths,omitempty"`
+	Agent              *AgentView       `json:"agent,omitempty" yaml:"agent,omitempty"`
+	CreatedAt          time.Time        `json:"created_at" yaml:"created_at"`
+	ScheduledAt        *time.Time       `json:"scheduled_at,omitempty" yaml:"scheduled_at,omitempty"`
+	RunnableAt         *time.Time       `json:"runnable_at,omitempty" yaml:"runnable_at,omitempty"`
+	StartedAt          *time.Time       `json:"started_at,omitempty" yaml:"started_at,omitempty"`
+	FinishedAt         *time.Time       `json:"finished_at,omitempty" yaml:"finished_at,omitempty"`
+	ExitStatus         *int             `json:"exit_status,omitempty" yaml:"exit_status,omitempty"`
+	Retried            bool             `json:"retried" yaml:"retried"`
+	RetriedInJobID     *string          `json:"retried_in_job_id" yaml:"retried_in_job_id"`
+	RetriesCount       int              `json:"retries_count" yaml:"retries_count"`
+	RetrySource        *RetrySourceView `json:"retry_source,omitempty" yaml:"retry_source,omitempty"`
+	RetryType          *string          `json:"retry_type" yaml:"retry_type"`
+	ParallelGroupIndex *int             `json:"parallel_group_index" yaml:"parallel_group_index"`
+	ParallelGroupTotal *int             `json:"parallel_group_total" yaml:"parallel_group_total"`
+	Matrix             interface{}      `json:"matrix" yaml:"matrix"`
+	ClusterID          *string          `json:"cluster_id" yaml:"cluster_id"`
+	ClusterURL         *string          `json:"cluster_url" yaml:"cluster_url"`
+	ClusterQueueID     *string          `json:"cluster_queue_id" yaml:"cluster_queue_id"`
+	ClusterQueueURL    *string          `json:"cluster_queue_url" yaml:"cluster_queue_url"`
+	AgentQueryRules    []string         `json:"agent_query_rules,omitempty" yaml:"agent_query_rules,omitempty"`
 }
 
 // ArtifactView represents artifact information
@@ -354,21 +354,21 @@ func NewBuildView(build *buildkite.Build, artifacts []buildkite.Artifact, annota
 	// Add pipeline info
 	if build.Pipeline != nil {
 		pipelineView := &PipelineView{
-			ID:                            build.Pipeline.ID,
-			GraphQLID:                     build.Pipeline.GraphQLID,
-			URL:                           build.Pipeline.URL,
-			Name:                          build.Pipeline.Name,
-			Slug:                          build.Pipeline.Slug,
-			Repository:                    build.Pipeline.Repository,
-			SkipQueuedBranchBuilds:        build.Pipeline.SkipQueuedBranchBuilds,
-			CancelRunningBranchBuilds:     build.Pipeline.CancelRunningBranchBuilds,
-			BuildsURL:                     build.Pipeline.BuildsURL,
-			BadgeURL:                      build.Pipeline.BadgeURL,
-			ScheduledBuildsCount:          build.Pipeline.ScheduledBuildsCount,
-			RunningBuildsCount:            build.Pipeline.RunningBuildsCount,
-			ScheduledJobsCount:            build.Pipeline.ScheduledJobsCount,
-			RunningJobsCount:              build.Pipeline.RunningJobsCount,
-			WaitingJobsCount:              build.Pipeline.WaitingJobsCount,
+			ID:                        build.Pipeline.ID,
+			GraphQLID:                 build.Pipeline.GraphQLID,
+			URL:                       build.Pipeline.URL,
+			Name:                      build.Pipeline.Name,
+			Slug:                      build.Pipeline.Slug,
+			Repository:                build.Pipeline.Repository,
+			SkipQueuedBranchBuilds:    build.Pipeline.SkipQueuedBranchBuilds,
+			CancelRunningBranchBuilds: build.Pipeline.CancelRunningBranchBuilds,
+			BuildsURL:                 build.Pipeline.BuildsURL,
+			BadgeURL:                  build.Pipeline.BadgeURL,
+			ScheduledBuildsCount:      build.Pipeline.ScheduledBuildsCount,
+			RunningBuildsCount:        build.Pipeline.RunningBuildsCount,
+			ScheduledJobsCount:        build.Pipeline.ScheduledJobsCount,
+			RunningJobsCount:          build.Pipeline.RunningJobsCount,
+			WaitingJobsCount:          build.Pipeline.WaitingJobsCount,
 		}
 
 		if build.Pipeline.CreatedAt != nil {
