@@ -16,7 +16,7 @@ func main() {
 	const schemaFile = "schema.graphql"
 
 	if _, err := os.Stat(schemaFile); errors.Is(err, os.ErrNotExist) {
-		var headers = http.Header{
+		headers := http.Header{
 			"Authorization": []string{fmt.Sprintf("Bearer %s", os.Getenv("BUILDKITE_GRAPHQL_TOKEN"))},
 		}
 
