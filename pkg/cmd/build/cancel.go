@@ -50,7 +50,7 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 			pipelineRes := pipelineResolver.NewAggregateResolver(
 				pipelineResolver.ResolveFromFlag(pipeline, f.Config),
 				pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
-				pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOne)),
+				pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOne, f.GitRepository != nil)),
 			)
 
 			buildRes := buildResolver.NewAggregateResolver(
