@@ -8,6 +8,13 @@ release:
   prerelease: auto
   make_latest: false
   mode: replace
+  extra_files:
+    - glob: ./llms.txt
+
+before:
+  hooks:
+    # Generate llms.txt file before creating the release
+    - go run ./cmd/bk docs --format llms --output ./llms.txt
 
 changelog:
   use: github
