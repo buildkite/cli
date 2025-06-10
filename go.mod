@@ -2,7 +2,7 @@ module github.com/buildkite/cli/v3
 
 go 1.24
 
-toolchain go1.24.1
+toolchain go1.24.3
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
