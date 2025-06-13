@@ -25,7 +25,7 @@ func NewCmdPipelineView(f *factory.Factory) *cobra.Command {
 			pipelineRes := resolver.NewAggregateResolver(
 				resolver.ResolveFromPositionalArgument(args, 0, f.Config),
 				resolver.ResolveFromConfig(f.Config, resolver.PickOne),
-				resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOne)),
+				resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOne, f.GitRepository != nil)),
 			)
 
 			pipeline, err := pipelineRes.Resolve(cmd.Context())
