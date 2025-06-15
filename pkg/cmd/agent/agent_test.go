@@ -41,7 +41,7 @@ func TestParseAgentArg(t *testing.T) {
 			t.Parallel()
 
 			conf := config.New(afero.NewMemMapFs(), nil)
-			conf.SelectOrganization("testing")
+			conf.SelectOrganization("testing", true)
 			org, agent := parseAgentArg(testcase.url, conf)
 
 			if org != testcase.org {

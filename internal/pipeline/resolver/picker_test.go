@@ -21,7 +21,7 @@ func TestPickers(t *testing.T) {
 		pipelines := []pipeline.Pipeline{
 			{Name: "pipeline", Org: "org"},
 		}
-		picked := resolver.CachedPicker(conf, resolver.PassthruPicker)(pipelines)
+		picked := resolver.CachedPicker(conf, resolver.PassthruPicker, true)(pipelines)
 
 		if picked == nil {
 			t.Fatal("Should not have received nil from picker")
@@ -41,7 +41,7 @@ func TestPickers(t *testing.T) {
 		conf := config.New(fs, nil)
 
 		pipelines := []pipeline.Pipeline{}
-		resolver.CachedPicker(conf, func(p []pipeline.Pipeline) *pipeline.Pipeline { return nil })(pipelines)
+		resolver.CachedPicker(conf, func(p []pipeline.Pipeline) *pipeline.Pipeline { return nil }, true)(pipelines)
 
 		b, _ := afero.ReadFile(fs, ".bk.yaml")
 		expected := ""
@@ -61,7 +61,7 @@ func TestPickers(t *testing.T) {
 			{Name: "second"},
 			{Name: "third"},
 		}
-		resolver.CachedPicker(conf, func(p []pipeline.Pipeline) *pipeline.Pipeline { return &p[1] })(pipelines)
+		resolver.CachedPicker(conf, func(p []pipeline.Pipeline) *pipeline.Pipeline { return &p[1] }, true)(pipelines)
 
 		b, _ := afero.ReadFile(fs, ".bk.yaml")
 		expected := "pipelines:\n    - second\n    - first\n    - third\n"
