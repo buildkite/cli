@@ -73,7 +73,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 				options.ResolveUserFromFlag(user),
 			).WithResolverWhen(
 				mine || user == "",
-				options.ResolveCurrentUser(f),
+				options.ResolveCurrentUser(cmd.Context(), f),
 			)
 
 			// Resolve build
