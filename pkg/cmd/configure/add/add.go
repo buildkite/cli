@@ -46,22 +46,21 @@ func ConfigureRun(f *factory.Factory) error {
 
 	// Check if token already exists for this organization
 	existingToken := getTokenForOrg(f, org)
-	var token string
 	if existingToken != "" {
 		fmt.Printf("Using existing API token for organization: %s\n", org)
-		token = existingToken
-	} else {
-		// Get API token with password input (no echo)
-		token, err = promptForInput("API Token: ", true)
-		if err != nil {
-			return err
-		}
-		if token == "" {
-			return errors.New("API token cannot be empty")
-		}
-		fmt.Println("API token set for organization:", org)
+		return f.Config.SelectOrganization(org)
 	}
 
+	// Get API token with password input (no echo)
+	token, err := promptForInput("API Token: ", true)
+	if err != nil {
+		return err
+	}
+	if token == "" {
+		return errors.New("API token cannot be empty")
+	}
+
+	fmt.Println("API token set for organization:", org)
 	return ConfigureWithCredentials(f, org, token)
 }
 
