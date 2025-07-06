@@ -66,13 +66,13 @@ func TestConfig(t *testing.T) {
 
 		fs := afero.NewMemMapFs()
 		conf := New(fs, nil)
-		
+
 		// Set tokens for different organizations
 		token1 := "token-org1"
 		token2 := "token-org2"
 		conf.SetTokenForOrg("org1", token1)
 		conf.SetTokenForOrg("org2", token2)
-		
+
 		if conf.GetTokenForOrg("org1") != token1 {
 			t.Errorf("expected token for org1 to be %s, got %s", token1, conf.GetTokenForOrg("org1"))
 		}

@@ -16,7 +16,7 @@ func TestGetTokenForOrg(t *testing.T) {
 		fs := afero.NewMemMapFs()
 		conf := config.New(fs, nil)
 		f := &factory.Factory{Config: conf}
-		
+
 		token := getTokenForOrg(f, "nonexistent")
 		if token != "" {
 			t.Errorf("expected empty string, got %s", token)
@@ -28,11 +28,11 @@ func TestGetTokenForOrg(t *testing.T) {
 		fs := afero.NewMemMapFs()
 		conf := config.New(fs, nil)
 		f := &factory.Factory{Config: conf}
-		
+
 		// Set up a token for an organization
 		expectedToken := "bk_test_token_12345"
 		conf.SetTokenForOrg("test-org", expectedToken)
-		
+
 		token := getTokenForOrg(f, "test-org")
 		if token != expectedToken {
 			t.Errorf("expected %s, got %s", expectedToken, token)
@@ -44,13 +44,13 @@ func TestGetTokenForOrg(t *testing.T) {
 		fs := afero.NewMemMapFs()
 		conf := config.New(fs, nil)
 		f := &factory.Factory{Config: conf}
-		
+
 		// Set up tokens for different organizations
 		token1 := "bk_test_token_org1"
 		token2 := "bk_test_token_org2"
 		conf.SetTokenForOrg("org1", token1)
 		conf.SetTokenForOrg("org2", token2)
-		
+
 		if getTokenForOrg(f, "org1") != token1 {
 			t.Errorf("expected %s for org1", token1)
 		}
@@ -68,19 +68,19 @@ func TestConfigureWithCredentials(t *testing.T) {
 		fs := afero.NewMemMapFs()
 		conf := config.New(fs, nil)
 		f := &factory.Factory{Config: conf}
-		
+
 		org := "test-org"
 		token := "bk_test_token_12345"
-		
+
 		err := ConfigureWithCredentials(f, org, token)
 		if err != nil {
 			t.Errorf("expected no error, got %s", err)
 		}
-		
+
 		if conf.OrganizationSlug() != org {
 			t.Errorf("expected organization to be %s, got %s", org, conf.OrganizationSlug())
 		}
-		
+
 		if conf.GetTokenForOrg(org) != token {
 			t.Errorf("expected token to be %s, got %s", token, conf.GetTokenForOrg(org))
 		}
@@ -95,30 +95,30 @@ func TestConfigureTokenReuse(t *testing.T) {
 		fs := afero.NewMemMapFs()
 		conf := config.New(fs, nil)
 		f := &factory.Factory{Config: conf}
-		
+
 		org := "test-org"
 		existingToken := "bk_existing_token_12345"
-		
+
 		// Pre-configure a token for the organization
 		conf.SetTokenForOrg(org, existingToken)
-		
+
 		// Verify the token can be retrieved
 		retrievedToken := getTokenForOrg(f, org)
 		if retrievedToken != existingToken {
 			t.Errorf("expected to retrieve existing token %s, got %s", existingToken, retrievedToken)
 		}
-		
+
 		// Configure with the existing token (simulating the logic in ConfigureRun)
 		err := ConfigureWithCredentials(f, org, retrievedToken)
 		if err != nil {
 			t.Errorf("expected no error, got %s", err)
 		}
-		
+
 		// Verify the configuration still works
 		if conf.OrganizationSlug() != org {
 			t.Errorf("expected organization to be %s, got %s", org, conf.OrganizationSlug())
 		}
-		
+
 		if conf.GetTokenForOrg(org) != existingToken {
 			t.Errorf("expected token to be %s, got %s", existingToken, conf.GetTokenForOrg(org))
 		}
