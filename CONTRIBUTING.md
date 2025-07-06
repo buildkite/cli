@@ -9,7 +9,7 @@ To get started with contributing, please follow these steps:
 1. Fork the repository 
 2. Create a feature branch with a nice name (`git checkout -b cli-new-feature`) for your changes
 3. Write your code
-    * We use `golangci-lint` and would be good to use the same in order to pass a PR merge. You can use `docker-compose -f .buildkite/docker-compose.yaml run lint` for that. 
+    * We use `golangci-lint` and would be good to use the same in order to pass a PR merge. You can use `docker-compose -f .buildkite/docker-compose.yaml run golangci-lint golangci-lint run` for that. 
     * Make sure the tests are passing by running go test ./...
 5. Commit your changes and push them to your forked repository.
 7. Submit a pull request with a detailed description of your changes and linked to any relevant issues.
