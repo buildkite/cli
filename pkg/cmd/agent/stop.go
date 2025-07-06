@@ -56,6 +56,62 @@ func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
 }
 
 func RunStop(cmd *cobra.Command, args []string, opts *AgentStopOptions) error {
+	// Check TTY availability first, before consuming any input
+	if !isatty.IsTerminal(os.Stdout.Fd()) {
+		// Non-TTY mode: run synchronously without interactive UI
+		return runStopNonInteractive(cmd, args, opts)
+	}
+
+	// TTY mode: use interactive UI with Bubble Tea
+	return runStopInteractive(cmd, args, opts)
+}
+
+func runStopNonInteractive(cmd *cobra.Command, args []string, opts *AgentStopOptions) error {
+	var failed []string
+	var agentIDs []string
+
+	// Use the same logic as the original: either stdin OR args
+	if bk_io.HasDataAvailable(cmd.InOrStdin()) {
+		scanner := bufio.NewScanner(cmd.InOrStdin())
+		scanner.Split(bufio.ScanLines)
+		for scanner.Scan() {
+			agentID := scanner.Text()
+			if strings.TrimSpace(agentID) != "" {
+				agentIDs = append(agentIDs, agentID)
+			}
+		}
+		if scanner.Err() != nil {
+			return scanner.Err()
+		}
+	} else if len(args) > 0 {
+		agentIDs = args
+	} else {
+		return errors.New("must supply agents to stop")
+	}
+
+	// Process all agent IDs synchronously
+	for _, agentID := range agentIDs {
+		if strings.TrimSpace(agentID) != "" {
+			org, id := parseAgentArg(agentID, opts.f.Config)
+			_, err := opts.f.RestAPIClient.Agents.Stop(cmd.Context(), org, id, opts.force)
+			if err != nil {
+				failed = append(failed, fmt.Sprintf("Failed to stop agent %s: %v", agentID, err))
+			} else {
+				fmt.Fprintf(cmd.OutOrStdout(), "Stopped agent %s\n", agentID)
+			}
+		}
+	}
+
+	if len(failed) > 0 {
+		for _, failure := range failed {
+			fmt.Fprintf(cmd.OutOrStdout(), "%s\n", failure)
+		}
+		return errors.New("at least one agent failed to stop")
+	}
+	return nil
+}
+
+func runStopInteractive(cmd *cobra.Command, args []string, opts *AgentStopOptions) error {
 	// use a wait group to ensure we exit the program after all agents have finished
 	var wg sync.WaitGroup
 	// this semaphore is used to limit how many concurrent API requests can be sent
@@ -89,53 +145,6 @@ func RunStop(cmd *cobra.Command, args []string, opts *AgentStopOptions) error {
 		}
 	} else {
 		return errors.New("must supply agents to stop")
-	}
-
-	// If no TTY is available, run in non-interactive mode
-	if !isatty.IsTerminal(os.Stdout.Fd()) {
-		// Directly execute the stop operations synchronously
-		var failed []string
-		var agentIDs []string
-
-		// Use the same logic as the original: either stdin OR args
-		if bk_io.HasDataAvailable(cmd.InOrStdin()) {
-			scanner := bufio.NewScanner(cmd.InOrStdin())
-			scanner.Split(bufio.ScanLines)
-			for scanner.Scan() {
-				agentID := scanner.Text()
-				if strings.TrimSpace(agentID) != "" {
-					agentIDs = append(agentIDs, agentID)
-				}
-			}
-			if scanner.Err() != nil {
-				return scanner.Err()
-			}
-		} else if len(args) > 0 {
-			agentIDs = args
-		} else {
-			return errors.New("must supply agents to stop")
-		}
-
-		// Process all agent IDs
-		for _, agentID := range agentIDs {
-			if strings.TrimSpace(agentID) != "" {
-				org, id := parseAgentArg(agentID, opts.f.Config)
-				_, err := opts.f.RestAPIClient.Agents.Stop(cmd.Context(), org, id, opts.force)
-				if err != nil {
-					failed = append(failed, fmt.Sprintf("Failed to stop agent %s: %v", agentID, err))
-				} else {
-					fmt.Fprintf(cmd.OutOrStdout(), "Stopped agent %s\n", agentID)
-				}
-			}
-		}
-
-		if len(failed) > 0 {
-			for _, failure := range failed {
-				fmt.Fprintf(cmd.ErrOrStderr(), "%s\n", failure)
-			}
-			return errors.New("at least one agent failed to stop")
-		}
-		return nil
 	}
 
 	// TTY is available, use interactive mode with Bubble Tea
