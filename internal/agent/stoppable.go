@@ -109,3 +109,11 @@ func (agent StoppableAgent) View() string {
 func (agent StoppableAgent) Errored() bool {
 	return agent.err != nil
 }
+
+func (agent StoppableAgent) Error() error {
+	return agent.err
+}
+
+func (agent StoppableAgent) ID() string {
+	return agent.id
+}

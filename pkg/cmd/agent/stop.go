@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"strings"
 	"sync"
 
@@ -12,6 +14,7 @@ import (
 	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/semaphore"
 )
@@ -88,6 +91,54 @@ func RunStop(cmd *cobra.Command, args []string, opts *AgentStopOptions) error {
 		return errors.New("must supply agents to stop")
 	}
 
+	// If no TTY is available, run in non-interactive mode
+	if !isatty.IsTerminal(os.Stdout.Fd()) {
+		// Directly execute the stop operations synchronously
+		var failed []string
+		var agentIDs []string
+
+		// Use the same logic as the original: either stdin OR args
+		if bk_io.HasDataAvailable(cmd.InOrStdin()) {
+			scanner := bufio.NewScanner(cmd.InOrStdin())
+			scanner.Split(bufio.ScanLines)
+			for scanner.Scan() {
+				agentID := scanner.Text()
+				if strings.TrimSpace(agentID) != "" {
+					agentIDs = append(agentIDs, agentID)
+				}
+			}
+			if scanner.Err() != nil {
+				return scanner.Err()
+			}
+		} else if len(args) > 0 {
+			agentIDs = args
+		} else {
+			return errors.New("must supply agents to stop")
+		}
+
+		// Process all agent IDs
+		for _, agentID := range agentIDs {
+			if strings.TrimSpace(agentID) != "" {
+				org, id := parseAgentArg(agentID, opts.f.Config)
+				_, err := opts.f.RestAPIClient.Agents.Stop(cmd.Context(), org, id, opts.force)
+				if err != nil {
+					failed = append(failed, fmt.Sprintf("Failed to stop agent %s: %v", agentID, err))
+				} else {
+					fmt.Fprintf(cmd.OutOrStdout(), "Stopped agent %s\n", agentID)
+				}
+			}
+		}
+
+		if len(failed) > 0 {
+			for _, failure := range failed {
+				fmt.Fprintf(cmd.ErrOrStderr(), "%s\n", failure)
+			}
+			return errors.New("at least one agent failed to stop")
+		}
+		return nil
+	}
+
+	// TTY is available, use interactive mode with Bubble Tea
 	bulkAgent := agent.BulkAgent{
 		Agents: agents,
 	}
