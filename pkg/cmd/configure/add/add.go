@@ -44,6 +44,13 @@ func ConfigureRun(f *factory.Factory) error {
 		return errors.New("organization slug cannot be empty")
 	}
 
+	// Check if token already exists for this organization
+	existingToken := getTokenForOrg(f, org)
+	if existingToken != "" {
+		fmt.Printf("Using existing API token for organization: %s\n", org)
+		return f.Config.SelectOrganization(org)
+	}
+
 	// Get API token with password input (no echo)
 	token, err := promptForInput("API Token: ", true)
 	if err != nil {
@@ -54,8 +61,12 @@ func ConfigureRun(f *factory.Factory) error {
 	}
 
 	fmt.Println("API token set for organization:", org)
-
 	return ConfigureWithCredentials(f, org, token)
+}
+
+// getTokenForOrg retrieves the token for a specific organization from the user config
+func getTokenForOrg(f *factory.Factory, org string) string {
+	return f.Config.GetTokenForOrg(org)
 }
 
 // promptForInput handles terminal input with optional password masking
