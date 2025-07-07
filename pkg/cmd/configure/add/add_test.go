@@ -124,3 +124,34 @@ func TestConfigureTokenReuse(t *testing.T) {
 		}
 	})
 }
+
+func TestConfigureRequiresGitRepository(t *testing.T) {
+	t.Parallel()
+
+	t.Run("fails when not in a git repository", func(t *testing.T) {
+		t.Parallel()
+		fs := afero.NewMemMapFs()
+		conf := config.New(fs, nil)
+		
+		// Create a factory with nil GitRepository (simulating not being in a git repo)
+		f := &factory.Factory{Config: conf, GitRepository: nil}
+
+		err := ConfigureRun(f)
+		
+		if err == nil {
+			t.Error("expected error when not in a git repository, got nil")
+		}
+		
+		expectedErr := "not in a Git repository - bk should be configured at the root of a Git repository"
+		if err.Error() != expectedErr {
+			t.Errorf("expected error message %q, got %q", expectedErr, err.Error())
+		}
+	})
+
+	t.Run("succeeds when in a git repository", func(t *testing.T) {
+		// Skip this test because we can't easily mock the interactive prompts
+		// In a real implementation, we would need to mock the promptForInput function
+		// or restructure the code to allow for testing without interactive input
+		t.Skip("skipping test that requires interactive input")
+	})
+}

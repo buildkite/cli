@@ -36,6 +36,11 @@ func ConfigureWithCredentials(f *factory.Factory, org, token string) error {
 }
 
 func ConfigureRun(f *factory.Factory) error {
+	// Check if we're in a Git repository
+	if f.GitRepository == nil {
+		return errors.New("not in a Git repository - bk should be configured at the root of a Git repository")
+	}
+
 	// Get organization slug
 	org, err := promptForInput("Organization slug: ", false)
 	if err != nil {
@@ -49,7 +54,7 @@ func ConfigureRun(f *factory.Factory) error {
 	existingToken := getTokenForOrg(f, org)
 	if existingToken != "" {
 		fmt.Printf("Using existing API token for organization: %s\n", org)
-		return f.Config.SelectOrganization(org)
+		return f.Config.SelectOrganization(org, f.GitRepository != nil)
 	}
 
 	// Get API token with password input (no echo)
