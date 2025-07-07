@@ -5,11 +5,13 @@ import (
 	"sync"
 
 	"github.com/MakeNowJust/heredoc"
+	"github.com/buildkite/cli/v3/internal/build/models"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	"github.com/buildkite/cli/v3/internal/build/view"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/pkg/browser"
@@ -50,6 +52,11 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 					$ bk build view -p deploy-pipeline -u "greg"
 				`),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			format, err := output.GetFormat(cmd.Flags())
+			if err != nil {
+				return err
+			}
+
 			// Resolve pipeline first
 			pipelineRes := pipelineResolver.NewAggregateResolver(
 				pipelineResolver.ResolveFromFlag(opts.Pipeline, f.Config),
@@ -66,7 +73,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 				options.ResolveUserFromFlag(user),
 			).WithResolverWhen(
 				mine || user == "",
-				options.ResolveCurrentUser(f),
+				options.ResolveCurrentUser(cmd.Context(), f),
 			)
 
 			// Resolve build
@@ -170,10 +177,10 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 				return err
 			}
 
-			buildView := view.NewBuildView(&build, artifacts, annotations)
-			fmt.Fprintf(cmd.OutOrStdout(), "%s\n", buildView.Render())
+			// Create structured view for output using models package
+			buildView := models.NewBuildView(&build, artifacts, annotations)
 
-			return nil
+			return output.Write(cmd.OutOrStdout(), buildView, format)
 		},
 	}
 
@@ -188,6 +195,8 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 	// can only supply --user or --mine
 	cmd.MarkFlagsMutuallyExclusive("mine", "user")
 	cmd.Flags().SortFlags = false
+
+	output.AddFlags(cmd.Flags())
 
 	return cmd
 }

@@ -58,13 +58,13 @@ func ResolveUserFromFlag(user string) OptionsFn {
 }
 
 // ResolveCurrentUser returns a function that is used to add a user filter to a build list options
-func ResolveCurrentUser(f *factory.Factory) OptionsFn {
+func ResolveCurrentUser(ctx context.Context, f *factory.Factory) OptionsFn {
 	return func(options *buildkite.BuildsListOptions) error {
 		// if creator filter already applied, dont apply another
 		if options.Creator != "" {
 			return nil
 		}
-		user, _, err := f.RestAPIClient.User.CurrentUser(context.TODO())
+		user, _, err := f.RestAPIClient.User.CurrentUser(ctx)
 		if err != nil {
 			return err
 		}

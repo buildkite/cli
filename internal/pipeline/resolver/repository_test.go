@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -14,6 +15,7 @@ import (
 
 func TestResolvePipelinesFromPath(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	t.Run("no pipelines found", func(t *testing.T) {
 		t.Parallel()
@@ -22,7 +24,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		t.Cleanup(s.Close)
 
 		f := testFactory(t, s.URL, "testOrg", testRepository())
-		pipelines, err := resolveFromRepository(f)
+		pipelines, err := resolveFromRepository(ctx, f)
 		if err != nil {
 			t.Errorf("Error: %s", err)
 		}
@@ -38,7 +40,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		t.Cleanup(s.Close)
 
 		f := testFactory(t, s.URL, "testOrg", testRepository())
-		pipelines, err := resolveFromRepository(f)
+		pipelines, err := resolveFromRepository(ctx, f)
 		if err != nil {
 			t.Errorf("Error: %s", err)
 		}
@@ -54,7 +56,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		t.Cleanup(s.Close)
 
 		f := testFactory(t, s.URL, "testOrg", testRepository())
-		pipelines, err := resolveFromRepository(f)
+		pipelines, err := resolveFromRepository(ctx, f)
 		if err != nil {
 			t.Errorf("Error: %s", err)
 		}
@@ -68,7 +70,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		t.Cleanup(s.Close)
 
 		f := testFactory(t, s.URL, "testOrg", nil)
-		pipelines, err := resolveFromRepository(f)
+		pipelines, err := resolveFromRepository(ctx, f)
 		if pipelines != nil {
 			t.Errorf("Expected nil, got %v", pipelines)
 		}
@@ -82,7 +84,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		t.Cleanup(s.Close)
 
 		f := testFactory(t, s.URL, "testOrg", testRepository())
-		pipelines, err := resolveFromRepository(f)
+		pipelines, err := resolveFromRepository(ctx, f)
 		if pipelines != nil {
 			t.Errorf("Expected nil, got %v", pipelines)
 		}

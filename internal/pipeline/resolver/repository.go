@@ -22,7 +22,7 @@ func ResolveFromRepository(f *factory.Factory, picker PipelinePicker) PipelineRe
 		spinErr := spinner.New().
 			Title("Resolving pipeline").
 			Action(func() {
-				pipelines, err = resolveFromRepository(f)
+				pipelines, err = resolveFromRepository(ctx, f)
 			}).
 			Run()
 		if spinErr != nil {
@@ -43,15 +43,15 @@ func ResolveFromRepository(f *factory.Factory, picker PipelinePicker) PipelineRe
 	}
 }
 
-func resolveFromRepository(f *factory.Factory) ([]pipeline.Pipeline, error) {
+func resolveFromRepository(ctx context.Context, f *factory.Factory) ([]pipeline.Pipeline, error) {
 	repos, err := getRepoURLs(f.GitRepository)
 	if err != nil {
 		return nil, err
 	}
-	return filterPipelines(repos, f.Config.OrganizationSlug(), f.RestAPIClient)
+	return filterPipelines(ctx, repos, f.Config.OrganizationSlug(), f.RestAPIClient)
 }
 
-func filterPipelines(repoURLs []string, org string, client *buildkite.Client) ([]pipeline.Pipeline, error) {
+func filterPipelines(ctx context.Context, repoURLs []string, org string, client *buildkite.Client) ([]pipeline.Pipeline, error) {
 	var currentPipelines []pipeline.Pipeline
 	page := 1
 	per_page := 30
@@ -63,7 +63,7 @@ func filterPipelines(repoURLs []string, org string, client *buildkite.Client) ([
 			},
 		}
 
-		pipelines, resp, err := client.Pipelines.List(context.TODO(), org, &opts)
+		pipelines, resp, err := client.Pipelines.List(ctx, org, &opts)
 		if err != nil {
 			return nil, err
 		}

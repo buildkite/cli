@@ -125,6 +125,12 @@ func (conf *Config) SetTokenForOrg(org, token string) error {
 	return conf.userConfig.WriteConfig()
 }
 
+// GetTokenForOrg gets the API token for a specific organization from the user configuration
+func (conf *Config) GetTokenForOrg(org string) string {
+	key := fmt.Sprintf("organizations.%s.api_token", org)
+	return conf.userConfig.GetString(key)
+}
+
 func (conf *Config) ConfiguredOrganizations() []string {
 	m := conf.userConfig.GetStringMap("organizations")
 	orgs := slices.Collect(maps.Keys(m))
