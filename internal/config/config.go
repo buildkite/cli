@@ -96,8 +96,13 @@ func (conf *Config) OrganizationSlug() string {
 	)
 }
 
-// SelectOrganization sets the selected organization in the local configuration file
-func (conf *Config) SelectOrganization(org string) error {
+// SelectOrganization sets the selected organization in the configuration file
+func (conf *Config) SelectOrganization(org string, inGitRepo bool) error {
+	if !inGitRepo {
+		conf.userConfig.Set("selected_org", org)
+		return conf.userConfig.WriteConfig()
+	}
+
 	conf.localConfig.Set("selected_org", org)
 	return conf.localConfig.WriteConfig()
 }
@@ -118,6 +123,12 @@ func (conf *Config) SetTokenForOrg(org, token string) error {
 	key := fmt.Sprintf("organizations.%s.api_token", org)
 	conf.userConfig.Set(key, token)
 	return conf.userConfig.WriteConfig()
+}
+
+// GetTokenForOrg gets the API token for a specific organization from the user configuration
+func (conf *Config) GetTokenForOrg(org string) string {
+	key := fmt.Sprintf("organizations.%s.api_token", org)
+	return conf.userConfig.GetString(key)
 }
 
 func (conf *Config) ConfiguredOrganizations() []string {
@@ -170,10 +181,14 @@ func (conf *Config) PreferredPipelines() []pipeline.Pipeline {
 }
 
 // SetPreferredPipelines will write the provided list of pipelines to local configuration
-func (conf *Config) SetPreferredPipelines(pipelines []pipeline.Pipeline) error {
+func (conf *Config) SetPreferredPipelines(pipelines []pipeline.Pipeline, inGitRepo bool) error {
 	// only save pipelines if they are present
 	if len(pipelines) == 0 {
 		return nil
+	}
+
+	if !inGitRepo {
+		return fmt.Errorf("cannot save preferred pipelines: not in a git repository")
 	}
 
 	names := make([]string, len(pipelines))

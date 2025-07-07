@@ -2,7 +2,7 @@ This project is the Buildkite CLI (`bk`)
 
 ## Commands
 - Test: `go test ./...`
-- Lint: `docker-compose -f .buildkite/docker-compose.yaml run lint`
+- Lint: `docker-compose -f .buildkite/docker-compose.yaml run golangci-lint golangci-lint run`
 - Generate: `go generate` (required after GraphQL changes)
 - Run: `go run cmd/bk/main.go`
 

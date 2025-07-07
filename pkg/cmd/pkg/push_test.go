@@ -202,7 +202,7 @@ func createCommand(t *testing.T, cci createCommandInput) (*cobra.Command, error)
 	}
 
 	conf := config.New(afero.NewMemMapFs(), nil)
-	conf.SelectOrganization("test")
+	conf.SelectOrganization("test", true)
 
 	f := &factory.Factory{Config: conf, RestAPIClient: client}
 

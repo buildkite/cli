@@ -83,7 +83,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 			resolvers := resolver.NewAggregateResolver(
 				resolver.ResolveFromFlag(pipeline, f.Config),
 				resolver.ResolveFromConfig(f.Config, resolver.PickOne),
-				resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOne)),
+				resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOne, f.GitRepository != nil)),
 			)
 
 			resolvedPipeline, err := resolvers.Resolve(cmd.Context())
