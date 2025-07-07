@@ -132,16 +132,16 @@ func TestConfigureRequiresGitRepository(t *testing.T) {
 		t.Parallel()
 		fs := afero.NewMemMapFs()
 		conf := config.New(fs, nil)
-		
+
 		// Create a factory with nil GitRepository (simulating not being in a git repo)
 		f := &factory.Factory{Config: conf, GitRepository: nil}
 
 		err := ConfigureRun(f)
-		
+
 		if err == nil {
 			t.Error("expected error when not in a git repository, got nil")
 		}
-		
+
 		expectedErr := "not in a Git repository - bk should be configured at the root of a Git repository"
 		if err.Error() != expectedErr {
 			t.Errorf("expected error message %q, got %q", expectedErr, err.Error())
