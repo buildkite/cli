@@ -8,10 +8,10 @@ import (
 	"github.com/buildkite/cli/v3/internal/artifact"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
+	bk_io "github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
-	"github.com/charmbracelet/huh/spinner"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
@@ -74,30 +74,27 @@ func NewCmdArtifactsList(f *factory.Factory) *cobra.Command {
 			var wg sync.WaitGroup
 			var mu sync.Mutex
 
-			spinErr := spinner.New().
-				Title("Loading artifacts information").
-				Action(func() {
-					wg.Add(1)
+			spinErr := bk_io.SpinWhile("Loading artifacts information", func() {
+				wg.Add(1)
 
-					go func() {
-						defer wg.Done()
-						var apiErr error
+				go func() {
+					defer wg.Done()
+					var apiErr error
 
-						if job != "" { // list artifacts for a specific job
-							buildArtifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByJob(cmd.Context(), bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), job, nil)
-						} else {
-							buildArtifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByBuild(cmd.Context(), bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), nil)
-						}
-						if apiErr != nil {
-							mu.Lock()
-							err = apiErr
-							mu.Unlock()
-						}
-					}()
+					if job != "" { // list artifacts for a specific job
+						buildArtifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByJob(cmd.Context(), bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), job, nil)
+					} else {
+						buildArtifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByBuild(cmd.Context(), bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), nil)
+					}
+					if apiErr != nil {
+						mu.Lock()
+						err = apiErr
+						mu.Unlock()
+					}
+				}()
 
-					wg.Wait()
-				}).
-				Run()
+				wg.Wait()
+			})
 			if spinErr != nil {
 				return spinErr
 			}

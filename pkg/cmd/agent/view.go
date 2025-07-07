@@ -5,9 +5,9 @@ import (
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/agent"
+	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
-	"github.com/charmbracelet/huh/spinner"
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 )
@@ -37,12 +37,9 @@ func NewCmdAgentView(f *factory.Factory) *cobra.Command {
 
 			var err error
 			var agentData buildkite.Agent
-			spinErr := spinner.New().
-				Title("Loading agent").
-				Action(func() {
-					agentData, _, err = f.RestAPIClient.Agents.Get(cmd.Context(), org, id)
-				}).
-				Run()
+			spinErr := bk_io.SpinWhile("Loading agent", func() {
+				agentData, _, err = f.RestAPIClient.Agents.Get(cmd.Context(), org, id)
+			})
 			if spinErr != nil {
 				return spinErr
 			}

@@ -7,12 +7,12 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
+	bk_io "github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/internal/validation/scopes"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
-	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
 )
 
@@ -110,12 +110,9 @@ func NewCmdBuildRebuild(f *factory.Factory) *cobra.Command {
 func rebuild(ctx context.Context, org string, pipeline string, buildId string, web bool, f *factory.Factory) error {
 	var err error
 	var build buildkite.Build
-	spinErr := spinner.New().
-		Title(fmt.Sprintf("Rerunning build #%s for pipeline %s", buildId, pipeline)).
-		Action(func() {
-			build, err = f.RestAPIClient.Builds.Rebuild(ctx, org, pipeline, buildId)
-		}).
-		Run()
+	spinErr := bk_io.SpinWhile(fmt.Sprintf("Rerunning build #%s for pipeline %s", buildId, pipeline), func() {
+		build, err = f.RestAPIClient.Builds.Rebuild(ctx, org, pipeline, buildId)
+	})
 	if spinErr != nil {
 		return spinErr
 	}

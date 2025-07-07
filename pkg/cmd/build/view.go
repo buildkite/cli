@@ -9,11 +9,11 @@ import (
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	"github.com/buildkite/cli/v3/internal/build/view"
+	bk_io "github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
-	"github.com/charmbracelet/huh/spinner"
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 )
@@ -112,64 +112,61 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 			var wg sync.WaitGroup
 			var mu sync.Mutex
 
-			spinErr := spinner.New().
-				Title("Loading build information").
-				Action(func() {
-					wg.Add(3)
-					go func() {
-						defer wg.Done()
-						var apiErr error
-						build, _, apiErr = f.RestAPIClient.Builds.Get(
-							cmd.Context(),
-							opts.Organization,
-							opts.Pipeline,
-							fmt.Sprint(opts.BuildNumber),
-							nil,
-						)
-						if apiErr != nil {
-							mu.Lock()
-							err = apiErr
-							mu.Unlock()
-						}
-					}()
+			spinErr := bk_io.SpinWhile("Loading build information", func() {
+				wg.Add(3)
+				go func() {
+					defer wg.Done()
+					var apiErr error
+					build, _, apiErr = f.RestAPIClient.Builds.Get(
+						cmd.Context(),
+						opts.Organization,
+						opts.Pipeline,
+						fmt.Sprint(opts.BuildNumber),
+						nil,
+					)
+					if apiErr != nil {
+						mu.Lock()
+						err = apiErr
+						mu.Unlock()
+					}
+				}()
 
-					go func() {
-						defer wg.Done()
-						var apiErr error
-						artifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByBuild(
-							cmd.Context(),
-							opts.Organization,
-							opts.Pipeline,
-							fmt.Sprint(opts.BuildNumber),
-							nil,
-						)
-						if apiErr != nil {
-							mu.Lock()
-							err = apiErr
-							mu.Unlock()
-						}
-					}()
+				go func() {
+					defer wg.Done()
+					var apiErr error
+					artifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByBuild(
+						cmd.Context(),
+						opts.Organization,
+						opts.Pipeline,
+						fmt.Sprint(opts.BuildNumber),
+						nil,
+					)
+					if apiErr != nil {
+						mu.Lock()
+						err = apiErr
+						mu.Unlock()
+					}
+				}()
 
-					go func() {
-						defer wg.Done()
-						var apiErr error
-						annotations, _, apiErr = f.RestAPIClient.Annotations.ListByBuild(
-							cmd.Context(),
-							opts.Organization,
-							opts.Pipeline,
-							fmt.Sprint(opts.BuildNumber),
-							nil,
-						)
-						if apiErr != nil {
-							mu.Lock()
-							err = apiErr
-							mu.Unlock()
-						}
-					}()
+				go func() {
+					defer wg.Done()
+					var apiErr error
+					annotations, _, apiErr = f.RestAPIClient.Annotations.ListByBuild(
+						cmd.Context(),
+						opts.Organization,
+						opts.Pipeline,
+						fmt.Sprint(opts.BuildNumber),
+						nil,
+					)
+					if apiErr != nil {
+						mu.Lock()
+						err = apiErr
+						mu.Unlock()
+					}
+				}()
 
-					wg.Wait()
-				}).
-				Run()
+				wg.Wait()
+			})
 			if spinErr != nil {
 				return spinErr
 			}

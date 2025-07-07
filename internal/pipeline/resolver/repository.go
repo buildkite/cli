@@ -4,10 +4,10 @@ import (
 	"context"
 	"strings"
 
+	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
-	"github.com/charmbracelet/huh/spinner"
 	git "github.com/go-git/go-git/v5"
 )
 
@@ -19,12 +19,9 @@ func ResolveFromRepository(f *factory.Factory, picker PipelinePicker) PipelineRe
 	return func(ctx context.Context) (*pipeline.Pipeline, error) {
 		var err error
 		var pipelines []pipeline.Pipeline
-		spinErr := spinner.New().
-			Title("Resolving pipeline").
-			Action(func() {
-				pipelines, err = resolveFromRepository(ctx, f)
-			}).
-			Run()
+		spinErr := bk_io.SpinWhile("Resolving pipeline", func() {
+			pipelines, err = resolveFromRepository(ctx, f)
+		})
 		if spinErr != nil {
 			return nil, spinErr
 		}

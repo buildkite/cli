@@ -10,8 +10,8 @@ import (
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/graphql"
+	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
 )
 
@@ -32,12 +32,9 @@ func NewCmdArtifactsDownload(f *factory.Factory) *cobra.Command {
 
 			var err error
 			var downloadDir string
-			spinErr := spinner.New().
-				Title("Downloading artifact").
-				Action(func() {
-					downloadDir, err = download(cmd.Context(), f, artifactId)
-				}).
-				Run()
+			spinErr := bk_io.SpinWhile("Downloading artifact", func() {
+				downloadDir, err = download(cmd.Context(), f, artifactId)
+			})
 			if spinErr != nil {
 				return spinErr
 			}
