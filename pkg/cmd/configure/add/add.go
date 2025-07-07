@@ -28,7 +28,7 @@ func NewCmdAdd(f *factory.Factory) *cobra.Command {
 }
 
 func ConfigureWithCredentials(f *factory.Factory, org, token string) error {
-	if err := f.Config.SelectOrganization(org, f.GitRepository == nil); err != nil {
+	if err := f.Config.SelectOrganization(org, f.GitRepository != nil); err != nil {
 		return err
 	}
 
