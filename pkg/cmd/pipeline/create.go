@@ -6,11 +6,11 @@ import (
 
 	survey "github.com/AlecAivazis/survey/v2"
 	"github.com/MakeNowJust/heredoc"
+	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
-	bk_io "github.com/buildkite/cli/v3/internal/io"
 )
 
 func NewCmdPipelineCreate(f *factory.Factory) *cobra.Command {

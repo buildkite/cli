@@ -16,3 +16,4 @@ This project is the Buildkite CLI (`bk`)
 
 ## Notes
 - CI: https://buildkite.com/buildkite/buildkite-cli
+- Always format after changing code

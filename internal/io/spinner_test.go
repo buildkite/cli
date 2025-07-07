@@ -60,7 +60,7 @@ func TestSpinWhileTTYDetection(t *testing.T) {
 	// Test that TTY detection works as expected
 	// This test documents the behavior rather than forcing specific outcomes
 	isTTY := isatty.IsTerminal(os.Stdout.Fd())
-	
+
 	actionCalled := false
 	err := SpinWhile("TTY detection test", func() {
 		actionCalled = true
