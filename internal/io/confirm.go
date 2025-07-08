@@ -2,10 +2,8 @@ package io
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/charmbracelet/huh"
-	"github.com/mattn/go-isatty"
 )
 
 func Confirm(confirmed *bool, title string) error {
@@ -15,7 +13,7 @@ func Confirm(confirmed *bool, title string) error {
 	}
 
 	// In non-TTY environments, fail by default with yes flag message
-	if !isatty.IsTerminal(os.Stdout.Fd()) {
+	if !IsTerminal() {
 		return fmt.Errorf("confirmation required but not running in a terminal; use -y or --yes to confirm")
 	}
 
