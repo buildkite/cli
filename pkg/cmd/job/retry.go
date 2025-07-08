@@ -5,9 +5,9 @@ import (
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/graphql"
+	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
 )
 
@@ -30,12 +30,9 @@ func NewCmdJobRetry(f *factory.Factory) *cobra.Command {
 
 			var err error
 			var j *graphql.RetryJobResponse
-			spinErr := spinner.New().
-				Title("Retrying job").
-				Action(func() {
-					j, err = graphql.RetryJob(cmd.Context(), f.GraphQLClient, graphqlID)
-				}).
-				Run()
+			spinErr := bk_io.SpinWhile("Retrying job", func() {
+				j, err = graphql.RetryJob(cmd.Context(), f.GraphQLClient, graphqlID)
+			})
 			if spinErr != nil {
 				return spinErr
 			}

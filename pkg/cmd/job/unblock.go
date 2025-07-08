@@ -11,7 +11,7 @@ import (
 	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/charmbracelet/huh/spinner"
+
 	"github.com/spf13/cobra"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 )
@@ -55,12 +55,9 @@ func NewCmdJobUnblock(f *factory.Factory) *cobra.Command {
 			}
 
 			var err error
-			spinErr := spinner.New().
-				Title("Unblocking job").
-				Action(func() {
-					_, err = graphql.UnblockJob(cmd.Context(), f.GraphQLClient, graphqlID, fields)
-				}).
-				Run()
+			spinErr := bk_io.SpinWhile("Unblocking job", func() {
+				_, err = graphql.UnblockJob(cmd.Context(), f.GraphQLClient, graphqlID, fields)
+			})
 			if spinErr != nil {
 				return spinErr
 			}

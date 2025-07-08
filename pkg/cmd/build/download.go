@@ -10,10 +10,10 @@ import (
 	"github.com/buildkite/cli/v3/internal/build"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
+	bk_io "github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/validation/scopes"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
 )
 
@@ -85,12 +85,9 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 			}
 
 			var dir string
-			spinErr := spinner.New().
-				Title("Downloading build resources").
-				Action(func() {
-					dir, err = download(cmd.Context(), bld, f)
-				}).
-				Run()
+			spinErr := bk_io.SpinWhile("Downloading build resources", func() {
+				dir, err = download(cmd.Context(), bld, f)
+			})
 			if spinErr != nil {
 				return spinErr
 			}

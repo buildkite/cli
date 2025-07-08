@@ -9,13 +9,12 @@ import (
 
 	"github.com/MakeNowJust/heredoc"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
-	"github.com/buildkite/cli/v3/internal/io"
+	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/internal/validation/scopes"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
-	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -99,7 +98,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 				)
 			}
 
-			err = io.Confirm(&confirmed, fmt.Sprintf("Create new build on %s?", resolvedPipeline.Name))
+			err = bk_io.Confirm(&confirmed, fmt.Sprintf("Create new build on %s?", resolvedPipeline.Name))
 			if err != nil {
 				return bkErrors.NewUserAbortedError(err, "confirmation canceled")
 			}
@@ -179,47 +178,44 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 func newBuild(ctx context.Context, org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool, env map[string]string, metaData map[string]string, ignoreBranchFilters bool) error {
 	var actionErr error
 	var build buildkite.Build
-	spinErr := spinner.New().
-		Title(fmt.Sprintf("Starting new build for %s", pipeline)).
-		Action(func() {
-			branch = strings.TrimSpace(branch)
-			if len(branch) == 0 {
-				p, _, err := f.RestAPIClient.Pipelines.Get(ctx, org, pipeline)
-				if err != nil {
-					actionErr = bkErrors.WrapAPIError(err, "fetching pipeline information")
-					return
-				}
-
-				// Check if the pipeline has a default branch set
-				if p.DefaultBranch == "" {
-					actionErr = bkErrors.NewValidationError(
-						nil,
-						fmt.Sprintf("No default branch set for pipeline %s", pipeline),
-						"Please specify a branch using --branch (-b)",
-						"Set a default branch in your pipeline settings on Buildkite",
-					)
-					return
-				}
-				branch = p.DefaultBranch
-			}
-
-			newBuild := buildkite.CreateBuild{
-				Message:                     message,
-				Commit:                      commit,
-				Branch:                      branch,
-				Env:                         env,
-				MetaData:                    metaData,
-				IgnorePipelineBranchFilters: ignoreBranchFilters,
-			}
-
-			var err error
-			build, _, err = f.RestAPIClient.Builds.Create(ctx, org, pipeline, newBuild)
+	spinErr := bk_io.SpinWhile(fmt.Sprintf("Starting new build for %s", pipeline), func() {
+		branch = strings.TrimSpace(branch)
+		if len(branch) == 0 {
+			p, _, err := f.RestAPIClient.Pipelines.Get(ctx, org, pipeline)
 			if err != nil {
-				actionErr = bkErrors.WrapAPIError(err, "creating build")
+				actionErr = bkErrors.WrapAPIError(err, "fetching pipeline information")
 				return
 			}
-		}).
-		Run()
+
+			// Check if the pipeline has a default branch set
+			if p.DefaultBranch == "" {
+				actionErr = bkErrors.NewValidationError(
+					nil,
+					fmt.Sprintf("No default branch set for pipeline %s", pipeline),
+					"Please specify a branch using --branch (-b)",
+					"Set a default branch in your pipeline settings on Buildkite",
+				)
+				return
+			}
+			branch = p.DefaultBranch
+		}
+
+		newBuild := buildkite.CreateBuild{
+			Message:                     message,
+			Commit:                      commit,
+			Branch:                      branch,
+			Env:                         env,
+			MetaData:                    metaData,
+			IgnorePipelineBranchFilters: ignoreBranchFilters,
+		}
+
+		var err error
+		build, _, err = f.RestAPIClient.Builds.Create(ctx, org, pipeline, newBuild)
+		if err != nil {
+			actionErr = bkErrors.WrapAPIError(err, "creating build")
+			return
+		}
+	})
 	if spinErr != nil {
 		return bkErrors.NewInternalError(spinErr, "error in spinner UI")
 	}

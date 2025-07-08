@@ -6,9 +6,9 @@ import (
 
 	survey "github.com/AlecAivazis/survey/v2"
 	"github.com/MakeNowJust/heredoc"
+	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
-	"github.com/charmbracelet/huh/spinner"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
@@ -87,22 +87,19 @@ func createPipeline(ctx context.Context, client *buildkite.Client, org, pipeline
 	var err error
 	var output string
 
-	spinErr := spinner.New().
-		Title(fmt.Sprintf("Creating new pipeline %s for %s", pipelineName, org)).
-		Action(func() {
-			createPipeline := buildkite.CreatePipeline{
-				Name:          pipelineName,
-				Repository:    repoURL,
-				Description:   description,
-				Configuration: "steps:\n  - label: \":pipeline:\"\n    command: buildkite-agent pipeline upload",
-			}
+	spinErr := bk_io.SpinWhile(fmt.Sprintf("Creating new pipeline %s for %s", pipelineName, org), func() {
+		createPipeline := buildkite.CreatePipeline{
+			Name:          pipelineName,
+			Repository:    repoURL,
+			Description:   description,
+			Configuration: "steps:\n  - label: \":pipeline:\"\n    command: buildkite-agent pipeline upload",
+		}
 
-			var pipeline buildkite.Pipeline
-			pipeline, _, err = client.Pipelines.Create(ctx, org, createPipeline)
+		var pipeline buildkite.Pipeline
+		pipeline, _, err = client.Pipelines.Create(ctx, org, createPipeline)
 
-			output = lipgloss.JoinVertical(lipgloss.Top, lipgloss.NewStyle().Padding(1, 1).Render(fmt.Sprintf("Pipeline created: %s", pipeline.WebURL)))
-		}).
-		Run()
+		output = lipgloss.JoinVertical(lipgloss.Top, lipgloss.NewStyle().Padding(1, 1).Render(fmt.Sprintf("Pipeline created: %s", pipeline.WebURL)))
+	})
 
 	fmt.Println(output)
 

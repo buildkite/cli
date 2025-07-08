@@ -6,13 +6,12 @@ import (
 
 	"github.com/MakeNowJust/heredoc"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
-	"github.com/buildkite/cli/v3/internal/io"
+	bk_io "github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/internal/validation/scopes"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
-	"github.com/charmbracelet/huh/spinner"
 	"github.com/spf13/cobra"
 )
 
@@ -62,7 +61,7 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 				return err
 			}
 
-			err = io.Confirm(&confirmed, fmt.Sprintf("Cancel build #%d on %s", bld.BuildNumber, bld.Pipeline))
+			err = bk_io.Confirm(&confirmed, fmt.Sprintf("Cancel build #%d on %s", bld.BuildNumber, bld.Pipeline))
 			if err != nil {
 				return err
 			}
@@ -92,12 +91,9 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 func cancelBuild(ctx context.Context, org string, pipeline string, buildId string, web bool, f *factory.Factory) error {
 	var err error
 	var build buildkite.Build
-	spinErr := spinner.New().
-		Title(fmt.Sprintf("Cancelling build #%s from pipeline %s", buildId, pipeline)).
-		Action(func() {
-			build, err = f.RestAPIClient.Builds.Cancel(ctx, org, pipeline, buildId)
-		}).
-		Run()
+	spinErr := bk_io.SpinWhile(fmt.Sprintf("Cancelling build #%s from pipeline %s", buildId, pipeline), func() {
+		build, err = f.RestAPIClient.Builds.Cancel(ctx, org, pipeline, buildId)
+	})
 	if spinErr != nil {
 		return spinErr
 	}
