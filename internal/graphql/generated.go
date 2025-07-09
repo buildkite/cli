@@ -19,6 +19,8 @@ type GetArtifactsArtifact struct {
 	Path string `json:"path"`
 	// The download URL for the artifact. Unless you've used your own artifact storage, the URL will be valid for only 10 minutes.
 	DownloadURL string `json:"downloadURL"`
+	// The job that uploaded this artifact
+	Job *GetArtifactsArtifactJobJobTypeCommand `json:"job"`
 }
 
 // GetUuid returns GetArtifactsArtifact.Uuid, and is useful for accessing the field via an interface.
@@ -29,6 +31,59 @@ func (v *GetArtifactsArtifact) GetPath() string { return v.Path }
 
 // GetDownloadURL returns GetArtifactsArtifact.DownloadURL, and is useful for accessing the field via an interface.
 func (v *GetArtifactsArtifact) GetDownloadURL() string { return v.DownloadURL }
+
+// GetJob returns GetArtifactsArtifact.Job, and is useful for accessing the field via an interface.
+func (v *GetArtifactsArtifact) GetJob() *GetArtifactsArtifactJobJobTypeCommand { return v.Job }
+
+// GetArtifactsArtifactJobJobTypeCommand includes the requested fields of the GraphQL type JobTypeCommand.
+// The GraphQL type's documentation follows.
+//
+// A type of job that runs a command on an agent
+type GetArtifactsArtifactJobJobTypeCommand struct {
+	// The UUID for this job
+	Uuid string `json:"uuid"`
+	// The pipeline that this job is a part of
+	Pipeline *GetArtifactsArtifactJobJobTypeCommandPipeline `json:"pipeline"`
+	// The build that this job is a part of
+	Build *GetArtifactsArtifactJobJobTypeCommandBuild `json:"build"`
+}
+
+// GetUuid returns GetArtifactsArtifactJobJobTypeCommand.Uuid, and is useful for accessing the field via an interface.
+func (v *GetArtifactsArtifactJobJobTypeCommand) GetUuid() string { return v.Uuid }
+
+// GetPipeline returns GetArtifactsArtifactJobJobTypeCommand.Pipeline, and is useful for accessing the field via an interface.
+func (v *GetArtifactsArtifactJobJobTypeCommand) GetPipeline() *GetArtifactsArtifactJobJobTypeCommandPipeline {
+	return v.Pipeline
+}
+
+// GetBuild returns GetArtifactsArtifactJobJobTypeCommand.Build, and is useful for accessing the field via an interface.
+func (v *GetArtifactsArtifactJobJobTypeCommand) GetBuild() *GetArtifactsArtifactJobJobTypeCommandBuild {
+	return v.Build
+}
+
+// GetArtifactsArtifactJobJobTypeCommandBuild includes the requested fields of the GraphQL type Build.
+// The GraphQL type's documentation follows.
+//
+// A build from a pipeline
+type GetArtifactsArtifactJobJobTypeCommandBuild struct {
+	// The number of the build
+	Number int `json:"number"`
+}
+
+// GetNumber returns GetArtifactsArtifactJobJobTypeCommandBuild.Number, and is useful for accessing the field via an interface.
+func (v *GetArtifactsArtifactJobJobTypeCommandBuild) GetNumber() int { return v.Number }
+
+// GetArtifactsArtifactJobJobTypeCommandPipeline includes the requested fields of the GraphQL type Pipeline.
+// The GraphQL type's documentation follows.
+//
+// A pipeline
+type GetArtifactsArtifactJobJobTypeCommandPipeline struct {
+	// The name of the pipeline
+	Name string `json:"name"`
+}
+
+// GetName returns GetArtifactsArtifactJobJobTypeCommandPipeline.Name, and is useful for accessing the field via an interface.
+func (v *GetArtifactsArtifactJobJobTypeCommandPipeline) GetName() string { return v.Name }
 
 // GetArtifactsResponse is returned by GetArtifacts on success.
 type GetArtifactsResponse struct {
@@ -450,6 +505,30 @@ const (
 	JobStatesExpired JobStates = "EXPIRED"
 )
 
+var AllJobStates = []JobStates{
+	JobStatesPending,
+	JobStatesWaiting,
+	JobStatesWaitingFailed,
+	JobStatesBlocked,
+	JobStatesBlockedFailed,
+	JobStatesUnblocked,
+	JobStatesUnblockedFailed,
+	JobStatesLimiting,
+	JobStatesLimited,
+	JobStatesScheduled,
+	JobStatesAssigned,
+	JobStatesAccepted,
+	JobStatesRunning,
+	JobStatesFinished,
+	JobStatesCanceling,
+	JobStatesCanceled,
+	JobStatesTimingOut,
+	JobStatesTimedOut,
+	JobStatesSkipped,
+	JobStatesBroken,
+	JobStatesExpired,
+}
+
 // RetryJobJobTypeCommandRetryJobTypeCommandRetryPayload includes the requested fields of the GraphQL type JobTypeCommandRetryPayload.
 // The GraphQL type's documentation follows.
 //
@@ -653,13 +732,22 @@ func (v *__UnblockJobInput) GetId() string { return v.Id }
 // GetFields returns __UnblockJobInput.Fields, and is useful for accessing the field via an interface.
 func (v *__UnblockJobInput) GetFields() *string { return v.Fields }
 
-// The query or mutation executed by GetArtifacts.
+// The query executed by GetArtifacts.
 const GetArtifacts_Operation = `
 query GetArtifacts ($artifactId: ID!) {
 	artifact(uuid: $artifactId) {
 		uuid
 		path
 		downloadURL
+		job {
+			uuid
+			pipeline {
+				name
+			}
+			build {
+				number
+			}
+		}
 	}
 }
 `
@@ -668,7 +756,7 @@ func GetArtifacts(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	artifactId string,
-) (*GetArtifactsResponse, error) {
+) (data_ *GetArtifactsResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "GetArtifacts",
 		Query:  GetArtifacts_Operation,
@@ -676,10 +764,9 @@ func GetArtifacts(
 			ArtifactId: artifactId,
 		},
 	}
-	var err_ error
 
-	var data_ GetArtifactsResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &GetArtifactsResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -687,10 +774,10 @@ func GetArtifacts(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by GetClusterQueueAgent.
+// The query executed by GetClusterQueueAgent.
 const GetClusterQueueAgent_Operation = `
 query GetClusterQueueAgent ($orgSlug: ID!, $queueId: [ID!]) {
 	organization(slug: $orgSlug) {
@@ -717,7 +804,7 @@ func GetClusterQueueAgent(
 	client_ graphql.Client,
 	orgSlug string,
 	queueId []string,
-) (*GetClusterQueueAgentResponse, error) {
+) (data_ *GetClusterQueueAgentResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "GetClusterQueueAgent",
 		Query:  GetClusterQueueAgent_Operation,
@@ -726,10 +813,9 @@ func GetClusterQueueAgent(
 			QueueId: queueId,
 		},
 	}
-	var err_ error
 
-	var data_ GetClusterQueueAgentResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &GetClusterQueueAgentResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -737,10 +823,10 @@ func GetClusterQueueAgent(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by GetClusterQueues.
+// The query executed by GetClusterQueues.
 const GetClusterQueues_Operation = `
 query GetClusterQueues ($orgSlug: ID!, $clusterId: ID!) {
 	organization(slug: $orgSlug) {
@@ -767,7 +853,7 @@ func GetClusterQueues(
 	client_ graphql.Client,
 	orgSlug string,
 	clusterId string,
-) (*GetClusterQueuesResponse, error) {
+) (data_ *GetClusterQueuesResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "GetClusterQueues",
 		Query:  GetClusterQueues_Operation,
@@ -776,10 +862,9 @@ func GetClusterQueues(
 			ClusterId: clusterId,
 		},
 	}
-	var err_ error
 
-	var data_ GetClusterQueuesResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &GetClusterQueuesResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -787,10 +872,10 @@ func GetClusterQueues(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by GetOrganizationID.
+// The query executed by GetOrganizationID.
 const GetOrganizationID_Operation = `
 query GetOrganizationID ($slug: ID!) {
 	organization(slug: $slug) {
@@ -803,7 +888,7 @@ func GetOrganizationID(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	slug string,
-) (*GetOrganizationIDResponse, error) {
+) (data_ *GetOrganizationIDResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "GetOrganizationID",
 		Query:  GetOrganizationID_Operation,
@@ -811,10 +896,9 @@ func GetOrganizationID(
 			Slug: slug,
 		},
 	}
-	var err_ error
 
-	var data_ GetOrganizationIDResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &GetOrganizationIDResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -822,10 +906,10 @@ func GetOrganizationID(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by GetPipeline.
+// The query executed by GetPipeline.
 const GetPipeline_Operation = `
 query GetPipeline ($slug: ID!) {
 	pipeline(slug: $slug) {
@@ -856,7 +940,7 @@ func GetPipeline(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	slug string,
-) (*GetPipelineResponse, error) {
+) (data_ *GetPipelineResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "GetPipeline",
 		Query:  GetPipeline_Operation,
@@ -864,10 +948,9 @@ func GetPipeline(
 			Slug: slug,
 		},
 	}
-	var err_ error
 
-	var data_ GetPipelineResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &GetPipelineResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -875,10 +958,10 @@ func GetPipeline(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by InviteUser.
+// The mutation executed by InviteUser.
 const InviteUser_Operation = `
 mutation InviteUser ($organization: ID!, $emails: [String!]!) {
 	organizationInvitationCreate(input: {organizationID:$organization,emails:$emails}) {
@@ -892,7 +975,7 @@ func InviteUser(
 	client_ graphql.Client,
 	organization string,
 	emails []string,
-) (*InviteUserResponse, error) {
+) (data_ *InviteUserResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "InviteUser",
 		Query:  InviteUser_Operation,
@@ -901,10 +984,9 @@ func InviteUser(
 			Emails:       emails,
 		},
 	}
-	var err_ error
 
-	var data_ InviteUserResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &InviteUserResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -912,10 +994,10 @@ func InviteUser(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by RetryJob.
+// The mutation executed by RetryJob.
 const RetryJob_Operation = `
 mutation RetryJob ($id: ID!) {
 	jobTypeCommandRetry(input: {id:$id}) {
@@ -932,7 +1014,7 @@ func RetryJob(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	id string,
-) (*RetryJobResponse, error) {
+) (data_ *RetryJobResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "RetryJob",
 		Query:  RetryJob_Operation,
@@ -940,10 +1022,9 @@ func RetryJob(
 			Id: id,
 		},
 	}
-	var err_ error
 
-	var data_ RetryJobResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &RetryJobResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -951,10 +1032,10 @@ func RetryJob(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by UnblockJob.
+// The mutation executed by UnblockJob.
 const UnblockJob_Operation = `
 mutation UnblockJob ($id: ID!, $fields: JSON) {
 	jobTypeBlockUnblock(input: {id:$id,fields:$fields}) {
@@ -975,7 +1056,7 @@ func UnblockJob(
 	client_ graphql.Client,
 	id string,
 	fields *string,
-) (*UnblockJobResponse, error) {
+) (data_ *UnblockJobResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "UnblockJob",
 		Query:  UnblockJob_Operation,
@@ -984,10 +1065,9 @@ func UnblockJob(
 			Fields: fields,
 		},
 	}
-	var err_ error
 
-	var data_ UnblockJobResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &UnblockJobResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -995,5 +1075,5 @@ func UnblockJob(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }

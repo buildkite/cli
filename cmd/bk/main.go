@@ -4,13 +4,23 @@ import (
 	"context"
 	"os"
 
+	"github.com/alecthomas/kong"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	kongCLI "github.com/buildkite/cli/v3/pkg/cmd/kong"
 	"github.com/buildkite/cli/v3/pkg/cmd/root"
 )
 
 func main() {
+	// Check if we should use Kong instead of Cobra
+	if len(os.Args) > 1 && os.Args[1] == "--use-kong" {
+		// Remove the --use-kong flag and run with Kong
+		os.Args = append(os.Args[:1], os.Args[2:]...)
+		code := mainRunKong()
+		os.Exit(code)
+	}
+
 	code := mainRun()
 	os.Exit(code)
 }
@@ -63,5 +73,58 @@ func mainRun() int {
 	}
 
 	// If we get here, the command executed successfully
+	return bkErrors.ExitCodeSuccess
+}
+
+func mainRunKong() int {
+	ctx := context.Background()
+
+	// Create factory
+	f, err := factory.New(version.Version)
+	if err != nil {
+		errHandler := bkErrors.NewHandler()
+		errHandler.Handle(bkErrors.NewInternalError(
+			err,
+			"failed to initialize CLI",
+			"This is likely a bug in the CLI",
+			"Please report this issue to the Buildkite CLI team",
+		))
+		return bkErrors.ExitCodeInternalError
+	}
+
+	// Create Kong CLI
+	cli := &kongCLI.CLI{}
+
+	// Parse arguments
+	parser := kong.Must(cli,
+		kong.Name("bk"),
+		kong.Description("Work with Buildkite from the command line."),
+		kong.UsageOnError(),
+		kong.Vars{"version": f.Version},
+		kong.Exit(func(int) {}), // Prevent Kong from calling os.Exit
+	)
+
+	ctx2, err := parser.Parse(os.Args[1:])
+	if err != nil {
+		// Handle parsing errors
+		errHandler := bkErrors.NewHandler().WithVerbose(cli.Verbose)
+		errHandler.Handle(bkErrors.NewInternalError(
+			err,
+			"failed to parse command line arguments",
+			"Check your command syntax",
+			"Use --help for usage information",
+		))
+		return bkErrors.ExitCodeInternalError
+	}
+
+	// Execute the command
+	err = ctx2.Run(ctx, f)
+	if err != nil {
+		// Handle execution errors
+		errHandler := bkErrors.NewHandler().WithVerbose(cli.Verbose)
+		errHandler.HandleWithDetails(err, "bk")
+		return bkErrors.GetExitCodeForError(err)
+	}
+
 	return bkErrors.ExitCodeSuccess
 }
