@@ -101,12 +101,18 @@ func mainRunKong() int {
 		kong.Description("Work with Buildkite from the command line."),
 		kong.UsageOnError(),
 		kong.Vars{"version": f.Version},
-		kong.Exit(func(int) {}), // Prevent Kong from calling os.Exit
 	)
 
 	ctx2, err := parser.Parse(os.Args[1:])
 	if err != nil {
-		// Handle parsing errors
+		// If no command was provided, show help and return success like Cobra does
+		if len(os.Args[1:]) == 0 {
+			// Manually parse --help to show Kong's native help
+			parser.Parse([]string{"--help"})
+			return bkErrors.ExitCodeSuccess
+		}
+
+		// Handle other parsing errors
 		errHandler := bkErrors.NewHandler().WithVerbose(cli.Verbose)
 		errHandler.Handle(bkErrors.NewInternalError(
 			err,

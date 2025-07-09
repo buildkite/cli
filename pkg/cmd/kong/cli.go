@@ -2,7 +2,6 @@ package kong
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -222,13 +221,6 @@ type VersionCmd struct{}
 type DocsCmd struct {
 	Format string `help:"Output format (llms.txt, markdown, json)" default:"llms.txt"`
 	Output string `short:"o" help:"Output file (default: stdout)"`
-}
-
-// Run is called when the root command is executed
-func (c *CLI) Run(ctx *kong.Context, f *factory.Factory) error {
-	// If no subcommand is provided, show help
-	fmt.Fprint(ctx.Stdout, ctx.Model.Help)
-	return nil
 }
 
 // RunWithFactory creates a Kong parser and runs the CLI
