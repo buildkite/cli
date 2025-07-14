@@ -12,7 +12,15 @@ This project is the Buildkite CLI (`bk`)
 ## Project Structure
 - Main binary: `cmd/bk/main.go`
 - GraphQL schema: `schema.graphql`
-- CLI commands: `pkg/cmd/`
+- CLI commands: `pkg/cmd/` (legacy Cobra implementation, unused)
+- Active CLI commands: `pkg/cli/` (Kong implementation)
+
+## CLI Framework
+- Uses Kong CLI framework (github.com/alecthomas/kong)
+
+## Go Dependencies
+- When investigating Go library behavior, check local source instead of web searches
+- Use `go list -m -f "{{.Dir}}" <module-name>` to find local module source
 
 ## Notes
 - CI: https://buildkite.com/buildkite/buildkite-cli

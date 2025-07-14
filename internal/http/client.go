@@ -128,6 +128,11 @@ func (e *ErrorResponse) IsServerError() bool {
 
 // Do performs an HTTP request with the given method, endpoint, and body
 func (c *Client) Do(ctx context.Context, method, endpoint string, body interface{}, v interface{}) error {
+	return c.DoWithHeaders(ctx, method, endpoint, body, v, nil)
+}
+
+// DoWithHeaders performs an HTTP request with the given method, endpoint, body, and custom headers
+func (c *Client) DoWithHeaders(ctx context.Context, method, endpoint string, body interface{}, v interface{}, headers map[string]string) error {
 	// Ensure endpoint starts with "/"
 	if !strings.HasPrefix(endpoint, "/") {
 		endpoint = "/" + endpoint
@@ -162,6 +167,11 @@ func (c *Client) Do(ctx context.Context, method, endpoint string, body interface
 		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set("Accept", "application/json")
+
+	// Set custom headers (these can override common headers)
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
 
 	// Execute the request
 	resp, err := c.client.Do(req)

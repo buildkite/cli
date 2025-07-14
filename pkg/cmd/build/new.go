@@ -107,7 +107,12 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 			if confirmed {
 				// Process environment variables
 				for _, e := range env {
-					key, value, _ := strings.Cut(e, "=")
+					var key, value string
+					if strings.Contains(e, "=") {
+						key, value, _ = strings.Cut(e, "=")
+					} else {
+						key, value, _ = strings.Cut(e, ":")
+					}
 					envMap[key] = value
 				}
 

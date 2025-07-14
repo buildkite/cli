@@ -23,34 +23,106 @@ brew tap buildkite/buildkite && brew install buildkite/buildkite/bk
 ## Usage
 
 ```
-Work with Buildkite from the command line.
+Usage: bk <command> [flags]
 
-Usage:
-  bk [command]
-
-Examples:
-$ bk build view
-
-
-Available Commands:
-  agent       Manage agents
-  api         Interact with the Buildkite API
-  build       Manage pipeline builds
-  cluster     Manage organization clusters
-  completion  Generate the autocompletion script for the specified shell
-  configure   Configure Buildkite API token
-  help        Help about any command
-  init        Initialize a pipeline.yaml file
-  job         Manage jobs within a build
-  package     Manage packages
-  pipeline    Manage pipelines
-  use         Select an organization
-  user        Invite users to the organization
+The official Buildkite CLI
 
 Flags:
-  -h, --help   help for bk
+  -h, --help       Show context-sensitive help.
+  -V, --verbose    Enable verbose error output
 
-Use "bk [command] --help" for more information about a command.
+Commands:
+  agent list [flags]
+    List agents
+
+  agent stop <agents> ... [flags]
+    Stop agents
+
+  agent view <agent> [flags]
+    View agent details
+
+  api <path> [flags]
+    Make raw API requests to Buildkite REST API
+
+  artifacts list <build> [flags]
+    List build artifacts
+
+  artifacts download <build> [flags]
+    Download artifacts
+
+  build cancel <build>
+    Cancel a build
+
+  build download <build> [flags]
+    Download build artifacts or job logs
+
+  build new [<pipeline>] [flags]
+    Create a build
+
+  build rebuild <build>
+    Rebuild a build
+
+  build view [<build>] [flags]
+    View a build
+
+  build watch <build> [flags]
+    Watch build status until completion
+
+  cluster list [flags]
+    List clusters
+
+  cluster view <cluster> [flags]
+    View cluster details
+
+  configure main [flags]
+    Configure authentication credentials and API tokens
+
+  configure add [flags]
+    Add configuration for additional organization
+
+  init [flags]
+    Create .buildkite/pipeline.yml with a basic build step interactively
+
+  job logs <job>
+    View job logs
+
+  job retry <job>
+    Retry a job
+
+  job unblock <job> [flags]
+    Unblock a job
+
+  pipeline create [flags]
+    Create a pipeline
+
+  pipeline view <pipeline> [flags]
+    View pipeline details
+
+  pipeline validate [flags]
+    Validate pipeline configuration
+
+  package (pkg) push <registry> <file> [flags]
+    Push package to registry
+
+  prompt [flags]
+    Generate shell prompt integration to display current Buildkite organization.
+
+  use <organization> [flags]
+    Switch between different Buildkite organizations
+
+  user invite <emails> ... [flags]
+    Invite users to your Buildkite organization via email
+
+  version [flags]
+    Show CLI version information
+
+  help [<commands> ...] [flags]
+    Show detailed help for commands and subcommands
+
+  install-completions [flags]
+    Install shell tab completion for bash, zsh, fish, or powershell
+
+Run "bk <command> --help" for more information on a command.
 ```
 
 ### Configure

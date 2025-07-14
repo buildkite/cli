@@ -19,6 +19,7 @@ type Factory struct {
 	GraphQLClient graphql.Client
 	RestAPIClient *buildkite.Client
 	Version       string
+	Output        string // Global output format (json, yaml, table, raw)
 }
 
 type gqlHTTPClient struct {
