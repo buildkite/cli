@@ -42,28 +42,12 @@ func NewCmdBuildWatch(f *factory.Factory) *cobra.Command {
 
 	cmd := cobra.Command{
 		Use:   "watch [number] [flags]",
-		Short: "Watch a build's progress in real-time",
+		Short: "Watch build status until completion. Build can be the build number, URL, or org/pipeline/number format.",
 		Args:  cobra.MaximumNArgs(1),
 		Long: heredoc.Doc(`
-			Watch a build's progress in real-time.
+			Watch build status until completion. Build can be the build number, URL, or org/pipeline/number format.
 
 			You can pass an optional build number to watch. If omitted, the most recent build on the current branch will be watched.
-		`),
-		Example: heredoc.Doc(`
-			# Watch the most recent build for the current branch
-			$ bk build watch
-
-			# Watch a specific build
-			$ bk build watch 429
-
-			# Watch the most recent build on a specific branch
-			$ bk build watch -b feature-x
-
-			# Watch a build on a specific pipeline
-			$ bk build watch -p my-pipeline
-
-			# Set a custom polling interval (in seconds)
-			$ bk build watch --interval 5
 		`),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			// Validate command options
