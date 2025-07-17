@@ -156,6 +156,11 @@ func (b *BuildDownloadCmd) Run(ctx context.Context, f *factory.Factory) error {
 		return err
 	}
 
+	// Validate flags
+	if b.FailedOnly && !b.Logs {
+		return fmt.Errorf("the --failed-only flag requires --logs")
+	}
+
 	// Parse build URL or UUID to extract org, pipeline, and build number
 	org, pipeline, buildNumber, err := parseBuildIdentifier(b.Build, f.Config.OrganizationSlug())
 	if err != nil {
