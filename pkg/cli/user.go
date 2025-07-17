@@ -77,10 +77,8 @@ func createInvite(ctx context.Context, f *factory.Factory, orgID string, emails 
 		}(email)
 	}
 
-	go func() {
-		wg.Wait()
-		close(errChan)
-	}()
+	wg.Wait()
+	close(errChan)
 
 	var errs []error
 	for err := range errChan {
