@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	"gopkg.in/yaml.v3"
@@ -102,62 +103,43 @@ func mapErrorToStruct(err error, verbose bool) Error {
 // Helper functions to identify error types
 func isAuthError(err error) bool {
 	// Check if error is related to authentication
-	msg := err.Error()
-	return contains(msg, "authentication") ||
-		contains(msg, "unauthorized") ||
-		contains(msg, "token") ||
-		contains(msg, "401")
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "authentication") ||
+		strings.Contains(msg, "unauthorized") ||
+		strings.Contains(msg, "token") ||
+		strings.Contains(msg, "401")
 }
 
 func isNotFoundError(err error) bool {
 	// Check if error is related to resource not found
-	msg := err.Error()
-	return contains(msg, "not found") ||
-		contains(msg, "404") ||
-		contains(msg, "does not exist")
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "not found") ||
+		strings.Contains(msg, "404") ||
+		strings.Contains(msg, "does not exist")
 }
 
 func isNetworkError(err error) bool {
 	// Check if error is related to network issues
-	msg := err.Error()
-	return contains(msg, "connection") ||
-		contains(msg, "network") ||
-		contains(msg, "timeout") ||
-		contains(msg, "dial")
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "connection") ||
+		strings.Contains(msg, "network") ||
+		strings.Contains(msg, "timeout") ||
+		strings.Contains(msg, "dial")
 }
 
 func isConfigError(err error) bool {
 	// Check if error is related to configuration
-	msg := err.Error()
-	return contains(msg, "config") ||
-		contains(msg, "configuration") ||
-		contains(msg, "organization not set")
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "config") ||
+		strings.Contains(msg, "configuration") ||
+		strings.Contains(msg, "organization not set")
 }
 
 func isValidationError(err error) bool {
 	// Check if error is related to validation
-	msg := err.Error()
-	return contains(msg, "invalid") ||
-		contains(msg, "required") ||
-		contains(msg, "validation") ||
-		contains(msg, "format")
-}
-
-// contains checks if a string contains a substring (case-insensitive)
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) &&
-		(s == substr ||
-			len(s) > len(substr) &&
-				(s[:len(substr)] == substr ||
-					s[len(s)-len(substr):] == substr ||
-					hasSubstring(s, substr)))
-}
-
-func hasSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "invalid") ||
+		strings.Contains(msg, "required") ||
+		strings.Contains(msg, "validation") ||
+		strings.Contains(msg, "format")
 }
