@@ -832,7 +832,9 @@ func validateConfig(conf *config.Config) error {
 
 // parseBuildIdentifier parses a build identifier which can be:
 // - A build URL (e.g., "https://buildkite.com/org/pipeline/builds/123")
-// - For now, build numbers without context are not supported
+// - An org/pipeline/number format (e.g., "my-org/my-pipeline/123")
+// - A pipeline/number format (e.g., "my-pipeline/123")
+// - A build number (e.g., "123") - will need pipeline context
 func parseBuildIdentifier(identifier, defaultOrg string) (org, pipeline, buildNumber string, err error) {
 	// If it looks like a URL, parse it
 	if strings.HasPrefix(identifier, "http") {
@@ -849,7 +851,20 @@ func parseBuildIdentifier(identifier, defaultOrg string) (org, pipeline, buildNu
 		return "", "", "", fmt.Errorf("invalid build URL format")
 	}
 
-	// Build numbers without pipeline context require more complex resolution
-	// For now, require full URLs for simplicity
-	return "", "", "", fmt.Errorf("build number requires pipeline context - please use full build URL like: https://buildkite.com/org/pipeline/builds/%s", identifier)
+	// Check for org/pipeline/number or pipeline/number format
+	if strings.Contains(identifier, "/") {
+		parts := strings.Split(identifier, "/")
+		if len(parts) >= 3 {
+			// org/pipeline/number format
+			return parts[0], parts[1], parts[2], nil
+		}
+		if len(parts) == 2 {
+			// pipeline/number format - use default org
+			return defaultOrg, parts[0], parts[1], nil
+		}
+		return "", "", "", fmt.Errorf("invalid format")
+	}
+
+	// Just a build number - return empty org/pipeline
+	return "", "", identifier, nil
 }

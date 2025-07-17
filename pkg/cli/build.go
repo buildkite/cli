@@ -628,57 +628,39 @@ func (b *BuildWatchCmd) Run(ctx context.Context, f *factory.Factory) error {
 
 // resolveBuildFromArgument resolves a build when an explicit build argument is provided
 func (b *BuildViewCmd) resolveBuildFromArgument(ctx context.Context, f *factory.Factory) (*buildkite.Build, error) {
-	// Check if it's a build URL
-	if strings.HasPrefix(b.Build, "http") {
-		org, pipeline, buildNumber, err := parseBuildIdentifier(b.Build, f.Config.OrganizationSlug())
-		if err != nil {
-			return nil, fmt.Errorf("error parsing build identifier: %w", err)
-		}
-		buildNum, parseErr := strconv.Atoi(buildNumber)
-		if parseErr != nil {
-			return nil, fmt.Errorf("invalid build number '%s': %w", buildNumber, parseErr)
-		}
-		build, _, err := f.RestAPIClient.Builds.Get(ctx, org, pipeline, fmt.Sprint(buildNum), nil)
-		if err != nil {
-			return nil, fmt.Errorf("error getting build: %w", err)
-		}
-		return &build, nil
+	// Parse the build identifier
+	org, pipeline, buildNumber, err := parseBuildIdentifier(b.Build, f.Config.OrganizationSlug())
+	if err != nil {
+		return nil, fmt.Errorf("error parsing build identifier: %w", err)
 	}
 
-	// Check if it's a number (build number)
-	if buildNum, err := strconv.Atoi(b.Build); err == nil {
-		// Need to resolve pipeline first
-		pipeline, err := b.resolvePipeline(ctx, f)
+	// Convert build number to int
+	buildNum, parseErr := strconv.Atoi(buildNumber)
+	if parseErr != nil {
+		return nil, fmt.Errorf("invalid build number '%s': %w", buildNumber, parseErr)
+	}
+
+	// If we don't have a pipeline, resolve it
+	if pipeline == "" {
+		pipeline, err = b.resolvePipeline(ctx, f)
 		if err != nil {
 			return nil, err
 		}
 		if pipeline == "" {
 			return nil, fmt.Errorf("failed to resolve pipeline - use --pipeline flag or run from a git repository")
 		}
-
-		build, _, err := f.RestAPIClient.Builds.Get(ctx, f.Config.OrganizationSlug(), pipeline, fmt.Sprint(buildNum), nil)
-		if err != nil {
-			return nil, fmt.Errorf("error getting build: %w", err)
-		}
-		return &build, nil
 	}
 
-	// Check if it's in org/pipeline/build format
-	parts := strings.Split(b.Build, "/")
-	if len(parts) == 3 {
-		org, pipeline, buildNumber := parts[0], parts[1], parts[2]
-		buildNum, parseErr := strconv.Atoi(buildNumber)
-		if parseErr != nil {
-			return nil, fmt.Errorf("invalid build number '%s': %w", buildNumber, parseErr)
-		}
-		build, _, err := f.RestAPIClient.Builds.Get(ctx, org, pipeline, fmt.Sprint(buildNum), nil)
-		if err != nil {
-			return nil, fmt.Errorf("error getting build: %w", err)
-		}
-		return &build, nil
+	// If we don't have an org, use the default
+	if org == "" {
+		org = f.Config.OrganizationSlug()
 	}
 
-	return nil, fmt.Errorf("unable to parse build argument: %s", b.Build)
+	build, _, err := f.RestAPIClient.Builds.Get(ctx, org, pipeline, fmt.Sprint(buildNum), nil)
+	if err != nil {
+		return nil, fmt.Errorf("error getting build: %w", err)
+	}
+	return &build, nil
 }
 
 // resolveMostRecentBuild resolves the most recent build with filters
