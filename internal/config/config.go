@@ -13,12 +13,17 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"sync"
 
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	git "github.com/go-git/go-git/v5"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
+)
+
+var (
+	legacyTokenWarningOnce sync.Once
 )
 
 const (
@@ -111,8 +116,18 @@ func (conf *Config) SelectOrganization(org string, inGitRepo bool) error {
 func (conf *Config) APIToken() string {
 	slug := conf.OrganizationSlug()
 	key := fmt.Sprintf("organizations.%s.api_token", slug)
+
+	// Check for deprecated BK_ACCESS_TOKEN and warn if used
+	legacyToken := os.Getenv("BK_ACCESS_TOKEN")
+	if legacyToken != "" && os.Getenv("BUILDKITE_API_TOKEN") == "" {
+		legacyTokenWarningOnce.Do(func() {
+			fmt.Fprintf(os.Stderr, "Warning: BK_ACCESS_TOKEN is deprecated, please use BUILDKITE_API_TOKEN instead\n")
+		})
+	}
+
 	return firstNonEmpty(
 		os.Getenv("BUILDKITE_API_TOKEN"),
+		legacyToken,
 		conf.userConfig.GetString(key),
 	)
 }
