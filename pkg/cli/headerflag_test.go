@@ -12,11 +12,11 @@ func TestHeaderFlag_ParseFormats(t *testing.T) {
 	// Since we can't easily mock Kong's DecodeContext, we'll test the parsing logic
 	// by extracting it to a helper function
 	tests := []struct {
-		name     string
-		input    string
-		wantKey  string
-		wantVal  string
-		wantErr  bool
+		name    string
+		input   string
+		wantKey string
+		wantVal string
+		wantErr bool
 	}{
 		{
 			name:    "key=value format",
@@ -71,7 +71,7 @@ func TestHeaderFlag_ParseFormats(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test the parsing logic that would be in Decode
 			key, val, err := parseHeaderValue(tt.input)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
