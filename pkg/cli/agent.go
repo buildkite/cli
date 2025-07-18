@@ -10,11 +10,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/buildkite/cli/v3/internal/agent"
 	"github.com/buildkite/cli/v3/internal/config"
 	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/pkg/browser"
+	"golang.org/x/sync/semaphore"
 )
 
 // Agent commands
@@ -38,7 +41,7 @@ type AgentListCmd struct {
 
 func (a *AgentListCmd) Help() string {
 	return `Examples:
-  # List all agents
+  # List all agents (interactive TUI)
   bk agent list
   
   # Filter agents by queue
@@ -48,7 +51,10 @@ func (a *AgentListCmd) Help() string {
   bk agent list --hostname=ci-server-01
   
   # List agents in a specific cluster
-  bk agent list --cluster=01234567-89ab-cdef-0123-456789abcdef`
+  bk agent list --cluster=01234567-89ab-cdef-0123-456789abcdef
+  
+  # Get agent list as JSON
+  bk agent list --output json`
 }
 
 type AgentStopCmd struct {
@@ -74,6 +80,11 @@ func (a *AgentListCmd) Run(ctx context.Context, f *factory.Factory) error {
 	org := a.Organization
 	if org == "" {
 		org = f.Config.OrganizationSlug()
+	}
+
+	// Use TUI by default unless structured output is requested
+	if !ShouldUseStructuredOutput(f) {
+		return a.runInteractive(ctx, f, org)
 	}
 
 	// Prepare list options
@@ -136,21 +147,56 @@ func (a *AgentListCmd) Run(ctx context.Context, f *factory.Factory) error {
 	return nil
 }
 
+func (a *AgentListCmd) runInteractive(ctx context.Context, f *factory.Factory, org string) error {
+	loader := func(page int) tea.Cmd {
+		return func() tea.Msg {
+			opts := buildkite.AgentListOptions{
+				Name:     a.Name,
+				Hostname: a.Hostname,
+				Version:  a.Version,
+				ListOptions: buildkite.ListOptions{
+					Page:    page,
+					PerPage: a.PerPage,
+				},
+			}
+
+			agents, resp, err := f.RestAPIClient.Agents.List(ctx, org, &opts)
+			items := make([]agent.AgentListItem, len(agents))
+
+			if err != nil {
+				return err
+			}
+
+			for i, a := range agents {
+				a := a
+				items[i] = agent.AgentListItem{Agent: a}
+			}
+
+			return agent.NewAgentItemsMsg(items, resp.LastPage)
+		}
+	}
+
+	model := agent.NewAgentList(loader, 1, a.PerPage)
+
+	p := tea.NewProgram(model, tea.WithAltScreen())
+
+	if _, err := p.Run(); err != nil {
+		os.Exit(1)
+	}
+
+	return nil
+}
+
 func (a *AgentStopCmd) Run(ctx context.Context, f *factory.Factory) error {
 	if err := validateConfig(f.Config); err != nil {
 		return err
 	}
 
-	if len(a.Agents) == 0 {
-		return fmt.Errorf("must supply agents to stop")
-	}
-
 	// Process agents - handling both single and multiple agents
 	var agentIDs []string
 
-	// Check if reading from stdin (agent ID "-")
-	if len(a.Agents) == 1 && a.Agents[0] == "-" {
-		// Read from stdin
+	// Check if reading from stdin
+	if bk_io.HasDataAvailable(os.Stdin) {
 		scanner := bufio.NewScanner(os.Stdin)
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())
@@ -161,26 +207,33 @@ func (a *AgentStopCmd) Run(ctx context.Context, f *factory.Factory) error {
 		if err := scanner.Err(); err != nil {
 			return fmt.Errorf("error reading from stdin: %w", err)
 		}
-	} else {
+	} else if len(a.Agents) > 0 {
 		// Use provided arguments
 		agentIDs = a.Agents
+	} else {
+		return fmt.Errorf("must supply agents to stop")
 	}
 
 	if len(agentIDs) == 0 {
 		return fmt.Errorf("no agents to stop")
 	}
 
-	// Stop agents in parallel (similar to Cobra implementation)
+	// Use TUI for bulk operations (multiple agents)
+	if len(agentIDs) > 1 {
+		return a.runInteractiveStop(ctx, f, agentIDs)
+	}
+
+	// Single agent: stop without TUI
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(agentIDs))
-	semaphore := make(chan struct{}, a.Limit) // Limit concurrent operations
+	sem := make(chan struct{}, a.Limit) // Limit concurrent operations
 
 	for _, agentArg := range agentIDs {
 		wg.Add(1)
 		go func(agentArg string) {
 			defer wg.Done()
-			semaphore <- struct{}{}        // Acquire semaphore
-			defer func() { <-semaphore }() // Release semaphore
+			sem <- struct{}{}        // Acquire semaphore
+			defer func() { <-sem }() // Release semaphore
 
 			org, agentID := parseAgentArg(agentArg, f.Config)
 
@@ -217,6 +270,76 @@ func (a *AgentStopCmd) Run(ctx context.Context, f *factory.Factory) error {
 
 	fmt.Printf("Successfully stopped %d agent(s)\n", len(agentIDs))
 	return nil
+}
+
+func (a *AgentStopCmd) runInteractiveStop(ctx context.Context, f *factory.Factory, agentIDs []string) error {
+	// Use a wait group to ensure we exit the program after all agents have finished
+	var wg sync.WaitGroup
+	// This semaphore is used to limit how many concurrent API requests can be sent
+	sem := semaphore.NewWeighted(int64(a.Limit))
+
+	var agents []agent.StoppableAgent
+	for _, id := range agentIDs {
+		if strings.TrimSpace(id) != "" {
+			wg.Add(1)
+			agents = append(agents, agent.NewStoppableAgent(id, stopper(ctx, id, f, a.Force, sem, &wg)))
+		}
+	}
+
+	bulkAgent := agent.BulkAgent{
+		Agents: agents,
+	}
+
+	p := tea.NewProgram(bulkAgent, tea.WithOutput(os.Stdout))
+
+	// Send a quit message after all agents have stopped
+	go func() {
+		wg.Wait()
+		p.Send(tea.Quit())
+	}()
+
+	_, err := p.Run()
+	if err != nil {
+		return err
+	}
+
+	for _, agent := range agents {
+		if agent.Errored() {
+			return fmt.Errorf("at least one agent failed to stop")
+		}
+	}
+	return nil
+}
+
+// stopper creates a StopFn for stopping an agent
+func stopper(ctx context.Context, id string, f *factory.Factory, force bool, sem *semaphore.Weighted, wg *sync.WaitGroup) agent.StopFn {
+	org, agentID := parseAgentArg(id, f.Config)
+	return func() agent.StatusUpdate {
+		// Before attempting to stop the agent, acquire a semaphore lock to limit parallelisation
+		_ = sem.Acquire(context.Background(), 1)
+
+		return agent.StatusUpdate{
+			ID:     id,
+			Status: agent.Stopping,
+			// Return a new command to actually stop the agent in the API and return the status of that
+			Cmd: func() tea.Msg {
+				// Defer the semaphore and waitgroup release until the whole operation is completed
+				defer sem.Release(1)
+				defer wg.Done()
+				_, err := f.RestAPIClient.Agents.Stop(ctx, org, agentID, force)
+				if err != nil {
+					return agent.StatusUpdate{
+						ID:  id,
+						Err: err,
+					}
+				}
+				return agent.StatusUpdate{
+					ID:     id,
+					Status: agent.Succeeded,
+				}
+			},
+		}
+	}
 }
 
 func (a *AgentViewCmd) Run(ctx context.Context, f *factory.Factory) error {
