@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/buildkite/cli/v3/internal/graphql"
-	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/pkg/factory"
 )
 
 // User commands

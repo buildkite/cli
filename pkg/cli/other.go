@@ -18,7 +18,7 @@ import (
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	httpClient "github.com/buildkite/cli/v3/internal/http"
 	bk_io "github.com/buildkite/cli/v3/internal/io"
-	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/pkg/factory"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"golang.org/x/term"
 )

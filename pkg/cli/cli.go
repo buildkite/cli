@@ -7,7 +7,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
-	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/pkg/factory"
 	"github.com/posener/complete"
 	"github.com/willabides/kongplete"
 )
