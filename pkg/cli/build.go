@@ -12,7 +12,7 @@ import (
 	"time"
 
 	bk_io "github.com/buildkite/cli/v3/internal/io"
-	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/pkg/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/pkg/browser"
 	"gopkg.in/yaml.v3"

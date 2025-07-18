@@ -1,6 +1,6 @@
 package cli
 
-import "github.com/buildkite/cli/v3/pkg/cmd/factory"
+import "github.com/buildkite/cli/v3/pkg/factory"
 
 // OutputFlag provides the --output flag for commands that support structured output formats
 type OutputFlag struct {
