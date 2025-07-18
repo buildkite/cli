@@ -58,12 +58,12 @@ func TestParseAgentArg(t *testing.T) {
 func TestAgentListCmdHelp(t *testing.T) {
 	cmd := &AgentListCmd{}
 	help := cmd.Help()
-	
+
 	// Check that help includes the interactive flag example
 	if help == "" {
 		t.Error("expected help text to be non-empty")
 	}
-	
+
 	// Check for key examples
 	expectedPhrases := []string{
 		"bk agent list",
@@ -72,7 +72,7 @@ func TestAgentListCmdHelp(t *testing.T) {
 		"--hostname=ci-server-01",
 		"--output json",
 	}
-	
+
 	for _, phrase := range expectedPhrases {
 		if !contains(help, phrase) {
 			t.Errorf("expected help to contain '%s'", phrase)
@@ -83,19 +83,19 @@ func TestAgentListCmdHelp(t *testing.T) {
 func TestBuildWatchCmdHelp(t *testing.T) {
 	cmd := &BuildWatchCmd{}
 	help := cmd.Help()
-	
+
 	// Check that help includes the interactive flag example
 	if help == "" {
 		t.Error("expected help text to be non-empty")
 	}
-	
+
 	// Check for key examples
 	expectedPhrases := []string{
 		"bk build watch 42",
 		"live refresh",
 		"--output json",
 	}
-	
+
 	for _, phrase := range expectedPhrases {
 		if !contains(help, phrase) {
 			t.Errorf("expected help to contain '%s'", phrase)

@@ -16,6 +16,7 @@ import (
 	"github.com/buildkite/cli/v3/pkg/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/mattn/go-isatty"
 	"github.com/pkg/browser"
 	"golang.org/x/sync/semaphore"
 )
@@ -82,8 +83,8 @@ func (a *AgentListCmd) Run(ctx context.Context, f *factory.Factory) error {
 		org = f.Config.OrganizationSlug()
 	}
 
-	// Use TUI by default unless structured output is requested
-	if !ShouldUseStructuredOutput(f) {
+	// Use TUI by default if we have a TTY and structured output is not requested
+	if !ShouldUseStructuredOutput(f) && isatty.IsTerminal(os.Stdout.Fd()) {
 		return a.runInteractive(ctx, f, org)
 	}
 
@@ -218,8 +219,8 @@ func (a *AgentStopCmd) Run(ctx context.Context, f *factory.Factory) error {
 		return fmt.Errorf("no agents to stop")
 	}
 
-	// Use TUI for bulk operations (multiple agents)
-	if len(agentIDs) > 1 {
+	// Use TUI for bulk operations (multiple agents) if we have a TTY
+	if len(agentIDs) > 1 && isatty.IsTerminal(os.Stdout.Fd()) {
 		return a.runInteractiveStop(ctx, f, agentIDs)
 	}
 

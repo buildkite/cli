@@ -15,6 +15,7 @@ import (
 	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
+	"github.com/mattn/go-isatty"
 	"github.com/pkg/browser"
 	"gopkg.in/yaml.v3"
 )
@@ -561,8 +562,8 @@ func (b *BuildWatchCmd) Run(ctx context.Context, f *factory.Factory) error {
 		interval = 1 // Default to 1 second
 	}
 
-	// Use live refresh by default unless structured output is requested
-	if !ShouldUseStructuredOutput(f) {
+	// Use live refresh by default if we have a TTY and structured output is not requested
+	if !ShouldUseStructuredOutput(f) && isatty.IsTerminal(os.Stdout.Fd()) {
 		fmt.Printf("Watching build %d on %s/%s\n", buildNum, org, pipeline)
 		ticker := time.NewTicker(time.Duration(interval) * time.Second)
 		defer ticker.Stop()
@@ -587,19 +588,58 @@ func (b *BuildWatchCmd) Run(ctx context.Context, f *factory.Factory) error {
 		}
 	}
 
-	// Structured output mode: poll until finished then output final state
+	// Non-TTY or structured output mode: show state changes without clearing screen
+	if !ShouldUseStructuredOutput(f) {
+		fmt.Printf("Watching build #%d (polling every %d seconds, press Ctrl+C to stop)\n", buildNum, interval)
+	}
+
+	var lastState string
+	var lastLoggedJobs = make(map[string]string) // job ID -> last logged state
+
+	// Poll until finished
 	for {
 		// Get current build state
-		var build buildkite.Build
-		err = nil
-		build, _, err = f.RestAPIClient.Builds.Get(ctx, org, pipeline, fmt.Sprint(buildNum), nil)
+		build, _, err := f.RestAPIClient.Builds.Get(ctx, org, pipeline, fmt.Sprint(buildNum), nil)
 		if err != nil {
 			return err
 		}
 
+		// For non-TTY mode, show state changes
+		if !ShouldUseStructuredOutput(f) {
+			// Check if build state changed
+			if build.State != lastState {
+				fmt.Printf("\n[%s] Build state: %s\n",
+					time.Now().Format("15:04:05"),
+					build.State)
+				lastState = build.State
+			}
+
+			// Show job state changes
+			for _, job := range build.Jobs {
+				if job.Type == "script" {
+					jobID := job.ID
+					currentState := job.State
+					if lastLoggedJobs[jobID] != currentState {
+						fmt.Printf("[%s] Job '%s': %s\n",
+							time.Now().Format("15:04:05"),
+							job.Name,
+							currentState)
+						lastLoggedJobs[jobID] = currentState
+					}
+				}
+			}
+		}
+
 		// Check if build is finished
 		if build.State == "passed" || build.State == "failed" || build.State == "canceled" {
-			return Print(build, f)
+			if ShouldUseStructuredOutput(f) {
+				return Print(build, f)
+			}
+			fmt.Printf("\n✓ Build finished with state: %s\n", build.State)
+			if build.WebURL != "" {
+				fmt.Printf("View details: %s\n", build.WebURL)
+			}
+			return nil
 		}
 
 		// Wait before next poll
