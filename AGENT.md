@@ -12,8 +12,7 @@ This project is the Buildkite CLI (`bk`)
 ## Project Structure
 - Main binary: `cmd/bk/main.go`
 - GraphQL schema: `schema.graphql`
-
-- Active CLI commands: `pkg/cli/` (Kong implementation)
+- CLI commands: `pkg/cli/`
 
 ## CLI Framework
 - Uses Kong CLI framework (github.com/alecthomas/kong)
