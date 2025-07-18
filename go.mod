@@ -6,7 +6,6 @@ toolchain go1.24.3
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
-	github.com/MakeNowJust/heredoc v1.0.0
 	github.com/alecthomas/kong v1.12.0
 	github.com/buildkite/go-buildkite/v4 v4.5.0
 	github.com/charmbracelet/bubbles v0.21.0
@@ -20,7 +19,6 @@ require (
 	github.com/muesli/reflow v0.3.0
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/posener/complete v1.2.3
-	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
 	github.com/vektah/gqlparser/v2 v2.5.30
@@ -83,7 +81,6 @@ require (
 	github.com/go-git/go-billy/v5 v5.6.2 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
-	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect

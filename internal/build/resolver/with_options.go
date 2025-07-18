@@ -7,7 +7,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/build"
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
-	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/pkg/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 

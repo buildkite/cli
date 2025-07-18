@@ -8,92 +8,6 @@ import (
 	"github.com/Khan/genqlient/graphql"
 )
 
-// GetArtifactsArtifact includes the requested fields of the GraphQL type Artifact.
-// The GraphQL type's documentation follows.
-//
-// A file uploaded from the agent whilst running a job
-type GetArtifactsArtifact struct {
-	// The public UUID for this artifact
-	Uuid string `json:"uuid"`
-	// The path of the uploaded artifact
-	Path string `json:"path"`
-	// The download URL for the artifact. Unless you've used your own artifact storage, the URL will be valid for only 10 minutes.
-	DownloadURL string `json:"downloadURL"`
-	// The job that uploaded this artifact
-	Job *GetArtifactsArtifactJobJobTypeCommand `json:"job"`
-}
-
-// GetUuid returns GetArtifactsArtifact.Uuid, and is useful for accessing the field via an interface.
-func (v *GetArtifactsArtifact) GetUuid() string { return v.Uuid }
-
-// GetPath returns GetArtifactsArtifact.Path, and is useful for accessing the field via an interface.
-func (v *GetArtifactsArtifact) GetPath() string { return v.Path }
-
-// GetDownloadURL returns GetArtifactsArtifact.DownloadURL, and is useful for accessing the field via an interface.
-func (v *GetArtifactsArtifact) GetDownloadURL() string { return v.DownloadURL }
-
-// GetJob returns GetArtifactsArtifact.Job, and is useful for accessing the field via an interface.
-func (v *GetArtifactsArtifact) GetJob() *GetArtifactsArtifactJobJobTypeCommand { return v.Job }
-
-// GetArtifactsArtifactJobJobTypeCommand includes the requested fields of the GraphQL type JobTypeCommand.
-// The GraphQL type's documentation follows.
-//
-// A type of job that runs a command on an agent
-type GetArtifactsArtifactJobJobTypeCommand struct {
-	// The UUID for this job
-	Uuid string `json:"uuid"`
-	// The pipeline that this job is a part of
-	Pipeline *GetArtifactsArtifactJobJobTypeCommandPipeline `json:"pipeline"`
-	// The build that this job is a part of
-	Build *GetArtifactsArtifactJobJobTypeCommandBuild `json:"build"`
-}
-
-// GetUuid returns GetArtifactsArtifactJobJobTypeCommand.Uuid, and is useful for accessing the field via an interface.
-func (v *GetArtifactsArtifactJobJobTypeCommand) GetUuid() string { return v.Uuid }
-
-// GetPipeline returns GetArtifactsArtifactJobJobTypeCommand.Pipeline, and is useful for accessing the field via an interface.
-func (v *GetArtifactsArtifactJobJobTypeCommand) GetPipeline() *GetArtifactsArtifactJobJobTypeCommandPipeline {
-	return v.Pipeline
-}
-
-// GetBuild returns GetArtifactsArtifactJobJobTypeCommand.Build, and is useful for accessing the field via an interface.
-func (v *GetArtifactsArtifactJobJobTypeCommand) GetBuild() *GetArtifactsArtifactJobJobTypeCommandBuild {
-	return v.Build
-}
-
-// GetArtifactsArtifactJobJobTypeCommandBuild includes the requested fields of the GraphQL type Build.
-// The GraphQL type's documentation follows.
-//
-// A build from a pipeline
-type GetArtifactsArtifactJobJobTypeCommandBuild struct {
-	// The number of the build
-	Number int `json:"number"`
-}
-
-// GetNumber returns GetArtifactsArtifactJobJobTypeCommandBuild.Number, and is useful for accessing the field via an interface.
-func (v *GetArtifactsArtifactJobJobTypeCommandBuild) GetNumber() int { return v.Number }
-
-// GetArtifactsArtifactJobJobTypeCommandPipeline includes the requested fields of the GraphQL type Pipeline.
-// The GraphQL type's documentation follows.
-//
-// A pipeline
-type GetArtifactsArtifactJobJobTypeCommandPipeline struct {
-	// The name of the pipeline
-	Name string `json:"name"`
-}
-
-// GetName returns GetArtifactsArtifactJobJobTypeCommandPipeline.Name, and is useful for accessing the field via an interface.
-func (v *GetArtifactsArtifactJobJobTypeCommandPipeline) GetName() string { return v.Name }
-
-// GetArtifactsResponse is returned by GetArtifacts on success.
-type GetArtifactsResponse struct {
-	// Find an artifact by its UUID
-	Artifact *GetArtifactsArtifact `json:"artifact"`
-}
-
-// GetArtifact returns GetArtifactsResponse.Artifact, and is useful for accessing the field via an interface.
-func (v *GetArtifactsResponse) GetArtifact() *GetArtifactsArtifact { return v.Artifact }
-
 // GetClusterQueueAgentOrganization includes the requested fields of the GraphQL type Organization.
 // The GraphQL type's documentation follows.
 //
@@ -457,14 +371,6 @@ func (v *InviteUserResponse) GetOrganizationInvitationCreate() *InviteUserOrgani
 	return v.OrganizationInvitationCreate
 }
 
-// __GetArtifactsInput is used internally by genqlient
-type __GetArtifactsInput struct {
-	ArtifactId string `json:"artifactId"`
-}
-
-// GetArtifactId returns __GetArtifactsInput.ArtifactId, and is useful for accessing the field via an interface.
-func (v *__GetArtifactsInput) GetArtifactId() string { return v.ArtifactId }
-
 // __GetClusterQueueAgentInput is used internally by genqlient
 type __GetClusterQueueAgentInput struct {
 	OrgSlug string   `json:"orgSlug"`
@@ -516,51 +422,6 @@ func (v *__InviteUserInput) GetOrganization() string { return v.Organization }
 
 // GetEmails returns __InviteUserInput.Emails, and is useful for accessing the field via an interface.
 func (v *__InviteUserInput) GetEmails() []string { return v.Emails }
-
-// The query executed by GetArtifacts.
-const GetArtifacts_Operation = `
-query GetArtifacts ($artifactId: ID!) {
-	artifact(uuid: $artifactId) {
-		uuid
-		path
-		downloadURL
-		job {
-			uuid
-			pipeline {
-				name
-			}
-			build {
-				number
-			}
-		}
-	}
-}
-`
-
-func GetArtifacts(
-	ctx_ context.Context,
-	client_ graphql.Client,
-	artifactId string,
-) (data_ *GetArtifactsResponse, err_ error) {
-	req_ := &graphql.Request{
-		OpName: "GetArtifacts",
-		Query:  GetArtifacts_Operation,
-		Variables: &__GetArtifactsInput{
-			ArtifactId: artifactId,
-		},
-	}
-
-	data_ = &GetArtifactsResponse{}
-	resp_ := &graphql.Response{Data: data_}
-
-	err_ = client_.MakeRequest(
-		ctx_,
-		req_,
-		resp_,
-	)
-
-	return data_, err_
-}
 
 // The query executed by GetClusterQueueAgent.
 const GetClusterQueueAgent_Operation = `
