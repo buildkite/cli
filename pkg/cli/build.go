@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/buildkite/cli/v3/internal/build/view/shared"
 	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
@@ -105,12 +106,12 @@ type BuildViewCmd struct {
 type BuildWatchCmd struct {
 	OutputFlag `embed:""`
 	Build      string `arg:"" help:"Build number (pipeline auto-detected from git repo) or build URL"`
-	Interval   int    `help:"Polling interval in seconds"`
+	Interval   int    `help:"Polling interval in seconds" default:"1"`
 }
 
 func (b *BuildWatchCmd) Help() string {
 	return `EXAMPLES:
-  # Watch build status with live progress
+  # Watch build status with live refresh (clears screen)
   bk build watch 42
 
   # Watch build silently and get final result as JSON
@@ -557,78 +558,53 @@ func (b *BuildWatchCmd) Run(ctx context.Context, f *factory.Factory) error {
 	// Set default interval if not specified
 	interval := b.Interval
 	if interval <= 0 {
-		interval = 5 // Default to 5 seconds
+		interval = 1 // Default to 1 second
 	}
 
+	// Use live refresh by default unless structured output is requested
 	if !ShouldUseStructuredOutput(f) {
-		fmt.Printf("Watching build #%d (polling every %d seconds, press Ctrl+C to stop)\n", buildNum, interval)
+		fmt.Printf("Watching build %d on %s/%s\n", buildNum, org, pipeline)
+		ticker := time.NewTicker(time.Duration(interval) * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				build, _, err := f.RestAPIClient.Builds.Get(ctx, org, pipeline, fmt.Sprint(buildNum), nil)
+				if err != nil {
+					return err
+				}
+
+				summary := shared.BuildSummaryWithJobs(&build)
+				fmt.Printf("\033[2J\033[H%s\n", summary) // Clear screen and move cursor to top-left
+
+				if build.FinishedAt != nil {
+					return nil
+				}
+			case <-ctx.Done():
+				return nil
+			}
+		}
 	}
 
-	var lastState string
-	var lastLoggedJobs = make(map[string]string) // job ID -> last logged state
-
+	// Structured output mode: poll until finished then output final state
 	for {
 		// Get current build state
 		var build buildkite.Build
 		err = nil
-		spinErr := bk_io.SpinWhile("", func() { // Empty message to avoid spam
-			build, _, err = f.RestAPIClient.Builds.Get(ctx, org, pipeline, fmt.Sprint(buildNum), nil)
-		})
-		if spinErr != nil {
-			return spinErr
-		}
+		build, _, err = f.RestAPIClient.Builds.Get(ctx, org, pipeline, fmt.Sprint(buildNum), nil)
 		if err != nil {
-			if !ShouldUseStructuredOutput(f) {
-				fmt.Printf("\nError getting build: %v\n", err)
-			}
-			time.Sleep(time.Duration(interval) * time.Second)
-			continue
-		}
-
-		// Check if build state changed
-		if build.State != lastState {
-			if !ShouldUseStructuredOutput(f) {
-				fmt.Printf("\n[%s] Build state: %s\n",
-					time.Now().Format("15:04:05"),
-					build.State)
-			}
-			lastState = build.State
-		}
-
-		// Show job state changes
-		for _, job := range build.Jobs {
-			if job.Type == "script" {
-				jobID := job.ID
-				currentState := job.State
-				if lastLoggedJobs[jobID] != currentState {
-					if !ShouldUseStructuredOutput(f) {
-						fmt.Printf("[%s] Job '%s': %s\n",
-							time.Now().Format("15:04:05"),
-							job.Name,
-							currentState)
-					}
-					lastLoggedJobs[jobID] = currentState
-				}
-			}
+			return err
 		}
 
 		// Check if build is finished
 		if build.State == "passed" || build.State == "failed" || build.State == "canceled" {
-			if ShouldUseStructuredOutput(f) {
-				return Print(build, f)
-			}
-			fmt.Printf("\n✓ Build finished with state: %s\n", build.State)
-			if build.WebURL != "" {
-				fmt.Printf("View details: %s\n", build.WebURL)
-			}
-			break
+			return Print(build, f)
 		}
 
 		// Wait before next poll
 		time.Sleep(time.Duration(interval) * time.Second)
 	}
-
-	return nil
 }
 
 // resolveBuildFromArgument resolves a build when an explicit build argument is provided
