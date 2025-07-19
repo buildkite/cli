@@ -160,7 +160,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVarP(&message, "message", "m", "", "Description of the build. If left blank, the commit message will be used once the build starts.")
 	cmd.Flags().StringVarP(&commit, "commit", "c", "HEAD", "The commit to build.")
 	cmd.Flags().StringVarP(&branch, "branch", "b", "", "The branch to build. Defaults to the default branch of the pipeline.")
-	cmd.Flags().StringVarP(&author, "author", "a", "", "Author of the build")
+	cmd.Flags().StringVarP(&author, "author", "a", "", "Author of the build (name, username, or email)")
 	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the build in a web browser after it has been created.")
 	cmd.Flags().StringVarP(&pipeline, "pipeline", "p", "", "The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
 		"If omitted, it will be resolved using the current directory.",
@@ -175,6 +175,27 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	cmd.Flags().SetNormalizeFunc(normaliseFlags)
 	cmd.Flags().SortFlags = false
 	return &cmd
+}
+
+// parseAuthor intelligently determines whether the author value is a name, username, or email
+// and returns a buildkite.Author struct with the appropriate field set
+func parseAuthor(author string) buildkite.Author {
+	if author == "" {
+		return buildkite.Author{}
+	}
+
+	// If it contains @ and looks like an email, set Email field
+	if strings.Contains(author, "@") && strings.Contains(author, ".") {
+		return buildkite.Author{Email: author}
+	}
+
+	// If it contains spaces, assume it's a full name
+	if strings.Contains(author, " ") {
+		return buildkite.Author{Name: author}
+	}
+
+	// Otherwise, assume it's a username
+	return buildkite.Author{Username: author}
 }
 
 func newBuild(ctx context.Context, org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool, env map[string]string, metaData map[string]string, ignoreBranchFilters bool, author string) error {
@@ -206,7 +227,7 @@ func newBuild(ctx context.Context, org string, pipeline string, f *factory.Facto
 			Message:                     message,
 			Commit:                      commit,
 			Branch:                      branch,
-			Author:                      buildkite.Author{Name: author},
+			Author:                      parseAuthor(author),
 			Env:                         env,
 			MetaData:                    metaData,
 			IgnorePipelineBranchFilters: ignoreBranchFilters,
