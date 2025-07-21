@@ -160,7 +160,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVarP(&message, "message", "m", "", "Description of the build. If left blank, the commit message will be used once the build starts.")
 	cmd.Flags().StringVarP(&commit, "commit", "c", "HEAD", "The commit to build.")
 	cmd.Flags().StringVarP(&branch, "branch", "b", "", "The branch to build. Defaults to the default branch of the pipeline.")
-	cmd.Flags().StringVarP(&author, "author", "a", "", "Author of the build (name, username, or email)")
+	cmd.Flags().StringVarP(&author, "author", "a", "", "Author of the build. Supports: \"Name <email>\", \"email@domain.com\", \"Full Name\", or \"username\"")
 	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the build in a web browser after it has been created.")
 	cmd.Flags().StringVarP(&pipeline, "pipeline", "p", "", "The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
 		"If omitted, it will be resolved using the current directory.",
@@ -181,12 +181,30 @@ func parseAuthor(author string) buildkite.Author {
 	if author == "" {
 		return buildkite.Author{}
 	}
-	if strings.Contains(author, "@") && strings.Contains(author, ".") {
+
+	// Check for Git-style format: "Name <email@domain.com>"
+	if strings.Contains(author, "<") && strings.Contains(author, ">") {
+		parts := strings.Split(author, "<")
+		if len(parts) == 2 {
+			name := strings.TrimSpace(parts[0])
+			email := strings.TrimSpace(strings.Trim(parts[1], ">"))
+			if name != "" && email != "" {
+				return buildkite.Author{Name: name, Email: email}
+			}
+		}
+	}
+
+	// Check for email-only format
+	if strings.Contains(author, "@") && strings.Contains(author, ".") && !strings.Contains(author, " ") {
 		return buildkite.Author{Email: author}
 	}
+
+	// Check for name format (contains spaces but no email)
 	if strings.Contains(author, " ") {
 		return buildkite.Author{Name: author}
 	}
+
+	// Default to username
 	return buildkite.Author{Username: author}
 }
 
