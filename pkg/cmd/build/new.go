@@ -32,6 +32,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	envMap := make(map[string]string)
 	metaDataMap := make(map[string]string)
 	var envFile string
+	var author string
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
@@ -143,7 +144,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 					}
 				}
 
-				return newBuild(cmd.Context(), resolvedPipeline.Org, resolvedPipeline.Name, f, message, commit, branch, web, envMap, metaDataMap, ignoreBranchFilters)
+				return newBuild(cmd.Context(), resolvedPipeline.Org, resolvedPipeline.Name, f, message, commit, branch, web, envMap, metaDataMap, ignoreBranchFilters, author)
 			} else {
 				// User chose not to proceed - provide feedback
 				fmt.Fprintf(cmd.OutOrStdout(), "Build creation canceled\n")
@@ -159,6 +160,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVarP(&message, "message", "m", "", "Description of the build. If left blank, the commit message will be used once the build starts.")
 	cmd.Flags().StringVarP(&commit, "commit", "c", "HEAD", "The commit to build.")
 	cmd.Flags().StringVarP(&branch, "branch", "b", "", "The branch to build. Defaults to the default branch of the pipeline.")
+	cmd.Flags().StringVarP(&author, "author", "a", "", "Author of the build. Supports: \"Name <email>\", \"email@domain.com\", \"Full Name\", or \"username\"")
 	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the build in a web browser after it has been created.")
 	cmd.Flags().StringVarP(&pipeline, "pipeline", "p", "", "The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
 		"If omitted, it will be resolved using the current directory.",
@@ -175,7 +177,38 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-func newBuild(ctx context.Context, org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool, env map[string]string, metaData map[string]string, ignoreBranchFilters bool) error {
+func parseAuthor(author string) buildkite.Author {
+	if author == "" {
+		return buildkite.Author{}
+	}
+
+	// Check for Git-style format: "Name <email@domain.com>"
+	if strings.Contains(author, "<") && strings.Contains(author, ">") {
+		parts := strings.Split(author, "<")
+		if len(parts) == 2 {
+			name := strings.TrimSpace(parts[0])
+			email := strings.TrimSpace(strings.Trim(parts[1], ">"))
+			if name != "" && email != "" {
+				return buildkite.Author{Name: name, Email: email}
+			}
+		}
+	}
+
+	// Check for email-only format
+	if strings.Contains(author, "@") && strings.Contains(author, ".") && !strings.Contains(author, " ") {
+		return buildkite.Author{Email: author}
+	}
+
+	// Check for name format (contains spaces but no email)
+	if strings.Contains(author, " ") {
+		return buildkite.Author{Name: author}
+	}
+
+	// Default to username
+	return buildkite.Author{Username: author}
+}
+
+func newBuild(ctx context.Context, org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool, env map[string]string, metaData map[string]string, ignoreBranchFilters bool, author string) error {
 	var actionErr error
 	var build buildkite.Build
 	spinErr := bk_io.SpinWhile(fmt.Sprintf("Starting new build for %s", pipeline), func() {
@@ -204,6 +237,7 @@ func newBuild(ctx context.Context, org string, pipeline string, f *factory.Facto
 			Message:                     message,
 			Commit:                      commit,
 			Branch:                      branch,
+			Author:                      parseAuthor(author),
 			Env:                         env,
 			MetaData:                    metaData,
 			IgnorePipelineBranchFilters: ignoreBranchFilters,
