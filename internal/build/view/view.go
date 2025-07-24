@@ -1,10 +1,10 @@
 package view
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/buildkite/cli/v3/internal/ui"
-	"github.com/buildkite/cli/v3/internal/validation"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
@@ -17,16 +17,13 @@ type ViewOptions struct {
 }
 
 func (o *ViewOptions) Validate() error {
-	v := validation.New()
-	v.AddRule("Organization", validation.Required)
-	v.AddRule("Organization", validation.Slug)
-	v.AddRule("Pipeline", validation.Required)
-	v.AddRule("Pipeline", validation.Slug)
-
-	return v.Validate(map[string]interface{}{
-		"Organization": o.Organization,
-		"Pipeline":     o.Pipeline,
-	})
+	if o.Organization == "" {
+		return fmt.Errorf("organization is required")
+	}
+	if o.Pipeline == "" {
+		return fmt.Errorf("pipeline is required")
+	}
+	return nil
 }
 
 // BuildView encapsulates the build view functionality
