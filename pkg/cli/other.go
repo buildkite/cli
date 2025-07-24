@@ -221,6 +221,87 @@ func (v *VersionSub) Run(ctx context.Context, f *factory.Factory) error {
 	return nil
 }
 
+// Whoami command
+type WhoamiCmd struct {
+	OutputFlag
+}
+
+func (w *WhoamiCmd) Help() string {
+	return `Shows information about the current user and organization based on the configured API token.
+
+EXAMPLES:
+  # Show current user and organization
+  bk whoami
+
+  # Show information in JSON format
+  bk whoami --output json`
+}
+
+type whoamiOutput struct {
+	OrganizationSlug string `json:"organization_slug"`
+	Token            struct {
+		UUID        string   `json:"uuid"`
+		Description string   `json:"description"`
+		Scopes      []string `json:"scopes"`
+		User        struct {
+			Name  string `json:"name"`
+			Email string `json:"email"`
+		} `json:"user"`
+	} `json:"token"`
+}
+
+func (w whoamiOutput) TextOutput() string {
+	b := strings.Builder{}
+
+	b.WriteString(fmt.Sprintf("Current organization: %s\n", w.OrganizationSlug))
+	b.WriteRune('\n')
+	b.WriteString(fmt.Sprintf("API Token UUID:        %s\n", w.Token.UUID))
+	b.WriteString(fmt.Sprintf("API Token Description: %s\n", w.Token.Description))
+	b.WriteString(fmt.Sprintf("API Token Scopes:      %v\n", w.Token.Scopes))
+	b.WriteRune('\n')
+	b.WriteString(fmt.Sprintf("API Token user name:  %s\n", w.Token.User.Name))
+	b.WriteString(fmt.Sprintf("API Token user email: %s\n", w.Token.User.Email))
+
+	return b.String()
+}
+
+func (w *WhoamiCmd) Run(ctx context.Context, f *factory.Factory) error {
+	w.Apply(f)
+	
+	// Validate configuration
+	if err := validateConfig(f.Config); err != nil {
+		return err
+	}
+
+	orgSlug := f.Config.OrganizationSlug()
+	if orgSlug == "" {
+		orgSlug = "<None>"
+	}
+
+	token, _, err := f.RestAPIClient.AccessTokens.Get(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get access token: %w", err)
+	}
+
+	output := whoamiOutput{
+		OrganizationSlug: orgSlug,
+	}
+	output.Token.UUID = token.UUID
+	output.Token.Description = token.Description
+	output.Token.Scopes = token.Scopes
+	output.Token.User.Name = token.User.Name
+	output.Token.User.Email = token.User.Email
+
+	// Handle structured output
+	if ShouldUseStructuredOutput(f) {
+		return Print(output, f)
+	}
+
+	// Handle text output using the TextOutput method
+	fmt.Print(output.TextOutput())
+	return nil
+}
+
 // Help command provides an alternative to flag-based help for better discoverability
 // Examples:
 //

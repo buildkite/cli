@@ -24,3 +24,4 @@ This project is the Buildkite CLI (`bk`)
 ## Notes
 - CI: https://buildkite.com/buildkite/buildkite-cli
 - Always format after changing code
+- When adding/removing/changing commands, update the README.md help output section

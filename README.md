@@ -116,6 +116,9 @@ Commands:
   version [flags]
     Show CLI version information
 
+  whoami [flags]
+    Print the current user and organization
+
   help [<commands> ...] [flags]
     Show detailed help for commands and subcommands
 

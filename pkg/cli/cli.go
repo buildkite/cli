@@ -37,6 +37,7 @@ type CLI struct {
 	Use                UseCmd                       `cmd:"" help:"Switch between different Buildkite organizations"`
 	User               UserCmd                      `cmd:"" help:"Manage users (invite users to organization via email)"`
 	VersionCmd         VersionSub                   `name:"version" cmd:"" help:"Show CLI version information"`
+	Whoami             WhoamiCmd                    `cmd:"" help:"Print the current user and organization"`
 	Help               HelpCmd                      `cmd:"" help:"Show detailed help for commands and subcommands"`
 	InstallCompletions kongplete.InstallCompletions `cmd:"" help:"Install shell tab completion for bash, zsh, fish, or powershell"`
 }
