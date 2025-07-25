@@ -3,10 +3,11 @@ package agent
 import (
 	"strings"
 
+	"github.com/buildkite/cli/v3/internal/ui"
 	buildkite "github.com/buildkite/go-buildkite/v4"
+	"github.com/charmbracelet/lipgloss"
 )
 
-// AgentListItem implements list.Item for displaying in a list
 type AgentListItem struct {
 	buildkite.Agent
 }
@@ -22,4 +23,22 @@ func (ali AgentListItem) QueueName() string {
 		}
 	}
 	return "default"
+}
+
+func (ali AgentListItem) Title() string {
+	name := ui.TruncateText(ali.Name, 20)
+	queue := ui.TruncateText(ali.QueueName(), 12)
+
+	var coloredStatus string
+	if ali.Job != nil {
+		coloredStatus = ui.StatusStyle(ali.Job.State).Render(ali.Job.State)
+	} else {
+		coloredStatus = lipgloss.NewStyle().Foreground(ui.ColorInfo).Render(ali.ConnectedState)
+	}
+
+	return name + " • " + coloredStatus + " • v" + ali.Version + " • " + queue
+}
+
+func (ali AgentListItem) Description() string {
+	return "" // Not displayed when ShowDescription = false
 }

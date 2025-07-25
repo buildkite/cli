@@ -19,6 +19,7 @@ import (
 	httpClient "github.com/buildkite/cli/v3/internal/http"
 	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/factory"
+	"github.com/mattn/go-isatty"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"golang.org/x/term"
 )
@@ -195,7 +196,7 @@ The command shows the configured organization name in brackets, with warnings
 
 // Use command
 type UseCmd struct {
-	Organization string `arg:"" help:"Organization to switch to" placeholder:"my-org"`
+	Organization string `arg:"" optional:"" help:"Organization to switch to" placeholder:"my-org"`
 }
 
 func (u *UseCmd) Help() string {
@@ -250,25 +251,8 @@ type whoamiOutput struct {
 	} `json:"token"`
 }
 
-func (w whoamiOutput) TextOutput() string {
-	b := strings.Builder{}
-
-	b.WriteString(fmt.Sprintf("Current organization: %s\n", w.OrganizationSlug))
-	b.WriteRune('\n')
-	b.WriteString(fmt.Sprintf("API Token UUID:        %s\n", w.Token.UUID))
-	b.WriteString(fmt.Sprintf("API Token Description: %s\n", w.Token.Description))
-	b.WriteString(fmt.Sprintf("API Token Scopes:      %v\n", w.Token.Scopes))
-	b.WriteRune('\n')
-	b.WriteString(fmt.Sprintf("API Token user name:  %s\n", w.Token.User.Name))
-	b.WriteString(fmt.Sprintf("API Token user email: %s\n", w.Token.User.Email))
-
-	return b.String()
-}
-
 func (w *WhoamiCmd) Run(ctx context.Context, f *factory.Factory) error {
 	w.Apply(f)
-	
-	// Validate configuration
 	if err := validateConfig(f.Config); err != nil {
 		return err
 	}
@@ -292,13 +276,18 @@ func (w *WhoamiCmd) Run(ctx context.Context, f *factory.Factory) error {
 	output.Token.User.Name = token.User.Name
 	output.Token.User.Email = token.User.Email
 
-	// Handle structured output
 	if ShouldUseStructuredOutput(f) {
 		return Print(output, f)
 	}
 
-	// Handle text output using the TextOutput method
-	fmt.Print(output.TextOutput())
+	fmt.Printf("Current organization: %s\n", output.OrganizationSlug)
+	fmt.Println()
+	fmt.Printf("API Token UUID:        %s\n", output.Token.UUID)
+	fmt.Printf("API Token Description: %s\n", output.Token.Description)
+	fmt.Printf("API Token Scopes:      %v\n", output.Token.Scopes)
+	fmt.Println()
+	fmt.Printf("API Token user name:  %s\n", output.Token.User.Name)
+	fmt.Printf("API Token user email: %s\n", output.Token.User.Email)
 	return nil
 }
 
@@ -492,12 +481,25 @@ func (u *UseCmd) Run(ctx context.Context, f *factory.Factory) error {
 func useRun(orgArg string, conf *config.Config, inGitRepo bool) error {
 	var selected string
 
-	// prompt to choose from configured orgs if one is not already selected
+	// if no organization provided
 	if orgArg == "" {
-		var err error
-		selected, err = bk_io.PromptForOne("organization", conf.ConfiguredOrganizations())
-		if err != nil {
-			return err
+		// if TTY, prompt to choose from configured orgs
+		if isatty.IsTerminal(os.Stdout.Fd()) {
+			var err error
+			selected, err = bk_io.PromptForOne("organization", conf.ConfiguredOrganizations())
+			if err != nil {
+				return err
+			}
+		} else {
+			// if not TTY, list configured organizations
+			orgs := conf.ConfiguredOrganizations()
+			if len(orgs) == 0 {
+				return fmt.Errorf("no organizations configured. run `bk configure` to add one")
+			}
+			for _, org := range orgs {
+				fmt.Println(org)
+			}
+			return nil
 		}
 	} else {
 		selected = orgArg
@@ -518,58 +520,6 @@ func useRun(orgArg string, conf *config.Config, inGitRepo bool) error {
 	// if the selected org doesnt exist, recommend configuring it and error out
 	return fmt.Errorf("no configuration found for `%s`. run `bk configure` to add it", selected)
 }
-
-/*
-func (j *JobLogsCmd) Run(ctx context.Context, f *factory.Factory) error {
-	if err := validateConfig(f.Config); err != nil {
-		return err
-	}
-
-	org := f.Config.OrganizationSlug()
-
-	// Step 1: Get job details via GraphQL to obtain pipeline and build info
-	jobDetails, err := graphql.GetJobDetails(ctx, f.GraphQLClient, j.Job)
-	if err != nil {
-		return fmt.Errorf("failed to get job details: %w", err)
-	}
-
-	if jobDetails.Job == nil {
-		return fmt.Errorf("job not found: %s", j.Job)
-	}
-
-	// Only command jobs have logs
-	jobCmd, ok := (*jobDetails.Job).(*graphql.GetJobDetailsJobJobTypeCommand)
-	if !ok {
-		return fmt.Errorf("job %s is not a command job and has no logs", j.Job)
-	}
-
-	// Step 2: Get job logs via REST API
-	logData, _, err := f.RestAPIClient.Jobs.GetJobLog(ctx, org, jobCmd.Pipeline.Slug, jobCmd.Build.Uuid, j.Job)
-	if err != nil {
-		return fmt.Errorf("failed to get job logs: %w", err)
-	}
-
-	// Output based on format preference
-	if ShouldUseStructuredOutput(f) {
-		return Print(map[string]interface{}{
-			"job_id":      j.Job,
-			"job_label":   jobCmd.Label,
-			"pipeline":    jobCmd.Pipeline.Name,
-			"build":       jobCmd.Build.Number,
-			"exit_status": jobCmd.ExitStatus,
-			"passed":      jobCmd.Passed,
-			"finished_at": jobCmd.FinishedAt,
-			"log_url":     logData.URL,
-			"log_size":    logData.Size,
-			"logs":        logData.Content,
-		}, f)
-	}
-
-	// Raw text output
-	fmt.Print(logData.Content)
-	return nil
-}
-*/
 
 func (j *JobRetryCmd) Run(ctx context.Context, f *factory.Factory) error {
 	// Validate configuration

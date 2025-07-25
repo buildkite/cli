@@ -21,7 +21,7 @@ const (
 	ColorWarning     = lipgloss.Color("#FF841C") // Orange
 	ColorInfo        = lipgloss.Color("#337AB7") // Blue
 	ColorDefault     = lipgloss.Color("#DDD")    // Light Grey
-	ColorRunning     = lipgloss.Color("#FF6E00") // Orange
+	ColorRunning     = lipgloss.Color("#2ECC40") // Green
 	ColorPending     = lipgloss.Color("#5A5A5A") // Grey
 	ColorPassedGreen = lipgloss.Color("#9dcc3a") // Bright Green
 )

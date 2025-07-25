@@ -47,7 +47,7 @@ rows := [][]string{
     {"Row 1", "Value 1"},
     {"Row 2", "Value 2"},
 }
-table := ui.Table(headers, rows)
+table := ui.Table(rows, ui.WithHeaders(headers...))
 
 // Create a card
 card := ui.Card("Card Title", "Card content", ui.WithBorder(true))
