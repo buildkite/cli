@@ -12,6 +12,7 @@ import (
 // User commands
 type UserCmd struct {
 	Invite UserInviteCmd `cmd:"" help:"Invite users to your Buildkite organization via email"`
+	Whoami WhoamiCmd     `cmd:"" help:"Show current user and organization information"`
 }
 
 type UserInviteCmd struct {
@@ -97,3 +98,5 @@ func createInvite(ctx context.Context, f *factory.Factory, orgID string, emails 
 	fmt.Printf("%s: %v\n", message, emails)
 	return nil
 }
+
+
