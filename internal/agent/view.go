@@ -44,29 +44,29 @@ func AgentDataTable(agent buildkite.Agent) string {
 		} else if strings.ToLower(jobState) == "assigned" || strings.ToLower(jobState) == "accepted" {
 			jobState = lipgloss.NewStyle().Foreground(ui.ColorInfo).Render(jobState)
 		}
-		
-		rows = append(rows, 
+
+		rows = append(rows,
 			[]string{greyLabel.Render("Job State"), jobState},
 		)
-		
+
 		if agent.Job.Label != "" {
-			rows = append(rows, 
+			rows = append(rows,
 				[]string{greyLabel.Render("Job Label"), truncateValue(agent.Job.Label, maxValueWidth)},
 			)
 		} else if agent.Job.Name != "" {
-			rows = append(rows, 
+			rows = append(rows,
 				[]string{greyLabel.Render("Job Name"), truncateValue(agent.Job.Name, maxValueWidth)},
 			)
 		}
-		
+
 		if agent.Job.Command != "" {
-			rows = append(rows, 
+			rows = append(rows,
 				[]string{greyLabel.Render("Job Command"), truncateValue(agent.Job.Command, maxValueWidth)},
 			)
 		}
-		
-		if agent.Job.StartedAt != nil && !agent.Job.StartedAt.Time.IsZero() {
-			rows = append(rows, 
+
+		if agent.Job.StartedAt != nil && !agent.Job.StartedAt.IsZero() {
+			rows = append(rows,
 				[]string{greyLabel.Render("Job Started"), ui.FormatDate(agent.Job.StartedAt.Time)},
 			)
 		}

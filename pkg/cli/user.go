@@ -98,5 +98,3 @@ func createInvite(ctx context.Context, f *factory.Factory, orgID string, emails 
 	fmt.Printf("%s: %v\n", message, emails)
 	return nil
 }
-
-
