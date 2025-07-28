@@ -148,7 +148,7 @@ func TestLayoutComponents(t *testing.T) {
 			{"A", "B"},
 			{"C", "D"},
 		}
-		result := Table(headers, rows)
+		result := Table(rows, WithHeaders(headers...))
 		strippedResult := stripANSI(result)
 		for _, h := range headers {
 			if !strings.Contains(strippedResult, h) {

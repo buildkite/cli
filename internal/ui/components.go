@@ -154,5 +154,5 @@ func RenderClusterSummary(cluster buildkite.Cluster) string {
 	var rows [][]string
 	rows = append(rows, []string{cluster.Name, cluster.ID, cluster.DefaultQueueID})
 
-	return Table([]string{"Name", "ID", "Default Queue ID"}, rows)
+	return Table(rows, WithHeaders("Name", "ID", "Default Queue ID"))
 }

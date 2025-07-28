@@ -2,7 +2,6 @@ schema: schema.graphql
 
 operations:
   - internal/**/*.graphql
-  - pkg/**/*.graphql
 
 optional: pointer
 
@@ -12,4 +11,6 @@ bindings:
   JSON:
     type: string
   YAML:
+    type: string
+  DateTime:
     type: string

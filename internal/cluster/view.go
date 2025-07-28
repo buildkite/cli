@@ -26,7 +26,7 @@ func ClusterViewTable(c ...buildkite.Cluster) string {
 		})
 	}
 
-	return ui.Table([]string{"Name", "ID", "Default Queue ID"}, rows)
+	return ui.Table(rows, ui.WithHeaders("Name", "ID", "Default Queue ID"))
 }
 
 // renderSingleClusterDetail renders a detailed view of a single cluster

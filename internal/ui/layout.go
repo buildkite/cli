@@ -30,14 +30,47 @@ func LabeledValue(label string, value string) string {
 	)
 }
 
-// Table creates a table with the given headers and rows
-func Table(headers []string, rows [][]string) string {
+// TableOptions contains options for table rendering
+type TableOptions struct {
+	headers []string
+	border  lipgloss.Border
+}
+
+// TableOption is a function that modifies TableOptions
+type TableOption func(*TableOptions)
+
+// WithHeaders sets the table headers
+func WithHeaders(headers ...string) TableOption {
+	return func(o *TableOptions) {
+		o.headers = headers
+	}
+}
+
+// WithBorder sets the table border style
+func WithTableBorder(border lipgloss.Border) TableOption {
+	return func(o *TableOptions) {
+		o.border = border
+	}
+}
+
+// Table creates a table with the given rows and options
+func Table(rows [][]string, opts ...TableOption) string {
+	options := TableOptions{
+		border: lipgloss.HiddenBorder(),
+	}
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	t := table.New().
-		Border(lipgloss.HiddenBorder()).
-		Headers(headers...).
+		Border(options.border).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			return lipgloss.NewStyle().PaddingRight(2)
 		})
+
+	if len(options.headers) > 0 {
+		t.Headers(options.headers...)
+	}
 
 	for _, row := range rows {
 		t.Row(row...)
