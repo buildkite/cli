@@ -19,8 +19,11 @@ func HasDataAvailable(reader io.Reader) bool {
 	case *bufio.Reader:
 		return f.Size() > 0
 	case *strings.Reader:
-		return f.Size() > 0
+		// Check if there are unread bytes remaining
+		return f.Len() > 0
+	default:
+		// For other reader types, we can't easily determine if data is available
+		// This is a conservative approach - assume no data is available
+		return false
 	}
-
-	return false
 }
