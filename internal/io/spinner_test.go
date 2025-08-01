@@ -1,10 +1,7 @@
 package io
 
 import (
-	"os"
 	"testing"
-
-	"github.com/mattn/go-isatty"
 )
 
 func TestSpinWhileWithoutTTY(t *testing.T) {
@@ -59,7 +56,7 @@ func TestSpinWhileWithError(t *testing.T) {
 func TestSpinWhileTTYDetection(t *testing.T) {
 	// Test that TTY detection works as expected
 	// This test documents the behavior rather than forcing specific outcomes
-	isTTY := isatty.IsTerminal(os.Stdout.Fd())
+	isTTY := IsTerminal()
 
 	actionCalled := false
 	err := SpinWhile("TTY detection test", func() {
