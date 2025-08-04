@@ -2,7 +2,9 @@
 
 #
 # This script is used to build a release of the CLI and publish it to multiple registries on Buildkite
-#
+# If changing this file, also change in repo
+# /oss-deploy-pipelines/Technical-Services/Support/buildkite/cli/release.sh
+# for the pipeline.release.yml usage
 
 # NOTE: do not exit on non-zero returns codes
 set -uo pipefail

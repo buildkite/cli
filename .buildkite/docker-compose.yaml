@@ -1,3 +1,7 @@
+# If changing this file, also change in repo
+# /oss-deploy-pipelines/Technical-Services/Support/buildkite/cli/release.sh
+# for the pipeline.release.yml usage
+
 version: "3.5"
 
 services:
