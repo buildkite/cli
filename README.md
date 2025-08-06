@@ -76,3 +76,11 @@ export BUILDKITE_GRAPHQL_TOKEN="<token>"
 go generate
 go run cmd/bk/main.go --help
 ```
+
+## Pipelines
+
+Defined in [buildkite/oss-deploy-pipelines.](https://github.com/buildkite/oss-deploy-pipelines/blob/0f670f20a6b70988333b86bbef58afb1a4e4fc05/Technical-Services/Support/buildkite/cli)
+
+- https://buildkite.com/buildkite/buildkite-cli
+- https://buildkite.com/buildkite/buildkite-cli-release
+
