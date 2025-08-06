@@ -9,7 +9,7 @@ require (
 	github.com/MakeNowJust/heredoc v1.0.0
 	github.com/buildkite/go-buildkite/v4 v4.5.1
 	github.com/charmbracelet/bubbles v0.21.0
-	github.com/charmbracelet/bubbletea v1.3.5
+	github.com/charmbracelet/bubbletea v1.3.6
 	github.com/charmbracelet/huh v0.7.0
 	github.com/charmbracelet/huh/spinner v0.0.0-20240608175402-5b41f0b45136
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
@@ -35,7 +35,7 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
 	github.com/catppuccin/go v0.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
-	github.com/charmbracelet/x/ansi v0.8.0 // indirect
+	github.com/charmbracelet/x/ansi v0.9.3 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
 	github.com/charmbracelet/x/exp/slice v0.0.0-20250327172914-2fdc97757edf // indirect
 	github.com/charmbracelet/x/exp/strings v0.0.0-20240722160745-212f7b056ed0 // indirect
