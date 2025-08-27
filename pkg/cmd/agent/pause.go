@@ -48,13 +48,20 @@ func NewCmdAgentPause(f *factory.Factory) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&options.note, "note", "", "A descriptive note to record why the agent is paused")
-	cmd.Flags().IntVar(&options.timeoutInMinutes, "timeout-in-minutes", 0, "Timeout after which the agent is automatically resumed, in minutes (default: 0 = no timeout)")
+	cmd.Flags().IntVar(&options.timeoutInMinutes, "timeout-in-minutes", 5, "Timeout after which the agent is automatically resumed, in minutes (default: 5)")
 
 	return &cmd
 }
 
 func RunPause(cmd *cobra.Command, args []string, opts *AgentPauseOptions) error {
 	agentID := args[0]
+
+	if opts.timeoutInMinutes <= 0 {
+		return fmt.Errorf("timeout-in-minutes must be 1 or more")
+	}
+	if opts.timeoutInMinutes > 1440 {
+		return fmt.Errorf("timeout-in-minutes cannot exceed 1440 minutes (1 day)")
+	}
 
 	var pauseOpts *buildkite.AgentPauseOptions
 	if opts.note != "" || opts.timeoutInMinutes > 0 {
@@ -69,6 +76,14 @@ func RunPause(cmd *cobra.Command, args []string, opts *AgentPauseOptions) error 
 		return fmt.Errorf("failed to pause agent: %w", err)
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Agent %s paused successfully\n", agentID)
+	message := fmt.Sprintf("Agent %s paused successfully", agentID)
+	if opts.note != "" {
+		message += fmt.Sprintf(" with note: %s", opts.note)
+	}
+	if opts.timeoutInMinutes > 0 {
+		message += fmt.Sprintf(" (auto-resume in %d minutes)", opts.timeoutInMinutes)
+	}
+
+	fmt.Fprintf(cmd.OutOrStdout(), "%s\n", message)
 	return nil
 }
