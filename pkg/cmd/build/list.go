@@ -239,7 +239,7 @@ func applyClientSideFilters(builds []buildkite.Build, opts buildListOptions) ([]
 
 			var elapsed time.Duration
 			if build.FinishedAt != nil {
-				elapsed = build.FinishedAt.Time.Sub(build.StartedAt.Time)
+				elapsed = build.FinishedAt.Sub(build.StartedAt.Time)
 			} else {
 				elapsed = time.Since(build.StartedAt.Time)
 			}
@@ -305,15 +305,15 @@ func displayBuilds(cmd *cobra.Command, builds []buildkite.Build, format output.F
 
 		startedAt := "-"
 		if build.StartedAt != nil {
-			startedAt = build.StartedAt.Time.Format(timeFormat)
+			startedAt = build.StartedAt.Format(timeFormat)
 		}
 
 		finishedAt := "-"
 		duration := "-"
 		if build.FinishedAt != nil {
-			finishedAt = build.FinishedAt.Time.Format(timeFormat)
+			finishedAt = build.FinishedAt.Format(timeFormat)
 			if build.StartedAt != nil {
-				dur := build.FinishedAt.Time.Sub(build.StartedAt.Time)
+				dur := build.FinishedAt.Sub(build.StartedAt.Time)
 				duration = formatDuration(dur)
 			}
 		} else if build.StartedAt != nil {
