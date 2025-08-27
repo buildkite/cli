@@ -47,6 +47,6 @@ func RunResume(cmd *cobra.Command, args []string, opts *AgentResumeOptions) erro
 		return fmt.Errorf("failed to resume agent: %w", err)
 	}
 
-	fmt.Printf("Agent %s resumed successfully\n", agentID)
+	fmt.Fprintf(cmd.OutOrStdout(), "Agent %s resumed successfully\n", agentID)
 	return nil
 }

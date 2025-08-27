@@ -69,6 +69,6 @@ func RunPause(cmd *cobra.Command, args []string, opts *AgentPauseOptions) error 
 		return fmt.Errorf("failed to pause agent: %w", err)
 	}
 
-	fmt.Printf("Agent %s paused successfully\n", agentID)
+	fmt.Fprintf(cmd.OutOrStdout(), "Agent %s paused successfully\n", agentID)
 	return nil
 }
