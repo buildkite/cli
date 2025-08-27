@@ -10,6 +10,7 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/cluster"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/spf13/cobra"
 )
@@ -23,9 +24,18 @@ func NewCmdClusterList(f *factory.Factory) *cobra.Command {
       List the clusters for an organization.
     `),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			format, err := output.GetFormat(cmd.Flags())
+			if err != nil {
+				return err
+			}
+
 			clusters, err := listClusters(cmd.Context(), f)
 			if err != nil {
 				return err
+			}
+
+			if format != output.FormatText {
+				return output.Write(cmd.OutOrStdout(), clusters, format)
 			}
 
 			summary := cluster.ClusterViewTable(clusters...)
@@ -35,6 +45,7 @@ func NewCmdClusterList(f *factory.Factory) *cobra.Command {
 		},
 	}
 
+	output.AddFlags(cmd.Flags())
 	return &cmd
 }
 
