@@ -1,6 +1,7 @@
 package build
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -14,6 +15,11 @@ import (
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
+)
+
+const (
+	maxBuildLimit = 5000
+	pageSize      = 100
 )
 
 type buildListOptions struct {
@@ -40,11 +46,14 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 			List builds with optional filtering.
 		`),
 		Example: heredoc.Doc(`
-			# List recent builds
+			# List recent builds (50 by default)
 			$ bk build list
 
+			# Get more builds (automatically paginates)
+			$ bk build list --limit 500
+
 			# List builds from the last hour
-			$ bk build list --since 1h (s, m, h)
+			$ bk build list --since 1h
 
 			# List failed builds
 			$ bk build list --state failed
@@ -77,6 +86,10 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 				return err
 			}
 
+			if opts.limit > maxBuildLimit {
+				return fmt.Errorf("limit cannot exceed %d builds (requested: %d)", maxBuildLimit, opts.limit)
+			}
+
 			listOpts, err := buildListOptionsFromFlags(&opts)
 			if err != nil {
 				return err
@@ -85,35 +98,11 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 			org := f.Config.OrganizationSlug()
 			var builds []buildkite.Build
 
-			if opts.pipeline != "" {
-				pipelineRes := pipelineResolver.NewAggregateResolver(
-					pipelineResolver.ResolveFromFlag(opts.pipeline, f.Config),
-					pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
-				)
-
-				pipeline, err := pipelineRes.Resolve(cmd.Context())
-				if err != nil {
-					return fmt.Errorf("failed to resolve pipeline: %w", err)
-				}
-
-				err = io.SpinWhile("Loading builds", func() {
-					builds, _, err = f.RestAPIClient.Builds.ListByPipeline(
-						cmd.Context(),
-						org,
-						pipeline.Name,
-						listOpts,
-					)
-				})
-				if err != nil {
-					return fmt.Errorf("failed to list builds: %w", err)
-				}
-			} else {
-				err = io.SpinWhile("Loading builds", func() {
-					builds, _, err = f.RestAPIClient.Builds.ListByOrg(cmd.Context(), org, listOpts)
-				})
-				if err != nil {
-					return fmt.Errorf("failed to list builds: %w", err)
-				}
+			err = io.SpinWhile("Loading builds", func() {
+				builds, err = fetchBuilds(cmd.Context(), f, org, opts, listOpts)
+			})
+			if err != nil {
+				return fmt.Errorf("failed to list builds: %w", err)
 			}
 
 			if opts.duration != "" || opts.message != "" {
@@ -145,7 +134,7 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&opts.creator, "creator", "", "Filter by creator")
 	cmd.Flags().StringVar(&opts.commit, "commit", "", "Filter by commit SHA")
 	cmd.Flags().StringVar(&opts.message, "message", "", "Filter by message content")
-	cmd.Flags().IntVar(&opts.limit, "limit", 50, "Maximum number of builds to return")
+	cmd.Flags().IntVar(&opts.limit, "limit", 50, fmt.Sprintf("Maximum number of builds to return (max: %d)", maxBuildLimit))
 
 	output.AddFlags(cmd.Flags())
 	cmd.Flags().SortFlags = false
@@ -156,47 +145,88 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 func buildListOptionsFromFlags(opts *buildListOptions) (*buildkite.BuildsListOptions, error) {
 	listOpts := &buildkite.BuildsListOptions{
 		ListOptions: buildkite.ListOptions{
-			PerPage: opts.limit,
+			PerPage: pageSize,
 		},
 	}
 
+	now := time.Now()
 	if opts.since != "" {
-		duration, err := parseDuration(opts.since)
+		d, err := time.ParseDuration(opts.since)
 		if err != nil {
 			return nil, fmt.Errorf("invalid since duration '%s': %w", opts.since, err)
 		}
-		listOpts.CreatedFrom = time.Now().Add(-duration)
+		listOpts.CreatedFrom = now.Add(-d)
 	}
 
 	if opts.until != "" {
-		duration, err := parseDuration(opts.until)
+		d, err := time.ParseDuration(opts.until)
 		if err != nil {
 			return nil, fmt.Errorf("invalid until duration '%s': %w", opts.until, err)
 		}
-		listOpts.CreatedTo = time.Now().Add(-duration)
+		listOpts.CreatedTo = now.Add(-d)
 	}
 
 	if len(opts.state) > 0 {
-		listOpts.State = opts.state
+		listOpts.State = make([]string, len(opts.state))
+		for i, state := range opts.state {
+			listOpts.State[i] = strings.ToLower(state)
+		}
 	}
 
-	if len(opts.branch) > 0 {
-		listOpts.Branch = opts.branch
-	}
-
-	if opts.creator != "" {
-		listOpts.Creator = opts.creator
-	}
-
-	if opts.commit != "" {
-		listOpts.Commit = opts.commit
-	}
+	listOpts.Branch = opts.branch
+	listOpts.Creator = opts.creator
+	listOpts.Commit = opts.commit
 
 	return listOpts, nil
 }
 
-func parseDuration(s string) (time.Duration, error) {
-	return time.ParseDuration(s)
+func fetchBuilds(ctx context.Context, f *factory.Factory, org string, opts buildListOptions, listOpts *buildkite.BuildsListOptions) ([]buildkite.Build, error) {
+	var allBuilds []buildkite.Build
+
+	for page := 1; len(allBuilds) < opts.limit; page++ {
+		listOpts.Page = page
+		listOpts.PerPage = min(pageSize, opts.limit-len(allBuilds))
+
+		var builds []buildkite.Build
+		var err error
+
+		if opts.pipeline != "" {
+			builds, err = getBuildsByPipeline(ctx, f, org, opts.pipeline, listOpts)
+		} else {
+			builds, _, err = f.RestAPIClient.Builds.ListByOrg(ctx, org, listOpts)
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		if len(builds) == 0 {
+			break
+		}
+
+		allBuilds = append(allBuilds, builds...)
+
+		if len(builds) < listOpts.PerPage {
+			break
+		}
+	}
+
+	return allBuilds, nil
+}
+
+func getBuildsByPipeline(ctx context.Context, f *factory.Factory, org, pipelineFlag string, listOpts *buildkite.BuildsListOptions) ([]buildkite.Build, error) {
+	pipelineRes := pipelineResolver.NewAggregateResolver(
+		pipelineResolver.ResolveFromFlag(pipelineFlag, f.Config),
+		pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
+	)
+
+	pipeline, err := pipelineRes.Resolve(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	builds, _, err := f.RestAPIClient.Builds.ListByPipeline(ctx, org, pipeline.Name, listOpts)
+	return builds, err
 }
 
 func applyClientSideFilters(builds []buildkite.Build, opts buildListOptions) ([]buildkite.Build, error) {
@@ -204,25 +234,27 @@ func applyClientSideFilters(builds []buildkite.Build, opts buildListOptions) ([]
 		return builds, nil
 	}
 
-	var durationFilter struct {
-		op       string
-		duration time.Duration
-	}
+	var durationOp string
+	var durationThreshold time.Duration
 
 	if opts.duration != "" {
-		op, durStr := ">= ", opts.duration
-		if strings.HasPrefix(opts.duration, "<") {
-			op, durStr = "<", opts.duration[1:]
-		} else if strings.HasPrefix(opts.duration, ">") {
-			op, durStr = ">", opts.duration[1:]
+		durationOp = ">="
+		durationStr := opts.duration
+
+		switch {
+		case strings.HasPrefix(opts.duration, "<"):
+			durationOp = "<"
+			durationStr = opts.duration[1:]
+		case strings.HasPrefix(opts.duration, ">"):
+			durationOp = ">"
+			durationStr = opts.duration[1:]
 		}
 
-		d, err := time.ParseDuration(durStr)
+		d, err := time.ParseDuration(durationStr)
 		if err != nil {
 			return nil, fmt.Errorf("invalid duration format: %w", err)
 		}
-		durationFilter.op = op
-		durationFilter.duration = d
+		durationThreshold = d
 	}
 
 	var messageFilter string
@@ -244,17 +276,17 @@ func applyClientSideFilters(builds []buildkite.Build, opts buildListOptions) ([]
 				elapsed = time.Since(build.StartedAt.Time)
 			}
 
-			switch durationFilter.op {
+			switch durationOp {
 			case "<":
-				if elapsed >= durationFilter.duration {
+				if elapsed >= durationThreshold {
 					continue
 				}
 			case ">":
-				if elapsed <= durationFilter.duration {
+				if elapsed <= durationThreshold {
 					continue
 				}
-			default: // ">="
-				if elapsed < durationFilter.duration {
+			default:
+				if elapsed < durationThreshold {
 					continue
 				}
 			}
@@ -280,8 +312,13 @@ func displayBuilds(cmd *cobra.Command, builds []buildkite.Build, format output.F
 	const (
 		maxMessageLength = 22
 		truncatedLength  = 19
-		tableWidth       = 120
 		timeFormat       = "2006-01-02T15:04:05Z"
+		numberWidth      = 8
+		stateWidth       = 12
+		messageWidth     = 25
+		timeWidth        = 20
+		durationWidth    = 12
+		columnSpacing    = 6
 	)
 
 	var buf strings.Builder
@@ -290,11 +327,18 @@ func displayBuilds(cmd *cobra.Command, builds []buildkite.Build, format output.F
 	buf.WriteString(header)
 	buf.WriteString("\n\n")
 
-	headerRow := fmt.Sprintf("%-8s %-12s %-25s %-20s %-20s %-12s %s",
-		"Number", "State", "Message", "Started (UTC)", "Finished (UTC)", "Duration", "URL")
+	headerRow := fmt.Sprintf("%-*s %-*s %-*s %-*s %-*s %-*s %s",
+		numberWidth, "Number",
+		stateWidth, "State",
+		messageWidth, "Message",
+		timeWidth, "Started (UTC)",
+		timeWidth, "Finished (UTC)",
+		durationWidth, "Duration",
+		"URL")
 	buf.WriteString(lipgloss.NewStyle().Bold(true).Render(headerRow))
 	buf.WriteString("\n")
-	buf.WriteString(strings.Repeat("-", tableWidth))
+	totalWidth := numberWidth + stateWidth + messageWidth + timeWidth*2 + durationWidth + columnSpacing
+	buf.WriteString(strings.Repeat("-", totalWidth))
 	buf.WriteString("\n")
 
 	for _, build := range builds {
@@ -324,8 +368,14 @@ func displayBuilds(cmd *cobra.Command, builds []buildkite.Build, format output.F
 		stateColor := getStateColor(build.State)
 		coloredState := stateColor.Render(build.State)
 
-		row := fmt.Sprintf("%-8d %-12s %-25s %-20s %-20s %-12s %s",
-			build.Number, coloredState, message, startedAt, finishedAt, duration, build.WebURL)
+		row := fmt.Sprintf("%-*d %-*s %-*s %-*s %-*s %-*s %s",
+			numberWidth, build.Number,
+			stateWidth, coloredState,
+			messageWidth, message,
+			timeWidth, startedAt,
+			timeWidth, finishedAt,
+			durationWidth, duration,
+			build.WebURL)
 		buf.WriteString(row)
 		buf.WriteString("\n")
 	}
