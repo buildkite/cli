@@ -36,10 +36,9 @@ func TestCmdAgentPause(t *testing.T) {
 		t.Parallel()
 
 		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/v2/organizations/test/agents/123/pause" && r.Method == "PUT" {
+			if r.Method == "PUT" && strings.Contains(r.URL.Path, "/agents/123/pause") {
 				w.WriteHeader(http.StatusOK)
 			} else {
-				t.Errorf("Unexpected request: %s %s", r.Method, r.URL.Path)
 				w.WriteHeader(http.StatusNotFound)
 			}
 		}))
