@@ -31,9 +31,12 @@ func NewCmdAgentPause(f *factory.Factory) *cobra.Command {
 			When an agent is paused, it will stop accepting new jobs but will continue
 			running any jobs it has already started. You can optionally provide a note
 			explaining why the agent is being paused and set a timeout for automatic resumption.
+
+			The timeout must be between 1 and 1440 minutes (24 hours). If no timeout is
+			specified, the agent will pause for 5 minutes by default.
 		`),
 		Example: heredoc.Doc(`
-			# Pause an agent
+			# Pause an agent for 5 minutes (default)
 			$ bk agent pause 0198d108-a532-4a62-9bd7-b2e744bf5c45
 
 			# Pause an agent with a note
@@ -41,6 +44,9 @@ func NewCmdAgentPause(f *factory.Factory) *cobra.Command {
 
 			# Pause an agent with a note and 60 minute timeout
 			$ bk agent pause 0198d108-a532-4a62-9bd7-b2e744bf5c45 --note "too many llamas" --timeout-in-minutes 60
+
+			# Pause for a short time (15 minutes) during deployment
+			$ bk agent pause 0198d108-a532-4a62-9bd7-b2e744bf5c45 --note "Deploy in progress" --timeout-in-minutes 15
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return RunPause(cmd, args, &options)

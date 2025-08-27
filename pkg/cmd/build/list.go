@@ -44,6 +44,17 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 		Short:                 "List builds",
 		Long: heredoc.Doc(`
 			List builds with optional filtering.
+
+			This command supports both server-side filtering (fast) and client-side filtering.
+			Server-side filters are applied by the Buildkite API, while client-side filters
+			are applied after fetching results and may require loading more builds.
+
+			Client-side filters: --duration, --message
+			Server-side filters: --pipeline, --since, --until, --state, --branch, --creator, --commit
+
+			Builds can be filtered by their duration, message content, and other attributes.
+			When filtering by duration, you can use operators like >, <, >=, and <= to specify your criteria.
+			Supported duration units are seconds (s), minutes (m), and hours (h).
 		`),
 		Example: heredoc.Doc(`
 			# List recent builds (50 by default)
@@ -66,6 +77,18 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 
 			# List builds that took longer than 20 minutes
 			$ bk build list --duration ">20m"
+
+			# List builds that finished in under 5 minutes
+			$ bk build list --duration "<5m"
+
+			# Combine filters: failed builds on main branch in the last 24 hours
+			$ bk build list --state failed --branch main --since 24h
+
+			# Find builds containing "deploy" in the message
+			$ bk build list --message deploy
+
+			# Complex filtering: slow builds (>30m) that failed on feature branches
+			$ bk build list --duration ">30m" --state failed --branch feature/
 		`),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			cmdScopes := scopes.GetCommandScopes(cmd)
@@ -128,7 +151,7 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVarP(&opts.pipeline, "pipeline", "p", "", "Filter by pipeline slug")
 	cmd.Flags().StringVar(&opts.since, "since", "", "Filter builds created since this time (e.g. 1h, 30m)")
 	cmd.Flags().StringVar(&opts.until, "until", "", "Filter builds created before this time (e.g. 1h, 30m)")
-	cmd.Flags().StringVar(&opts.duration, "duration", "", "Filter by duration (e.g. >5m, <10m, 20m)")
+	cmd.Flags().StringVar(&opts.duration, "duration", "", "Filter by duration (e.g. >5m, <10m, 20m) - supports >, <, >=, <= operators")
 	cmd.Flags().StringSliceVar(&opts.state, "state", []string{}, "Filter by build state")
 	cmd.Flags().StringSliceVar(&opts.branch, "branch", []string{}, "Filter by branch name")
 	cmd.Flags().StringVar(&opts.creator, "creator", "", "Filter by creator")
