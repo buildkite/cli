@@ -11,6 +11,7 @@ import (
 	bk_io "github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
@@ -40,7 +41,10 @@ func NewCmdArtifactsList(f *factory.Factory) *cobra.Command {
 			$ bk artifacts list 429 -p monolith
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var err error
+			format, err := output.GetFormat(cmd.Flags())
+			if err != nil {
+				return err
+			}
 
 			// resolve a pipeline based on how bk build resolves the pipeline
 			pipelineRes := pipelineResolver.NewAggregateResolver(
@@ -102,6 +106,10 @@ func NewCmdArtifactsList(f *factory.Factory) *cobra.Command {
 				return err
 			}
 
+			if format != output.FormatText {
+				return output.Write(cmd.OutOrStdout(), buildArtifacts, format)
+			}
+
 			var summary string
 			if len(buildArtifacts) > 0 {
 				summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("Artifacts")
@@ -125,5 +133,6 @@ func NewCmdArtifactsList(f *factory.Factory) *cobra.Command {
 
 	cmd.Flags().SortFlags = false
 
+	output.AddFlags(cmd.Flags())
 	return &cmd
 }
