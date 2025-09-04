@@ -1,10 +1,24 @@
 package io
 
 import (
+	"os"
+
 	"github.com/charmbracelet/huh"
+	"github.com/mattn/go-isatty"
 )
 
 func Confirm(confirmed *bool, title string) error {
+	// If already confirmed via flag, skip the prompt
+	if *confirmed {
+		return nil
+	}
+
+	// If no TTY is available, default to confirmed=true (non-interactive mode)
+	if !isatty.IsTerminal(os.Stdout.Fd()) {
+		*confirmed = true
+		return nil
+	}
+
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewConfirm().

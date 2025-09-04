@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/MakeNowJust/heredoc"
-	"github.com/buildkite/cli/v3/internal/io"
+	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
@@ -113,7 +113,7 @@ func NewCmdClusterView(f *factory.Factory) *cobra.Command {
 			}
 
 			var cluster buildkite.Cluster
-			spinErr := io.SpinWhile("Loading cluster information", func() {
+			spinErr := bk_io.SpinWhile("Loading cluster information", func() {
 				cluster, _, err = f.RestAPIClient.Clusters.Get(cmd.Context(), f.Config.OrganizationSlug(), args[0])
 			})
 			if spinErr != nil {
