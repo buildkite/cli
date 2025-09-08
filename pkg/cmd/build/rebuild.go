@@ -30,7 +30,7 @@ func NewCmdBuildRebuild(f *factory.Factory) *cobra.Command {
 			The web URL to the build will be printed to stdout.
 		`),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-		// Get the command's required and optional scopes
+			// Get the command's required and optional scopes
 			cmdScopes := scopes.GetCommandScopes(cmd)
 
 			// Get the token scopes from the factory
@@ -47,8 +47,9 @@ func NewCmdBuildRebuild(f *factory.Factory) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-		// Get pipeline from persistent flag
-		pipeline, _ = cmd.Flags().GetString("pipeline")
+			// Get pipeline from persistent flag
+			pipeline, _ = cmd.Flags().GetString("pipeline")
+
 			// we find the pipeline based on the following rules:
 			// 1. an explicit flag is passed
 			// 2. a configured pipeline for this directory

@@ -29,7 +29,7 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 			Cancel the given build.
 		`),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-		// Get the command's required and optional scopes
+			// Get the command's required and optional scopes
 			cmdScopes := scopes.GetCommandScopes(cmd)
 
 			// Get the token scopes from the factory
@@ -46,8 +46,9 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-		// Get pipeline from persistent flag
-		pipeline, _ = cmd.Flags().GetString("pipeline")
+			// Get pipeline from persistent flag
+			pipeline, _ = cmd.Flags().GetString("pipeline")
+
 			pipelineRes := pipelineResolver.NewAggregateResolver(
 				pipelineResolver.ResolveFromFlag(pipeline, f.Config),
 				pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
