@@ -109,6 +109,9 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 				return err
 			}
 
+			// Get pipeline from persistent flag
+			opts.pipeline, _ = cmd.Flags().GetString("pipeline")
+
 			if opts.limit > maxBuildLimit {
 				return fmt.Errorf("limit cannot exceed %d builds (requested: %d)", maxBuildLimit, opts.limit)
 			}
@@ -148,7 +151,7 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 		"requiredScopes": string(scopes.ReadBuilds),
 	}
 
-	cmd.Flags().StringVarP(&opts.pipeline, "pipeline", "p", "", "Filter by pipeline slug")
+	// Pipeline flag now inherited from parent command
 	cmd.Flags().StringVar(&opts.since, "since", "", "Filter builds created since this time (e.g. 1h, 30m)")
 	cmd.Flags().StringVar(&opts.until, "until", "", "Filter builds created before this time (e.g. 1h, 30m)")
 	cmd.Flags().StringVar(&opts.duration, "duration", "", "Filter by duration (e.g. >5m, <10m, 20m) - supports >, <, >=, <= operators")

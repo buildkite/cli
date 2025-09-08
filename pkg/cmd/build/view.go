@@ -57,6 +57,9 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 				return err
 			}
 
+			// Get pipeline from persistent flag
+			opts.Pipeline, _ = cmd.Flags().GetString("pipeline")
+
 			// Resolve pipeline first
 			pipelineRes := pipelineResolver.NewAggregateResolver(
 				pipelineResolver.ResolveFromFlag(opts.Pipeline, f.Config),
@@ -185,15 +188,11 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 	cmd.Flags().BoolVar(&opts.Web, "web", false, "Open the build in a web browser.")
 	cmd.Flags().StringVar(&branch, "branch", "", "Filter builds to this branch.")
 	cmd.Flags().StringVar(&user, "user", "", "Filter builds to this user. You can use name or email.")
-	cmd.Flags().StringVarP(&opts.Pipeline, "pipeline", "p", "", "The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
-		"If omitted, it will be resolved using the current directory.",
-	)
 
 	// can only supply --user or --mine
-	cmd.MarkFlagsMutuallyExclusive("mine", "user")
-	cmd.Flags().SortFlags = false
+	cmd.MarkFlagsMutuallyExclusive("user", "mine")
 
 	output.AddFlags(cmd.Flags())
-
+	cmd.Flags().SortFlags = false
 	return cmd
 }

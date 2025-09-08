@@ -75,6 +75,9 @@ func NewCmdBuildWatch(f *factory.Factory) *cobra.Command {
 			return scopes.ValidateCommandScopes(cmd, f.Config.GetTokenScopes())
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Get pipeline from persistent flag
+			opts.Pipeline, _ = cmd.Flags().GetString("pipeline")
+
 			pipelineRes := pipelineResolver.NewAggregateResolver(
 				pipelineResolver.ResolveFromFlag(opts.Pipeline, f.Config),
 				pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
@@ -129,7 +132,7 @@ func NewCmdBuildWatch(f *factory.Factory) *cobra.Command {
 		"requiredScopes": string(scopes.ReadBuilds),
 	}
 
-	cmd.Flags().StringVarP(&opts.Pipeline, "pipeline", "p", "", "The pipeline to watch. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.")
+	// Pipeline flag now inherited from parent command
 	cmd.Flags().StringVarP(&opts.Branch, "branch", "b", "", "The branch to watch builds for.")
 	cmd.Flags().IntVar(&opts.IntervalSeconds, "interval", opts.IntervalSeconds, "Polling interval in seconds")
 
