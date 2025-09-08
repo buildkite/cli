@@ -185,7 +185,7 @@ func NewCmdBuildView(f *factory.Factory) *cobra.Command {
 	cmd.Flags().BoolVar(&opts.Web, "web", false, "Open the build in a web browser.")
 	cmd.Flags().StringVar(&branch, "branch", "", "Filter builds to this branch.")
 	cmd.Flags().StringVar(&user, "user", "", "Filter builds to this user. You can use name or email.")
-	cmd.Flags().StringVar(&opts.Pipeline, "pipeline", "", "The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
+	cmd.Flags().StringVarP(&opts.Pipeline, "pipeline", "p", "", "The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
 		"If omitted, it will be resolved using the current directory.",
 	)
 
