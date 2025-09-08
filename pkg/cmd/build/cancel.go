@@ -46,6 +46,9 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Get pipeline from persistent flag
+			pipeline, _ = cmd.Flags().GetString("pipeline")
+
 			pipelineRes := pipelineResolver.NewAggregateResolver(
 				pipelineResolver.ResolveFromFlag(pipeline, f.Config),
 				pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
@@ -79,9 +82,7 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the build in a web browser after it has been cancelled.")
-	cmd.Flags().StringVarP(&pipeline, "pipeline", "p", "", "The pipeline to cancel a build on. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
-		"If omitted, it will be resolved using the current directory.",
-	)
+	// Pipeline flag now inherited from parent command
 	cmd.Flags().BoolVarP(&confirmed, "yes", "y", false, "Skip the confirmation prompt. Useful if being used in automation/CI.")
 	cmd.Flags().SortFlags = false
 

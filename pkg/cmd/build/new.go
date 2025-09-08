@@ -80,6 +80,9 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 			return nil
 		}),
 		RunE: bkErrors.WrapRunE(func(cmd *cobra.Command, args []string) error {
+			// Get pipeline from persistent flag
+			pipeline, _ = cmd.Flags().GetString("pipeline")
+
 			resolvers := resolver.NewAggregateResolver(
 				resolver.ResolveFromFlag(pipeline, f.Config),
 				resolver.ResolveFromConfig(f.Config, resolver.PickOne),
@@ -162,9 +165,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVarP(&branch, "branch", "b", "", "The branch to build. Defaults to the default branch of the pipeline.")
 	cmd.Flags().StringVarP(&author, "author", "a", "", "Author of the build. Supports: \"Name <email>\", \"email@domain.com\", \"Full Name\", or \"username\"")
 	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the build in a web browser after it has been created.")
-	cmd.Flags().StringVarP(&pipeline, "pipeline", "p", "", "The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
-		"If omitted, it will be resolved using the current directory.",
-	)
+	// Pipeline flag now inherited from parent command
 	cmd.Flags().StringArrayVarP(&env, "env", "e", []string{}, "Set environment variables for the build")
 	cmd.Flags().StringArrayVarP(&metaData, "metadata", "M", []string{}, "Set metadata for the build (KEY=VALUE)")
 	cmd.Flags().BoolVarP(&ignoreBranchFilters, "ignore-branch-filters", "i", false, "Ignore branch filters for the pipeline")
