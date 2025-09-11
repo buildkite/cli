@@ -20,17 +20,19 @@ func TestNewCmdJobCancel(t *testing.T) {
 	yesFlag := cmd.Flags().Lookup("yes")
 	if yesFlag == nil {
 		t.Error("--yes flag should exist")
-	}
-	if yesFlag.Shorthand != "y" {
-		t.Errorf("--yes flag shorthand should be 'y', got '%s'", yesFlag.Shorthand)
+	} else {
+		if yesFlag.Shorthand != "y" {
+			t.Errorf("--yes flag shorthand should be 'y', got '%s'", yesFlag.Shorthand)
+		}
 	}
 
 	webFlag := cmd.Flags().Lookup("web")
 	if webFlag == nil {
 		t.Error("--web flag should exist")
-	}
-	if webFlag.Shorthand != "w" {
-		t.Errorf("--web flag shorthand should be 'w', got '%s'", webFlag.Shorthand)
+	} else {
+		if webFlag.Shorthand != "w" {
+			t.Errorf("--web flag shorthand should be 'w', got '%s'", webFlag.Shorthand)
+		}
 	}
 }
 
