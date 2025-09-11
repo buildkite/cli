@@ -324,14 +324,14 @@ func fetchQueuesFromClusters(ctx context.Context, client graphql.Client, cluster
 	resultChan := make(chan []string, len(clusters))
 	errorChan := make(chan error, len(clusters))
 	semaphore := make(chan struct{}, maxConcurrentRequests)
-	
+
 	var wg sync.WaitGroup
 
 	for _, cluster := range clusters {
 		wg.Add(1)
 		go func(c ClusterInfo) {
 			defer wg.Done()
-			
+
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 			queueIDs, err := fetchQueuesForCluster(ctx, client, c.ID, queueName)
@@ -339,7 +339,7 @@ func fetchQueuesFromClusters(ctx context.Context, client graphql.Client, cluster
 				errorChan <- fmt.Errorf("cluster %s: %w", c.Name, err)
 				return
 			}
-			
+
 			resultChan <- queueIDs
 		}(cluster)
 	}
@@ -347,21 +347,21 @@ func fetchQueuesFromClusters(ctx context.Context, client graphql.Client, cluster
 	var allQueueIDs []string
 	var results int
 	expectedResults := len(clusters)
-	
+
 	for results < expectedResults {
 		select {
 		case queueIDs := <-resultChan:
 			allQueueIDs = append(allQueueIDs, queueIDs...)
 			results++
-		
+
 		case err := <-errorChan:
 			return nil, err
-		
+
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
 	}
-	
+
 	return allQueueIDs, nil
 }
 
@@ -369,7 +369,6 @@ func fetchQueuesForCluster(ctx context.Context, client graphql.Client, clusterID
 	var matchingQueueIDs []string
 	var cursor *string
 	targetLower := strings.ToLower(queueName)
-	
 
 	for {
 		resp, err := bkGraphQL.FindQueuesForCluster(ctx, client, clusterID, cursor)
@@ -428,7 +427,6 @@ func listJobsByQueue(ctx context.Context, f *factory.Factory, org string, queueI
 
 	return jobs, nextCursor, hasMore, nil
 }
-
 
 func convertGraphQLJobToBuildkiteJob(jobNode *bkGraphQL.ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJob) buildkite.Job {
 	// Handle the union type - we only care about JobTypeCommand for now
