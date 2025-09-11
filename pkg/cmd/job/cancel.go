@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
 func NewCmdJobCancel(f *factory.Factory) *cobra.Command {
 	var web bool
 

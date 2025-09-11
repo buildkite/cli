@@ -220,7 +220,6 @@ func fetchJobs(ctx context.Context, f *factory.Factory, org string, opts jobList
 	return allJobs, nil
 }
 
-
 func fetchJobsWithQueueFilter(ctx context.Context, f *factory.Factory, org string, opts jobListOptions) ([]buildkite.Job, error) {
 	queueIDs, err := lookupQueueIDs(ctx, f, org, opts.queue)
 	if err != nil {
@@ -233,7 +232,7 @@ func fetchJobsWithQueueFilter(ctx context.Context, f *factory.Factory, org strin
 	var jobs []buildkite.Job
 	var cursor *string
 	noQueueOpts := opts.withoutQueue()
-	
+
 	for len(jobs) < opts.limit {
 		jobBatch, nextCursor, hasNext, err := listJobsByQueue(ctx, f, org, queueIDs, cursor)
 		if err != nil {
@@ -249,7 +248,7 @@ func fetchJobsWithQueueFilter(ctx context.Context, f *factory.Factory, org strin
 				return nil, fmt.Errorf("failed to apply filters: %w", err)
 			}
 		}
-		
+
 		for _, job := range jobBatch {
 			if len(jobs) >= opts.limit {
 				break
@@ -313,7 +312,7 @@ func findMatchingQueues(queuesResp *graphql.FindQueuesResponse, targetQueue stri
 		if clusterEdge.Node == nil || clusterEdge.Node.Queues == nil {
 			continue
 		}
-		
+
 		for _, queueEdge := range clusterEdge.Node.Queues.Edges {
 			if queueEdge.Node != nil && strings.ToLower(queueEdge.Node.Key) == targetLower {
 				matchingIDs = append(matchingIDs, queueEdge.Node.Id)
@@ -371,7 +370,7 @@ func convertAgent(agentNode *graphql.ListJobsByQueueOrganizationJobsJobConnectio
 	if agentNode == nil {
 		return buildkite.Agent{}
 	}
-	
+
 	return buildkite.Agent{
 		ID:       agentNode.Id,
 		Name:     agentNode.Name,
@@ -415,7 +414,6 @@ func mapGraphQLState(graphqlState, exitStatus string) string {
 		return strings.ToLower(graphqlState)
 	}
 }
-
 
 func jobListOptionsFromFlags(opts *jobListOptions) (*buildkite.BuildsListOptions, error) {
 	listOpts := &buildkite.BuildsListOptions{
