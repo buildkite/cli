@@ -5,6 +5,10 @@ import (
 )
 
 func Confirm(confirmed *bool, title string) error {
+	if *confirmed {
+		return nil
+	}
+
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewConfirm().
@@ -12,7 +16,7 @@ func Confirm(confirmed *bool, title string) error {
 				Affirmative("Yes").
 				Negative("No").
 				Value(confirmed),
-		).WithHide(*confirmed), // user can bypass the prompt by passing the flag
+		),
 	)
 
 	err := form.Run()

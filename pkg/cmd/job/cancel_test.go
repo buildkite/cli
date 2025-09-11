@@ -16,6 +16,22 @@ func TestNewCmdJobCancel(t *testing.T) {
 	if cmd.Short != "Cancel a job." {
 		t.Errorf("got %s, want Cancel a job.", cmd.Short)
 	}
+
+	yesFlag := cmd.Flags().Lookup("yes")
+	if yesFlag == nil {
+		t.Error("--yes flag should exist")
+	}
+	if yesFlag.Shorthand != "y" {
+		t.Errorf("--yes flag shorthand should be 'y', got '%s'", yesFlag.Shorthand)
+	}
+
+	webFlag := cmd.Flags().Lookup("web")
+	if webFlag == nil {
+		t.Error("--web flag should exist")
+	}
+	if webFlag.Shorthand != "w" {
+		t.Errorf("--web flag shorthand should be 'w', got '%s'", webFlag.Shorthand)
+	}
 }
 
 func TestGraphQLIDGeneration(t *testing.T) {
