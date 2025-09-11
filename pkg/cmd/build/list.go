@@ -2,11 +2,14 @@ package build
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"net/mail"
 	"strings"
 	"time"
 
 	"github.com/MakeNowJust/heredoc"
+	"github.com/buildkite/cli/v3/internal/graphql"
 	"github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/validation/scopes"
@@ -113,6 +116,19 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 				return fmt.Errorf("limit cannot exceed %d builds (requested: %d)", maxBuildLimit, opts.limit)
 			}
 
+			if opts.creator != "" && isValidEmail(opts.creator) {
+				originalEmail := opts.creator
+				err = io.SpinWhile("Looking up user", func() {
+					opts.creator, err = resolveCreatorEmailToUserID(cmd.Context(), f, originalEmail)
+				})
+				if err != nil {
+					return fmt.Errorf("failed to resolve creator email: %w", err)
+				}
+				if opts.creator == "" {
+					return fmt.Errorf("failed to resolve creator email: no user found")
+				}
+			}
+
 			listOpts, err := buildListOptionsFromFlags(&opts)
 			if err != nil {
 				return err
@@ -154,7 +170,7 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&opts.duration, "duration", "", "Filter by duration (e.g. >5m, <10m, 20m) - supports >, <, >=, <= operators")
 	cmd.Flags().StringSliceVar(&opts.state, "state", []string{}, "Filter by build state")
 	cmd.Flags().StringSliceVar(&opts.branch, "branch", []string{}, "Filter by branch name")
-	cmd.Flags().StringVar(&opts.creator, "creator", "", "Filter by creator")
+	cmd.Flags().StringVar(&opts.creator, "creator", "", "Filter by creator (email address or user ID)")
 	cmd.Flags().StringVar(&opts.commit, "commit", "", "Filter by commit SHA")
 	cmd.Flags().StringVar(&opts.message, "message", "", "Filter by message content")
 	cmd.Flags().IntVar(&opts.limit, "limit", 50, fmt.Sprintf("Maximum number of builds to return (max: %d)", maxBuildLimit))
@@ -163,6 +179,40 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 	cmd.Flags().SortFlags = false
 
 	return &cmd
+}
+
+func isValidEmail(s string) bool {
+	_, err := mail.ParseAddress(s)
+	return err == nil
+}
+
+func resolveCreatorEmailToUserID(ctx context.Context, f *factory.Factory, email string) (string, error) {
+	org := f.Config.OrganizationSlug()
+	resp, err := graphql.FindUserByEmail(ctx, f.GraphQLClient, org, email)
+	if err != nil {
+		return "", fmt.Errorf("failed to query user by email: %w", err)
+	}
+
+	if resp.Organization == nil || resp.Organization.Members == nil || len(resp.Organization.Members.Edges) == 0 {
+		return "", fmt.Errorf("no user found with email: %s", email)
+	}
+
+	member := resp.Organization.Members.Edges[0].Node
+	if member == nil {
+		return "", fmt.Errorf("invalid user data for email: %s", email)
+	}
+
+	// Decode GraphQL ID and extract UUID
+	decoded, err := base64.StdEncoding.DecodeString(member.User.Id)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode user ID: %w", err)
+	}
+
+	if userUUID, found := strings.CutPrefix(string(decoded), "User---"); found {
+		return userUUID, nil
+	}
+
+	return "", fmt.Errorf("unexpected user ID format")
 }
 
 func buildListOptionsFromFlags(opts *buildListOptions) (*buildkite.BuildsListOptions, error) {

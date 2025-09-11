@@ -1,0 +1,99 @@
+query FindQueues($org: ID!) {
+  organization(slug: $org) {
+    clusters(first: 50) {
+      edges {
+        node {
+          queues(first: 50) {
+            edges {
+              node {
+                id
+                key
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+query ListJobsByQueue($org: ID!, $clusterQueue: [ID!], $first: Int, $after: String) {
+  organization(slug: $org) {
+    jobs(clusterQueue: $clusterQueue, first: $first, after: $after) {
+      edges {
+        node {
+          ... on JobTypeCommand {
+            id
+            uuid
+            command
+            state
+            exitStatus
+            url
+            startedAt
+            finishedAt
+            createdAt
+            cluster {
+              id
+              name
+            }
+            clusterQueue {
+              id
+              key
+            }
+            agent {
+              id
+              name
+              hostname
+              metaData
+            }
+          }
+        }
+      }
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
+    }
+  }
+}
+
+query ListJobsByState($org: ID!, $state: [JobStates!], $first: Int, $after: String) {
+  organization(slug: $org) {
+    jobs(state: $state, first: $first, after: $after) {
+      edges {
+        node {
+          ... on JobTypeCommand {
+            id
+            uuid
+            label
+            command
+            state
+            exitStatus
+            url
+            startedAt
+            finishedAt
+            createdAt
+            cluster {
+              id
+              name
+            }
+            clusterQueue {
+              id
+              key
+            }
+            agent {
+              id
+              name
+              hostname
+              metaData
+            }
+          }
+        }
+      }
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
+    }
+  }
+}

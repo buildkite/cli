@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MakeNowJust/heredoc"
+	"github.com/buildkite/cli/v3/internal/graphql"
 	"github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/validation/scopes"
@@ -32,6 +33,12 @@ type jobListOptions struct {
 	queue    string
 	orderBy  string
 	limit    int
+}
+
+func (opts jobListOptions) withoutQueue() jobListOptions {
+	newOpts := opts
+	newOpts.queue = ""
+	return newOpts
 }
 
 func NewCmdJobList(f *factory.Factory) *cobra.Command {
@@ -112,13 +119,17 @@ func NewCmdJobList(f *factory.Factory) *cobra.Command {
 			var jobs []buildkite.Job
 
 			err = io.SpinWhile("Loading jobs", func() {
-				jobs, err = fetchJobs(cmd.Context(), f, org, opts, listOpts)
+				if opts.queue != "" {
+					jobs, err = fetchJobsWithQueueFilter(cmd.Context(), f, org, opts)
+				} else {
+					jobs, err = fetchJobs(cmd.Context(), f, org, opts, listOpts)
+				}
 			})
 			if err != nil {
 				return fmt.Errorf("failed to list jobs: %w", err)
 			}
 
-			if opts.queue != "" || len(opts.state) > 0 || opts.duration != "" {
+			if opts.queue == "" && (len(opts.state) > 0 || opts.duration != "") {
 				jobs, err = applyClientSideFilters(jobs, opts)
 				if err != nil {
 					return fmt.Errorf("failed to apply filters: %w", err)
@@ -208,6 +219,203 @@ func fetchJobs(ctx context.Context, f *factory.Factory, org string, opts jobList
 
 	return allJobs, nil
 }
+
+
+func fetchJobsWithQueueFilter(ctx context.Context, f *factory.Factory, org string, opts jobListOptions) ([]buildkite.Job, error) {
+	queueIDs, err := lookupQueueIDs(ctx, f, org, opts.queue)
+	if err != nil {
+		return nil, err
+	}
+	if len(queueIDs) == 0 {
+		return []buildkite.Job{}, nil
+	}
+
+	var jobs []buildkite.Job
+	var cursor *string
+	noQueueOpts := opts.withoutQueue()
+	
+	for len(jobs) < opts.limit {
+		jobBatch, nextCursor, hasNext, err := listJobsByQueue(ctx, f, org, queueIDs, cursor)
+		if err != nil {
+			return nil, err
+		}
+		if len(jobBatch) == 0 {
+			break
+		}
+
+		if len(noQueueOpts.state) > 0 || noQueueOpts.duration != "" {
+			jobBatch, err = applyClientSideFilters(jobBatch, noQueueOpts)
+			if err != nil {
+				return nil, fmt.Errorf("failed to apply filters: %w", err)
+			}
+		}
+		
+		for _, job := range jobBatch {
+			if len(jobs) >= opts.limit {
+				break
+			}
+			jobs = append(jobs, job)
+		}
+
+		if !hasNext {
+			break
+		}
+		cursor = nextCursor
+	}
+
+	return jobs, nil
+}
+
+func lookupQueueIDs(ctx context.Context, f *factory.Factory, org, queueName string) ([]string, error) {
+	resp, err := graphql.FindQueues(ctx, f.GraphQLClient, org)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find queues: %w", err)
+	}
+	return findMatchingQueues(resp, queueName), nil
+}
+
+func listJobsByQueue(ctx context.Context, f *factory.Factory, org string, queueIDs []string, cursor *string) ([]buildkite.Job, *string, bool, error) {
+	first := pageSize
+	resp, err := graphql.ListJobsByQueue(ctx, f.GraphQLClient, org, queueIDs, &first, cursor)
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("failed to list jobs: %w", err)
+	}
+
+	if resp.Organization == nil || resp.Organization.Jobs == nil {
+		return []buildkite.Job{}, nil, false, nil
+	}
+
+	var jobs []buildkite.Job
+	for _, edge := range resp.Organization.Jobs.Edges {
+		if edge.Node != nil {
+			jobs = append(jobs, convertGraphQLJobToBuildkiteJob(edge.Node))
+		}
+	}
+
+	hasMore := resp.Organization.Jobs.PageInfo != nil && resp.Organization.Jobs.PageInfo.HasNextPage
+	nextCursor := (*string)(nil)
+	if hasMore && resp.Organization.Jobs.PageInfo.EndCursor != nil {
+		nextCursor = resp.Organization.Jobs.PageInfo.EndCursor
+	}
+
+	return jobs, nextCursor, hasMore, nil
+}
+
+func findMatchingQueues(queuesResp *graphql.FindQueuesResponse, targetQueue string) []string {
+	if queuesResp.Organization == nil || queuesResp.Organization.Clusters == nil {
+		return nil
+	}
+
+	var matchingIDs []string
+	targetLower := strings.ToLower(targetQueue)
+
+	for _, clusterEdge := range queuesResp.Organization.Clusters.Edges {
+		if clusterEdge.Node == nil || clusterEdge.Node.Queues == nil {
+			continue
+		}
+		
+		for _, queueEdge := range clusterEdge.Node.Queues.Edges {
+			if queueEdge.Node != nil && strings.ToLower(queueEdge.Node.Key) == targetLower {
+				matchingIDs = append(matchingIDs, queueEdge.Node.Id)
+			}
+		}
+	}
+
+	return matchingIDs
+}
+
+func convertGraphQLJobToBuildkiteJob(jobNode *graphql.ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJob) buildkite.Job {
+	// Handle the union type - we only care about JobTypeCommand for now
+	switch job := (*jobNode).(type) {
+	case *graphql.ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand:
+		startedAt := convertTimestamp(job.StartedAt)
+		finishedAt := convertTimestamp(job.FinishedAt)
+		createdAt := convertTimestamp(job.CreatedAt)
+		agent := convertAgent(job.Agent)
+
+		// Build label (jobs don't have labels in GraphQL, so we use command or empty)
+		label := derefString(job.Command)
+
+		return buildkite.Job{
+			ID:              job.Id,
+			Type:            "script",
+			Name:            job.Uuid, // Use UUID as name
+			Label:           label,
+			Command:         derefString(job.Command),
+			State:           mapGraphQLState(string(job.State), derefString(job.ExitStatus)),
+			WebURL:          job.Url,
+			StartedAt:       startedAt,
+			FinishedAt:      finishedAt,
+			CreatedAt:       createdAt,
+			Agent:           agent,
+			AgentQueryRules: []string{}, // Empty for GraphQL jobs
+		}
+	default:
+		// For non-command jobs, return a minimal job struct
+		return buildkite.Job{
+			ID:    "unknown",
+			Type:  "unknown",
+			State: "unknown",
+		}
+	}
+}
+
+func convertTimestamp(t *time.Time) *buildkite.Timestamp {
+	if t == nil {
+		return nil
+	}
+	return &buildkite.Timestamp{Time: *t}
+}
+
+func convertAgent(agentNode *graphql.ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent) buildkite.Agent {
+	if agentNode == nil {
+		return buildkite.Agent{}
+	}
+	
+	return buildkite.Agent{
+		ID:       agentNode.Id,
+		Name:     agentNode.Name,
+		Hostname: derefString(agentNode.Hostname),
+		Metadata: agentNode.MetaData,
+	}
+}
+
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// mapGraphQLState converts GraphQL job states to REST API equivalent states
+func mapGraphQLState(graphqlState, exitStatus string) string {
+	switch graphqlState {
+	case "FINISHED":
+		// For finished jobs, determine success/failure based on exit status
+		if exitStatus == "0" {
+			return "passed"
+		}
+		return "failed"
+	case "RUNNING":
+		return "running"
+	case "SCHEDULED", "ASSIGNED", "ACCEPTED":
+		return "scheduled"
+	case "CANCELED", "CANCELING":
+		return "canceled"
+	case "TIMED_OUT", "TIMING_OUT":
+		return "timed_out"
+	case "SKIPPED":
+		return "skipped"
+	case "BLOCKED":
+		return "blocked"
+	case "WAITING":
+		return "waiting"
+	default:
+		// For unknown states, return lowercase version of GraphQL state
+		return strings.ToLower(graphqlState)
+	}
+}
+
 
 func jobListOptionsFromFlags(opts *jobListOptions) (*buildkite.BuildsListOptions, error) {
 	listOpts := &buildkite.BuildsListOptions{
