@@ -1,16 +1,35 @@
-query FindQueues($org: ID!) {
+query FindClusters($org: ID!, $cursor: String) {
   organization(slug: $org) {
-    clusters(first: 50) {
+    clusters(first: 100, after: $cursor) {
       edges {
         node {
-          queues(first: 50) {
-            edges {
-              node {
-                id
-                key
-              }
-            }
+          id
+          name
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+}
+
+query FindQueuesForCluster($clusterId: ID!, $cursor: String) {
+  node(id: $clusterId) {
+    ... on Cluster {
+      id
+      name
+      queues(first: 100, after: $cursor) {
+        edges {
+          node {
+            id
+            key
           }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
         }
       }
     }

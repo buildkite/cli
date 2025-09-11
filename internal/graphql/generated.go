@@ -76,94 +76,1568 @@ func (v *CancelJobResponse) GetJobTypeCommandCancel() *CancelJobJobTypeCommandCa
 	return v.JobTypeCommandCancel
 }
 
-// FindQueuesOrganization includes the requested fields of the GraphQL type Organization.
+// FindClustersOrganization includes the requested fields of the GraphQL type Organization.
 // The GraphQL type's documentation follows.
 //
 // An organization
-type FindQueuesOrganization struct {
+type FindClustersOrganization struct {
 	// Returns clusters for an Organization
-	Clusters *FindQueuesOrganizationClustersClusterConnection `json:"clusters"`
+	Clusters *FindClustersOrganizationClustersClusterConnection `json:"clusters"`
 }
 
-// GetClusters returns FindQueuesOrganization.Clusters, and is useful for accessing the field via an interface.
-func (v *FindQueuesOrganization) GetClusters() *FindQueuesOrganizationClustersClusterConnection {
+// GetClusters returns FindClustersOrganization.Clusters, and is useful for accessing the field via an interface.
+func (v *FindClustersOrganization) GetClusters() *FindClustersOrganizationClustersClusterConnection {
 	return v.Clusters
 }
 
-// FindQueuesOrganizationClustersClusterConnection includes the requested fields of the GraphQL type ClusterConnection.
-type FindQueuesOrganizationClustersClusterConnection struct {
-	Edges []*FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdge `json:"edges"`
+// FindClustersOrganizationClustersClusterConnection includes the requested fields of the GraphQL type ClusterConnection.
+type FindClustersOrganizationClustersClusterConnection struct {
+	Edges    []*FindClustersOrganizationClustersClusterConnectionEdgesClusterEdge `json:"edges"`
+	PageInfo *FindClustersOrganizationClustersClusterConnectionPageInfo           `json:"pageInfo"`
 }
 
-// GetEdges returns FindQueuesOrganizationClustersClusterConnection.Edges, and is useful for accessing the field via an interface.
-func (v *FindQueuesOrganizationClustersClusterConnection) GetEdges() []*FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdge {
+// GetEdges returns FindClustersOrganizationClustersClusterConnection.Edges, and is useful for accessing the field via an interface.
+func (v *FindClustersOrganizationClustersClusterConnection) GetEdges() []*FindClustersOrganizationClustersClusterConnectionEdgesClusterEdge {
 	return v.Edges
 }
 
-// FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdge includes the requested fields of the GraphQL type ClusterEdge.
-type FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdge struct {
-	Node *FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeCluster `json:"node"`
+// GetPageInfo returns FindClustersOrganizationClustersClusterConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *FindClustersOrganizationClustersClusterConnection) GetPageInfo() *FindClustersOrganizationClustersClusterConnectionPageInfo {
+	return v.PageInfo
 }
 
-// GetNode returns FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdge.Node, and is useful for accessing the field via an interface.
-func (v *FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdge) GetNode() *FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeCluster {
+// FindClustersOrganizationClustersClusterConnectionEdgesClusterEdge includes the requested fields of the GraphQL type ClusterEdge.
+type FindClustersOrganizationClustersClusterConnectionEdgesClusterEdge struct {
+	Node *FindClustersOrganizationClustersClusterConnectionEdgesClusterEdgeNodeCluster `json:"node"`
+}
+
+// GetNode returns FindClustersOrganizationClustersClusterConnectionEdgesClusterEdge.Node, and is useful for accessing the field via an interface.
+func (v *FindClustersOrganizationClustersClusterConnectionEdgesClusterEdge) GetNode() *FindClustersOrganizationClustersClusterConnectionEdgesClusterEdgeNodeCluster {
 	return v.Node
 }
 
-// FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeCluster includes the requested fields of the GraphQL type Cluster.
-type FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeCluster struct {
-	Queues *FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnection `json:"queues"`
+// FindClustersOrganizationClustersClusterConnectionEdgesClusterEdgeNodeCluster includes the requested fields of the GraphQL type Cluster.
+type FindClustersOrganizationClustersClusterConnectionEdgesClusterEdgeNodeCluster struct {
+	Id string `json:"id"`
+	// Name of the cluster
+	Name string `json:"name"`
 }
 
-// GetQueues returns FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeCluster.Queues, and is useful for accessing the field via an interface.
-func (v *FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeCluster) GetQueues() *FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnection {
+// GetId returns FindClustersOrganizationClustersClusterConnectionEdgesClusterEdgeNodeCluster.Id, and is useful for accessing the field via an interface.
+func (v *FindClustersOrganizationClustersClusterConnectionEdgesClusterEdgeNodeCluster) GetId() string {
+	return v.Id
+}
+
+// GetName returns FindClustersOrganizationClustersClusterConnectionEdgesClusterEdgeNodeCluster.Name, and is useful for accessing the field via an interface.
+func (v *FindClustersOrganizationClustersClusterConnectionEdgesClusterEdgeNodeCluster) GetName() string {
+	return v.Name
+}
+
+// FindClustersOrganizationClustersClusterConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+// The GraphQL type's documentation follows.
+//
+// Information about pagination in a connection.
+type FindClustersOrganizationClustersClusterConnectionPageInfo struct {
+	// When paginating forwards, are there more items?
+	HasNextPage bool `json:"hasNextPage"`
+	// When paginating forwards, the cursor to continue.
+	EndCursor *string `json:"endCursor"`
+}
+
+// GetHasNextPage returns FindClustersOrganizationClustersClusterConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *FindClustersOrganizationClustersClusterConnectionPageInfo) GetHasNextPage() bool {
+	return v.HasNextPage
+}
+
+// GetEndCursor returns FindClustersOrganizationClustersClusterConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *FindClustersOrganizationClustersClusterConnectionPageInfo) GetEndCursor() *string {
+	return v.EndCursor
+}
+
+// FindClustersResponse is returned by FindClusters on success.
+type FindClustersResponse struct {
+	// Find an organization
+	Organization *FindClustersOrganization `json:"organization"`
+}
+
+// GetOrganization returns FindClustersResponse.Organization, and is useful for accessing the field via an interface.
+func (v *FindClustersResponse) GetOrganization() *FindClustersOrganization { return v.Organization }
+
+// FindQueuesForClusterNode includes the requested fields of the GraphQL interface Node.
+//
+// FindQueuesForClusterNode is implemented by the following types:
+// FindQueuesForClusterNodeAPIAccessToken
+// FindQueuesForClusterNodeAPIAccessTokenCode
+// FindQueuesForClusterNodeAPIApplication
+// FindQueuesForClusterNodeAgent
+// FindQueuesForClusterNodeAgentToken
+// FindQueuesForClusterNodeAnnotation
+// FindQueuesForClusterNodeArtifact
+// FindQueuesForClusterNodeAuditEvent
+// FindQueuesForClusterNodeAuthorizationBitbucket
+// FindQueuesForClusterNodeAuthorizationGitHub
+// FindQueuesForClusterNodeAuthorizationGitHubApp
+// FindQueuesForClusterNodeAuthorizationGitHubEnterprise
+// FindQueuesForClusterNodeAuthorizationGoogle
+// FindQueuesForClusterNodeAuthorizationSAML
+// FindQueuesForClusterNodeBuild
+// FindQueuesForClusterNodeChangelog
+// FindQueuesForClusterNodeCluster
+// FindQueuesForClusterNodeClusterQueue
+// FindQueuesForClusterNodeClusterQueueToken
+// FindQueuesForClusterNodeClusterToken
+// FindQueuesForClusterNodeEmail
+// FindQueuesForClusterNodeJobEventAssigned
+// FindQueuesForClusterNodeJobEventBuildStepUploadCreated
+// FindQueuesForClusterNodeJobEventCanceled
+// FindQueuesForClusterNodeJobEventFinished
+// FindQueuesForClusterNodeJobEventGeneric
+// FindQueuesForClusterNodeJobEventRetried
+// FindQueuesForClusterNodeJobEventTimedOut
+// FindQueuesForClusterNodeJobTypeBlock
+// FindQueuesForClusterNodeJobTypeCommand
+// FindQueuesForClusterNodeJobTypeTrigger
+// FindQueuesForClusterNodeJobTypeWait
+// FindQueuesForClusterNodeNotificationServiceSlack
+// FindQueuesForClusterNodeOrganization
+// FindQueuesForClusterNodeOrganizationBanner
+// FindQueuesForClusterNodeOrganizationInvitation
+// FindQueuesForClusterNodeOrganizationMember
+// FindQueuesForClusterNodePipeline
+// FindQueuesForClusterNodePipelineMetric
+// FindQueuesForClusterNodePipelineSchedule
+// FindQueuesForClusterNodePipelineTemplate
+// FindQueuesForClusterNodeSSOProviderGitHubApp
+// FindQueuesForClusterNodeSSOProviderGoogleGSuite
+// FindQueuesForClusterNodeSSOProviderSAML
+// FindQueuesForClusterNodeSecret
+// FindQueuesForClusterNodeSuite
+// FindQueuesForClusterNodeTeam
+// FindQueuesForClusterNodeTeamMember
+// FindQueuesForClusterNodeTeamPipeline
+// FindQueuesForClusterNodeTeamSuite
+// FindQueuesForClusterNodeUser
+// FindQueuesForClusterNodeViewer
+// The GraphQL type's documentation follows.
+//
+// An object with an ID.
+type FindQueuesForClusterNode interface {
+	implementsGraphQLInterfaceFindQueuesForClusterNode()
+	// GetTypename returns the receiver's concrete GraphQL type-name (see interface doc for possible values).
+	GetTypename() *string
+}
+
+func (v *FindQueuesForClusterNodeAPIAccessToken) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeAPIAccessTokenCode) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeAPIApplication) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeAgent) implementsGraphQLInterfaceFindQueuesForClusterNode()      {}
+func (v *FindQueuesForClusterNodeAgentToken) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+func (v *FindQueuesForClusterNodeAnnotation) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+func (v *FindQueuesForClusterNodeArtifact) implementsGraphQLInterfaceFindQueuesForClusterNode()   {}
+func (v *FindQueuesForClusterNodeAuditEvent) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+func (v *FindQueuesForClusterNodeAuthorizationBitbucket) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeAuthorizationGitHub) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeAuthorizationGitHubApp) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeAuthorizationGitHubEnterprise) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeAuthorizationGoogle) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeAuthorizationSAML) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeBuild) implementsGraphQLInterfaceFindQueuesForClusterNode()        {}
+func (v *FindQueuesForClusterNodeChangelog) implementsGraphQLInterfaceFindQueuesForClusterNode()    {}
+func (v *FindQueuesForClusterNodeCluster) implementsGraphQLInterfaceFindQueuesForClusterNode()      {}
+func (v *FindQueuesForClusterNodeClusterQueue) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+func (v *FindQueuesForClusterNodeClusterQueueToken) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeClusterToken) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+func (v *FindQueuesForClusterNodeEmail) implementsGraphQLInterfaceFindQueuesForClusterNode()        {}
+func (v *FindQueuesForClusterNodeJobEventAssigned) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeJobEventBuildStepUploadCreated) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeJobEventCanceled) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeJobEventFinished) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeJobEventGeneric) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeJobEventRetried) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeJobEventTimedOut) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeJobTypeBlock) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+func (v *FindQueuesForClusterNodeJobTypeCommand) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeJobTypeTrigger) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeJobTypeWait) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+func (v *FindQueuesForClusterNodeNotificationServiceSlack) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeOrganization) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+func (v *FindQueuesForClusterNodeOrganizationBanner) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeOrganizationInvitation) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeOrganizationMember) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodePipeline) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+func (v *FindQueuesForClusterNodePipelineMetric) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodePipelineSchedule) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodePipelineTemplate) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeSSOProviderGitHubApp) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeSSOProviderGoogleGSuite) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeSSOProviderSAML) implementsGraphQLInterfaceFindQueuesForClusterNode() {
+}
+func (v *FindQueuesForClusterNodeSecret) implementsGraphQLInterfaceFindQueuesForClusterNode()       {}
+func (v *FindQueuesForClusterNodeSuite) implementsGraphQLInterfaceFindQueuesForClusterNode()        {}
+func (v *FindQueuesForClusterNodeTeam) implementsGraphQLInterfaceFindQueuesForClusterNode()         {}
+func (v *FindQueuesForClusterNodeTeamMember) implementsGraphQLInterfaceFindQueuesForClusterNode()   {}
+func (v *FindQueuesForClusterNodeTeamPipeline) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+func (v *FindQueuesForClusterNodeTeamSuite) implementsGraphQLInterfaceFindQueuesForClusterNode()    {}
+func (v *FindQueuesForClusterNodeUser) implementsGraphQLInterfaceFindQueuesForClusterNode()         {}
+func (v *FindQueuesForClusterNodeViewer) implementsGraphQLInterfaceFindQueuesForClusterNode()       {}
+
+func __unmarshalFindQueuesForClusterNode(b []byte, v *FindQueuesForClusterNode) error {
+	if string(b) == "null" {
+		return nil
+	}
+
+	var tn struct {
+		TypeName string `json:"__typename"`
+	}
+	err := json.Unmarshal(b, &tn)
+	if err != nil {
+		return err
+	}
+
+	switch tn.TypeName {
+	case "APIAccessToken":
+		*v = new(FindQueuesForClusterNodeAPIAccessToken)
+		return json.Unmarshal(b, *v)
+	case "APIAccessTokenCode":
+		*v = new(FindQueuesForClusterNodeAPIAccessTokenCode)
+		return json.Unmarshal(b, *v)
+	case "APIApplication":
+		*v = new(FindQueuesForClusterNodeAPIApplication)
+		return json.Unmarshal(b, *v)
+	case "Agent":
+		*v = new(FindQueuesForClusterNodeAgent)
+		return json.Unmarshal(b, *v)
+	case "AgentToken":
+		*v = new(FindQueuesForClusterNodeAgentToken)
+		return json.Unmarshal(b, *v)
+	case "Annotation":
+		*v = new(FindQueuesForClusterNodeAnnotation)
+		return json.Unmarshal(b, *v)
+	case "Artifact":
+		*v = new(FindQueuesForClusterNodeArtifact)
+		return json.Unmarshal(b, *v)
+	case "AuditEvent":
+		*v = new(FindQueuesForClusterNodeAuditEvent)
+		return json.Unmarshal(b, *v)
+	case "AuthorizationBitbucket":
+		*v = new(FindQueuesForClusterNodeAuthorizationBitbucket)
+		return json.Unmarshal(b, *v)
+	case "AuthorizationGitHub":
+		*v = new(FindQueuesForClusterNodeAuthorizationGitHub)
+		return json.Unmarshal(b, *v)
+	case "AuthorizationGitHubApp":
+		*v = new(FindQueuesForClusterNodeAuthorizationGitHubApp)
+		return json.Unmarshal(b, *v)
+	case "AuthorizationGitHubEnterprise":
+		*v = new(FindQueuesForClusterNodeAuthorizationGitHubEnterprise)
+		return json.Unmarshal(b, *v)
+	case "AuthorizationGoogle":
+		*v = new(FindQueuesForClusterNodeAuthorizationGoogle)
+		return json.Unmarshal(b, *v)
+	case "AuthorizationSAML":
+		*v = new(FindQueuesForClusterNodeAuthorizationSAML)
+		return json.Unmarshal(b, *v)
+	case "Build":
+		*v = new(FindQueuesForClusterNodeBuild)
+		return json.Unmarshal(b, *v)
+	case "Changelog":
+		*v = new(FindQueuesForClusterNodeChangelog)
+		return json.Unmarshal(b, *v)
+	case "Cluster":
+		*v = new(FindQueuesForClusterNodeCluster)
+		return json.Unmarshal(b, *v)
+	case "ClusterQueue":
+		*v = new(FindQueuesForClusterNodeClusterQueue)
+		return json.Unmarshal(b, *v)
+	case "ClusterQueueToken":
+		*v = new(FindQueuesForClusterNodeClusterQueueToken)
+		return json.Unmarshal(b, *v)
+	case "ClusterToken":
+		*v = new(FindQueuesForClusterNodeClusterToken)
+		return json.Unmarshal(b, *v)
+	case "Email":
+		*v = new(FindQueuesForClusterNodeEmail)
+		return json.Unmarshal(b, *v)
+	case "JobEventAssigned":
+		*v = new(FindQueuesForClusterNodeJobEventAssigned)
+		return json.Unmarshal(b, *v)
+	case "JobEventBuildStepUploadCreated":
+		*v = new(FindQueuesForClusterNodeJobEventBuildStepUploadCreated)
+		return json.Unmarshal(b, *v)
+	case "JobEventCanceled":
+		*v = new(FindQueuesForClusterNodeJobEventCanceled)
+		return json.Unmarshal(b, *v)
+	case "JobEventFinished":
+		*v = new(FindQueuesForClusterNodeJobEventFinished)
+		return json.Unmarshal(b, *v)
+	case "JobEventGeneric":
+		*v = new(FindQueuesForClusterNodeJobEventGeneric)
+		return json.Unmarshal(b, *v)
+	case "JobEventRetried":
+		*v = new(FindQueuesForClusterNodeJobEventRetried)
+		return json.Unmarshal(b, *v)
+	case "JobEventTimedOut":
+		*v = new(FindQueuesForClusterNodeJobEventTimedOut)
+		return json.Unmarshal(b, *v)
+	case "JobTypeBlock":
+		*v = new(FindQueuesForClusterNodeJobTypeBlock)
+		return json.Unmarshal(b, *v)
+	case "JobTypeCommand":
+		*v = new(FindQueuesForClusterNodeJobTypeCommand)
+		return json.Unmarshal(b, *v)
+	case "JobTypeTrigger":
+		*v = new(FindQueuesForClusterNodeJobTypeTrigger)
+		return json.Unmarshal(b, *v)
+	case "JobTypeWait":
+		*v = new(FindQueuesForClusterNodeJobTypeWait)
+		return json.Unmarshal(b, *v)
+	case "NotificationServiceSlack":
+		*v = new(FindQueuesForClusterNodeNotificationServiceSlack)
+		return json.Unmarshal(b, *v)
+	case "Organization":
+		*v = new(FindQueuesForClusterNodeOrganization)
+		return json.Unmarshal(b, *v)
+	case "OrganizationBanner":
+		*v = new(FindQueuesForClusterNodeOrganizationBanner)
+		return json.Unmarshal(b, *v)
+	case "OrganizationInvitation":
+		*v = new(FindQueuesForClusterNodeOrganizationInvitation)
+		return json.Unmarshal(b, *v)
+	case "OrganizationMember":
+		*v = new(FindQueuesForClusterNodeOrganizationMember)
+		return json.Unmarshal(b, *v)
+	case "Pipeline":
+		*v = new(FindQueuesForClusterNodePipeline)
+		return json.Unmarshal(b, *v)
+	case "PipelineMetric":
+		*v = new(FindQueuesForClusterNodePipelineMetric)
+		return json.Unmarshal(b, *v)
+	case "PipelineSchedule":
+		*v = new(FindQueuesForClusterNodePipelineSchedule)
+		return json.Unmarshal(b, *v)
+	case "PipelineTemplate":
+		*v = new(FindQueuesForClusterNodePipelineTemplate)
+		return json.Unmarshal(b, *v)
+	case "SSOProviderGitHubApp":
+		*v = new(FindQueuesForClusterNodeSSOProviderGitHubApp)
+		return json.Unmarshal(b, *v)
+	case "SSOProviderGoogleGSuite":
+		*v = new(FindQueuesForClusterNodeSSOProviderGoogleGSuite)
+		return json.Unmarshal(b, *v)
+	case "SSOProviderSAML":
+		*v = new(FindQueuesForClusterNodeSSOProviderSAML)
+		return json.Unmarshal(b, *v)
+	case "Secret":
+		*v = new(FindQueuesForClusterNodeSecret)
+		return json.Unmarshal(b, *v)
+	case "Suite":
+		*v = new(FindQueuesForClusterNodeSuite)
+		return json.Unmarshal(b, *v)
+	case "Team":
+		*v = new(FindQueuesForClusterNodeTeam)
+		return json.Unmarshal(b, *v)
+	case "TeamMember":
+		*v = new(FindQueuesForClusterNodeTeamMember)
+		return json.Unmarshal(b, *v)
+	case "TeamPipeline":
+		*v = new(FindQueuesForClusterNodeTeamPipeline)
+		return json.Unmarshal(b, *v)
+	case "TeamSuite":
+		*v = new(FindQueuesForClusterNodeTeamSuite)
+		return json.Unmarshal(b, *v)
+	case "User":
+		*v = new(FindQueuesForClusterNodeUser)
+		return json.Unmarshal(b, *v)
+	case "Viewer":
+		*v = new(FindQueuesForClusterNodeViewer)
+		return json.Unmarshal(b, *v)
+	case "":
+		return fmt.Errorf(
+			"response was missing Node.__typename")
+	default:
+		return fmt.Errorf(
+			`unexpected concrete type for FindQueuesForClusterNode: "%v"`, tn.TypeName)
+	}
+}
+
+func __marshalFindQueuesForClusterNode(v *FindQueuesForClusterNode) ([]byte, error) {
+
+	var typename string
+	switch v := (*v).(type) {
+	case *FindQueuesForClusterNodeAPIAccessToken:
+		typename = "APIAccessToken"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeAPIAccessToken
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeAPIAccessTokenCode:
+		typename = "APIAccessTokenCode"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeAPIAccessTokenCode
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeAPIApplication:
+		typename = "APIApplication"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeAPIApplication
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeAgent:
+		typename = "Agent"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeAgent
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeAgentToken:
+		typename = "AgentToken"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeAgentToken
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeAnnotation:
+		typename = "Annotation"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeAnnotation
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeArtifact:
+		typename = "Artifact"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeArtifact
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeAuditEvent:
+		typename = "AuditEvent"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeAuditEvent
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeAuthorizationBitbucket:
+		typename = "AuthorizationBitbucket"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeAuthorizationBitbucket
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeAuthorizationGitHub:
+		typename = "AuthorizationGitHub"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeAuthorizationGitHub
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeAuthorizationGitHubApp:
+		typename = "AuthorizationGitHubApp"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeAuthorizationGitHubApp
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeAuthorizationGitHubEnterprise:
+		typename = "AuthorizationGitHubEnterprise"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeAuthorizationGitHubEnterprise
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeAuthorizationGoogle:
+		typename = "AuthorizationGoogle"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeAuthorizationGoogle
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeAuthorizationSAML:
+		typename = "AuthorizationSAML"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeAuthorizationSAML
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeBuild:
+		typename = "Build"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeBuild
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeChangelog:
+		typename = "Changelog"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeChangelog
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeCluster:
+		typename = "Cluster"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeCluster
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeClusterQueue:
+		typename = "ClusterQueue"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeClusterQueue
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeClusterQueueToken:
+		typename = "ClusterQueueToken"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeClusterQueueToken
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeClusterToken:
+		typename = "ClusterToken"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeClusterToken
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeEmail:
+		typename = "Email"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeEmail
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeJobEventAssigned:
+		typename = "JobEventAssigned"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeJobEventAssigned
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeJobEventBuildStepUploadCreated:
+		typename = "JobEventBuildStepUploadCreated"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeJobEventBuildStepUploadCreated
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeJobEventCanceled:
+		typename = "JobEventCanceled"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeJobEventCanceled
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeJobEventFinished:
+		typename = "JobEventFinished"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeJobEventFinished
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeJobEventGeneric:
+		typename = "JobEventGeneric"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeJobEventGeneric
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeJobEventRetried:
+		typename = "JobEventRetried"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeJobEventRetried
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeJobEventTimedOut:
+		typename = "JobEventTimedOut"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeJobEventTimedOut
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeJobTypeBlock:
+		typename = "JobTypeBlock"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeJobTypeBlock
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeJobTypeCommand:
+		typename = "JobTypeCommand"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeJobTypeCommand
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeJobTypeTrigger:
+		typename = "JobTypeTrigger"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeJobTypeTrigger
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeJobTypeWait:
+		typename = "JobTypeWait"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeJobTypeWait
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeNotificationServiceSlack:
+		typename = "NotificationServiceSlack"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeNotificationServiceSlack
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeOrganization:
+		typename = "Organization"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeOrganization
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeOrganizationBanner:
+		typename = "OrganizationBanner"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeOrganizationBanner
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeOrganizationInvitation:
+		typename = "OrganizationInvitation"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeOrganizationInvitation
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeOrganizationMember:
+		typename = "OrganizationMember"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeOrganizationMember
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodePipeline:
+		typename = "Pipeline"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodePipeline
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodePipelineMetric:
+		typename = "PipelineMetric"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodePipelineMetric
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodePipelineSchedule:
+		typename = "PipelineSchedule"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodePipelineSchedule
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodePipelineTemplate:
+		typename = "PipelineTemplate"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodePipelineTemplate
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeSSOProviderGitHubApp:
+		typename = "SSOProviderGitHubApp"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeSSOProviderGitHubApp
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeSSOProviderGoogleGSuite:
+		typename = "SSOProviderGoogleGSuite"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeSSOProviderGoogleGSuite
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeSSOProviderSAML:
+		typename = "SSOProviderSAML"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeSSOProviderSAML
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeSecret:
+		typename = "Secret"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeSecret
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeSuite:
+		typename = "Suite"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeSuite
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeTeam:
+		typename = "Team"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeTeam
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeTeamMember:
+		typename = "TeamMember"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeTeamMember
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeTeamPipeline:
+		typename = "TeamPipeline"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeTeamPipeline
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeTeamSuite:
+		typename = "TeamSuite"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeTeamSuite
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeUser:
+		typename = "User"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeUser
+		}{typename, v}
+		return json.Marshal(result)
+	case *FindQueuesForClusterNodeViewer:
+		typename = "Viewer"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FindQueuesForClusterNodeViewer
+		}{typename, v}
+		return json.Marshal(result)
+	case nil:
+		return []byte("null"), nil
+	default:
+		return nil, fmt.Errorf(
+			`unexpected concrete type for FindQueuesForClusterNode: "%T"`, v)
+	}
+}
+
+// FindQueuesForClusterNodeAPIAccessToken includes the requested fields of the GraphQL type APIAccessToken.
+// The GraphQL type's documentation follows.
+//
+// API access tokens for authentication with the Buildkite API
+type FindQueuesForClusterNodeAPIAccessToken struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeAPIAccessToken.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeAPIAccessToken) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeAPIAccessTokenCode includes the requested fields of the GraphQL type APIAccessTokenCode.
+// The GraphQL type's documentation follows.
+//
+// A code that is used by an API Application to request an API Access Token
+type FindQueuesForClusterNodeAPIAccessTokenCode struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeAPIAccessTokenCode.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeAPIAccessTokenCode) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeAPIApplication includes the requested fields of the GraphQL type APIApplication.
+// The GraphQL type's documentation follows.
+//
+// An API Application
+type FindQueuesForClusterNodeAPIApplication struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeAPIApplication.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeAPIApplication) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeAgent includes the requested fields of the GraphQL type Agent.
+// The GraphQL type's documentation follows.
+//
+// An agent
+type FindQueuesForClusterNodeAgent struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeAgent.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeAgent) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeAgentToken includes the requested fields of the GraphQL type AgentToken.
+// The GraphQL type's documentation follows.
+//
+// A token used to connect an agent to Buildkite
+type FindQueuesForClusterNodeAgentToken struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeAgentToken.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeAgentToken) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeAnnotation includes the requested fields of the GraphQL type Annotation.
+// The GraphQL type's documentation follows.
+//
+// An annotation allows you to add arbitrary content to the top of a build page in the Buildkite UI
+type FindQueuesForClusterNodeAnnotation struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeAnnotation.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeAnnotation) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeArtifact includes the requested fields of the GraphQL type Artifact.
+// The GraphQL type's documentation follows.
+//
+// A file uploaded from the agent whilst running a job
+type FindQueuesForClusterNodeArtifact struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeArtifact.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeArtifact) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeAuditEvent includes the requested fields of the GraphQL type AuditEvent.
+// The GraphQL type's documentation follows.
+//
+// Audit record of an event which occurred in the system
+type FindQueuesForClusterNodeAuditEvent struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeAuditEvent.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeAuditEvent) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeAuthorizationBitbucket includes the requested fields of the GraphQL type AuthorizationBitbucket.
+// The GraphQL type's documentation follows.
+//
+// A Bitbucket account authorized with a Buildkite account
+type FindQueuesForClusterNodeAuthorizationBitbucket struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeAuthorizationBitbucket.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeAuthorizationBitbucket) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeAuthorizationGitHub includes the requested fields of the GraphQL type AuthorizationGitHub.
+// The GraphQL type's documentation follows.
+//
+// A GitHub account authorized with a Buildkite account
+type FindQueuesForClusterNodeAuthorizationGitHub struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeAuthorizationGitHub.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeAuthorizationGitHub) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeAuthorizationGitHubApp includes the requested fields of the GraphQL type AuthorizationGitHubApp.
+// The GraphQL type's documentation follows.
+//
+// A GitHub app authorized with a Buildkite account
+type FindQueuesForClusterNodeAuthorizationGitHubApp struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeAuthorizationGitHubApp.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeAuthorizationGitHubApp) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeAuthorizationGitHubEnterprise includes the requested fields of the GraphQL type AuthorizationGitHubEnterprise.
+// The GraphQL type's documentation follows.
+//
+// A GitHub Enterprise account authorized with a Buildkite account
+type FindQueuesForClusterNodeAuthorizationGitHubEnterprise struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeAuthorizationGitHubEnterprise.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeAuthorizationGitHubEnterprise) GetTypename() *string {
+	return v.Typename
+}
+
+// FindQueuesForClusterNodeAuthorizationGoogle includes the requested fields of the GraphQL type AuthorizationGoogle.
+// The GraphQL type's documentation follows.
+//
+// A Google account authorized with a Buildkite account
+type FindQueuesForClusterNodeAuthorizationGoogle struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeAuthorizationGoogle.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeAuthorizationGoogle) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeAuthorizationSAML includes the requested fields of the GraphQL type AuthorizationSAML.
+// The GraphQL type's documentation follows.
+//
+// A SAML account authorized with a Buildkite account
+type FindQueuesForClusterNodeAuthorizationSAML struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeAuthorizationSAML.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeAuthorizationSAML) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeBuild includes the requested fields of the GraphQL type Build.
+// The GraphQL type's documentation follows.
+//
+// A build from a pipeline
+type FindQueuesForClusterNodeBuild struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeBuild.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeBuild) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeChangelog includes the requested fields of the GraphQL type Changelog.
+// The GraphQL type's documentation follows.
+//
+// A changelog
+type FindQueuesForClusterNodeChangelog struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeChangelog.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeChangelog) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeCluster includes the requested fields of the GraphQL type Cluster.
+type FindQueuesForClusterNodeCluster struct {
+	Typename *string `json:"__typename"`
+	Id       string  `json:"id"`
+	// Name of the cluster
+	Name   string                                                       `json:"name"`
+	Queues *FindQueuesForClusterNodeClusterQueuesClusterQueueConnection `json:"queues"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeCluster.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeCluster) GetTypename() *string { return v.Typename }
+
+// GetId returns FindQueuesForClusterNodeCluster.Id, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeCluster) GetId() string { return v.Id }
+
+// GetName returns FindQueuesForClusterNodeCluster.Name, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeCluster) GetName() string { return v.Name }
+
+// GetQueues returns FindQueuesForClusterNodeCluster.Queues, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeCluster) GetQueues() *FindQueuesForClusterNodeClusterQueuesClusterQueueConnection {
 	return v.Queues
 }
 
-// FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnection includes the requested fields of the GraphQL type ClusterQueueConnection.
-type FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnection struct {
-	Edges []*FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdge `json:"edges"`
+// FindQueuesForClusterNodeClusterQueue includes the requested fields of the GraphQL type ClusterQueue.
+type FindQueuesForClusterNodeClusterQueue struct {
+	Typename *string `json:"__typename"`
 }
 
-// GetEdges returns FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnection.Edges, and is useful for accessing the field via an interface.
-func (v *FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnection) GetEdges() []*FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdge {
+// GetTypename returns FindQueuesForClusterNodeClusterQueue.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeClusterQueue) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeClusterQueueToken includes the requested fields of the GraphQL type ClusterQueueToken.
+// The GraphQL type's documentation follows.
+//
+// A token used to register an agent with a Buildkite cluster queue
+type FindQueuesForClusterNodeClusterQueueToken struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeClusterQueueToken.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeClusterQueueToken) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeClusterQueuesClusterQueueConnection includes the requested fields of the GraphQL type ClusterQueueConnection.
+type FindQueuesForClusterNodeClusterQueuesClusterQueueConnection struct {
+	Edges    []*FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdge `json:"edges"`
+	PageInfo *FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionPageInfo                `json:"pageInfo"`
+}
+
+// GetEdges returns FindQueuesForClusterNodeClusterQueuesClusterQueueConnection.Edges, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeClusterQueuesClusterQueueConnection) GetEdges() []*FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdge {
 	return v.Edges
 }
 
-// FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdge includes the requested fields of the GraphQL type ClusterQueueEdge.
-type FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdge struct {
-	Node *FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue `json:"node"`
+// GetPageInfo returns FindQueuesForClusterNodeClusterQueuesClusterQueueConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeClusterQueuesClusterQueueConnection) GetPageInfo() *FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionPageInfo {
+	return v.PageInfo
 }
 
-// GetNode returns FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdge.Node, and is useful for accessing the field via an interface.
-func (v *FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdge) GetNode() *FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue {
+// FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdge includes the requested fields of the GraphQL type ClusterQueueEdge.
+type FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdge struct {
+	Node *FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue `json:"node"`
+}
+
+// GetNode returns FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdge.Node, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdge) GetNode() *FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue {
 	return v.Node
 }
 
-// FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue includes the requested fields of the GraphQL type ClusterQueue.
-type FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue struct {
+// FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue includes the requested fields of the GraphQL type ClusterQueue.
+type FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue struct {
 	Id  string `json:"id"`
 	Key string `json:"key"`
 }
 
-// GetId returns FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue.Id, and is useful for accessing the field via an interface.
-func (v *FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue) GetId() string {
+// GetId returns FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue.Id, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue) GetId() string {
 	return v.Id
 }
 
-// GetKey returns FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue.Key, and is useful for accessing the field via an interface.
-func (v *FindQueuesOrganizationClustersClusterConnectionEdgesClusterEdgeNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue) GetKey() string {
+// GetKey returns FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue.Key, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionEdgesClusterQueueEdgeNodeClusterQueue) GetKey() string {
 	return v.Key
 }
 
-// FindQueuesResponse is returned by FindQueues on success.
-type FindQueuesResponse struct {
-	// Find an organization
-	Organization *FindQueuesOrganization `json:"organization"`
+// FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+// The GraphQL type's documentation follows.
+//
+// Information about pagination in a connection.
+type FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionPageInfo struct {
+	// When paginating forwards, are there more items?
+	HasNextPage bool `json:"hasNextPage"`
+	// When paginating forwards, the cursor to continue.
+	EndCursor *string `json:"endCursor"`
 }
 
-// GetOrganization returns FindQueuesResponse.Organization, and is useful for accessing the field via an interface.
-func (v *FindQueuesResponse) GetOrganization() *FindQueuesOrganization { return v.Organization }
+// GetHasNextPage returns FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionPageInfo) GetHasNextPage() bool {
+	return v.HasNextPage
+}
+
+// GetEndCursor returns FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeClusterQueuesClusterQueueConnectionPageInfo) GetEndCursor() *string {
+	return v.EndCursor
+}
+
+// FindQueuesForClusterNodeClusterToken includes the requested fields of the GraphQL type ClusterToken.
+// The GraphQL type's documentation follows.
+//
+// A token used to connect an agent in cluster to Buildkite
+type FindQueuesForClusterNodeClusterToken struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeClusterToken.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeClusterToken) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeEmail includes the requested fields of the GraphQL type Email.
+// The GraphQL type's documentation follows.
+//
+// An email address
+type FindQueuesForClusterNodeEmail struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeEmail.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeEmail) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeJobEventAssigned includes the requested fields of the GraphQL type JobEventAssigned.
+// The GraphQL type's documentation follows.
+//
+// An event created when the dispatcher assigns the job to an agent
+type FindQueuesForClusterNodeJobEventAssigned struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeJobEventAssigned.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeJobEventAssigned) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeJobEventBuildStepUploadCreated includes the requested fields of the GraphQL type JobEventBuildStepUploadCreated.
+// The GraphQL type's documentation follows.
+//
+// An event created when the job creates new build steps via pipeline upload
+type FindQueuesForClusterNodeJobEventBuildStepUploadCreated struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeJobEventBuildStepUploadCreated.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeJobEventBuildStepUploadCreated) GetTypename() *string {
+	return v.Typename
+}
+
+// FindQueuesForClusterNodeJobEventCanceled includes the requested fields of the GraphQL type JobEventCanceled.
+// The GraphQL type's documentation follows.
+//
+// An event created when the job is canceled
+type FindQueuesForClusterNodeJobEventCanceled struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeJobEventCanceled.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeJobEventCanceled) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeJobEventFinished includes the requested fields of the GraphQL type JobEventFinished.
+// The GraphQL type's documentation follows.
+//
+// An event created when the job is finished
+type FindQueuesForClusterNodeJobEventFinished struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeJobEventFinished.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeJobEventFinished) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeJobEventGeneric includes the requested fields of the GraphQL type JobEventGeneric.
+// The GraphQL type's documentation follows.
+//
+// A generic event type that doesn't have any additional meta-information associated with the event
+type FindQueuesForClusterNodeJobEventGeneric struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeJobEventGeneric.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeJobEventGeneric) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeJobEventRetried includes the requested fields of the GraphQL type JobEventRetried.
+// The GraphQL type's documentation follows.
+//
+// An event created when the job is retried
+type FindQueuesForClusterNodeJobEventRetried struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeJobEventRetried.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeJobEventRetried) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeJobEventTimedOut includes the requested fields of the GraphQL type JobEventTimedOut.
+// The GraphQL type's documentation follows.
+//
+// An event created when the job is timed out
+type FindQueuesForClusterNodeJobEventTimedOut struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeJobEventTimedOut.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeJobEventTimedOut) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeJobTypeBlock includes the requested fields of the GraphQL type JobTypeBlock.
+// The GraphQL type's documentation follows.
+//
+// A type of job that requires a user to unblock it before proceeding in a build pipeline
+type FindQueuesForClusterNodeJobTypeBlock struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeJobTypeBlock.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeJobTypeBlock) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeJobTypeCommand includes the requested fields of the GraphQL type JobTypeCommand.
+// The GraphQL type's documentation follows.
+//
+// A type of job that runs a command on an agent
+type FindQueuesForClusterNodeJobTypeCommand struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeJobTypeCommand.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeJobTypeCommand) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeJobTypeTrigger includes the requested fields of the GraphQL type JobTypeTrigger.
+// The GraphQL type's documentation follows.
+//
+// A type of job that triggers another build on a pipeline
+type FindQueuesForClusterNodeJobTypeTrigger struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeJobTypeTrigger.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeJobTypeTrigger) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeJobTypeWait includes the requested fields of the GraphQL type JobTypeWait.
+// The GraphQL type's documentation follows.
+//
+// A type of job that waits for all previous jobs to pass before proceeding the build pipeline
+type FindQueuesForClusterNodeJobTypeWait struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeJobTypeWait.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeJobTypeWait) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeNotificationServiceSlack includes the requested fields of the GraphQL type NotificationServiceSlack.
+// The GraphQL type's documentation follows.
+//
+// Deliver notifications to Slack
+type FindQueuesForClusterNodeNotificationServiceSlack struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeNotificationServiceSlack.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeNotificationServiceSlack) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeOrganization includes the requested fields of the GraphQL type Organization.
+// The GraphQL type's documentation follows.
+//
+// An organization
+type FindQueuesForClusterNodeOrganization struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeOrganization.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeOrganization) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeOrganizationBanner includes the requested fields of the GraphQL type OrganizationBanner.
+// The GraphQL type's documentation follows.
+//
+// System banner of an organization
+type FindQueuesForClusterNodeOrganizationBanner struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeOrganizationBanner.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeOrganizationBanner) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeOrganizationInvitation includes the requested fields of the GraphQL type OrganizationInvitation.
+// The GraphQL type's documentation follows.
+//
+// A pending invitation to a user to join this organization
+type FindQueuesForClusterNodeOrganizationInvitation struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeOrganizationInvitation.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeOrganizationInvitation) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeOrganizationMember includes the requested fields of the GraphQL type OrganizationMember.
+// The GraphQL type's documentation follows.
+//
+// A member of an organization
+type FindQueuesForClusterNodeOrganizationMember struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeOrganizationMember.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeOrganizationMember) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodePipeline includes the requested fields of the GraphQL type Pipeline.
+// The GraphQL type's documentation follows.
+//
+// A pipeline
+type FindQueuesForClusterNodePipeline struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodePipeline.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodePipeline) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodePipelineMetric includes the requested fields of the GraphQL type PipelineMetric.
+// The GraphQL type's documentation follows.
+//
+// A metric for a pipeline
+type FindQueuesForClusterNodePipelineMetric struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodePipelineMetric.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodePipelineMetric) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodePipelineSchedule includes the requested fields of the GraphQL type PipelineSchedule.
+// The GraphQL type's documentation follows.
+//
+// A schedule of when a build should automatically triggered for a Pipeline
+type FindQueuesForClusterNodePipelineSchedule struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodePipelineSchedule.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodePipelineSchedule) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodePipelineTemplate includes the requested fields of the GraphQL type PipelineTemplate.
+// The GraphQL type's documentation follows.
+//
+// A template defining a fixed step configuration for a pipeline
+type FindQueuesForClusterNodePipelineTemplate struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodePipelineTemplate.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodePipelineTemplate) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeSSOProviderGitHubApp includes the requested fields of the GraphQL type SSOProviderGitHubApp.
+// The GraphQL type's documentation follows.
+//
+// Single sign-on provided by GitHub
+type FindQueuesForClusterNodeSSOProviderGitHubApp struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeSSOProviderGitHubApp.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeSSOProviderGitHubApp) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeSSOProviderGoogleGSuite includes the requested fields of the GraphQL type SSOProviderGoogleGSuite.
+// The GraphQL type's documentation follows.
+//
+// Single sign-on provided by Google
+type FindQueuesForClusterNodeSSOProviderGoogleGSuite struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeSSOProviderGoogleGSuite.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeSSOProviderGoogleGSuite) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeSSOProviderSAML includes the requested fields of the GraphQL type SSOProviderSAML.
+// The GraphQL type's documentation follows.
+//
+// Single sign-on provided via SAML
+type FindQueuesForClusterNodeSSOProviderSAML struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeSSOProviderSAML.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeSSOProviderSAML) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeSecret includes the requested fields of the GraphQL type Secret.
+// The GraphQL type's documentation follows.
+//
+// A secret hosted by Buildkite. This does not contain the secret value or encrypted material.
+type FindQueuesForClusterNodeSecret struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeSecret.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeSecret) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeSuite includes the requested fields of the GraphQL type Suite.
+// The GraphQL type's documentation follows.
+//
+// A suite
+type FindQueuesForClusterNodeSuite struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeSuite.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeSuite) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeTeam includes the requested fields of the GraphQL type Team.
+// The GraphQL type's documentation follows.
+//
+// An organization team
+type FindQueuesForClusterNodeTeam struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeTeam.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeTeam) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeTeamMember includes the requested fields of the GraphQL type TeamMember.
+// The GraphQL type's documentation follows.
+//
+// An member of a team
+type FindQueuesForClusterNodeTeamMember struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeTeamMember.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeTeamMember) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeTeamPipeline includes the requested fields of the GraphQL type TeamPipeline.
+// The GraphQL type's documentation follows.
+//
+// An pipeline that's been assigned to a team
+type FindQueuesForClusterNodeTeamPipeline struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeTeamPipeline.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeTeamPipeline) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeTeamSuite includes the requested fields of the GraphQL type TeamSuite.
+// The GraphQL type's documentation follows.
+//
+// A suite that's been assigned to a team
+type FindQueuesForClusterNodeTeamSuite struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeTeamSuite.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeTeamSuite) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeUser includes the requested fields of the GraphQL type User.
+// The GraphQL type's documentation follows.
+//
+// A user
+type FindQueuesForClusterNodeUser struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeUser.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeUser) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterNodeViewer includes the requested fields of the GraphQL type Viewer.
+// The GraphQL type's documentation follows.
+//
+// Represents the current user session
+type FindQueuesForClusterNodeViewer struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FindQueuesForClusterNodeViewer.Typename, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterNodeViewer) GetTypename() *string { return v.Typename }
+
+// FindQueuesForClusterResponse is returned by FindQueuesForCluster on success.
+type FindQueuesForClusterResponse struct {
+	// Fetches an object given its ID.
+	Node *FindQueuesForClusterNode `json:"-"`
+}
+
+// GetNode returns FindQueuesForClusterResponse.Node, and is useful for accessing the field via an interface.
+func (v *FindQueuesForClusterResponse) GetNode() *FindQueuesForClusterNode { return v.Node }
+
+func (v *FindQueuesForClusterResponse) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*FindQueuesForClusterResponse
+		Node json.RawMessage `json:"node"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.FindQueuesForClusterResponse = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Node
+		src := firstPass.Node
+		if len(src) != 0 && string(src) != "null" {
+			*dst = new(FindQueuesForClusterNode)
+			err = __unmarshalFindQueuesForClusterNode(
+				src, *dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal FindQueuesForClusterResponse.Node: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalFindQueuesForClusterResponse struct {
+	Node json.RawMessage `json:"node"`
+}
+
+func (v *FindQueuesForClusterResponse) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *FindQueuesForClusterResponse) __premarshalJSON() (*__premarshalFindQueuesForClusterResponse, error) {
+	var retval __premarshalFindQueuesForClusterResponse
+
+	{
+
+		dst := &retval.Node
+		src := v.Node
+		if src != nil {
+			var err error
+			*dst, err = __marshalFindQueuesForClusterNode(
+				src)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"unable to marshal FindQueuesForClusterResponse.Node: %w", err)
+			}
+		}
+	}
+	return &retval, nil
+}
 
 // FindUserByEmailOrganization includes the requested fields of the GraphQL type Organization.
 // The GraphQL type's documentation follows.
@@ -1781,13 +3255,29 @@ type __CancelJobInput struct {
 // GetJobId returns __CancelJobInput.JobId, and is useful for accessing the field via an interface.
 func (v *__CancelJobInput) GetJobId() string { return v.JobId }
 
-// __FindQueuesInput is used internally by genqlient
-type __FindQueuesInput struct {
-	Org string `json:"org"`
+// __FindClustersInput is used internally by genqlient
+type __FindClustersInput struct {
+	Org    string  `json:"org"`
+	Cursor *string `json:"cursor"`
 }
 
-// GetOrg returns __FindQueuesInput.Org, and is useful for accessing the field via an interface.
-func (v *__FindQueuesInput) GetOrg() string { return v.Org }
+// GetOrg returns __FindClustersInput.Org, and is useful for accessing the field via an interface.
+func (v *__FindClustersInput) GetOrg() string { return v.Org }
+
+// GetCursor returns __FindClustersInput.Cursor, and is useful for accessing the field via an interface.
+func (v *__FindClustersInput) GetCursor() *string { return v.Cursor }
+
+// __FindQueuesForClusterInput is used internally by genqlient
+type __FindQueuesForClusterInput struct {
+	ClusterId string  `json:"clusterId"`
+	Cursor    *string `json:"cursor"`
+}
+
+// GetClusterId returns __FindQueuesForClusterInput.ClusterId, and is useful for accessing the field via an interface.
+func (v *__FindQueuesForClusterInput) GetClusterId() string { return v.ClusterId }
+
+// GetCursor returns __FindQueuesForClusterInput.Cursor, and is useful for accessing the field via an interface.
+func (v *__FindQueuesForClusterInput) GetCursor() *string { return v.Cursor }
 
 // __FindUserByEmailInput is used internally by genqlient
 type __FindUserByEmailInput struct {
@@ -1961,21 +3451,71 @@ func CancelJob(
 	return data_, err_
 }
 
-// The query executed by FindQueues.
-const FindQueues_Operation = `
-query FindQueues ($org: ID!) {
+// The query executed by FindClusters.
+const FindClusters_Operation = `
+query FindClusters ($org: ID!, $cursor: String) {
 	organization(slug: $org) {
-		clusters(first: 50) {
+		clusters(first: 100, after: $cursor) {
 			edges {
 				node {
-					queues(first: 50) {
-						edges {
-							node {
-								id
-								key
-							}
-						}
+					id
+					name
+				}
+			}
+			pageInfo {
+				hasNextPage
+				endCursor
+			}
+		}
+	}
+}
+`
+
+func FindClusters(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	org string,
+	cursor *string,
+) (data_ *FindClustersResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "FindClusters",
+		Query:  FindClusters_Operation,
+		Variables: &__FindClustersInput{
+			Org:    org,
+			Cursor: cursor,
+		},
+	}
+
+	data_ = &FindClustersResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by FindQueuesForCluster.
+const FindQueuesForCluster_Operation = `
+query FindQueuesForCluster ($clusterId: ID!, $cursor: String) {
+	node(id: $clusterId) {
+		__typename
+		... on Cluster {
+			id
+			name
+			queues(first: 100, after: $cursor) {
+				edges {
+					node {
+						id
+						key
 					}
+				}
+				pageInfo {
+					hasNextPage
+					endCursor
 				}
 			}
 		}
@@ -1983,20 +3523,22 @@ query FindQueues ($org: ID!) {
 }
 `
 
-func FindQueues(
+func FindQueuesForCluster(
 	ctx_ context.Context,
 	client_ graphql.Client,
-	org string,
-) (data_ *FindQueuesResponse, err_ error) {
+	clusterId string,
+	cursor *string,
+) (data_ *FindQueuesForClusterResponse, err_ error) {
 	req_ := &graphql.Request{
-		OpName: "FindQueues",
-		Query:  FindQueues_Operation,
-		Variables: &__FindQueuesInput{
-			Org: org,
+		OpName: "FindQueuesForCluster",
+		Query:  FindQueuesForCluster_Operation,
+		Variables: &__FindQueuesForClusterInput{
+			ClusterId: clusterId,
+			Cursor:    cursor,
 		},
 	}
 
-	data_ = &FindQueuesResponse{}
+	data_ = &FindQueuesForClusterResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

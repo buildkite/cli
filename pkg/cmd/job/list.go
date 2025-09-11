@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/MakeNowJust/heredoc"
-	"github.com/buildkite/cli/v3/internal/graphql"
+	bkGraphQL "github.com/buildkite/cli/v3/internal/graphql"
 	"github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/validation/scopes"
@@ -265,17 +267,144 @@ func fetchJobsWithQueueFilter(ctx context.Context, f *factory.Factory, org strin
 	return jobs, nil
 }
 
+const maxConcurrentRequests = 10 // Balance between performance and API rate limits
+
+type ClusterInfo struct {
+	ID   string
+	Name string
+}
+
 func lookupQueueIDs(ctx context.Context, f *factory.Factory, org, queueName string) ([]string, error) {
-	resp, err := graphql.FindQueues(ctx, f.GraphQLClient, org)
+	clusters, err := fetchAllClusters(ctx, f.GraphQLClient, org)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find queues: %w", err)
+		return nil, fmt.Errorf("failed to fetch clusters: %w", err)
 	}
-	return findMatchingQueues(resp, queueName), nil
+
+	if len(clusters) == 0 {
+		return []string{}, nil
+	}
+
+	return fetchQueuesFromClusters(ctx, f.GraphQLClient, clusters, queueName)
+}
+
+func fetchAllClusters(ctx context.Context, client graphql.Client, org string) ([]ClusterInfo, error) {
+	var allClusters []ClusterInfo
+	var cursor *string
+
+	for {
+		resp, err := bkGraphQL.FindClusters(ctx, client, org, cursor)
+		if err != nil {
+			return nil, err
+		}
+
+		if resp.Organization == nil || resp.Organization.Clusters == nil {
+			break
+		}
+
+		for _, edge := range resp.Organization.Clusters.Edges {
+			if edge.Node != nil {
+				allClusters = append(allClusters, ClusterInfo{
+					ID:   edge.Node.Id,
+					Name: edge.Node.Name,
+				})
+			}
+		}
+
+		if resp.Organization.Clusters.PageInfo != nil && resp.Organization.Clusters.PageInfo.HasNextPage {
+			cursor = resp.Organization.Clusters.PageInfo.EndCursor
+		} else {
+			break
+		}
+	}
+
+	return allClusters, nil
+}
+
+func fetchQueuesFromClusters(ctx context.Context, client graphql.Client, clusters []ClusterInfo, queueName string) ([]string, error) {
+	resultChan := make(chan []string, len(clusters))
+	errorChan := make(chan error, len(clusters))
+	semaphore := make(chan struct{}, maxConcurrentRequests)
+	
+	var wg sync.WaitGroup
+
+	for _, cluster := range clusters {
+		wg.Add(1)
+		go func(c ClusterInfo) {
+			defer wg.Done()
+			
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+			queueIDs, err := fetchQueuesForCluster(ctx, client, c.ID, queueName)
+			if err != nil {
+				errorChan <- fmt.Errorf("cluster %s: %w", c.Name, err)
+				return
+			}
+			
+			resultChan <- queueIDs
+		}(cluster)
+	}
+
+	var allQueueIDs []string
+	var results int
+	expectedResults := len(clusters)
+	
+	for results < expectedResults {
+		select {
+		case queueIDs := <-resultChan:
+			allQueueIDs = append(allQueueIDs, queueIDs...)
+			results++
+		
+		case err := <-errorChan:
+			return nil, err
+		
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	
+	return allQueueIDs, nil
+}
+
+func fetchQueuesForCluster(ctx context.Context, client graphql.Client, clusterID, queueName string) ([]string, error) {
+	var matchingQueueIDs []string
+	var cursor *string
+	targetLower := strings.ToLower(queueName)
+	
+
+	for {
+		resp, err := bkGraphQL.FindQueuesForCluster(ctx, client, clusterID, cursor)
+		if err != nil {
+			return nil, err
+		}
+
+		if resp.Node == nil {
+			break
+		}
+
+		cluster, ok := (*resp.Node).(*bkGraphQL.FindQueuesForClusterNodeCluster)
+		if !ok || cluster == nil || cluster.Queues == nil {
+			break
+		}
+
+		for _, edge := range cluster.Queues.Edges {
+			if edge.Node != nil && strings.ToLower(edge.Node.Key) == targetLower {
+				matchingQueueIDs = append(matchingQueueIDs, edge.Node.Id)
+			}
+		}
+
+		if cluster.Queues.PageInfo != nil && cluster.Queues.PageInfo.HasNextPage {
+			cursor = cluster.Queues.PageInfo.EndCursor
+		} else {
+			break
+		}
+	}
+
+	return matchingQueueIDs, nil
 }
 
 func listJobsByQueue(ctx context.Context, f *factory.Factory, org string, queueIDs []string, cursor *string) ([]buildkite.Job, *string, bool, error) {
 	first := pageSize
-	resp, err := graphql.ListJobsByQueue(ctx, f.GraphQLClient, org, queueIDs, &first, cursor)
+	resp, err := bkGraphQL.ListJobsByQueue(ctx, f.GraphQLClient, org, queueIDs, &first, cursor)
 	if err != nil {
 		return nil, nil, false, fmt.Errorf("failed to list jobs: %w", err)
 	}
@@ -300,33 +429,11 @@ func listJobsByQueue(ctx context.Context, f *factory.Factory, org string, queueI
 	return jobs, nextCursor, hasMore, nil
 }
 
-func findMatchingQueues(queuesResp *graphql.FindQueuesResponse, targetQueue string) []string {
-	if queuesResp.Organization == nil || queuesResp.Organization.Clusters == nil {
-		return nil
-	}
 
-	var matchingIDs []string
-	targetLower := strings.ToLower(targetQueue)
-
-	for _, clusterEdge := range queuesResp.Organization.Clusters.Edges {
-		if clusterEdge.Node == nil || clusterEdge.Node.Queues == nil {
-			continue
-		}
-
-		for _, queueEdge := range clusterEdge.Node.Queues.Edges {
-			if queueEdge.Node != nil && strings.ToLower(queueEdge.Node.Key) == targetLower {
-				matchingIDs = append(matchingIDs, queueEdge.Node.Id)
-			}
-		}
-	}
-
-	return matchingIDs
-}
-
-func convertGraphQLJobToBuildkiteJob(jobNode *graphql.ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJob) buildkite.Job {
+func convertGraphQLJobToBuildkiteJob(jobNode *bkGraphQL.ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJob) buildkite.Job {
 	// Handle the union type - we only care about JobTypeCommand for now
 	switch job := (*jobNode).(type) {
-	case *graphql.ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand:
+	case *bkGraphQL.ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand:
 		startedAt := convertTimestamp(job.StartedAt)
 		finishedAt := convertTimestamp(job.FinishedAt)
 		createdAt := convertTimestamp(job.CreatedAt)
@@ -366,7 +473,7 @@ func convertTimestamp(t *time.Time) *buildkite.Timestamp {
 	return &buildkite.Timestamp{Time: *t}
 }
 
-func convertAgent(agentNode *graphql.ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent) buildkite.Agent {
+func convertAgent(agentNode *bkGraphQL.ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent) buildkite.Agent {
 	if agentNode == nil {
 		return buildkite.Agent{}
 	}
