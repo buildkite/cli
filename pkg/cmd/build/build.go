@@ -27,6 +27,8 @@ func NewCmdBuild(f *factory.Factory) *cobra.Command {
 		},
 	}
 
+	cmd.PersistentFlags().StringP("pipeline", "p", "", "The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.")
+
 	cmd.AddCommand(NewCmdBuildCancel(f))
 	cmd.AddCommand(NewCmdBuildDownload(f))
 	cmd.AddCommand(NewCmdBuildList(f))
