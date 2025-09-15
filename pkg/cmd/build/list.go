@@ -36,6 +36,7 @@ type buildListOptions struct {
 	commit   string
 	message  string
 	limit    int
+	noLimit  bool
 }
 
 func NewCmdBuildList(f *factory.Factory) *cobra.Command {
@@ -115,8 +116,12 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 			// Get pipeline from persistent flag
 			opts.pipeline, _ = cmd.Flags().GetString("pipeline")
 
-			if opts.limit > maxBuildLimit {
-				return fmt.Errorf("limit cannot exceed %d builds (requested: %d)", maxBuildLimit, opts.limit)
+			if opts.noLimit {
+				opts.limit = 0
+			} else {
+				if opts.limit > maxBuildLimit {
+					return fmt.Errorf("limit cannot exceed %d builds (requested: %d); if you need more, use --no-limit", maxBuildLimit, opts.limit)
+				}
 			}
 
 			if opts.creator != "" && isValidEmail(opts.creator) {
@@ -177,6 +182,7 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&opts.commit, "commit", "", "Filter by commit SHA")
 	cmd.Flags().StringVar(&opts.message, "message", "", "Filter by message content")
 	cmd.Flags().IntVar(&opts.limit, "limit", 50, fmt.Sprintf("Maximum number of builds to return (max: %d)", maxBuildLimit))
+	cmd.Flags().BoolVar(&opts.noLimit, "no-limit", false, "Fetch all builds (overrides --limit, sets perPage=500)")
 
 	output.AddFlags(cmd.Flags())
 	cmd.Flags().SortFlags = false
@@ -259,9 +265,8 @@ func buildListOptionsFromFlags(opts *buildListOptions) (*buildkite.BuildsListOpt
 func fetchBuilds(ctx context.Context, f *factory.Factory, org string, opts buildListOptions, listOpts *buildkite.BuildsListOptions) ([]buildkite.Build, error) {
 	var allBuilds []buildkite.Build
 
-	for page := 1; len(allBuilds) < opts.limit; page++ {
+	for page := 1; opts.noLimit || len(allBuilds) < opts.limit; page++ {
 		listOpts.Page = page
-		listOpts.PerPage = min(pageSize, opts.limit-len(allBuilds))
 
 		var builds []buildkite.Build
 		var err error
@@ -280,7 +285,19 @@ func fetchBuilds(ctx context.Context, f *factory.Factory, org string, opts build
 			break
 		}
 
-		allBuilds = append(allBuilds, builds...)
+		if !opts.noLimit {
+			remaining := opts.limit - len(allBuilds)
+			if remaining <= 0 {
+				break
+			}
+			if len(builds) > remaining {
+				allBuilds = append(allBuilds, builds[:remaining]...)
+			} else {
+				allBuilds = append(allBuilds, builds...)
+			}
+		} else {
+			allBuilds = append(allBuilds, builds...)
+		}
 
 		if len(builds) < listOpts.PerPage {
 			break
