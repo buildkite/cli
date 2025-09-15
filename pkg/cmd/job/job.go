@@ -18,6 +18,7 @@ func NewCmdJob(f *factory.Factory) *cobra.Command {
 	cmd.AddCommand(NewCmdJobList(f))
 	cmd.AddCommand(NewCmdJobUnblock(f))
 	cmd.AddCommand(NewCmdJobRetry(f))
+	cmd.AddCommand(NewCmdJobCancel(f))
 
 	return &cmd
 }

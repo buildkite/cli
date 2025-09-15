@@ -13,3 +13,5 @@ bindings:
     type: string
   YAML:
     type: string
+  DateTime:
+    type: time.Time
