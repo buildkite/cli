@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	maxPipelineLimit = 2000
+	maxPipelineLimit = 3000
 	pageSize         = 100
 )
 
