@@ -17,7 +17,7 @@ brews:
     ids:
       - macos-archive
       - linux-archive
-    directory: .
+    directory: Formula
     homepage: https://github.com/buildkite/cli
     description: Work with Buildkite from the command-line
     license: MIT
