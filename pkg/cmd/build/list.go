@@ -259,7 +259,11 @@ func buildListOptionsFromFlags(opts *buildListOptions) (*buildkite.BuildsListOpt
 func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildListOptions, listOpts *buildkite.BuildsListOptions, format output.Format) ([]buildkite.Build, error) {
 	ctx := cmd.Context()
 	var allBuilds []buildkite.Build
-	fetchedSinceConfirm := 0
+	// filtered builds added since last confirm (used when --no-limit)
+	filteredSinceConfirm := 0
+	// raw (unfiltered) build counters so progress messaging makes sense when client-side filters are active
+	rawTotalFetched := 0
+	rawSinceConfirm := 0
 
 	for page := 1; ; page++ {
 		if !opts.noLimit && len(allBuilds) >= opts.limit {
@@ -275,10 +279,21 @@ func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildL
 		if opts.pipeline != "" {
 			spinnerMsg += fmt.Sprintf("pipeline %s, ", opts.pipeline)
 		}
-		if !opts.noLimit && opts.limit > 0 {
-			spinnerMsg += fmt.Sprintf("%d/%d fetched", len(allBuilds), opts.limit)
+		filtersActive := opts.duration != "" || opts.message != ""
+		if filtersActive {
+			// Show matching (filtered) counts and raw counts independently
+			if !opts.noLimit && opts.limit > 0 {
+				spinnerMsg += fmt.Sprintf("%d/%d matching, %d raw fetched", len(allBuilds), opts.limit, rawTotalFetched)
+			} else {
+				spinnerMsg += fmt.Sprintf("%d matching, %d raw fetched", len(allBuilds), rawTotalFetched)
+			}
 		} else {
-			spinnerMsg += fmt.Sprintf("%d fetched", len(allBuilds))
+			// Legacy behavior (no client-side filters)
+			if !opts.noLimit && opts.limit > 0 {
+				spinnerMsg += fmt.Sprintf("%d/%d fetched", len(allBuilds), opts.limit)
+			} else {
+				spinnerMsg += fmt.Sprintf("%d fetched", len(allBuilds))
+			}
 		}
 		spinnerMsg += ")"
 
@@ -298,10 +313,14 @@ func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildL
 			break
 		}
 
-		if opts.duration != "" || opts.message != "" {
+		// Track raw builds fetched before applying client-side filters
+		rawCountThisPage := len(builds)
+		rawTotalFetched += rawCountThisPage
+		rawSinceConfirm += rawCountThisPage
+
+		if filtersActive {
 			builds, err = applyClientSideFilters(builds, opts)
 			if err != nil {
-				// return an error
 				return nil, fmt.Errorf("failed to apply filters: %w", err)
 			}
 		}
@@ -330,17 +349,28 @@ func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildL
 			addedThisPage = len(builds)
 		}
 
-		fetchedSinceConfirm += addedThisPage
-		if format == output.FormatText && opts.noLimit && fetchedSinceConfirm >= maxBuildLimit {
+		filteredSinceConfirm += addedThisPage
+		if format == output.FormatText && opts.noLimit && (rawSinceConfirm >= maxBuildLimit || filteredSinceConfirm >= maxBuildLimit) {
 			var confirmed bool
-			prompt := fmt.Sprintf("Fetched %d more builds (%d total). Continue?", fetchedSinceConfirm, len(allBuilds))
-			if err := ConfirmFunc(&confirmed, prompt); err != nil {
-				return nil, err
+			if filtersActive {
+				prompt := fmt.Sprintf(
+					"Fetched %d raw builds (%d matching, %d matching total). Continue?",
+					rawSinceConfirm, filteredSinceConfirm, len(allBuilds),
+				)
+				if err := ConfirmFunc(&confirmed, prompt); err != nil {
+					return nil, err
+				}
+			} else {
+				prompt := fmt.Sprintf("Fetched %d more builds (%d total). Continue?", rawSinceConfirm, rawTotalFetched)
+				if err := ConfirmFunc(&confirmed, prompt); err != nil {
+					return nil, err
+				}
 			}
 			if !confirmed {
 				return allBuilds, nil
 			}
-			fetchedSinceConfirm = 0
+			filteredSinceConfirm = 0
+			rawSinceConfirm = 0
 		}
 
 		if len(builds) < listOpts.PerPage {
