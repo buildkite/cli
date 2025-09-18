@@ -25,6 +25,9 @@ const (
 	pageSize      = 100
 )
 
+var DisplayBuildsFunc = displayBuilds
+var ConfirmFunc = io.Confirm
+
 type buildListOptions struct {
 	pipeline string
 	since    string
@@ -157,7 +160,7 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 				return nil
 			}
 
-			return displayBuilds(cmd, builds, format, false)
+			return DisplayBuildsFunc(cmd, builds, format, false)
 		},
 	}
 
@@ -302,9 +305,9 @@ func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildL
 		}
 
 		// Immediately display builds for text format to provide streaming output
-		if format == output.FormatText {
+		if format == output.FormatText && DisplayBuildsFunc != nil {
 			showHeader := listOpts.Page == 1
-			_ = displayBuilds(cmd, builds, format, showHeader)
+			_ = DisplayBuildsFunc(cmd, builds, format, showHeader)
 		}
 
 		addedThisPage := 0
@@ -329,7 +332,7 @@ func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildL
 		if format == output.FormatText && opts.noLimit && fetchedSinceConfirm >= maxBuildLimit {
 			var confirmed bool
 			prompt := fmt.Sprintf("Fetched %d more builds (%d total). Continue?", fetchedSinceConfirm, len(allBuilds))
-			if err := io.Confirm(&confirmed, prompt); err != nil {
+			if err := ConfirmFunc(&confirmed, prompt); err != nil {
 				return nil, err
 			}
 			if !confirmed {
