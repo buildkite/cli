@@ -259,11 +259,14 @@ func buildListOptionsFromFlags(opts *buildListOptions) (*buildkite.BuildsListOpt
 func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildListOptions, listOpts *buildkite.BuildsListOptions, format output.Format) ([]buildkite.Build, error) {
 	ctx := cmd.Context()
 	var allBuilds []buildkite.Build
+
 	// filtered builds added since last confirm (used when --no-limit)
 	filteredSinceConfirm := 0
+
 	// raw (unfiltered) build counters so progress messaging makes sense when client-side filters are active
 	rawTotalFetched := 0
 	rawSinceConfirm := 0
+	previousPageFirstBuildNumber := 0
 
 	for page := 1; ; page++ {
 		if !opts.noLimit && len(allBuilds) >= opts.limit {
@@ -280,20 +283,12 @@ func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildL
 			spinnerMsg += fmt.Sprintf("pipeline %s, ", opts.pipeline)
 		}
 		filtersActive := opts.duration != "" || opts.message != ""
-		if filtersActive {
-			// Show matching (filtered) counts and raw counts independently
-			if !opts.noLimit && opts.limit > 0 {
-				spinnerMsg += fmt.Sprintf("%d/%d matching, %d raw fetched", len(allBuilds), opts.limit, rawTotalFetched)
-			} else {
-				spinnerMsg += fmt.Sprintf("%d matching, %d raw fetched", len(allBuilds), rawTotalFetched)
-			}
+
+		// Show matching (filtered) counts and raw counts independently
+		if !opts.noLimit && opts.limit > 0 {
+			spinnerMsg += fmt.Sprintf("%d/%d matching, %d raw fetched", len(allBuilds), opts.limit, rawTotalFetched)
 		} else {
-			// Legacy behavior (no client-side filters)
-			if !opts.noLimit && opts.limit > 0 {
-				spinnerMsg += fmt.Sprintf("%d/%d fetched", len(allBuilds), opts.limit)
-			} else {
-				spinnerMsg += fmt.Sprintf("%d fetched", len(allBuilds))
-			}
+			spinnerMsg += fmt.Sprintf("%d matching, %d raw fetched", len(allBuilds), rawTotalFetched)
 		}
 		spinnerMsg += ")"
 
@@ -318,11 +313,21 @@ func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildL
 		rawTotalFetched += rawCountThisPage
 		rawSinceConfirm += rawCountThisPage
 
-		if filtersActive {
-			builds, err = applyClientSideFilters(builds, opts)
-			if err != nil {
-				return nil, fmt.Errorf("failed to apply filters: %w", err)
+		// Detect duplicate first build number between pages to prevent infinite loop
+		if page > 1 && len(builds) > 0 {
+			currentPageFirstBuildNumber := builds[0].Number
+			if currentPageFirstBuildNumber == previousPageFirstBuildNumber {
+				return nil, fmt.Errorf("API returned duplicate results, stopping to prevent infinite loop") // We should never get here
 			}
+		}
+
+		if len(builds) > 0 {
+			previousPageFirstBuildNumber = builds[0].Number
+		}
+
+		builds, err = applyClientSideFilters(builds, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply filters: %w", err)
 		}
 
 		// Immediately display builds for text format to provide streaming output
@@ -350,30 +355,29 @@ func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildL
 		}
 
 		filteredSinceConfirm += addedThisPage
-		if format == output.FormatText && opts.noLimit && (rawSinceConfirm >= maxBuildLimit || filteredSinceConfirm >= maxBuildLimit) {
+		if format == output.FormatText && rawSinceConfirm >= maxBuildLimit {
 			var confirmed bool
+			prompt := fmt.Sprintf("Fetched %d more builds (%d total). Continue?", rawSinceConfirm, rawTotalFetched)
 			if filtersActive {
-				prompt := fmt.Sprintf(
+				prompt = fmt.Sprintf(
 					"Fetched %d raw builds (%d matching, %d matching total). Continue?",
 					rawSinceConfirm, filteredSinceConfirm, len(allBuilds),
 				)
-				if err := ConfirmFunc(&confirmed, prompt); err != nil {
-					return nil, err
-				}
-			} else {
-				prompt := fmt.Sprintf("Fetched %d more builds (%d total). Continue?", rawSinceConfirm, rawTotalFetched)
-				if err := ConfirmFunc(&confirmed, prompt); err != nil {
-					return nil, err
-				}
 			}
+
+			if err := ConfirmFunc(&confirmed, prompt); err != nil {
+				return nil, err
+			}
+
 			if !confirmed {
 				return allBuilds, nil
 			}
+
 			filteredSinceConfirm = 0
 			rawSinceConfirm = 0
 		}
 
-		if len(builds) < listOpts.PerPage {
+		if rawCountThisPage < listOpts.PerPage {
 			break
 		}
 	}
