@@ -143,20 +143,9 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 			}
 
 			org := f.Config.OrganizationSlug()
-			var builds []buildkite.Build
-
-			err = io.SpinWhile("Loading builds", func() {
-				builds, err = fetchBuilds(cmd.Context(), f, org, opts, listOpts)
-			})
+			builds, err := fetchBuilds(cmd, f, org, opts, listOpts, format)
 			if err != nil {
 				return fmt.Errorf("failed to list builds: %w", err)
-			}
-
-			if opts.duration != "" || opts.message != "" {
-				builds, err = applyClientSideFilters(builds, opts)
-				if err != nil {
-					return fmt.Errorf("failed to apply filters: %w", err)
-				}
 			}
 
 			if len(builds) == 0 {
@@ -164,7 +153,11 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 				return nil
 			}
 
-			return displayBuilds(cmd, builds, format)
+			if format == output.FormatText {
+				return nil
+			}
+
+			return displayBuilds(cmd, builds, format, false)
 		},
 	}
 
@@ -262,7 +255,8 @@ func buildListOptionsFromFlags(opts *buildListOptions) (*buildkite.BuildsListOpt
 	return listOpts, nil
 }
 
-func fetchBuilds(ctx context.Context, f *factory.Factory, org string, opts buildListOptions, listOpts *buildkite.BuildsListOptions) ([]buildkite.Build, error) {
+func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildListOptions, listOpts *buildkite.BuildsListOptions, format output.Format) ([]buildkite.Build, error) {
+	ctx := cmd.Context()
 	var allBuilds []buildkite.Build
 
 	for page := 1; opts.noLimit || len(allBuilds) < opts.limit; page++ {
@@ -271,11 +265,24 @@ func fetchBuilds(ctx context.Context, f *factory.Factory, org string, opts build
 		var builds []buildkite.Build
 		var err error
 
+		spinnerMsg := "Loading builds ("
 		if opts.pipeline != "" {
-			builds, err = getBuildsByPipeline(ctx, f, org, opts.pipeline, listOpts)
-		} else {
-			builds, _, err = f.RestAPIClient.Builds.ListByOrg(ctx, org, listOpts)
+			spinnerMsg += fmt.Sprintf("pipeline %s, ", opts.pipeline)
 		}
+		if !opts.noLimit && opts.limit > 0 {
+			spinnerMsg += fmt.Sprintf("%d/%d fetched", len(allBuilds), opts.limit)
+		} else {
+			spinnerMsg += fmt.Sprintf("%d fetched", len(allBuilds))
+		}
+		spinnerMsg += ")"
+
+		io.SpinWhile(spinnerMsg, func() {
+			if opts.pipeline != "" {
+				builds, err = getBuildsByPipeline(ctx, f, org, opts.pipeline, listOpts)
+			} else {
+				builds, _, err = f.RestAPIClient.Builds.ListByOrg(ctx, org, listOpts)
+			}
+		})
 
 		if err != nil {
 			return nil, err
@@ -283,6 +290,20 @@ func fetchBuilds(ctx context.Context, f *factory.Factory, org string, opts build
 
 		if len(builds) == 0 {
 			break
+		}
+
+		if opts.duration != "" || opts.message != "" {
+			builds, err = applyClientSideFilters(builds, opts)
+			if err != nil {
+				// return an error
+				return nil, fmt.Errorf("failed to apply filters: %w", err)
+			}
+		}
+
+		// Immediately display builds for text format to provide streaming output
+		if format == output.FormatText {
+			showHeader := listOpts.Page == 1
+			_ = displayBuilds(cmd, builds, format, showHeader)
 		}
 
 		if !opts.noLimit {
@@ -397,7 +418,7 @@ func applyClientSideFilters(builds []buildkite.Build, opts buildListOptions) ([]
 	return result, nil
 }
 
-func displayBuilds(cmd *cobra.Command, builds []buildkite.Build, format output.Format) error {
+func displayBuilds(cmd *cobra.Command, builds []buildkite.Build, format output.Format, withHeader bool) error {
 	if format != output.FormatText {
 		return output.Write(cmd.OutOrStdout(), builds, format)
 	}
@@ -416,23 +437,25 @@ func displayBuilds(cmd *cobra.Command, builds []buildkite.Build, format output.F
 
 	var buf strings.Builder
 
-	header := lipgloss.NewStyle().Bold(true).Underline(true).Render("Builds")
-	buf.WriteString(header)
-	buf.WriteString("\n\n")
+	if withHeader {
+		header := lipgloss.NewStyle().Bold(true).Underline(true).Render("Builds")
+		buf.WriteString(header)
+		buf.WriteString("\n\n")
 
-	headerRow := fmt.Sprintf("%-*s %-*s %-*s %-*s %-*s %-*s %s",
-		numberWidth, "Number",
-		stateWidth, "State",
-		messageWidth, "Message",
-		timeWidth, "Started (UTC)",
-		timeWidth, "Finished (UTC)",
-		durationWidth, "Duration",
-		"URL")
-	buf.WriteString(lipgloss.NewStyle().Bold(true).Render(headerRow))
-	buf.WriteString("\n")
-	totalWidth := numberWidth + stateWidth + messageWidth + timeWidth*2 + durationWidth + columnSpacing
-	buf.WriteString(strings.Repeat("-", totalWidth))
-	buf.WriteString("\n")
+		headerRow := fmt.Sprintf("%-*s %-*s %-*s %-*s %-*s %-*s %s",
+			numberWidth, "Number",
+			stateWidth, "State",
+			messageWidth, "Message",
+			timeWidth, "Started (UTC)",
+			timeWidth, "Finished (UTC)",
+			durationWidth, "Duration",
+			"URL")
+		buf.WriteString(lipgloss.NewStyle().Bold(true).Render(headerRow))
+		buf.WriteString("\n")
+		totalWidth := numberWidth + stateWidth + messageWidth + timeWidth*2 + durationWidth + columnSpacing
+		buf.WriteString(strings.Repeat("-", totalWidth))
+		buf.WriteString("\n")
+	}
 
 	for _, build := range builds {
 		message := build.Message

@@ -12,8 +12,10 @@ import (
 
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/spf13/afero"
+	"github.com/spf13/cobra"
 )
 
 func TestFilterBuilds(t *testing.T) {
@@ -119,7 +121,11 @@ func TestFetchBuildsLimitSlicing(t *testing.T) {
 	opts := buildListOptions{pipeline: "my-pipeline", limit: 230}
 	listOpts := &buildkite.BuildsListOptions{ListOptions: buildkite.ListOptions{PerPage: perPage}}
 
-	builds, err := fetchBuilds(context.Background(), f, conf.OrganizationSlug(), opts, listOpts)
+	cmd := &cobra.Command{}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cmd.SetContext(ctx)
+	builds, err := fetchBuilds(cmd, f, conf.OrganizationSlug(), opts, listOpts, output.FormatText)
 	if err != nil {
 		t.Fatalf("fetchBuilds returned error: %v", err)
 	}
