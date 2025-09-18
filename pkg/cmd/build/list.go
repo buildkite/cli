@@ -260,6 +260,9 @@ func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildL
 	ctx := cmd.Context()
 	var allBuilds []buildkite.Build
 
+	// Track whether we've displayed any builds yet (for header logic)
+	printedAny := false
+
 	// filtered builds added since last confirm (used when --no-limit)
 	filteredSinceConfirm := 0
 
@@ -330,29 +333,34 @@ func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildL
 			return nil, fmt.Errorf("failed to apply filters: %w", err)
 		}
 
-		// Immediately display builds for text format to provide streaming output
-		if format == output.FormatText && DisplayBuildsFunc != nil {
-			showHeader := listOpts.Page == 1
-			_ = DisplayBuildsFunc(cmd, builds, format, showHeader)
-		}
-
+		// Decide which builds will actually be added (respect limit)
+		var buildsToAdd []buildkite.Build
 		addedThisPage := 0
 		if !opts.noLimit {
 			remaining := opts.limit - len(allBuilds)
-			if remaining <= 0 {
+			if remaining <= 0 { // safety, though we check at loop top
 				break
 			}
 			if len(builds) > remaining {
-				allBuilds = append(allBuilds, builds[:remaining]...)
+				buildsToAdd = builds[:remaining]
 				addedThisPage = remaining
 			} else {
-				allBuilds = append(allBuilds, builds...)
+				buildsToAdd = builds
 				addedThisPage = len(builds)
 			}
 		} else {
-			allBuilds = append(allBuilds, builds...)
+			buildsToAdd = builds
 			addedThisPage = len(builds)
 		}
+
+		// Stream only the builds we are about to add; header only once we actually print something
+		if format == output.FormatText && DisplayBuildsFunc != nil && len(buildsToAdd) > 0 {
+			showHeader := !printedAny
+			_ = DisplayBuildsFunc(cmd, buildsToAdd, format, showHeader)
+			printedAny = true
+		}
+
+		allBuilds = append(allBuilds, buildsToAdd...)
 
 		filteredSinceConfirm += addedThisPage
 		if format == output.FormatText && rawSinceConfirm >= maxBuildLimit {
