@@ -295,6 +295,28 @@ func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildL
 		}
 		spinnerMsg += ")"
 
+		if format == output.FormatText && rawSinceConfirm >= maxBuildLimit {
+			var confirmed bool
+			prompt := fmt.Sprintf("Fetched %d more builds (%d total). Continue?", rawSinceConfirm, rawTotalFetched)
+			if filtersActive {
+				prompt = fmt.Sprintf(
+					"Fetched %d raw builds (%d matching, %d matching total). Continue?",
+					rawSinceConfirm, filteredSinceConfirm, len(allBuilds),
+				)
+			}
+
+			if err := ConfirmFunc(&confirmed, prompt); err != nil {
+				return nil, err
+			}
+
+			if !confirmed {
+				return allBuilds, nil
+			}
+
+			filteredSinceConfirm = 0
+			rawSinceConfirm = 0
+		}
+
 		io.SpinWhile(spinnerMsg, func() {
 			if opts.pipeline != "" {
 				builds, err = getBuildsByPipeline(ctx, f, org, opts.pipeline, listOpts)
@@ -361,29 +383,7 @@ func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildL
 		}
 
 		allBuilds = append(allBuilds, buildsToAdd...)
-
 		filteredSinceConfirm += addedThisPage
-		if format == output.FormatText && rawSinceConfirm >= maxBuildLimit {
-			var confirmed bool
-			prompt := fmt.Sprintf("Fetched %d more builds (%d total). Continue?", rawSinceConfirm, rawTotalFetched)
-			if filtersActive {
-				prompt = fmt.Sprintf(
-					"Fetched %d raw builds (%d matching, %d matching total). Continue?",
-					rawSinceConfirm, filteredSinceConfirm, len(allBuilds),
-				)
-			}
-
-			if err := ConfirmFunc(&confirmed, prompt); err != nil {
-				return nil, err
-			}
-
-			if !confirmed {
-				return allBuilds, nil
-			}
-
-			filteredSinceConfirm = 0
-			rawSinceConfirm = 0
-		}
 
 		if rawCountThisPage < listOpts.PerPage {
 			break
