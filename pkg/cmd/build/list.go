@@ -258,6 +258,7 @@ func buildListOptionsFromFlags(opts *buildListOptions) (*buildkite.BuildsListOpt
 func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildListOptions, listOpts *buildkite.BuildsListOptions, format output.Format) ([]buildkite.Build, error) {
 	ctx := cmd.Context()
 	var allBuilds []buildkite.Build
+	fetchedSinceConfirm := 0
 
 	for page := 1; opts.noLimit || len(allBuilds) < opts.limit; page++ {
 		listOpts.Page = page
@@ -306,6 +307,7 @@ func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildL
 			_ = displayBuilds(cmd, builds, format, showHeader)
 		}
 
+		addedThisPage := 0
 		if !opts.noLimit {
 			remaining := opts.limit - len(allBuilds)
 			if remaining <= 0 {
@@ -313,11 +315,27 @@ func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildL
 			}
 			if len(builds) > remaining {
 				allBuilds = append(allBuilds, builds[:remaining]...)
+				addedThisPage = remaining
 			} else {
 				allBuilds = append(allBuilds, builds...)
+				addedThisPage = len(builds)
 			}
 		} else {
 			allBuilds = append(allBuilds, builds...)
+			addedThisPage = len(builds)
+		}
+
+		fetchedSinceConfirm += addedThisPage
+		if format == output.FormatText && opts.noLimit && fetchedSinceConfirm >= maxBuildLimit {
+			var confirmed bool
+			prompt := fmt.Sprintf("Fetched %d more builds (%d total). Continue?", fetchedSinceConfirm, len(allBuilds))
+			if err := io.Confirm(&confirmed, prompt); err != nil {
+				return nil, err
+			}
+			if !confirmed {
+				return allBuilds, nil
+			}
+			fetchedSinceConfirm = 0
 		}
 
 		if len(builds) < listOpts.PerPage {
