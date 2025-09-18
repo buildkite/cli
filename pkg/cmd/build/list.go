@@ -119,9 +119,7 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 			// Get pipeline from persistent flag
 			opts.pipeline, _ = cmd.Flags().GetString("pipeline")
 
-			if opts.noLimit {
-				opts.limit = 0
-			} else {
+			if !opts.noLimit {
 				if opts.limit > maxBuildLimit {
 					return fmt.Errorf("limit cannot exceed %d builds (requested: %d); if you need more, use --no-limit", maxBuildLimit, opts.limit)
 				}
@@ -178,7 +176,7 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&opts.commit, "commit", "", "Filter by commit SHA")
 	cmd.Flags().StringVar(&opts.message, "message", "", "Filter by message content")
 	cmd.Flags().IntVar(&opts.limit, "limit", 50, fmt.Sprintf("Maximum number of builds to return (max: %d)", maxBuildLimit))
-	cmd.Flags().BoolVar(&opts.noLimit, "no-limit", false, "Fetch all builds (overrides --limit, sets perPage=500)")
+	cmd.Flags().BoolVar(&opts.noLimit, "no-limit", false, "Fetch all builds (overrides --limit)")
 
 	output.AddFlags(cmd.Flags())
 	cmd.Flags().SortFlags = false
@@ -263,7 +261,11 @@ func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildL
 	var allBuilds []buildkite.Build
 	fetchedSinceConfirm := 0
 
-	for page := 1; opts.noLimit || len(allBuilds) < opts.limit; page++ {
+	for page := 1; ; page++ {
+		if !opts.noLimit && len(allBuilds) >= opts.limit {
+			break
+		}
+
 		listOpts.Page = page
 
 		var builds []buildkite.Build
