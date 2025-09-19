@@ -4,13 +4,17 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/MakeNowJust/heredoc"
 	httpClient "github.com/buildkite/cli/v3/internal/http"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/spf13/cobra"
+	"github.com/vektah/gqlparser/v2/ast"
+	"github.com/vektah/gqlparser/v2/parser"
 )
 
 var (
@@ -49,6 +53,9 @@ func NewCmdAPI(f *factory.Factory) *cobra.Command {
 
       # To get all test suites
       $ bk api --analytics /suites
+
+      # Run GraphQL query from file
+      $ bk api --file get_build.graphql
       `),
 		PersistentPreRunE: validation.CheckValidConfiguration(f.Config),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -69,6 +76,11 @@ func NewCmdAPI(f *factory.Factory) *cobra.Command {
 }
 
 func apiCaller(cmd *cobra.Command, args []string, f *factory.Factory) error {
+	// Handle GraphQL file queries
+	if queryFile != "" {
+		return handleGraphQLQuery(cmd, f)
+	}
+
 	var endpoint string
 	var endpointPrefix string
 
@@ -147,5 +159,63 @@ func apiCaller(cmd *cobra.Command, args []string, f *factory.Factory) error {
 
 	fmt.Println(prettyJSON.String())
 
+	return nil
+}
+
+func handleGraphQLQuery(cmd *cobra.Command, f *factory.Factory) error {
+	// Read the GraphQL query from file
+	queryBytes, err := os.ReadFile(queryFile)
+	if err != nil {
+		return fmt.Errorf("error reading GraphQL query file %s: %w", queryFile, err)
+	}
+
+	// Validate and parse GraphQL query
+	query := strings.TrimSpace(string(queryBytes))
+	if query == "" {
+		return fmt.Errorf("GraphQL query file %s is empty", queryFile)
+	}
+
+	doc, err := parser.ParseQuery(&ast.Source{Input: query})
+	if err != nil {
+		return fmt.Errorf("invalid GraphQL query: %w", err)
+	}
+
+	// Validate that we have at least one operation
+	if len(doc.Operations) == 0 {
+		return fmt.Errorf("GraphQL query must contain at least one operation (query, mutation, or subscription)")
+	}
+
+	// Extract and validate operation name (Buildkite GraphQL API requires named operations)
+	opName := doc.Operations[0].Name
+	if opName == "" {
+		return fmt.Errorf("GraphQL operation must have a name when using file input. Please add a name after the operation type, e.g., 'query MyQuery { ... }'")
+	}
+
+	// Create GraphQL request using the existing client infrastructure
+	req := &graphql.Request{
+		OpName: opName,
+		Query:  query,
+	}
+
+	// Use a generic response type for raw queries
+	resp := &graphql.Response{Data: new(interface{})}
+
+	// Use the existing GraphQL client
+	if err = f.GraphQLClient.MakeRequest(cmd.Context(), req, resp); err != nil {
+		return fmt.Errorf("error making GraphQL request: %w", err)
+	}
+
+	// Format and print the response
+	responseBytes, err := json.Marshal(resp)
+	if err != nil {
+		return fmt.Errorf("error marshaling response: %w", err)
+	}
+
+	var prettyJSON bytes.Buffer
+	if err = json.Indent(&prettyJSON, responseBytes, "", "  "); err != nil {
+		return fmt.Errorf("error formatting JSON response: %w", err)
+	}
+
+	fmt.Println(prettyJSON.String())
 	return nil
 }
