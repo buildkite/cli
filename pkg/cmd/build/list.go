@@ -317,13 +317,17 @@ func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildL
 			rawSinceConfirm = 0
 		}
 
-		io.SpinWhile(spinnerMsg, func() {
+		spinErr := io.SpinWhile(spinnerMsg, func() {
 			if opts.pipeline != "" {
 				builds, err = getBuildsByPipeline(ctx, f, org, opts.pipeline, listOpts)
 			} else {
 				builds, _, err = f.RestAPIClient.Builds.ListByOrg(ctx, org, listOpts)
 			}
 		})
+
+		if spinErr != nil {
+			return nil, spinErr
+		}
 
 		if err != nil {
 			return nil, err
