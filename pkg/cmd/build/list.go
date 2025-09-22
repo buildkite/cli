@@ -25,6 +25,9 @@ const (
 	pageSize      = 100
 )
 
+var DisplayBuildsFunc = displayBuilds
+var ConfirmFunc = io.Confirm
+
 type buildListOptions struct {
 	pipeline string
 	since    string
@@ -36,6 +39,7 @@ type buildListOptions struct {
 	commit   string
 	message  string
 	limit    int
+	noLimit  bool
 }
 
 func NewCmdBuildList(f *factory.Factory) *cobra.Command {
@@ -115,8 +119,10 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 			// Get pipeline from persistent flag
 			opts.pipeline, _ = cmd.Flags().GetString("pipeline")
 
-			if opts.limit > maxBuildLimit {
-				return fmt.Errorf("limit cannot exceed %d builds (requested: %d)", maxBuildLimit, opts.limit)
+			if !opts.noLimit {
+				if opts.limit > maxBuildLimit {
+					return fmt.Errorf("limit cannot exceed %d builds (requested: %d); if you need more, use --no-limit", maxBuildLimit, opts.limit)
+				}
 			}
 
 			if opts.creator != "" && isValidEmail(opts.creator) {
@@ -138,20 +144,9 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 			}
 
 			org := f.Config.OrganizationSlug()
-			var builds []buildkite.Build
-
-			err = io.SpinWhile("Loading builds", func() {
-				builds, err = fetchBuilds(cmd.Context(), f, org, opts, listOpts)
-			})
+			builds, err := fetchBuilds(cmd, f, org, opts, listOpts, format)
 			if err != nil {
 				return fmt.Errorf("failed to list builds: %w", err)
-			}
-
-			if opts.duration != "" || opts.message != "" {
-				builds, err = applyClientSideFilters(builds, opts)
-				if err != nil {
-					return fmt.Errorf("failed to apply filters: %w", err)
-				}
 			}
 
 			if len(builds) == 0 {
@@ -159,7 +154,11 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 				return nil
 			}
 
-			return displayBuilds(cmd, builds, format)
+			if format == output.FormatText {
+				return nil
+			}
+
+			return DisplayBuildsFunc(cmd, builds, format, false)
 		},
 	}
 
@@ -177,6 +176,7 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&opts.commit, "commit", "", "Filter by commit SHA")
 	cmd.Flags().StringVar(&opts.message, "message", "", "Filter by message content")
 	cmd.Flags().IntVar(&opts.limit, "limit", 50, fmt.Sprintf("Maximum number of builds to return (max: %d)", maxBuildLimit))
+	cmd.Flags().BoolVar(&opts.noLimit, "no-limit", false, "Fetch all builds (overrides --limit)")
 
 	output.AddFlags(cmd.Flags())
 	cmd.Flags().SortFlags = false
@@ -256,20 +256,77 @@ func buildListOptionsFromFlags(opts *buildListOptions) (*buildkite.BuildsListOpt
 	return listOpts, nil
 }
 
-func fetchBuilds(ctx context.Context, f *factory.Factory, org string, opts buildListOptions, listOpts *buildkite.BuildsListOptions) ([]buildkite.Build, error) {
+func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildListOptions, listOpts *buildkite.BuildsListOptions, format output.Format) ([]buildkite.Build, error) {
+	ctx := cmd.Context()
 	var allBuilds []buildkite.Build
 
-	for page := 1; len(allBuilds) < opts.limit; page++ {
+	// Track whether we've displayed any builds yet (for header logic)
+	printedAny := false
+
+	// filtered builds added since last confirm (used when --no-limit)
+	filteredSinceConfirm := 0
+
+	// raw (unfiltered) build counters so progress messaging makes sense when client-side filters are active
+	rawTotalFetched := 0
+	rawSinceConfirm := 0
+	previousPageFirstBuildNumber := 0
+
+	for page := 1; ; page++ {
+		if !opts.noLimit && len(allBuilds) >= opts.limit {
+			break
+		}
+
 		listOpts.Page = page
-		listOpts.PerPage = min(pageSize, opts.limit-len(allBuilds))
 
 		var builds []buildkite.Build
 		var err error
 
+		spinnerMsg := "Loading builds ("
 		if opts.pipeline != "" {
-			builds, err = getBuildsByPipeline(ctx, f, org, opts.pipeline, listOpts)
+			spinnerMsg += fmt.Sprintf("pipeline %s, ", opts.pipeline)
+		}
+		filtersActive := opts.duration != "" || opts.message != ""
+
+		// Show matching (filtered) counts and raw counts independently
+		if !opts.noLimit && opts.limit > 0 {
+			spinnerMsg += fmt.Sprintf("%d/%d matching, %d raw fetched", len(allBuilds), opts.limit, rawTotalFetched)
 		} else {
-			builds, _, err = f.RestAPIClient.Builds.ListByOrg(ctx, org, listOpts)
+			spinnerMsg += fmt.Sprintf("%d matching, %d raw fetched", len(allBuilds), rawTotalFetched)
+		}
+		spinnerMsg += ")"
+
+		if format == output.FormatText && rawSinceConfirm >= maxBuildLimit {
+			var confirmed bool
+			prompt := fmt.Sprintf("Fetched %d more builds (%d total). Continue?", rawSinceConfirm, rawTotalFetched)
+			if filtersActive {
+				prompt = fmt.Sprintf(
+					"Fetched %d raw builds (%d matching, %d matching total). Continue?",
+					rawSinceConfirm, filteredSinceConfirm, len(allBuilds),
+				)
+			}
+
+			if err := ConfirmFunc(&confirmed, prompt); err != nil {
+				return nil, err
+			}
+
+			if !confirmed {
+				return allBuilds, nil
+			}
+
+			filteredSinceConfirm = 0
+			rawSinceConfirm = 0
+		}
+
+		spinErr := io.SpinWhile(spinnerMsg, func() {
+			if opts.pipeline != "" {
+				builds, err = getBuildsByPipeline(ctx, f, org, opts.pipeline, listOpts)
+			} else {
+				builds, _, err = f.RestAPIClient.Builds.ListByOrg(ctx, org, listOpts)
+			}
+		})
+
+		if spinErr != nil {
+			return nil, spinErr
 		}
 
 		if err != nil {
@@ -280,9 +337,59 @@ func fetchBuilds(ctx context.Context, f *factory.Factory, org string, opts build
 			break
 		}
 
-		allBuilds = append(allBuilds, builds...)
+		// Track raw builds fetched before applying client-side filters
+		rawCountThisPage := len(builds)
+		rawTotalFetched += rawCountThisPage
+		rawSinceConfirm += rawCountThisPage
 
-		if len(builds) < listOpts.PerPage {
+		// Detect duplicate first build number between pages to prevent infinite loop
+		if page > 1 && len(builds) > 0 {
+			currentPageFirstBuildNumber := builds[0].Number
+			if currentPageFirstBuildNumber == previousPageFirstBuildNumber {
+				return nil, fmt.Errorf("API returned duplicate results, stopping to prevent infinite loop") // We should never get here
+			}
+		}
+
+		if len(builds) > 0 {
+			previousPageFirstBuildNumber = builds[0].Number
+		}
+
+		builds, err = applyClientSideFilters(builds, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply filters: %w", err)
+		}
+
+		// Decide which builds will actually be added (respect limit)
+		var buildsToAdd []buildkite.Build
+		addedThisPage := 0
+		if !opts.noLimit {
+			remaining := opts.limit - len(allBuilds)
+			if remaining <= 0 { // safety, though we check at loop top
+				break
+			}
+			if len(builds) > remaining {
+				buildsToAdd = builds[:remaining]
+				addedThisPage = remaining
+			} else {
+				buildsToAdd = builds
+				addedThisPage = len(builds)
+			}
+		} else {
+			buildsToAdd = builds
+			addedThisPage = len(builds)
+		}
+
+		// Stream only the builds we are about to add; header only once we actually print something
+		if format == output.FormatText && DisplayBuildsFunc != nil && len(buildsToAdd) > 0 {
+			showHeader := !printedAny
+			_ = DisplayBuildsFunc(cmd, buildsToAdd, format, showHeader)
+			printedAny = true
+		}
+
+		allBuilds = append(allBuilds, buildsToAdd...)
+		filteredSinceConfirm += addedThisPage
+
+		if rawCountThisPage < listOpts.PerPage {
 			break
 		}
 	}
@@ -380,7 +487,7 @@ func applyClientSideFilters(builds []buildkite.Build, opts buildListOptions) ([]
 	return result, nil
 }
 
-func displayBuilds(cmd *cobra.Command, builds []buildkite.Build, format output.Format) error {
+func displayBuilds(cmd *cobra.Command, builds []buildkite.Build, format output.Format, withHeader bool) error {
 	if format != output.FormatText {
 		return output.Write(cmd.OutOrStdout(), builds, format)
 	}
@@ -399,23 +506,25 @@ func displayBuilds(cmd *cobra.Command, builds []buildkite.Build, format output.F
 
 	var buf strings.Builder
 
-	header := lipgloss.NewStyle().Bold(true).Underline(true).Render("Builds")
-	buf.WriteString(header)
-	buf.WriteString("\n\n")
+	if withHeader {
+		header := lipgloss.NewStyle().Bold(true).Underline(true).Render("Builds")
+		buf.WriteString(header)
+		buf.WriteString("\n\n")
 
-	headerRow := fmt.Sprintf("%-*s %-*s %-*s %-*s %-*s %-*s %s",
-		numberWidth, "Number",
-		stateWidth, "State",
-		messageWidth, "Message",
-		timeWidth, "Started (UTC)",
-		timeWidth, "Finished (UTC)",
-		durationWidth, "Duration",
-		"URL")
-	buf.WriteString(lipgloss.NewStyle().Bold(true).Render(headerRow))
-	buf.WriteString("\n")
-	totalWidth := numberWidth + stateWidth + messageWidth + timeWidth*2 + durationWidth + columnSpacing
-	buf.WriteString(strings.Repeat("-", totalWidth))
-	buf.WriteString("\n")
+		headerRow := fmt.Sprintf("%-*s %-*s %-*s %-*s %-*s %-*s %s",
+			numberWidth, "Number",
+			stateWidth, "State",
+			messageWidth, "Message",
+			timeWidth, "Started (UTC)",
+			timeWidth, "Finished (UTC)",
+			durationWidth, "Duration",
+			"URL")
+		buf.WriteString(lipgloss.NewStyle().Bold(true).Render(headerRow))
+		buf.WriteString("\n")
+		totalWidth := numberWidth + stateWidth + messageWidth + timeWidth*2 + durationWidth + columnSpacing
+		buf.WriteString(strings.Repeat("-", totalWidth))
+		buf.WriteString("\n")
+	}
 
 	for _, build := range builds {
 		message := build.Message
