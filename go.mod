@@ -7,7 +7,7 @@ toolchain go1.24.3
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/MakeNowJust/heredoc v1.0.0
-	github.com/buildkite/go-buildkite/v4 v4.7.0
+	github.com/buildkite/go-buildkite/v4 v4.8.0
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.7
 	github.com/charmbracelet/huh v0.7.0
