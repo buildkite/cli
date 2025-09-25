@@ -4,13 +4,13 @@ This project is the Buildkite CLI (`bk`)
 - Test: `go test ./...`
 - Lint: `docker-compose -f .buildkite/docker-compose.yaml run golangci-lint golangci-lint run`
 - Generate: `go generate` (required after GraphQL changes)
-- Run: `go run cmd/bk/main.go`
+- Run: `go run main.go`
 
 ## Environment
 - `BUILDKITE_GRAPHQL_TOKEN` required for development
 
 ## Project Structure
-- Main binary: `cmd/bk/main.go`
+- Main binary: `main.go`
 - GraphQL schema: `schema.graphql`
 - CLI commands: `pkg/cmd/`
 

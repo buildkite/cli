@@ -74,5 +74,5 @@ git clone git@github.com:buildkite/cli.git
 cd cli/
 export BUILDKITE_GRAPHQL_TOKEN="<token>"
 go generate
-go run cmd/bk/main.go --help
+go run main.go --help
 ```
