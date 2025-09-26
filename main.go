@@ -131,18 +131,31 @@ func main() {
 }
 
 func run() int {
+	// Handle no-args case by showing help instead of error
+	// This addresses the Kong limitation described in https://github.com/alecthomas/kong/issues/33
+	if len(os.Args) <= 1 {
+		cli := &CLI{}
+		parser, err := kong.New(cli,
+			kong.Description("Buildkite CLI"))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return 1
+		}
+		_, _ = parser.Parse([]string{"--help"})
+		return 0
+	}
+
 	// We can remove the isHelpRequest function when we have full Kong support for all commands
 	if isHelpRequest() {
 		return runCobraSystem()
 	}
 
 	cli := &CLI{}
-	parser, err := kong.New(cli, kong.Description("Buildkite CLI"), kong.NoDefaultHelp())
+	parser, err := kong.New(cli, kong.Description("Buildkite CLI"), kong.UsageOnError())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
 	}
-
 	ctx, err := parser.Parse(os.Args[1:])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -158,16 +171,17 @@ func run() int {
 
 // We can rip this out when we have full Kong support for all commands
 func isHelpRequest() bool {
+	// Let Kong handle no-args case and global help
 	if len(os.Args) < 2 {
 		return false
 	}
 
-	// Global help, e.g. bk --help
+	// Global help, e.g. bk --help - let Kong handle this too
 	if len(os.Args) == 2 && (os.Args[1] == "-h" || os.Args[1] == "--help") {
-		return true
+		return false
 	}
 
-	// Subcommand help, e.g. bk agent --help
+	// Subcommand help, e.g. bk agent --help - delegate to Cobra
 	if len(os.Args) == 3 && (os.Args[2] == "-h" || os.Args[2] == "--help") {
 		return true
 	}
