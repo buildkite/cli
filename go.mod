@@ -10,7 +10,7 @@ require (
 	github.com/alecthomas/kong v1.12.1
 	github.com/buildkite/go-buildkite/v4 v4.8.0
 	github.com/charmbracelet/bubbles v0.21.0
-	github.com/charmbracelet/bubbletea v1.3.7
+	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/huh v0.7.0
 	github.com/charmbracelet/huh/spinner v0.0.0-20240608175402-5b41f0b45136
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
