@@ -412,6 +412,11 @@ func NewBuildView(build *buildkite.Build, artifacts []buildkite.Artifact, annota
 
 	// Convert jobs
 	for _, job := range build.Jobs {
+		var createdAt time.Time
+		if job.CreatedAt != nil {
+			createdAt = job.CreatedAt.Time
+		}
+
 		jobView := JobView{
 			ID:              job.ID,
 			GraphQLID:       job.GraphQLID,
@@ -426,7 +431,7 @@ func NewBuildView(build *buildkite.Build, artifacts []buildkite.Artifact, annota
 			RawLogURL:       job.RawLogsURL,
 			SoftFailed:      job.SoftFailed,
 			ArtifactPaths:   job.ArtifactPaths,
-			CreatedAt:       job.CreatedAt.Time,
+			CreatedAt:       createdAt,
 			Retried:         job.Retried,
 			RetriesCount:    job.RetriesCount,
 			Matrix:          nil, // Matrix field not available in buildkite library
