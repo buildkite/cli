@@ -15,8 +15,10 @@ func NewCmdJob(f *factory.Factory) *cobra.Command {
 		PersistentPreRunE: validation.CheckValidConfiguration(f.Config),
 	}
 
+	cmd.AddCommand(NewCmdJobList(f))
 	cmd.AddCommand(NewCmdJobUnblock(f))
 	cmd.AddCommand(NewCmdJobRetry(f))
+	cmd.AddCommand(NewCmdJobCancel(f))
 
 	return &cmd
 }

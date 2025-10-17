@@ -37,6 +37,11 @@ func NewCmdJobRetry(f *factory.Factory) *cobra.Command {
 				return spinErr
 			}
 
+			// fixes segfault when error is returned, e.g. "Jobs from canceled builds cannot be retried"
+			if err != nil {
+				return err
+			}
+
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), "Successfully retried job: "+j.JobTypeCommandRetry.JobTypeCommand.Url)
 
 			return err

@@ -17,6 +17,7 @@ func Confirm(confirmed *bool, title string) error {
 		return fmt.Errorf("confirmation required but not running in a terminal; use -y or --yes to confirm")
 	}
 
+
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewConfirm().

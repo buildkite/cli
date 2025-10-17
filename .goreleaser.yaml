@@ -17,7 +17,7 @@ brews:
     ids:
       - macos-archive
       - linux-archive
-    directory: .
+    directory: Formula
     homepage: https://github.com/buildkite/cli
     description: Work with Buildkite from the command-line
     license: MIT
@@ -33,7 +33,7 @@ builds:
     goos: [darwin]
     goarch: [amd64, arm64]
     binary: bk
-    main: ./cmd/bk
+    main: .
     ldflags:
       - -s -w -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}}
 
@@ -43,7 +43,7 @@ builds:
     env:
       - CGO_ENABLED=0
     binary: bk
-    main: ./cmd/bk
+    main: .
     ldflags:
       - -s -w -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}}
 
@@ -51,7 +51,7 @@ builds:
     goos: [windows]
     goarch: ['386', amd64, arm64]
     binary: bk
-    main: ./cmd/bk
+    main: .
     ldflags:
       - -s -w -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}}
 

@@ -23,6 +23,7 @@ func NewCmdPipeline(f *factory.Factory) *cobra.Command {
 	}
 
 	cmd.AddCommand(NewCmdPipelineCreate(f))
+	cmd.AddCommand(NewCmdPipelineList(f))
 	cmd.AddCommand(NewCmdPipelineView(f))
 	cmd.AddCommand(NewCmdPipelineValidate(f))
 

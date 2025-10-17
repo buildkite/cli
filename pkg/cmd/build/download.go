@@ -45,6 +45,9 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Get pipeline from persistent flag
+			pipeline, _ = cmd.Flags().GetString("pipeline")
+
 			// we find the pipeline based on the following rules:
 			// 1. an explicit flag is passed
 			// 2. a configured pipeline for this directory
@@ -105,9 +108,7 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 	cmd.Flags().BoolVarP(&mine, "mine", "m", false, "Filter builds to only my user.")
 	cmd.Flags().StringVarP(&branch, "branch", "b", "", "Filter builds to this branch.")
 	cmd.Flags().StringVarP(&user, "user", "u", "", "Filter builds to this user. You can use name or email.")
-	cmd.Flags().StringVarP(&pipeline, "pipeline", "p", "", "The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}.\n"+
-		"If omitted, it will be resolved using the current directory.",
-	)
+	// Pipeline flag now inherited from parent command
 	// can only supply --user or --mine
 	cmd.MarkFlagsMutuallyExclusive("mine", "user")
 	cmd.Flags().SortFlags = false

@@ -5,3 +5,17 @@ mutation InviteUser($organization: ID!, $emails: [String!]!) {
     clientMutationId
   }
 }
+
+query FindUserByEmail($organization: ID!, $email: String!) {
+  organization(slug: $organization) {
+    members(first: 1, search: $email) {
+      edges {
+        node {
+          user {
+            id
+          }
+        }
+      }
+    }
+  }
+}
