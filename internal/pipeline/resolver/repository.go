@@ -52,30 +52,33 @@ func filterPipelines(ctx context.Context, repoURLs []string, org string, client 
 	var currentPipelines []pipeline.Pipeline
 	page := 1
 	per_page := 30
-	for more_pipelines := true; more_pipelines; {
-		opts := buildkite.PipelineListOptions{
-			ListOptions: buildkite.ListOptions{
-				Page:    page,
-				PerPage: per_page,
-			},
-		}
+	for _, repoURL := range repoURLs {
+		for more_pipelines := true; more_pipelines; {
+			opts := buildkite.PipelineListOptions{
+				ListOptions: buildkite.ListOptions{
+					Page:    page,
+					PerPage: per_page,
+				},
+				Repository: repoURL,
+			}
 
-		pipelines, resp, err := client.Pipelines.List(ctx, org, &opts)
-		if err != nil {
-			return nil, err
-		}
-		for _, p := range pipelines {
-			for _, u := range repoURLs {
-				gitUrl := u[strings.LastIndex(u, "/")+1:]
-				if strings.Contains(p.Repository, gitUrl) {
-					currentPipelines = append(currentPipelines, pipeline.Pipeline{Name: p.Slug, Org: org})
+			pipelines, resp, err := client.Pipelines.List(ctx, org, &opts)
+			if err != nil {
+				return nil, err
+			}
+			for _, p := range pipelines {
+				for _, u := range repoURLs {
+					gitUrl := u[strings.LastIndex(u, "/")+1:]
+					if strings.Contains(p.Repository, gitUrl) {
+						currentPipelines = append(currentPipelines, pipeline.Pipeline{Name: p.Slug, Org: org})
+					}
 				}
 			}
-		}
-		if resp.NextPage == 0 {
-			more_pipelines = false
-		} else {
-			page = resp.NextPage
+			if resp.NextPage == 0 {
+				more_pipelines = false
+			} else {
+				page = resp.NextPage
+			}
 		}
 	}
 	return currentPipelines, nil
