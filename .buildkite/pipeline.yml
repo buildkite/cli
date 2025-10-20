@@ -8,6 +8,7 @@ steps:
         config: .golangci.yaml 
         timeout: "3m"
         create_annotations: true
+        mount_git: true
 
   - name: ":go: test"
     artifact_paths:
