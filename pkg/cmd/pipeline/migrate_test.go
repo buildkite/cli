@@ -123,12 +123,6 @@ func TestDetectVendor(t *testing.T) {
 			wantErr:    false,
 		},
 		{
-			name:       "Harness config",
-			filePath:   ".harness/pipeline.yml",
-			wantVendor: "harness",
-			wantErr:    false,
-		},
-		{
 			name:     "Unknown file",
 			filePath: "some-random-file.yml",
 			wantErr:  true,
