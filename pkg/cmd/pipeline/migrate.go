@@ -147,7 +147,7 @@ func NewCmdPipelineMigrate() *cobra.Command {
 			// Output result
 			if outputPath != "" {
 				// Save to specified file
-				if err := os.WriteFile(outputPath, []byte(result.Result), 0644); err != nil {
+				if err := os.WriteFile(outputPath, []byte(result.Result), 0o644); err != nil {
 					return fmt.Errorf("error writing output file: %w", err)
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "\n✅ Migration completed successfully!\n")
@@ -155,7 +155,7 @@ func NewCmdPipelineMigrate() *cobra.Command {
 			} else {
 				// Save to .buildkite directory with vendor-specific name
 				buildkiteDir := ".buildkite"
-				if err := os.MkdirAll(buildkiteDir, 0755); err != nil {
+				if err := os.MkdirAll(buildkiteDir, 0o755); err != nil {
 					return fmt.Errorf("error creating .buildkite directory: %w", err)
 				}
 
@@ -163,7 +163,7 @@ func NewCmdPipelineMigrate() *cobra.Command {
 				outputFilename := fmt.Sprintf("pipeline.%s.yml", vendor)
 				defaultOutputPath := filepath.Join(buildkiteDir, outputFilename)
 
-				if err := os.WriteFile(defaultOutputPath, []byte(result.Result), 0644); err != nil {
+				if err := os.WriteFile(defaultOutputPath, []byte(result.Result), 0o644); err != nil {
 					return fmt.Errorf("error writing output file: %w", err)
 				}
 

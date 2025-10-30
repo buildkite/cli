@@ -354,7 +354,7 @@ func TestMigrateCommandIntegration(t *testing.T) {
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, ".github", "workflows", "test.yml")
 
-	if err := os.MkdirAll(filepath.Dir(testFile), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(testFile), 0o755); err != nil {
 		t.Fatalf("Failed to create test directory: %v", err)
 	}
 
@@ -367,7 +367,7 @@ jobs:
       - uses: actions/checkout@v2
       - run: echo "Test"
 `
-	if err := os.WriteFile(testFile, []byte(testWorkflow), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte(testWorkflow), 0o644); err != nil {
 		t.Fatalf("Failed to write test file: %v", err)
 	}
 
@@ -399,9 +399,7 @@ jobs:
 	timeoutFlag := cmd.Flag("timeout")
 	if timeoutFlag == nil {
 		t.Error("Expected 'timeout' flag to exist")
-	}
-
-	if timeoutFlag.DefValue != "300" {
+	} else if timeoutFlag.DefValue != "300" {
 		t.Errorf("Expected default timeout of 300, got %s", timeoutFlag.DefValue)
 	}
 }
