@@ -35,25 +35,25 @@ builds:
     binary: bk
     main: .
     ldflags:
-      - -s -w -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}}
+      - -s -w -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}} -X github.com/buildkite/cli/v3/pkg/cmd/pipeline.MigrationEndpoint=https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate
 
   - id: linux
     goos: [linux]
-    goarch: ['386', arm, amd64, arm64]
+    goarch: ["386", arm, amd64, arm64]
     env:
       - CGO_ENABLED=0
     binary: bk
     main: .
     ldflags:
-      - -s -w -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}}
+      - -s -w -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}} -X github.com/buildkite/cli/v3/pkg/cmd/pipeline.MigrationEndpoint=https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate
 
   - id: windows
     goos: [windows]
-    goarch: ['386', amd64, arm64]
+    goarch: ["386", amd64, arm64]
     binary: bk
     main: .
     ldflags:
-      - -s -w -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}}
+      - -s -w -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}} -X github.com/buildkite/cli/v3/pkg/cmd/pipeline.MigrationEndpoint=https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate
 
 archives:
   - id: macos-archive
@@ -97,5 +97,4 @@ nfpms:
       - rpm
     provides:
       - bk
-
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj

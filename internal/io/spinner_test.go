@@ -13,7 +13,6 @@ func TestSpinWhileWithoutTTY(t *testing.T) {
 	err := SpinWhile("Test action", func() {
 		actionCalled = true
 	})
-
 	if err != nil {
 		t.Errorf("SpinWhile should not return error: %v", err)
 	}
@@ -29,7 +28,6 @@ func TestSpinWhileActionIsExecuted(t *testing.T) {
 	err := SpinWhile("Test action", func() {
 		counter++
 	})
-
 	if err != nil {
 		t.Errorf("SpinWhile should not return error: %v", err)
 	}
@@ -46,7 +44,6 @@ func TestSpinWhileWithError(t *testing.T) {
 		actionCalled = true
 		// Don't actually panic in test, just test normal flow
 	})
-
 	if err != nil {
 		t.Errorf("SpinWhile should not return error for normal action: %v", err)
 	}
@@ -65,7 +62,6 @@ func TestSpinWhileTTYDetection(t *testing.T) {
 	err := SpinWhile("TTY detection test", func() {
 		actionCalled = true
 	})
-
 	if err != nil {
 		t.Errorf("SpinWhile should not return error: %v", err)
 	}
