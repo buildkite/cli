@@ -43,8 +43,8 @@ jobs:
 		t.Error("Expected job ID to be returned")
 	}
 
-	if jobResp.Status != "queued" && jobResp.Status != "processing" {
-		t.Errorf("Expected status to be 'queued' or 'processing', got: %s", jobResp.Status)
+	if jobResp.Status != "processing" && jobResp.Status != "queued" {
+		t.Errorf("Expected status to be 'processing' or 'queued', got: %s", jobResp.Status)
 	}
 
 	// Poll for completion with a reasonable timeout
@@ -223,7 +223,7 @@ func TestSubmitMigrationJob(t *testing.T) {
 
 		resp := migrationResponse{
 			JobID:     "test-job-123",
-			Status:    "queued",
+			Status:    "processing",
 			Message:   "Migration job queued for processing",
 			StatusURL: "https://example.com/migrate/test-job-123/status",
 		}
@@ -253,8 +253,8 @@ func TestSubmitMigrationJob(t *testing.T) {
 		t.Errorf("Expected job ID 'test-job-123', got %q", resp.JobID)
 	}
 
-	if resp.Status != "queued" {
-		t.Errorf("Expected status 'queued', got %q", resp.Status)
+	if resp.Status != "processing" {
+		t.Errorf("Expected status 'processing', got %q", resp.Status)
 	}
 }
 
