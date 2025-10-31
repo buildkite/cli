@@ -25,8 +25,10 @@ const (
 	pageSize      = 100
 )
 
-var DisplayBuildsFunc = displayBuilds
-var ConfirmFunc = io.Confirm
+var (
+	DisplayBuildsFunc = displayBuilds
+	ConfirmFunc       = io.Confirm
+)
 
 type buildListOptions struct {
 	pipeline string

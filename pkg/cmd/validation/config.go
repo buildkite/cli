@@ -11,6 +11,7 @@ import (
 // CommandsNotRequiringToken is a list of command paths that don't require an API token
 var CommandsNotRequiringToken = []string{
 	"pipeline validate", // The pipeline validate command doesn't require an API token
+	"pipeline migrate",  // The pipeline migrate command uses a public migration API
 }
 
 // getCommandPath returns the full path of a command

@@ -15,7 +15,7 @@ func NewCmdPipeline(f *factory.Factory) *cobra.Command {
 		Example: heredoc.Doc(`
 			# To create a new pipeline
 			$ bk pipeline create my-org/my-pipeline
-			
+
 			# To validate a pipeline configuration
 			$ bk pipeline validate
 		`),
@@ -26,6 +26,7 @@ func NewCmdPipeline(f *factory.Factory) *cobra.Command {
 	cmd.AddCommand(NewCmdPipelineList(f))
 	cmd.AddCommand(NewCmdPipelineView(f))
 	cmd.AddCommand(NewCmdPipelineValidate(f))
+	cmd.AddCommand(NewCmdPipelineMigrate())
 
 	return &cmd
 }
