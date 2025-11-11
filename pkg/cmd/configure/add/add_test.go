@@ -9,10 +9,8 @@ import (
 )
 
 func TestGetTokenForOrg(t *testing.T) {
-	t.Parallel()
-
 	t.Run("returns empty string when no token exists", func(t *testing.T) {
-		t.Parallel()
+		t.Setenv("BUILDKITE_TOKEN_STORAGE", "file")
 		fs := afero.NewMemMapFs()
 		conf := config.New(fs, nil)
 		f := &factory.Factory{Config: conf}
@@ -24,7 +22,7 @@ func TestGetTokenForOrg(t *testing.T) {
 	})
 
 	t.Run("returns token when it exists for organization", func(t *testing.T) {
-		t.Parallel()
+		t.Setenv("BUILDKITE_TOKEN_STORAGE", "file")
 		fs := afero.NewMemMapFs()
 		conf := config.New(fs, nil)
 		f := &factory.Factory{Config: conf}
@@ -40,7 +38,7 @@ func TestGetTokenForOrg(t *testing.T) {
 	})
 
 	t.Run("returns different tokens for different organizations", func(t *testing.T) {
-		t.Parallel()
+		t.Setenv("BUILDKITE_TOKEN_STORAGE", "file")
 		fs := afero.NewMemMapFs()
 		conf := config.New(fs, nil)
 		f := &factory.Factory{Config: conf}
@@ -61,10 +59,8 @@ func TestGetTokenForOrg(t *testing.T) {
 }
 
 func TestConfigureWithCredentials(t *testing.T) {
-	t.Parallel()
-
 	t.Run("configures organization and token", func(t *testing.T) {
-		t.Parallel()
+		t.Setenv("BUILDKITE_TOKEN_STORAGE", "file")
 		fs := afero.NewMemMapFs()
 		conf := config.New(fs, nil)
 		f := &factory.Factory{Config: conf}
@@ -88,10 +84,8 @@ func TestConfigureWithCredentials(t *testing.T) {
 }
 
 func TestConfigureTokenReuse(t *testing.T) {
-	t.Parallel()
-
 	t.Run("reuses existing token when available", func(t *testing.T) {
-		t.Parallel()
+		t.Setenv("BUILDKITE_TOKEN_STORAGE", "file")
 		fs := afero.NewMemMapFs()
 		conf := config.New(fs, nil)
 		f := &factory.Factory{Config: conf}
@@ -126,10 +120,8 @@ func TestConfigureTokenReuse(t *testing.T) {
 }
 
 func TestConfigureRequiresGitRepository(t *testing.T) {
-	t.Parallel()
-
 	t.Run("fails when not in a git repository", func(t *testing.T) {
-		t.Parallel()
+		t.Setenv("BUILDKITE_TOKEN_STORAGE", "file")
 		fs := afero.NewMemMapFs()
 		conf := config.New(fs, nil)
 

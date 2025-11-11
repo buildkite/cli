@@ -34,10 +34,9 @@ func prepareTestDirectory(fs afero.Fs, fixturePath, configPath string) error {
 }
 
 func TestConfig(t *testing.T) {
-	t.Parallel()
-
 	t.Run("read in local config", func(t *testing.T) {
-		t.Parallel()
+		// Use file-based storage for tests by setting the environment variable
+		t.Setenv("BUILDKITE_TOKEN_STORAGE", "file")
 
 		fs := afero.NewMemMapFs()
 		err := prepareTestDirectory(fs, "local.basic.yaml", localConfigFilePath)
@@ -62,7 +61,8 @@ func TestConfig(t *testing.T) {
 	})
 
 	t.Run("GetTokenForOrg returns token for specific organization", func(t *testing.T) {
-		t.Parallel()
+		// Use file-based storage for tests
+		t.Setenv("BUILDKITE_TOKEN_STORAGE", "file")
 
 		fs := afero.NewMemMapFs()
 		conf := New(fs, nil)
