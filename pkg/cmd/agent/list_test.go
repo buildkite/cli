@@ -143,6 +143,8 @@ func TestAgentListStateFilter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.state, func(t *testing.T) {
+			t.Parallel()
+
 			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				page := r.URL.Query().Get("page")
@@ -241,6 +243,8 @@ func TestAgentListTagsFilter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				page := r.URL.Query().Get("page")
