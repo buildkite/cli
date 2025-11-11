@@ -2,6 +2,7 @@ package agent
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/agent"
@@ -158,13 +159,14 @@ func validateState(state string) error {
 		return nil
 	}
 
+	normalized := strings.ToLower(state)
 	for _, valid := range validStates {
-		if state == valid {
+		if normalized == valid {
 			return nil
 		}
 	}
 
-	return fmt.Errorf("invalid state %q: must be %s, %s, or %s", state, stateRunning, stateIdle, statePaused)
+	return fmt.Errorf("invalid state %q: must be one of %s, %s, or %s", state, stateRunning, stateIdle, statePaused)
 }
 
 func filterAgentsByState(agents []buildkite.Agent, state string) []buildkite.Agent {
@@ -182,7 +184,8 @@ func filterAgentsByState(agents []buildkite.Agent, state string) []buildkite.Age
 }
 
 func matchesState(a buildkite.Agent, state string) bool {
-	switch state {
+	normalized := strings.ToLower(state)
+	switch normalized {
 	case stateRunning:
 		return a.Job != nil
 	case stateIdle:
