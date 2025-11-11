@@ -116,3 +116,183 @@ func TestCmdAgentList(t *testing.T) {
 		}
 	})
 }
+
+func TestAgentListStateFilter(t *testing.T) {
+	t.Parallel()
+
+	paused := true
+	notPaused := false
+
+	agents := []buildkite.Agent{
+		{ID: "1", Name: "running-agent", Job: &buildkite.Job{ID: "job-1"}},
+		{ID: "2", Name: "idle-agent"},
+		{ID: "3", Name: "paused-agent", Paused: &paused},
+		{ID: "4", Name: "idle-not-paused", Paused: &notPaused},
+	}
+
+	tests := []struct {
+		state string
+		want  []string // agent IDs
+	}{
+		{"running", []string{"1"}},
+		{"RUNNING", []string{"1"}},
+		{"idle", []string{"2", "4"}},
+		{"paused", []string{"3"}},
+		{"", []string{"1", "2", "3", "4"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.state, func(t *testing.T) {
+			t.Parallel()
+
+			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				page := r.URL.Query().Get("page")
+				if page == "" || page == "1" {
+					json.NewEncoder(w).Encode(agents)
+				} else {
+					json.NewEncoder(w).Encode([]buildkite.Agent{})
+				}
+			}))
+			defer s.Close()
+
+			apiClient, _ := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+			conf := config.New(afero.NewMemMapFs(), nil)
+			conf.SelectOrganization("test", true)
+
+			factory := &factory.Factory{
+				RestAPIClient: apiClient,
+				Config:        conf,
+			}
+
+			cmd := agent.NewCmdAgentList(factory)
+			args := []string{"-o", "json"}
+			if tt.state != "" {
+				args = append(args, "--state", tt.state)
+			}
+			cmd.SetArgs(args)
+
+			var buf bytes.Buffer
+			cmd.SetOut(&buf)
+
+			if err := cmd.Execute(); err != nil {
+				t.Fatal(err)
+			}
+
+			var result []buildkite.Agent
+			if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+				t.Fatal(err)
+			}
+
+			if len(result) != len(tt.want) {
+				t.Errorf("got %d agents, want %d", len(result), len(tt.want))
+			}
+
+			for i, id := range tt.want {
+				if i >= len(result) || result[i].ID != id {
+					t.Errorf("agent %d: got ID %q, want %q", i, result[i].ID, id)
+				}
+			}
+		})
+	}
+}
+
+func TestAgentListInvalidState(t *testing.T) {
+	t.Parallel()
+
+	conf := config.New(afero.NewMemMapFs(), nil)
+	conf.SelectOrganization("test", true)
+
+	factory := &factory.Factory{
+		Config: conf,
+	}
+
+	cmd := agent.NewCmdAgentList(factory)
+	cmd.SetArgs([]string{"--state", "invalid"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for invalid state, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "invalid state") {
+		t.Errorf("expected error to mention 'invalid state', got: %v", err)
+	}
+}
+
+func TestAgentListTagsFilter(t *testing.T) {
+	t.Parallel()
+
+	agents := []buildkite.Agent{
+		{ID: "1", Name: "default-linux", Metadata: []string{"queue=default", "os=linux"}},
+		{ID: "2", Name: "deploy-macos", Metadata: []string{"queue=deploy", "os=macos"}},
+		{ID: "3", Name: "default-macos", Metadata: []string{"queue=default", "os=macos"}},
+		{ID: "4", Name: "no-metadata"},
+	}
+
+	tests := []struct {
+		name string
+		tags []string
+		want []string
+	}{
+		{"single tag", []string{"queue=default"}, []string{"1", "3"}},
+		{"multiple tags AND", []string{"queue=default", "os=linux"}, []string{"1"}},
+		{"no match", []string{"queue=nonexistent"}, []string{}},
+		{"no tags filter", []string{}, []string{"1", "2", "3", "4"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				page := r.URL.Query().Get("page")
+				if page == "" || page == "1" {
+					json.NewEncoder(w).Encode(agents)
+				} else {
+					json.NewEncoder(w).Encode([]buildkite.Agent{})
+				}
+			}))
+			defer s.Close()
+
+			apiClient, _ := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+			conf := config.New(afero.NewMemMapFs(), nil)
+			conf.SelectOrganization("test", true)
+
+			factory := &factory.Factory{
+				RestAPIClient: apiClient,
+				Config:        conf,
+			}
+
+			cmd := agent.NewCmdAgentList(factory)
+			args := []string{"-o", "json"}
+			for _, tag := range tt.tags {
+				args = append(args, "--tags", tag)
+			}
+			cmd.SetArgs(args)
+
+			var buf bytes.Buffer
+			cmd.SetOut(&buf)
+
+			if err := cmd.Execute(); err != nil {
+				t.Fatal(err)
+			}
+
+			var result []buildkite.Agent
+			if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+				t.Fatal(err)
+			}
+
+			if len(result) != len(tt.want) {
+				t.Errorf("got %d agents, want %d", len(result), len(tt.want))
+			}
+
+			for i, id := range tt.want {
+				if i >= len(result) || result[i].ID != id {
+					t.Errorf("agent %d: got ID %q, want %q", i, result[i].ID, id)
+				}
+			}
+		})
+	}
+}
