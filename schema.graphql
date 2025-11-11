@@ -150,6 +150,16 @@ type Agent implements Node{
 	operatingSystem: OperatingSystem
 	organization: Organization
 	permissions: AgentPermissions!
+"""Whether this agent is paused, preventing dispatch of new jobs"""
+	paused: Boolean!
+"""Whether this agent is paused, preventing dispatch of new jobs"""
+	pausedAt: DateTime
+"""The user who paused this agent, if paused"""
+	pausedBy: User
+"""Note supplied when agent was paused, if paused"""
+	pausedNote: String
+"""Number of minutes the agent will remain paused for, if paused"""
+	pausedTimeoutInMinutes: Int!
 """The process identifier (PID) of the agent process on the machine"""
 	pid: String
 	pingedAt: DateTime
@@ -2666,6 +2676,8 @@ type Organization implements Node{
 		clustered: Boolean
 """Filter agents by whether they are running a job or not"""
 		isRunningJob: Boolean
+"""Filter agents by whether they are paused or not"""
+		paused: Boolean
 	): AgentConnection
 """A space-separated allowlist of IP addresses that can access the organization via the GraphQL or REST API"""
 	allowedApiIpAddresses: String

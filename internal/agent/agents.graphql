@@ -1,0 +1,35 @@
+query ListAgents($orgSlug: ID!, $first: Int, $after: String, $isRunningJob: Boolean, $paused: Boolean) {
+  organization(slug: $orgSlug) {
+    agents(first: $first, after: $after, isRunningJob: $isRunningJob, paused: $paused) {
+      edges {
+        node {
+          id
+          name
+          hostname
+          version
+          connectionState
+          metaData
+          createdAt
+          ipAddress
+          userAgent
+          isRunningJob
+          paused
+          pausedAt
+          pausedBy {
+            name
+          }
+          pausedNote
+          pausedTimeoutInMinutes
+          clusterQueue {
+            id
+            key
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+}
