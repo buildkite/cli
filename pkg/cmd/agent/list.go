@@ -58,6 +58,12 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 			# Combine state and hostname filters
 			$ bk agent list --state idle --hostname my-server-01
 
+			# Filter agents by tags
+			$ bk agent list --tags queue=default
+
+			# Filter agents by multiple tags (all must match)
+			$ bk agent list --tags queue=default --tags os=linux
+
 			# Multiple filters with output format
 			$ bk agent list --state running --version 3.107.2 --output json
 		`),
