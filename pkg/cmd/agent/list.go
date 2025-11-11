@@ -28,6 +28,31 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 
 			By default, shows up to 100 agents. Use filters to narrow results, or increase the number of agents displayed with --limit.
 		`),
+		Example: heredoc.Doc(`
+			# List all agents
+			$ bk agent list
+
+			# List agents with JSON output
+			$ bk agent list --output json
+
+			# List only running agents (currently executing jobs)
+			$ bk agent list --state running
+
+			# List only idle agents (connected but not running jobs)
+			$ bk agent list --state idle
+
+			# List only paused agents
+			$ bk agent list --state paused
+
+			# Filter agents by hostname
+			$ bk agent list --hostname my-server-01
+
+			# Combine state and hostname filters
+			$ bk agent list --state idle --hostname my-server-01
+
+			# Multiple filters with output format
+			$ bk agent list --state running --version 3.107.2 --output json
+		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			format, err := output.GetFormat(cmd.Flags())
 			if err != nil {
