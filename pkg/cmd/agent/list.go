@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"fmt"
+
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/internal/agent"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -9,6 +11,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
+
+const (
+	stateRunning = "running"
+	stateIdle    = "idle"
+	statePaused  = "paused"
+)
+
+var validStates = []string{stateRunning, stateIdle, statePaused}
 
 func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 	var name, version, hostname, state string
@@ -50,6 +60,10 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 			$ bk agent list --state running --version 3.107.2 --output json
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateState(state); err != nil {
+				return err
+			}
+
 			format, err := output.GetFormat(cmd.Flags())
 			if err != nil {
 				return err
@@ -139,8 +153,20 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-// filterAgentsByState filters agents by their state (running, idle, paused)
-// Returns all agents if state is empty
+func validateState(state string) error {
+	if state == "" {
+		return nil
+	}
+
+	for _, valid := range validStates {
+		if state == valid {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid state %q: must be %s, %s, or %s", state, stateRunning, stateIdle, statePaused)
+}
+
 func filterAgentsByState(agents []buildkite.Agent, state string) []buildkite.Agent {
 	if state == "" {
 		return agents
@@ -148,21 +174,22 @@ func filterAgentsByState(agents []buildkite.Agent, state string) []buildkite.Age
 
 	filtered := make([]buildkite.Agent, 0, len(agents))
 	for _, a := range agents {
-		switch state {
-		case "running":
-			// Agent is running if it has a job
-			if a.Job != nil {
-				filtered = append(filtered, a)
-			}
-		case "idle":
-			if a.Job == nil && (a.Paused == nil || !*a.Paused) {
-				filtered = append(filtered, a)
-			}
-		case "paused":
-			if a.Paused != nil && *a.Paused {
-				filtered = append(filtered, a)
-			}
+		if matchesState(a, state) {
+			filtered = append(filtered, a)
 		}
 	}
 	return filtered
+}
+
+func matchesState(a buildkite.Agent, state string) bool {
+	switch state {
+	case stateRunning:
+		return a.Job != nil
+	case stateIdle:
+		return a.Job == nil && (a.Paused == nil || !*a.Paused)
+	case statePaused:
+		return a.Paused != nil && *a.Paused
+	default:
+		return false
+	}
 }
