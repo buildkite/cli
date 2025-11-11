@@ -45,7 +45,7 @@ func migrateRun(f *factory.Factory, removeFromFile bool) error {
 
 	// Check if keychain storage is enabled
 	if !config.ShouldUseKeychain() {
-		return fmt.Errorf("keychain storage is not enabled\n\nKeychain storage is disabled via BUILDKITE_TOKEN_STORAGE environment variable.\nTo use keychain storage, either unset this variable or set it to 'keychain'.")
+		return fmt.Errorf("keychain storage is not enabled\n\nKeychain storage is disabled via BUILDKITE_TOKEN_STORAGE environment variable.\nTo use keychain storage, either unset this variable or set it to 'keychain'")
 	}
 
 	// Check if there are any tokens to migrate
