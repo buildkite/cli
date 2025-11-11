@@ -47,8 +47,8 @@ github.com/bmatcuk/doublestar/v4 v4.6.1 h1:FH9SifrbvJhnlQpztAx++wlkk70QBf0iBWDwN
 github.com/bmatcuk/doublestar/v4 v4.6.1/go.mod h1:xBQ8jztBU6kakFMg+8WGxn0c6z1fTSPVIjEY1Wr7jzc=
 github.com/bradleyjkemp/cupaloy/v2 v2.6.0 h1:knToPYa2xtfg42U3I6punFEjaGFKWQRXJwj0JTv4mTs=
 github.com/bradleyjkemp/cupaloy/v2 v2.6.0/go.mod h1:bm7JXdkRd4BHJk9HpwqAI8BoAY1lps46Enkdqw6aRX0=
-github.com/buildkite/go-buildkite/v4 v4.9.1 h1:dA32pinTsHMTCHO84awc9W9Y21knlPjd/ZOSntMPIb0=
-github.com/buildkite/go-buildkite/v4 v4.9.1/go.mod h1:DlebrRJqpZttXDjCW+MJ1QyW9AN++ZWt/UbPtKdbSSk=
+github.com/buildkite/go-buildkite/v4 v4.10.0 h1:U3mYmDNLJqe+703Ztmf23ZA6eE/CnSsWevXyV9o9N4Q=
+github.com/buildkite/go-buildkite/v4 v4.10.0/go.mod h1:DlebrRJqpZttXDjCW+MJ1QyW9AN++ZWt/UbPtKdbSSk=
 github.com/catppuccin/go v0.3.0 h1:d+0/YicIq+hSTo5oPuRi5kOpqkVA5tAsU6dNhvRu+aY=
 github.com/catppuccin/go v0.3.0/go.mod h1:8IHJuMGaUUjQM82qBrGNBv7LFq6JI3NnQCF6MOlZjpc=
 github.com/cenkalti/backoff v2.2.1+incompatible h1:tNowT99t7UNflLxfYYSlKYsBpXdEet03Pg2g16Swow4=
