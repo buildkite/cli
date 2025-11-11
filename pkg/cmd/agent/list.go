@@ -23,6 +23,7 @@ var validStates = []string{stateRunning, stateIdle, statePaused}
 
 func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 	var name, version, hostname, state string
+	var tags []string
 	var perpage, limit int
 
 	cmd := cobra.Command{
@@ -94,7 +95,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 						break
 					}
 
-					filtered := filterAgentsByState(pageAgents, state)
+					filtered := filterAgents(pageAgents, state, tags)
 					agents = append(agents, filtered...)
 					page++
 				}
@@ -123,7 +124,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 						return err
 					}
 
-					filtered := filterAgentsByState(agents, state)
+					filtered := filterAgents(agents, state, tags)
 
 					items := make([]agent.AgentListItem, len(filtered))
 					for i, a := range filtered {
@@ -147,6 +148,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&version, "version", "", "Filter agents by their version")
 	cmd.Flags().StringVar(&hostname, "hostname", "", "Filter agents by their hostname")
 	cmd.Flags().StringVar(&state, "state", "", "Filter agents by state (running, idle, paused)")
+	cmd.Flags().StringSliceVar(&tags, "tags", []string{}, "Filter agents by tags")
 	cmd.Flags().IntVar(&perpage, "per-page", 30, "Number of agents per page")
 	cmd.Flags().IntVar(&limit, "limit", 100, "Maximum number of agents to return")
 	output.AddFlags(cmd.Flags())
@@ -169,14 +171,10 @@ func validateState(state string) error {
 	return fmt.Errorf("invalid state %q: must be one of %s, %s, or %s", state, stateRunning, stateIdle, statePaused)
 }
 
-func filterAgentsByState(agents []buildkite.Agent, state string) []buildkite.Agent {
-	if state == "" {
-		return agents
-	}
-
+func filterAgents(agents []buildkite.Agent, state string, tags []string) []buildkite.Agent {
 	filtered := make([]buildkite.Agent, 0, len(agents))
 	for _, a := range agents {
-		if matchesState(a, state) {
+		if matchesState(a, state) && matchesTags(a, tags) {
 			filtered = append(filtered, a)
 		}
 	}
@@ -184,6 +182,10 @@ func filterAgentsByState(agents []buildkite.Agent, state string) []buildkite.Age
 }
 
 func matchesState(a buildkite.Agent, state string) bool {
+	if state == "" {
+		return true
+	}
+
 	normalized := strings.ToLower(state)
 	switch normalized {
 	case stateRunning:
@@ -195,4 +197,26 @@ func matchesState(a buildkite.Agent, state string) bool {
 	default:
 		return false
 	}
+}
+
+func matchesTags(a buildkite.Agent, tags []string) bool {
+	if len(tags) == 0 {
+		return true
+	}
+
+	for _, tag := range tags {
+		if !hasTag(a.Metadata, tag) {
+			return false
+		}
+	}
+	return true
+}
+
+func hasTag(metadata []string, tag string) bool {
+	for _, meta := range metadata {
+		if meta == tag {
+			return true
+		}
+	}
+	return false
 }
