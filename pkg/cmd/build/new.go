@@ -103,8 +103,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 				)
 			}
 
-			confirmed := f.SkipConfirm
-			err = bk_io.Confirm(&confirmed, fmt.Sprintf("Create new build on %s?", resolvedPipeline.Name))
+			confirmed, err := bk_io.Confirm(f, fmt.Sprintf("Create new build on %s?", resolvedPipeline.Name))
 			if err != nil {
 				return bkErrors.NewUserAbortedError(err, "confirmation canceled")
 			}

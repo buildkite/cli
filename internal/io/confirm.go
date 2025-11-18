@@ -3,37 +3,43 @@ package io
 import (
 	"fmt"
 	"strings"
+
+	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
 
 // Confirm prompts the user with a yes/no question.
+// Returns true if the user confirmed, false otherwise.
 //
-// IMPORTANT: If your command uses Confirm(), you MUST call f.SetGlobalFlags(cmd) in PreRunE:
+// IMPORTANT: Commands using Confirm() must call f.SetGlobalFlags(cmd) in PreRunE.
+// See factory.SetGlobalFlags() documentation for details.
 //
-//	PreRunE: func(cmd *cobra.Command, args []string) error {
-//	    f.SetGlobalFlags(cmd)  // Required for --yes and --no-input support
-//	    // ... rest of your logic
+// Usage:
+//
+//	confirmed, err := io.Confirm(f, "Do the thing?")
+//	if err != nil {
+//	    return err
 //	}
-//
-// Then use factory flags in RunE:
-//
-//	confirmed := f.SkipConfirm  // Respects global --yes flag
-//	io.Confirm(&confirmed, "Do the thing?")
-//
-// Do NOT add individual --yes flags to commands. Use the global flag pattern above.
-func Confirm(confirmed *bool, title string) error {
-	if *confirmed {
-		return nil
+//	if confirmed {
+//	    // do the thing
+//	}
+func Confirm(f *factory.Factory, prompt string) (bool, error) {
+	// Check if --yes flag is set
+	if f.SkipConfirm {
+		return true, nil
 	}
 
-	fmt.Printf("%s [y/N]: ", title)
-	
+	// Check if --no-input flag is set
+	if f.NoInput {
+		return false, fmt.Errorf("interactive input required but --no-input is set")
+	}
+
+	fmt.Printf("%s [y/N]: ", prompt)
+
 	response, err := ReadLine()
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	response = strings.ToLower(response)
-	*confirmed = response == "y" || response == "yes"
-
-	return nil
+	return response == "y" || response == "yes", nil
 }

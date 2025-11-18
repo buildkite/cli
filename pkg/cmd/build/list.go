@@ -298,7 +298,6 @@ func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildL
 		spinnerMsg += ")"
 
 		if format == output.FormatText && rawSinceConfirm >= maxBuildLimit {
-			var confirmed bool
 			prompt := fmt.Sprintf("Fetched %d more builds (%d total). Continue?", rawSinceConfirm, rawTotalFetched)
 			if filtersActive {
 				prompt = fmt.Sprintf(
@@ -307,7 +306,8 @@ func fetchBuilds(cmd *cobra.Command, f *factory.Factory, org string, opts buildL
 				)
 			}
 
-			if err := ConfirmFunc(&confirmed, prompt); err != nil {
+			confirmed, err := ConfirmFunc(f, prompt)
+			if err != nil {
 				return nil, err
 			}
 

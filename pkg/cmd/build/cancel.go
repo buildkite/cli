@@ -65,17 +65,16 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 				return err
 			}
 
-			confirmed := f.SkipConfirm
-			err = bk_io.Confirm(&confirmed, fmt.Sprintf("Cancel build #%d on %s", bld.BuildNumber, bld.Pipeline))
+			confirmed, err := bk_io.Confirm(f, fmt.Sprintf("Cancel build #%d on %s", bld.BuildNumber, bld.Pipeline))
 			if err != nil {
 				return err
 			}
 
 			if confirmed {
 				return cancelBuild(cmd.Context(), bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), web, f)
-			} else {
-				return nil
 			}
+
+			return nil
 		},
 	}
 

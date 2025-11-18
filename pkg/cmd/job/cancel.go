@@ -53,17 +53,16 @@ func NewCmdJobCancel(f *factory.Factory) *cobra.Command {
 			jobID := args[0]
 			graphqlID := util.GenerateGraphQLID("JobTypeCommand---", jobID)
 
-			confirmed := f.SkipConfirm
-			err := bk_io.Confirm(&confirmed, fmt.Sprintf("Cancel job %s", jobID))
+			confirmed, err := bk_io.Confirm(f, fmt.Sprintf("Cancel job %s", jobID))
 			if err != nil {
 				return err
 			}
 
 			if confirmed {
 				return cancelJob(cmd.Context(), graphqlID, web, f)
-			} else {
-				return nil
 			}
+
+			return nil
 		},
 	}
 
