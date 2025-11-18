@@ -22,6 +22,7 @@ type CLI struct {
 	Configure ConfigureCmd `cmd:"" help:"Configure Buildkite API token"`
 	Init      InitCmd      `cmd:"" help:"Initialize a pipeline.yaml file"`
 	Job       JobCmd       `cmd:"" help:"Manage jobs within a build"`
+	Login     LoginCmd     `cmd:"" help:"Authenticate with Buildkite"`
 	Pipeline  PipelineCmd  `cmd:"" help:"Manage pipelines"`
 	Package   PackageCmd   `cmd:"" help:"Manage packages"`
 	Use       UseCmd       `cmd:"" help:"Select an organization"`
@@ -67,6 +68,9 @@ type (
 	InitCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
 	}
+	LoginCmd struct {
+		Args []string `arg:"" optional:"" passthrough:"all"`
+	}
 	UseCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
 	}
@@ -85,6 +89,7 @@ func (u *UserCmd) Run(*CLI) error      { return delegateToCobraSystem("user", u.
 func (a *ApiCmd) Run(*CLI) error       { return delegateToCobraSystem("api", a.Args) }
 func (c *ConfigureCmd) Run(*CLI) error { return delegateToCobraSystem("configure", c.Args) }
 func (i *InitCmd) Run(*CLI) error      { return delegateToCobraSystem("init", i.Args) }
+func (l *LoginCmd) Run(*CLI) error     { return delegateToCobraSystem("login", l.Args) }
 func (u *UseCmd) Run(*CLI) error       { return delegateToCobraSystem("use", u.Args) }
 
 func delegateToCobraSystem(command string, args []string) error {
