@@ -3,7 +3,6 @@ package io
 import (
 	"fmt"
 	"strconv"
-	"strings"
 )
 
 const (
@@ -40,10 +39,10 @@ func PromptForOne(resource string, options []string, noInput bool) (string, erro
 	}
 	fmt.Printf("Enter number (1-%d): ", len(options))
 
-	var response string
-	_, _ = fmt.Scanln(&response)
-
-	response = strings.TrimSpace(response)
+	response, err := ReadLine()
+	if err != nil {
+		return "", err
+	}
 	num, err := strconv.Atoi(response)
 	if err != nil || num < 1 || num > len(options) {
 		return "", fmt.Errorf("invalid selection")

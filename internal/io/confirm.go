@@ -26,10 +26,13 @@ func Confirm(confirmed *bool, title string) error {
 	}
 
 	fmt.Printf("%s [y/N]: ", title)
-	var response string
-	_, _ = fmt.Scanln(&response)
+	
+	response, err := ReadLine()
+	if err != nil {
+		return err
+	}
 
-	response = strings.ToLower(strings.TrimSpace(response))
+	response = strings.ToLower(response)
 	*confirmed = response == "y" || response == "yes"
 
 	return nil
