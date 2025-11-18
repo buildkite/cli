@@ -41,7 +41,7 @@ func PromptForOne(resource string, options []string, noInput bool) (string, erro
 	fmt.Printf("Enter number (1-%d): ", len(options))
 
 	var response string
-	fmt.Scanln(&response)
+	_, _ = fmt.Scanln(&response)
 
 	response = strings.TrimSpace(response)
 	num, err := strconv.Atoi(response)
