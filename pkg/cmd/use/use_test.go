@@ -15,7 +15,7 @@ func TestCmdUse(t *testing.T) {
 		conf := config.New(afero.NewMemMapFs(), nil)
 		conf.SelectOrganization("testing", true)
 		selected := "testing"
-		err := useRun(&selected, conf, true)
+		err := useRun(&selected, conf, true, false)
 		if err != nil {
 			t.Error("expected no error")
 		}
@@ -36,7 +36,7 @@ func TestCmdUse(t *testing.T) {
 		// now get a new empty config
 		conf = config.New(fs, nil)
 		selected := "testing"
-		err := useRun(&selected, conf, true)
+		err := useRun(&selected, conf, true, false)
 		if err != nil {
 			t.Errorf("expected no error: %s", err)
 		}
@@ -49,7 +49,7 @@ func TestCmdUse(t *testing.T) {
 		t.Parallel()
 		selected := "testing"
 		conf := config.New(afero.NewMemMapFs(), nil)
-		err := useRun(&selected, conf, true)
+		err := useRun(&selected, conf, true, false)
 		if err == nil {
 			t.Error("expected an error")
 		}

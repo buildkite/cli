@@ -21,20 +21,20 @@ func NewCmdUse(f *factory.Factory) *cobra.Command {
 			if len(args) > 0 {
 				org = &args[0]
 			}
-			return useRun(org, f.Config, f.GitRepository != nil)
+			return useRun(org, f.Config, f.GitRepository != nil, f.NoInput)
 		},
 	}
 
 	return cmd
 }
 
-func useRun(org *string, conf *config.Config, inGitRepo bool) error {
+func useRun(org *string, conf *config.Config, inGitRepo bool, noInput bool) error {
 	var selected string
 
 	// prompt to choose from configured orgs if one is not already selected
 	if org == nil {
 		var err error
-		selected, err = io.PromptForOne("organization", conf.ConfiguredOrganizations())
+		selected, err = io.PromptForOne("organization", conf.ConfiguredOrganizations(), noInput)
 		if err != nil {
 			return err
 		}

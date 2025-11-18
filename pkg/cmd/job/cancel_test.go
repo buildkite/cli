@@ -17,14 +17,8 @@ func TestNewCmdJobCancel(t *testing.T) {
 		t.Errorf("got %s, want Cancel a job.", cmd.Short)
 	}
 
-	yesFlag := cmd.Flags().Lookup("yes")
-	if yesFlag == nil {
-		t.Error("--yes flag should exist")
-	} else {
-		if yesFlag.Shorthand != "y" {
-			t.Errorf("--yes flag shorthand should be 'y', got '%s'", yesFlag.Shorthand)
-		}
-	}
+	// --yes flag is now a global persistent flag, not a local flag
+	// so we don't test for it here anymore
 
 	webFlag := cmd.Flags().Lookup("web")
 	if webFlag == nil {
