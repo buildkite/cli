@@ -27,6 +27,7 @@ type CLI struct {
 	Use       UseCmd       `cmd:"" help:"Select an organization"`
 	User      UserCmd      `cmd:"" help:"Invite users to the organization"`
 	Version   VersionCmd   `cmd:"" help:"Print the version of the CLI being used"`
+	Whoami    WhoamiCmd    `cmd:"" help:"Print the current user and organization"`
 }
 
 // Hybrid delegation commands, we should delete from these when native Kong implementations ready
@@ -70,6 +71,9 @@ type (
 	UseCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
 	}
+	WhoamiCmd struct {
+		Args []string `arg:"" optional:"" passthrough:"all"`
+	}
 )
 
 // Delegation methods, we should delete when native Kong implementations ready
@@ -86,6 +90,7 @@ func (a *ApiCmd) Run(*CLI) error       { return delegateToCobraSystem("api", a.A
 func (c *ConfigureCmd) Run(*CLI) error { return delegateToCobraSystem("configure", c.Args) }
 func (i *InitCmd) Run(*CLI) error      { return delegateToCobraSystem("init", i.Args) }
 func (u *UseCmd) Run(*CLI) error       { return delegateToCobraSystem("use", u.Args) }
+func (w *WhoamiCmd) Run(*CLI) error    { return delegateToCobraSystem("whoami", w.Args) }
 
 func delegateToCobraSystem(command string, args []string) error {
 	originalArgs := os.Args
