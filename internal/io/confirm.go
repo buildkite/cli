@@ -1,30 +1,45 @@
 package io
 
 import (
-	"github.com/charmbracelet/huh"
+	"fmt"
+	"strings"
+
+	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
 
-func Confirm(confirmed *bool, title string) error {
-	if *confirmed {
-		return nil
+// Confirm prompts the user with a yes/no question.
+// Returns true if the user confirmed, false otherwise.
+//
+// IMPORTANT: Commands using Confirm() must call f.SetGlobalFlags(cmd) in PreRunE.
+// See factory.SetGlobalFlags() documentation for details.
+//
+// Usage:
+//
+//	confirmed, err := io.Confirm(f, "Do the thing?")
+//	if err != nil {
+//	    return err
+//	}
+//	if confirmed {
+//	    // do the thing
+//	}
+func Confirm(f *factory.Factory, prompt string) (bool, error) {
+	// Check if --yes flag is set
+	if f.SkipConfirm {
+		return true, nil
 	}
 
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title(title).
-				Affirmative("Yes").
-				Negative("No").
-				Value(confirmed),
-		),
-	)
-
-	err := form.Run()
-
-	// no need to return error if ctrl-c
-	if err != nil && err == huh.ErrUserAborted {
-		return nil
+	// Check if --no-input flag is set
+	if f.NoInput {
+		return false, fmt.Errorf("interactive input required but --no-input is set")
 	}
 
-	return err
+	fmt.Printf("%s [y/N]: ", prompt)
+
+	response, err := ReadLine()
+	if err != nil {
+		return false, err
+	}
+
+	response = strings.ToLower(response)
+	return response == "y" || response == "yes", nil
 }

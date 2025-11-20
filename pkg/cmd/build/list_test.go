@@ -225,10 +225,9 @@ func TestFetchBuildsConfirmationDeclineFirst(t *testing.T) {
 
 	confirmCalls := 0
 	origConfirm := ConfirmFunc
-	ConfirmFunc = func(confirmed *bool, title string) error {
+	ConfirmFunc = func(f *factory.Factory, prompt string) (bool, error) {
 		confirmCalls++
-		*confirmed = false
-		return nil
+		return false, nil
 	}
 	t.Cleanup(func() { ConfirmFunc = origConfirm })
 
@@ -257,14 +256,12 @@ func TestFetchBuildsConfirmationAcceptThenDecline(t *testing.T) {
 
 	confirmCalls := 0
 	origConfirm := ConfirmFunc
-	ConfirmFunc = func(confirmed *bool, title string) error {
+	ConfirmFunc = func(f *factory.Factory, prompt string) (bool, error) {
 		confirmCalls++
 		if confirmCalls == 1 {
-			*confirmed = true
-		} else {
-			*confirmed = false
+			return true, nil
 		}
-		return nil
+		return false, nil
 	}
 	t.Cleanup(func() { ConfirmFunc = origConfirm })
 

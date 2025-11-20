@@ -25,12 +25,15 @@ import (
 
 func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 	var verbose bool
+	var skipConfirm bool
+	var noInput bool
 
 	cmd := &cobra.Command{
-		Use:          "bk <command> <subcommand> [flags]",
-		Short:        "Buildkite CLI",
-		Long:         "Work with Buildkite from the command line.",
-		SilenceUsage: true,
+		Use:              "bk <command> <subcommand> [flags]",
+		Short:            "Buildkite CLI",
+		Long:             "Work with Buildkite from the command line.",
+		SilenceUsage:     true,
+		TraverseChildren: true,
 		Example: heredoc.Doc(`
 			$ bk build view
 		`),
@@ -71,6 +74,19 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 
 	cmd.Flags().BoolP("version", "v", false, "Print the version number")
 	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "V", false, "Enable verbose error output")
+
+	// Global flags for automation and scripting
+	// NOTE: Due to Cobra, these must come AFTER a subcommand (e.g., 'bk job --yes cancel')
+	// Once migrated to Kong, they'll work anywhere (e.g., 'bk --yes job cancel')
+	cmd.PersistentFlags().BoolVarP(&skipConfirm, "yes", "y", false, "Skip all confirmation prompts (useful for automation)")
+	cmd.PersistentFlags().BoolVar(&noInput, "no-input", false, "Disable all interactive prompts (fail if input is required)")
+
+	// Set factory flags before any command runs
+	cmd.PersistentPreRunE = func(c *cobra.Command, args []string) error {
+		f.SkipConfirm = skipConfirm
+		f.NoInput = noInput
+		return nil
+	}
 
 	return cmd, nil
 }

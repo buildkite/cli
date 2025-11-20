@@ -15,7 +15,6 @@ import (
 
 func NewCmdJobCancel(f *factory.Factory) *cobra.Command {
 	var web bool
-	var confirmed bool
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
@@ -30,12 +29,14 @@ func NewCmdJobCancel(f *factory.Factory) *cobra.Command {
 			$ bk job cancel 0190046e-e199-453b-a302-a21a4d649d31
 
 			# Cancel a job without confirmation (useful for automation)
-			$ bk job cancel 0190046e-e199-453b-a302-a21a4d649d31 --yes
+			$ bk job --yes cancel 0190046e-e199-453b-a302-a21a4d649d31
 
 			# Cancel a job and open it in browser
-			$ bk job cancel 0190046e-e199-453b-a302-a21a4d649d31 --yes --web
+			$ bk job --yes cancel 0190046e-e199-453b-a302-a21a4d649d31 --web
 		`),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
+			f.SetGlobalFlags(cmd)
+
 			cmdScopes := scopes.GetCommandScopes(cmd)
 			tokenScopes := f.Config.GetTokenScopes()
 			if len(tokenScopes) == 0 {
@@ -52,16 +53,16 @@ func NewCmdJobCancel(f *factory.Factory) *cobra.Command {
 			jobID := args[0]
 			graphqlID := util.GenerateGraphQLID("JobTypeCommand---", jobID)
 
-			err := bk_io.Confirm(&confirmed, fmt.Sprintf("Cancel job %s", jobID))
+			confirmed, err := bk_io.Confirm(f, fmt.Sprintf("Cancel job %s", jobID))
 			if err != nil {
 				return err
 			}
 
 			if confirmed {
 				return cancelJob(cmd.Context(), graphqlID, web, f)
-			} else {
-				return nil
 			}
+
+			return nil
 		},
 	}
 
@@ -70,7 +71,6 @@ func NewCmdJobCancel(f *factory.Factory) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the job in a web browser after it has been cancelled.")
-	cmd.Flags().BoolVarP(&confirmed, "yes", "y", false, "Skip the confirmation prompt. Useful if being used in automation/CI.")
 	cmd.Flags().SortFlags = false
 
 	return &cmd

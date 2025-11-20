@@ -18,7 +18,6 @@ import (
 func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 	var web bool
 	var pipeline string
-	var confirmed bool
 
 	cmd := cobra.Command{
 		DisableFlagsInUseLine: true,
@@ -29,6 +28,8 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 			Cancel the given build.
 		`),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
+			f.SetGlobalFlags(cmd)
+
 			// Get the command's required and optional scopes
 			cmdScopes := scopes.GetCommandScopes(cmd)
 
@@ -64,16 +65,16 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 				return err
 			}
 
-			err = bk_io.Confirm(&confirmed, fmt.Sprintf("Cancel build #%d on %s", bld.BuildNumber, bld.Pipeline))
+			confirmed, err := bk_io.Confirm(f, fmt.Sprintf("Cancel build #%d on %s", bld.BuildNumber, bld.Pipeline))
 			if err != nil {
 				return err
 			}
 
 			if confirmed {
 				return cancelBuild(cmd.Context(), bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), web, f)
-			} else {
-				return nil
 			}
+
+			return nil
 		},
 	}
 
@@ -83,7 +84,6 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 
 	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the build in a web browser after it has been cancelled.")
 	// Pipeline flag now inherited from parent command
-	cmd.Flags().BoolVarP(&confirmed, "yes", "y", false, "Skip the confirmation prompt. Useful if being used in automation/CI.")
 	cmd.Flags().SortFlags = false
 
 	return &cmd

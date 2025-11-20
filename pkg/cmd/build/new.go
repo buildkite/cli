@@ -24,7 +24,6 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	var commit string
 	var message string
 	var pipeline string
-	var confirmed bool
 	var web bool
 	var ignoreBranchFilters bool
 	var env []string
@@ -53,6 +52,8 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 			$ bk build new -M "key=value" -M "foo=bar"
 		`),
 		PreRunE: bkErrors.WrapRunE(func(cmd *cobra.Command, args []string) error {
+			f.SetGlobalFlags(cmd)
+
 			// Get the command's required and optional scopes
 			cmdScopes := scopes.GetCommandScopes(cmd)
 
@@ -102,7 +103,7 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 				)
 			}
 
-			err = bk_io.Confirm(&confirmed, fmt.Sprintf("Create new build on %s?", resolvedPipeline.Name))
+			confirmed, err := bk_io.Confirm(f, fmt.Sprintf("Create new build on %s?", resolvedPipeline.Name))
 			if err != nil {
 				return bkErrors.NewUserAbortedError(err, "confirmation canceled")
 			}
@@ -169,7 +170,6 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringArrayVarP(&env, "env", "e", []string{}, "Set environment variables for the build")
 	cmd.Flags().StringArrayVarP(&metaData, "metadata", "M", []string{}, "Set metadata for the build (KEY=VALUE)")
 	cmd.Flags().BoolVarP(&ignoreBranchFilters, "ignore-branch-filters", "i", false, "Ignore branch filters for the pipeline")
-	cmd.Flags().BoolVarP(&confirmed, "yes", "y", false, "Skip the confirmation prompt. Useful if being used in automation/CI")
 	cmd.Flags().StringVarP(&envFile, "env-file", "f", "", "Set the environment variables for the build via an environment file")
 	cmd.Flags().StringVarP(&envFile, "envFile", "", "", "Set the environment variables for the build via an environment file")
 	_ = cmd.Flags().MarkDeprecated("envFile", "use --env-file instead")

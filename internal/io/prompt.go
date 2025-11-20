@@ -1,6 +1,9 @@
 package io
 
-import "github.com/charmbracelet/huh"
+import (
+	"fmt"
+	"strconv"
+)
 
 const (
 	typeOrganizationMessage = "Pick an organization"
@@ -9,7 +12,13 @@ const (
 
 // PromptForOne will show the list of options to the user, allowing them to select one to return.
 // It's possible for them to choose none or cancel the selection, resulting in an error.
-func PromptForOne(resource string, options []string) (string, error) {
+// If noInput is true, it will fail instead of prompting.
+//
+// For global flag support requirements, see the Confirm() function documentation.
+func PromptForOne(resource string, options []string, noInput bool) (string, error) {
+	if noInput {
+		return "", fmt.Errorf("interactive input required but --no-input flag is set")
+	}
 	var message string
 	switch resource {
 	case "pipeline":
@@ -19,14 +28,25 @@ func PromptForOne(resource string, options []string) (string, error) {
 	default:
 		message = "Please select one of the options below"
 	}
-	selected := new(string)
-	err := huh.NewForm(huh.NewGroup(
-		huh.NewSelect[string]().
-			Title(message).
-			Options(
-				huh.NewOptions(options...)...,
-			).Value(selected),
-	),
-	).Run()
-	return *selected, err
+
+	if len(options) == 0 {
+		return "", fmt.Errorf("no options available")
+	}
+
+	fmt.Printf("%s:\n", message)
+	for i, option := range options {
+		fmt.Printf("  %d. %s\n", i+1, option)
+	}
+	fmt.Printf("Enter number (1-%d): ", len(options))
+
+	response, err := ReadLine()
+	if err != nil {
+		return "", err
+	}
+	num, err := strconv.Atoi(response)
+	if err != nil || num < 1 || num > len(options) {
+		return "", fmt.Errorf("invalid selection")
+	}
+
+	return options[num-1], nil
 }
