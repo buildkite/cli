@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	addCmd "github.com/buildkite/cli/v3/pkg/cmd/configure/add"
+	migrateCmd "github.com/buildkite/cli/v3/pkg/cmd/configure/migrate"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/spf13/cobra"
 )
@@ -41,6 +42,7 @@ func NewCmdConfigure(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&token, "token", "", "API token")
 
 	cmd.AddCommand(addCmd.NewCmdAdd(f))
+	cmd.AddCommand(migrateCmd.NewCmdMigrate(f))
 
 	return cmd
 }

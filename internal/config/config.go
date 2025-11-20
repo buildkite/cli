@@ -38,9 +38,9 @@ const (
 //	selected_org: buildkite
 //	organizations:
 //	  buildkite:
-//	    api_token: <token>
+//	    api_token: <token>  # (deprecated - tokens now stored in keychain by default)
 //	  buildkite-oss:
-//	    api_token: <token>
+//	    api_token: <token>  # (deprecated - tokens now stored in keychain by default)
 //	pipelines: # (only in local config)
 //	  - first-pipeline
 //	  - second-pipeline
@@ -51,6 +51,8 @@ type Config struct {
 	localConfig *viper.Viper
 	// userConfig is the configuration stored in the users HOME directory.
 	userConfig *viper.Viper
+	// tokenStorage is the backend used for storing API tokens (keychain by default, file-based as fallback)
+	tokenStorage TokenStorage
 }
 
 func New(fs afero.Fs, repo *git.Repository) *Config {
@@ -80,10 +82,19 @@ func New(fs afero.Fs, repo *git.Repository) *Config {
 	}
 	_ = localConfig.ReadInConfig()
 
-	return &Config{
+	conf := &Config{
 		localConfig: localConfig,
 		userConfig:  userConfig,
 	}
+
+	// Initialize token storage backend
+	if shouldUseKeychain() {
+		conf.tokenStorage = NewKeychainTokenStorage()
+	} else {
+		conf.tokenStorage = NewFileTokenStorage(conf)
+	}
+
+	return conf
 }
 
 // OrganizationSlug gets the slug for the currently selected organization. This can be configured locally or per user.
@@ -108,35 +119,70 @@ func (conf *Config) SelectOrganization(org string, inGitRepo bool) error {
 }
 
 // APIToken gets the API token configured for the currently selected organization
+// Priority order: BUILDKITE_API_TOKEN env var → keychain → config file (legacy)
 func (conf *Config) APIToken() string {
+	// Environment variable takes precedence
+	if envToken := os.Getenv("BUILDKITE_API_TOKEN"); envToken != "" {
+		return envToken
+	}
+
 	slug := conf.OrganizationSlug()
+	if slug == "" {
+		return ""
+	}
+
+	// Try keychain first
+	token, err := conf.tokenStorage.Get(slug)
+	if err == nil && token != "" {
+		return token
+	}
+
+	// Fallback to file-based config for backward compatibility
 	key := fmt.Sprintf("organizations.%s.api_token", slug)
-	return firstNonEmpty(
-		os.Getenv("BUILDKITE_API_TOKEN"),
-		conf.userConfig.GetString(key),
-	)
+	return conf.userConfig.GetString(key)
 }
 
-// SetTokenForOrg sets the token for the given org in the user configuration file. Tokens are not stored in the local
-// configuration file to reduce the likelihood of tokens being committed to VCS
+// SetTokenForOrg sets the token for the given org in the token storage (keychain by default).
+// Tokens are not stored in the local configuration file to reduce the likelihood of tokens being committed to VCS
 func (conf *Config) SetTokenForOrg(org, token string) error {
-	key := fmt.Sprintf("organizations.%s.api_token", org)
-	conf.userConfig.Set(key, token)
-	return conf.userConfig.WriteConfig()
+	return conf.tokenStorage.Set(org, token)
 }
 
-// GetTokenForOrg gets the API token for a specific organization from the user configuration
+// GetTokenForOrg gets the API token for a specific organization from the token storage
+// Falls back to file-based config for backward compatibility
 func (conf *Config) GetTokenForOrg(org string) string {
+	// Try token storage first (keychain by default)
+	token, err := conf.tokenStorage.Get(org)
+	if err == nil && token != "" {
+		return token
+	}
+
+	// Fallback to file-based config
 	key := fmt.Sprintf("organizations.%s.api_token", org)
 	return conf.userConfig.GetString(key)
 }
 
 func (conf *Config) ConfiguredOrganizations() []string {
+	// Get orgs from file config
 	m := conf.userConfig.GetStringMap("organizations")
 	orgs := slices.Collect(maps.Keys(m))
-	if o := os.Getenv("BUILDKITE_ORGANIZATION_SLUG"); o != "" {
-		orgs = append(orgs, o)
+
+	// Add orgs from keychain storage (if using keychain)
+	if keychainOrgs, err := conf.tokenStorage.List(); err == nil {
+		for _, org := range keychainOrgs {
+			if !slices.Contains(orgs, org) {
+				orgs = append(orgs, org)
+			}
+		}
 	}
+
+	// Add org from environment variable if set
+	if o := os.Getenv("BUILDKITE_ORGANIZATION_SLUG"); o != "" {
+		if !slices.Contains(orgs, o) {
+			orgs = append(orgs, o)
+		}
+	}
+
 	return orgs
 }
 
