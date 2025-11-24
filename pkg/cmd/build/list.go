@@ -99,19 +99,6 @@ func NewCmdBuildList(f *factory.Factory) *cobra.Command {
 			# Complex filtering: slow builds (>30m) that failed on feature branches
 			$ bk build list --duration ">30m" --state failed --branch feature/
 		`),
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			cmdScopes := scopes.GetCommandScopes(cmd)
-			tokenScopes := f.Config.GetTokenScopes()
-			if len(tokenScopes) == 0 {
-				return fmt.Errorf("no scopes found in token. Please ensure you're using a token with appropriate scopes")
-			}
-
-			if err := scopes.ValidateScopes(cmdScopes, tokenScopes); err != nil {
-				return err
-			}
-
-			return nil
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			format, err := output.GetFormat(cmd.Flags())
 			if err != nil {
