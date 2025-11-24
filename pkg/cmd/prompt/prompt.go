@@ -23,30 +23,23 @@ func NewCmdPrompt(f *factory.Factory) *cobra.Command {
 				return nil // No org configured, return empty
 			}
 
-			// Get token scopes to potentially show warnings
-			scopes := f.Config.GetTokenScopes()
-			var warnings []string
-			if len(scopes) < 3 { // Example threshold
-				warnings = append(warnings, "!")
-			}
-
 			// Format the prompt based on shell type
 			switch shellType {
 			case "bash":
 				if format == "" {
-					format = "\\[\\033[35m\\](bk:%s%s)\\[\\033[0m\\]" // Purple color by default
+					format = "\\[\\033[35m\\](bk:%s)\\[\\033[0m\\]" // Purple color by default
 				}
-				fmt.Printf(format, org, strings.Join(warnings, ""))
+				fmt.Printf(format, org)
 			case "zsh":
 				if format == "" {
-					format = "%%F{magenta}(bk:%s%s)%%f"
+					format = "%%F{magenta}(bk:%s)%%f"
 				}
-				fmt.Printf(format, org, strings.Join(warnings, ""))
+				fmt.Printf(format, org)
 			case "fish":
 				if format == "" {
-					format = "set_color magenta;echo -n '(bk:%s%s)';set_color normal"
+					format = "set_color magenta;echo -n '(bk:%s)';set_color normal"
 				}
-				fmt.Printf(format, org, strings.Join(warnings, ""))
+				fmt.Printf(format, org)
 			}
 
 			return nil
