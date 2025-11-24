@@ -58,13 +58,12 @@ func NewAgentList(loader func(int) tea.Cmd, page, perpage int) AgentListModel {
 func (m *AgentListModel) appendAgents() tea.Cmd {
 	// Set agentsLoading
 	m.agentsLoading = true
-	// Set a status message and start the agentList's spinner
-	startSpiner := m.agentList.StartSpinner()
+	// Set a status message
 	statusMessage := fmt.Sprintf("Loading more agents: page %d of %d", m.agentCurrentPage, m.agentLastPage)
 	setStatus := m.agentList.NewStatusMessage(statusMessage)
 	// Fetch and append more agents
 	appendAgents := m.agentLoader(m.agentCurrentPage)
-	return tea.Sequence(tea.Batch(startSpiner, setStatus), appendAgents)
+	return tea.Sequence(setStatus, appendAgents)
 }
 
 func (m *AgentListModel) setComponentSizing(width, height int) {
@@ -96,7 +95,7 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		// When viewport size is reported, start a spinner and show a message to the user indicating agents are loading
 		m.setComponentSizing(msg.Width, msg.Height)
-		return m, tea.Batch(m.agentList.StartSpinner(), m.agentList.NewStatusMessage("Loading agents"))
+		return m, m.agentList.NewStatusMessage("Loading agents")
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "v":
@@ -141,7 +140,6 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// spinner
 		allItems := append(m.agentList.Items(), msg.ListItems()...)
 		cmds = append(cmds, m.agentList.SetItems(allItems))
-		m.agentList.StopSpinner()
 		// If the message from the initial agent load, set the last page
 		if m.agentCurrentPage == 1 {
 			m.agentLastPage = msg.lastPage
@@ -150,7 +148,6 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.agentCurrentPage++
 		m.agentsLoading = false
 	case error:
-		m.agentList.StopSpinner()
 		// Show a status message for a long time
 		m.agentList.StatusMessageLifetime = time.Duration(time.Hour)
 		return m, m.agentList.NewStatusMessage(fmt.Sprintf("Failed loading agents: %s", msg.Error()))

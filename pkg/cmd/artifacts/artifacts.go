@@ -20,7 +20,10 @@ func NewCmdArtifacts(f *factory.Factory) *cobra.Command {
 			# To download a specific artifact
 			$ bk artifacts download <artifact UUID>
 		`),
-		PersistentPreRunE: validation.CheckValidConfiguration(f.Config),
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			f.SetGlobalFlags(cmd)
+			return validation.CheckValidConfiguration(f.Config)(cmd, args)
+		},
 	}
 	cmd.AddCommand(NewCmdArtifactsList(f))
 	cmd.AddCommand(NewCmdArtifactsDownload(f))

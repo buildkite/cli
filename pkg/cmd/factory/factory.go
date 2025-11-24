@@ -22,6 +22,7 @@ type Factory struct {
 	Version       string
 	SkipConfirm   bool
 	NoInput       bool
+	Quiet         bool
 }
 
 // SetGlobalFlags reads the global persistent flags and sets them on the factory.
@@ -40,6 +41,9 @@ func (f *Factory) SetGlobalFlags(cmd *cobra.Command) {
 	}
 	if noInput, err := cmd.Flags().GetBool("no-input"); err == nil && noInput {
 		f.NoInput = noInput
+	}
+	if quiet, err := cmd.Flags().GetBool("quiet"); err == nil && quiet {
+		f.Quiet = quiet
 	}
 }
 

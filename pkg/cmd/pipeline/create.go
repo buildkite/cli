@@ -92,7 +92,7 @@ func NewCmdPipelineCreate(f *factory.Factory) *cobra.Command {
 				}
 			}
 
-			return createPipeline(cmd.Context(), f.RestAPIClient, f.Config.OrganizationSlug(), answers.Pipeline, answers.Description, clusterID, repoURL)
+			return createPipeline(cmd.Context(), f, answers.Pipeline, answers.Description, clusterID, repoURL)
 		},
 	}
 
@@ -150,11 +150,11 @@ func getClusters(ctx context.Context, f *factory.Factory) (map[string]string, er
 	return clusterMap, nil
 }
 
-func createPipeline(ctx context.Context, client *buildkite.Client, org, pipelineName, description, clusterID, repoURL string) error {
+func createPipeline(ctx context.Context, f *factory.Factory, pipelineName, description, clusterID, repoURL string) error {
 	var err error
 	var output string
 
-	spinErr := bk_io.SpinWhile(fmt.Sprintf("Creating new pipeline %s for %s", pipelineName, org), func() {
+	spinErr := bk_io.SpinWhile(f, fmt.Sprintf("Creating new pipeline %s for %s", pipelineName, f.Config.OrganizationSlug()), func() {
 		createPipeline := buildkite.CreatePipeline{
 			Name:          pipelineName,
 			Repository:    repoURL,
@@ -164,7 +164,7 @@ func createPipeline(ctx context.Context, client *buildkite.Client, org, pipeline
 		}
 
 		var pipeline buildkite.Pipeline
-		pipeline, _, err = client.Pipelines.Create(ctx, org, createPipeline)
+		pipeline, _, err = f.RestAPIClient.Pipelines.Create(ctx, f.Config.OrganizationSlug(), createPipeline)
 
 		output = lipgloss.JoinVertical(lipgloss.Top, lipgloss.NewStyle().Padding(1, 1).Render(fmt.Sprintf("Pipeline created: %s", pipeline.WebURL)))
 	})
