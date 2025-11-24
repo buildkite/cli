@@ -36,17 +36,6 @@ func NewCmdJobCancel(f *factory.Factory) *cobra.Command {
 		`),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			f.SetGlobalFlags(cmd)
-
-			cmdScopes := scopes.GetCommandScopes(cmd)
-			tokenScopes := f.Config.GetTokenScopes()
-			if len(tokenScopes) == 0 {
-				return fmt.Errorf("no scopes found in token. Please ensure you're using a token with appropriate scopes")
-			}
-
-			if err := scopes.ValidateScopes(cmdScopes, tokenScopes); err != nil {
-				return err
-			}
-
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
