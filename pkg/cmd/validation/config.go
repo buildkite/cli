@@ -52,12 +52,12 @@ func CheckValidConfiguration(conf *config.Config) func(cmd *cobra.Command, args 
 	if len(missing) > 0 {
 		if len(missing) == 1 {
 			if missing[0] == "API token" {
-				err = errors.New("you must set a valid API token. run `bk configure`, or set the environment variable `BUILDKITE_API_TOKEN`")
+				err = errors.New("you must set a valid API token. Run `bk configure`, or set the environment variable `BUILDKITE_API_TOKEN`")
 			} else {
-				err = errors.New("you must set a valid organization slug. run `bk configure`, or set the environment variable `BUILDKITE_ORGANIZATION_SLUG`")
+				err = errors.New("you must set a valid organization slug. Run `bk configure`, or set the environment variable `BUILDKITE_ORGANIZATION_SLUG`")
 			}
 		} else {
-			err = errors.New("you must set a valid API token and organization slug. run `bk configure`, or set the environment variables `BUILDKITE_API_TOKEN` and `BUILDKITE_ORGANIZATION_SLUG`")
+			err = errors.New("you must set a valid API token and organization slug. Run `bk configure`, or set the environment variables `BUILDKITE_API_TOKEN` and `BUILDKITE_ORGANIZATION_SLUG`")
 		}
 	}
 
