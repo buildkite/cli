@@ -8,10 +8,10 @@ import (
 
 func NewCmdPackage(f *factory.Factory) *cobra.Command {
 	cmd := cobra.Command{
-		Use:               "package <command>",
-		Aliases:           []string{"pkg"},
-		Short:             "Manage packages",
-		Long:              "Work with Buildkite Package Registries",
+		Use:     "package <command>",
+		Aliases: []string{"pkg"},
+		Short:   "Manage packages",
+		Long:    "Work with Buildkite Package Registries",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			f.SetGlobalFlags(cmd)
 			return validation.CheckValidConfiguration(f.Config)(cmd, args)
