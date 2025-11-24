@@ -39,13 +39,17 @@ func getCommandPath(cmd *cobra.Command) string {
 
 // CheckValidConfiguration returns a function that checks the viper configuration is valid to execute the command
 func CheckValidConfiguration(conf *config.Config) func(cmd *cobra.Command, args []string) error {
-	var err error
-	if conf.APIToken() == "" {
-		err = errors.New("you must set a valid API token. run `bk configure`, or set the environment variable `BUILDKITE_API_TOKEN`")
-	}
+	missingToken := conf.APIToken() == ""
+	missingOrg := conf.OrganizationSlug() == ""
 
-	if conf.OrganizationSlug() == "" {
-		err = errors.New("you must set a valid organization slug. run `bk configure`, or set the environment variable `BUILDKITE_ORGANIZATION_SLUG`")
+	var err error
+	switch {
+	case missingToken && missingOrg:
+		err = errors.New("you must set a valid API token and organization slug. Run `bk configure`, or set the environment variables `BUILDKITE_API_TOKEN` and `BUILDKITE_ORGANIZATION_SLUG`")
+	case missingToken:
+		err = errors.New("you must set a valid API token. Run `bk configure`, or set the environment variable `BUILDKITE_API_TOKEN`")
+	case missingOrg:
+		err = errors.New("you must set a valid organization slug. Run `bk configure`, or set the environment variable `BUILDKITE_ORGANIZATION_SLUG`")
 	}
 
 	return func(cmd *cobra.Command, args []string) error {

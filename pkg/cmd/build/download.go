@@ -27,23 +27,6 @@ func NewCmdBuildDownload(f *factory.Factory) *cobra.Command {
 		Short:                 "Download resources for a build",
 		Long:                  "Download allows you to download resources for a build.",
 		Args:                  cobra.MaximumNArgs(1),
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			// Get the command's required and optional scopes
-			cmdScopes := scopes.GetCommandScopes(cmd)
-
-			// Get the token scopes from the factory
-			tokenScopes := f.Config.GetTokenScopes()
-			if len(tokenScopes) == 0 {
-				return fmt.Errorf("no scopes found in token. Please ensure you're using a token with appropriate scopes")
-			}
-
-			// Validate the scopes
-			if err := scopes.ValidateScopes(cmdScopes, tokenScopes); err != nil {
-				return err
-			}
-
-			return nil
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Get pipeline from persistent flag
 			pipeline, _ = cmd.Flags().GetString("pipeline")

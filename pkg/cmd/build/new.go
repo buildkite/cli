@@ -53,31 +53,6 @@ func NewCmdBuildNew(f *factory.Factory) *cobra.Command {
 		`),
 		PreRunE: bkErrors.WrapRunE(func(cmd *cobra.Command, args []string) error {
 			f.SetGlobalFlags(cmd)
-
-			// Get the command's required and optional scopes
-			cmdScopes := scopes.GetCommandScopes(cmd)
-
-			// Get the token scopes from the factory
-			tokenScopes := f.Config.GetTokenScopes()
-			if len(tokenScopes) == 0 {
-				return bkErrors.NewAuthenticationError(
-					nil,
-					"no scopes found in token",
-					"Please ensure you're using a token with appropriate scopes",
-					"Run 'bk configure' to update your API token",
-				)
-			}
-
-			// Validate the scopes
-			if err := scopes.ValidateScopes(cmdScopes, tokenScopes); err != nil {
-				return bkErrors.NewPermissionDeniedError(
-					err,
-					"insufficient token permissions",
-					"Your API token needs the 'write_builds' scope to create builds",
-					"Create a new token with the required permissions in your Buildkite account settings",
-				)
-			}
-
 			return nil
 		}),
 		RunE: bkErrors.WrapRunE(func(cmd *cobra.Command, args []string) error {

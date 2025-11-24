@@ -71,8 +71,7 @@ func NewCmdBuildWatch(f *factory.Factory) *cobra.Command {
 				return err
 			}
 
-			// Validate required scopes
-			return scopes.ValidateCommandScopes(cmd, f.Config.GetTokenScopes())
+			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Get pipeline from persistent flag

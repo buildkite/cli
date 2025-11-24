@@ -29,21 +29,6 @@ func NewCmdBuildCancel(f *factory.Factory) *cobra.Command {
 		`),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			f.SetGlobalFlags(cmd)
-
-			// Get the command's required and optional scopes
-			cmdScopes := scopes.GetCommandScopes(cmd)
-
-			// Get the token scopes from the factory
-			tokenScopes := f.Config.GetTokenScopes()
-			if len(tokenScopes) == 0 {
-				return fmt.Errorf("no scopes found in token. Please ensure you're using a token with appropriate scopes")
-			}
-
-			// Validate the scopes
-			if err := scopes.ValidateScopes(cmdScopes, tokenScopes); err != nil {
-				return err
-			}
-
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
