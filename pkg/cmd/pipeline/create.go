@@ -50,6 +50,7 @@ func NewCmdPipelineCreate(f *factory.Factory) *cobra.Command {
 			for name := range clusterMap {
 				clusterNames = append(clusterNames, name)
 			}
+			sort.Strings(clusterNames)
 			if len(clusterNames) > 0 {
 				prompt := &survey.Select{
 					Message: "Choose a cluster:",
