@@ -24,6 +24,7 @@ func NewCmdPipelineCreate(f *factory.Factory) *cobra.Command {
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var repoURL string
+			var clusterID string
 
 			qs := []*survey.Question{
 				{
@@ -43,6 +44,31 @@ func NewCmdPipelineCreate(f *factory.Factory) *cobra.Command {
 				return err
 			}
 
+			clusterMap := getClusters(cmd.Context(), f)
+			clusterNames := make([]string, 0, len(clusterMap))
+
+			for name := range clusterMap {
+				clusterNames = append(clusterNames, name)
+			}
+			if len(clusterNames) > 0 {
+				prompt := &survey.Select{
+					Message: "Choose a cluster:",
+					Options: clusterNames,
+				}
+				var selectedClusterName string
+				err := survey.AskOne(prompt, &selectedClusterName, survey.WithValidator(survey.Required))
+				if err != nil {
+					return err
+				}
+				clusterID = clusterMap[selectedClusterName]
+			} else {
+				// Use user provided answer as the cluster ID
+				err := survey.AskOne(&survey.Input{Message: "No clusters found. Optionally provide a Cluster ID (press Enter to skip):"}, &clusterID)
+				if err != nil {
+					return err
+				}
+			}
+
 			repoURLS := getRepoURLS(f)
 			if len(repoURLS) > 0 {
 				prompt := &survey.Select{
@@ -60,7 +86,7 @@ func NewCmdPipelineCreate(f *factory.Factory) *cobra.Command {
 				}
 			}
 
-			return createPipeline(cmd.Context(), f.RestAPIClient, f.Config.OrganizationSlug(), answers.Pipeline, answers.Description, repoURL)
+			return createPipeline(cmd.Context(), f.RestAPIClient, f.Config.OrganizationSlug(), answers.Pipeline, answers.Description, clusterID, repoURL)
 		},
 	}
 
@@ -83,7 +109,24 @@ func getRepoURLS(f *factory.Factory) []string {
 	return c.Remotes["origin"].URLs
 }
 
-func createPipeline(ctx context.Context, client *buildkite.Client, org, pipelineName, description, repoURL string) error {
+func getClusters(ctx context.Context, f *factory.Factory) map[string]string {
+	clusters, _, err := f.RestAPIClient.Clusters.List(ctx, f.Config.OrganizationSlug(), nil)
+	if err != nil {
+		return map[string]string{}
+	}
+
+	if len(clusters) < 1 {
+		return map[string]string{}
+	}
+
+	clusterMap := make(map[string]string, len(clusters))
+	for _, cluster := range clusters {
+		clusterMap[cluster.Name] = cluster.ID
+	}
+	return clusterMap
+}
+
+func createPipeline(ctx context.Context, client *buildkite.Client, org, pipelineName, description, clusterID, repoURL string) error {
 	var err error
 	var output string
 
@@ -92,6 +135,7 @@ func createPipeline(ctx context.Context, client *buildkite.Client, org, pipeline
 			Name:          pipelineName,
 			Repository:    repoURL,
 			Description:   description,
+			ClusterID:     clusterID,
 			Configuration: "steps:\n  - label: \":pipeline:\"\n    command: buildkite-agent pipeline upload",
 		}
 
