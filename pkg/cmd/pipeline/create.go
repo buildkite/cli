@@ -62,7 +62,7 @@ func NewCmdPipelineCreate(f *factory.Factory) *cobra.Command {
 				}
 				clusterID = clusterMap[selectedClusterName]
 			} else {
-				// Use user provided answer as the cluster ID
+				// Use user provided answer as the cluster ID. This is currently optional since we have orgs that still allow pipelines without clusters
 				err := survey.AskOne(&survey.Input{Message: "No clusters found. Optionally provide a Cluster ID (press Enter to skip):"}, &clusterID)
 				if err != nil {
 					return err
