@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	survey "github.com/AlecAivazis/survey/v2"
 	"github.com/MakeNowJust/heredoc"
@@ -44,29 +45,33 @@ func NewCmdPipelineCreate(f *factory.Factory) *cobra.Command {
 				return err
 			}
 
-			clusterMap := getClusters(cmd.Context(), f)
-			clusterNames := make([]string, 0, len(clusterMap))
+			clusterMap, err := getClusters(cmd.Context(), f)
+			if err != nil {
+				return err
+			}
 
+			clusterNames := make([]string, 0, len(clusterMap))
 			for name := range clusterMap {
 				clusterNames = append(clusterNames, name)
 			}
 			sort.Strings(clusterNames)
-			if len(clusterNames) > 0 {
+			clusterNames = append([]string{"Skip (No Cluster)"}, clusterNames...)
+
+			if len(clusterMap) > 0 {
+
 				prompt := &survey.Select{
 					Message: "Choose a cluster:",
 					Options: clusterNames,
 				}
+
 				var selectedClusterName string
 				err := survey.AskOne(prompt, &selectedClusterName, survey.WithValidator(survey.Required))
 				if err != nil {
 					return err
 				}
-				clusterID = clusterMap[selectedClusterName]
-			} else {
-				// Use user provided answer as the cluster ID. This is currently optional since we have orgs that still allow pipelines without clusters
-				err := survey.AskOne(&survey.Input{Message: "No clusters found. Optionally provide a Cluster ID (press Enter to skip):"}, &clusterID)
-				if err != nil {
-					return err
+
+				if selectedClusterName != "Skip (No Cluster)" {
+					clusterID = clusterMap[selectedClusterName] // will be "" if "Skip (no cluster)" was selected
 				}
 			}
 
@@ -110,21 +115,39 @@ func getRepoURLS(f *factory.Factory) []string {
 	return c.Remotes["origin"].URLs
 }
 
-func getClusters(ctx context.Context, f *factory.Factory) map[string]string {
-	clusters, _, err := f.RestAPIClient.Clusters.List(ctx, f.Config.OrganizationSlug(), nil)
-	if err != nil {
-		return map[string]string{}
-	}
+func getClusters(ctx context.Context, f *factory.Factory) (map[string]string, error) {
 
-	if len(clusters) < 1 {
-		return map[string]string{}
-	}
+	clusterMap := make(map[string]string) // map of cluster name to cluster ID
+	page := 1
+	per_page := 30
 
-	clusterMap := make(map[string]string, len(clusters))
-	for _, cluster := range clusters {
-		clusterMap[cluster.Name] = cluster.ID
+	for more_clusters := true; more_clusters; {
+		opts := buildkite.ClustersListOptions{
+			ListOptions: buildkite.ListOptions{
+				Page:    page,
+				PerPage: per_page,
+			},
+		}
+		clusters, resp, err := f.RestAPIClient.Clusters.List(ctx, f.Config.OrganizationSlug(), &opts)
+		if err != nil {
+			return map[string]string{}, err
+		}
+
+		if len(clusters) < 1 {
+			return map[string]string{}, nil
+		}
+
+		for _, c := range clusters {
+			clusterMap[c.Name] = c.ID
+		}
+
+		if resp.NextPage == 0 {
+			more_clusters = false
+		} else {
+			page = resp.NextPage
+		}
 	}
-	return clusterMap
+	return clusterMap, nil
 }
 
 func createPipeline(ctx context.Context, client *buildkite.Client, org, pipelineName, description, clusterID, repoURL string) error {
