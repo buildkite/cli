@@ -11,7 +11,7 @@ import (
 
 func SpinWhile(f *factory.Factory, name string, action func()) error {
 	// If quiet mode is on or not a terminal, just run the action
-	if f.Quiet || !isatty.IsTerminal(os.Stderr.Fd()) {
+	if f.Quiet || !isatty.IsTerminal(os.Stdout.Fd()) {
 		action()
 		return nil
 	}

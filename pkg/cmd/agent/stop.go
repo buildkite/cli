@@ -72,7 +72,7 @@ func RunStop(cmd *cobra.Command, args []string, opts *AgentStopOptions) error {
 			id := scanner.Text()
 			if strings.TrimSpace(id) != "" {
 				wg.Add(1)
-				agents = append(agents, agent.NewStoppableAgent(id, stopper(cmd.Context(), id, opts.f, opts.force, sem, &wg)))
+				agents = append(agents, agent.NewStoppableAgent(id, stopper(cmd.Context(), id, opts.f, opts.force, sem, &wg), opts.f.Quiet))
 			}
 		}
 
@@ -83,7 +83,7 @@ func RunStop(cmd *cobra.Command, args []string, opts *AgentStopOptions) error {
 		for _, id := range args {
 			if strings.TrimSpace(id) != "" {
 				wg.Add(1)
-				agents = append(agents, agent.NewStoppableAgent(id, stopper(cmd.Context(), id, opts.f, opts.force, sem, &wg)))
+				agents = append(agents, agent.NewStoppableAgent(id, stopper(cmd.Context(), id, opts.f, opts.force, sem, &wg), opts.f.Quiet))
 			}
 		}
 	} else {

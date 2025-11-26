@@ -78,7 +78,7 @@ func (c *CancelCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 func cancelBuild(ctx context.Context, org string, pipeline string, buildId string, web bool, f *factory.Factory) error {
 	var err error
 	var build buildkite.Build
-	spinErr := bk_io.SpinWhile(fmt.Sprintf("Cancelling build #%s from pipeline %s", buildId, pipeline), func() {
+	spinErr := bk_io.SpinWhile(f, fmt.Sprintf("Cancelling build #%s from pipeline %s", buildId, pipeline), func() {
 		build, err = f.RestAPIClient.Builds.Cancel(ctx, org, pipeline, buildId)
 	})
 	if spinErr != nil {

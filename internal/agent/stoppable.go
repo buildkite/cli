@@ -32,13 +32,15 @@ type StoppableAgent struct {
 	id     string
 	status Status
 	stopFn StopFn
+	quiet  bool
 }
 
-func NewStoppableAgent(id string, stopFn StopFn) StoppableAgent {
+func NewStoppableAgent(id string, stopFn StopFn, quiet bool) StoppableAgent {
 	return StoppableAgent{
 		id:     id,
 		status: Waiting,
 		stopFn: stopFn,
+		quiet:  quiet,
 	}
 }
 
@@ -75,20 +77,23 @@ func (agent StoppableAgent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View implements tea.Model.
 func (agent StoppableAgent) View() string {
-	var out string
-
 	switch agent.status {
 	case Waiting:
-		out = fmt.Sprintf("... Waiting to stop agent %s\n", agent.id)
+		if agent.quiet {
+			return ""
+		}
+		return fmt.Sprintf("... Waiting to stop agent %s\n", agent.id)
 	case Stopping:
-		out = fmt.Sprintf("... Stopping agent %s\n", agent.id)
+		if agent.quiet {
+			return ""
+		}
+		return fmt.Sprintf("... Stopping agent %s\n", agent.id)
 	case Succeeded:
-		out = fmt.Sprintf("✓   Stopped agent %s\n", agent.id)
+		return fmt.Sprintf("✓   Stopped agent %s\n", agent.id)
 	case Failed:
-		out = fmt.Sprintf("✗   Failed to stop agent %s (error: %s)\n", agent.id, agent.err.Error())
+		return fmt.Sprintf("✗   Failed to stop agent %s (error: %s)\n", agent.id, agent.err.Error())
 	}
-
-	return out
+	return ""
 }
 
 func (agent StoppableAgent) Errored() bool {

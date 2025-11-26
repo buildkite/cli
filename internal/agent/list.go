@@ -26,9 +26,10 @@ type AgentListModel struct {
 	agentLastPage      int
 	agentsLoading      bool
 	agentLoader        func(int) tea.Cmd
+	quiet              bool
 }
 
-func NewAgentList(loader func(int) tea.Cmd, page, perpage int) AgentListModel {
+func NewAgentList(loader func(int) tea.Cmd, page, perpage int, quiet bool) AgentListModel {
 	l := list.New(nil, NewDelegate(), 0, 0)
 	l.Title = "Buildkite Agents"
 	l.SetStatusBarItemName("agent", "agents")
@@ -52,17 +53,24 @@ func NewAgentList(loader func(int) tea.Cmd, page, perpage int) AgentListModel {
 		agentCurrentPage:   page,
 		agentPerPage:       perpage,
 		agentLoader:        loader,
+		quiet:              quiet,
 	}
 }
 
 func (m *AgentListModel) appendAgents() tea.Cmd {
 	// Set agentsLoading
 	m.agentsLoading = true
+	// Fetch and append more agents
+	appendAgents := m.agentLoader(m.agentCurrentPage)
+
+	// Skip status message in quiet mode
+	if m.quiet {
+		return appendAgents
+	}
+
 	// Set a status message
 	statusMessage := fmt.Sprintf("Loading more agents: page %d of %d", m.agentCurrentPage, m.agentLastPage)
 	setStatus := m.agentList.NewStatusMessage(statusMessage)
-	// Fetch and append more agents
-	appendAgents := m.agentLoader(m.agentCurrentPage)
 	return tea.Sequence(setStatus, appendAgents)
 }
 
@@ -93,8 +101,11 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		// When viewport size is reported, start a spinner and show a message to the user indicating agents are loading
+		// When viewport size is reported, show a message to the user indicating agents are loading
 		m.setComponentSizing(msg.Width, msg.Height)
+		if m.quiet {
+			return m, nil
+		}
 		return m, m.agentList.NewStatusMessage("Loading agents")
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -121,7 +132,7 @@ func (m AgentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// to load the API
 				if !lastPageReached {
 					return m, m.appendAgents()
-				} else {
+				} else if !m.quiet {
 					// Append a status message to alert that no more agents are available to load from the API
 					setStatus := m.agentList.NewStatusMessage("No more agents to load!")
 					cmds = append(cmds, setStatus)

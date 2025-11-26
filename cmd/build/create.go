@@ -170,7 +170,7 @@ func parseAuthor(author string) buildkite.Author {
 func createBuild(ctx context.Context, org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool, env map[string]string, metaData map[string]string, ignoreBranchFilters bool, author string) error {
 	var actionErr error
 	var build buildkite.Build
-	spinErr := bk_io.SpinWhile(fmt.Sprintf("Starting new build for %s", pipeline), func() {
+	spinErr := bk_io.SpinWhile(f, fmt.Sprintf("Starting new build for %s", pipeline), func() {
 		branch = strings.TrimSpace(branch)
 		if len(branch) == 0 {
 			p, _, err := f.RestAPIClient.Pipelines.Get(ctx, org, pipeline)
