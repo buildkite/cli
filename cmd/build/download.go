@@ -31,13 +31,13 @@ func (c *DownloadCmd) Help() string {
 	return `
 Examples:
   # Download build 123
-  $ bk build download 123 -p my-pipeline
+  $ bk build download 123 --pipeline my-pipeline
 
   # Download most recent build
-  $ bk build download -p my-pipeline
+  $ bk build download --pipeline my-pipeline
 
   # Download most recent build on a branch
-  $ bk build download -b main -p my-pipeline
+  $ bk build download -b main --pipeline my-pipeline
 
   # Download most recent build by a user
   $ bk build download --pipeline my-pipeline -u alice@hello.com
