@@ -91,7 +91,7 @@ func runPipelineList(ctx context.Context, f *factory.Factory, opts *pipelineList
 	var pipelines []buildkite.Pipeline
 	var err error
 
-	err = bk_io.SpinWhile("Loading pipelines", func() {
+	err = bk_io.SpinWhile(f, "Loading pipelines", func() {
 		pipelines, err = fetchPipelines(ctx, f, org, opts, listOpts)
 	})
 	if err != nil {

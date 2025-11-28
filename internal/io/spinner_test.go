@@ -4,13 +4,15 @@ import (
 	"os"
 	"testing"
 
+	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/mattn/go-isatty"
 )
 
 func TestSpinWhileWithoutTTY(t *testing.T) {
 	// Test that SpinWhile works without TTY
 	actionCalled := false
-	err := SpinWhile("Test action", func() {
+	f := &factory.Factory{}
+	err := SpinWhile(f, "Test action", func() {
 		actionCalled = true
 	})
 	if err != nil {
@@ -25,7 +27,8 @@ func TestSpinWhileWithoutTTY(t *testing.T) {
 func TestSpinWhileActionIsExecuted(t *testing.T) {
 	// Test that the action is always executed regardless of TTY status
 	counter := 0
-	err := SpinWhile("Test action", func() {
+	f := &factory.Factory{}
+	err := SpinWhile(f, "Test action", func() {
 		counter++
 	})
 	if err != nil {
@@ -40,7 +43,8 @@ func TestSpinWhileActionIsExecuted(t *testing.T) {
 func TestSpinWhileWithError(t *testing.T) {
 	// Test SpinWhile when action panics or has issues
 	actionCalled := false
-	err := SpinWhile("Test action with panic recovery", func() {
+	f := &factory.Factory{}
+	err := SpinWhile(f, "Test action with panic recovery", func() {
 		actionCalled = true
 		// Don't actually panic in test, just test normal flow
 	})
@@ -59,7 +63,8 @@ func TestSpinWhileTTYDetection(t *testing.T) {
 	isTTY := isatty.IsTerminal(os.Stdout.Fd())
 
 	actionCalled := false
-	err := SpinWhile("TTY detection test", func() {
+	f := &factory.Factory{}
+	err := SpinWhile(f, "TTY detection test", func() {
 		actionCalled = true
 	})
 	if err != nil {
@@ -72,4 +77,20 @@ func TestSpinWhileTTYDetection(t *testing.T) {
 
 	// Document the current TTY status for debugging
 	t.Logf("Current TTY status: %v", isTTY)
+}
+
+func TestSpinWhileQuiet(t *testing.T) {
+	// Test that SpinWhile works with Quiet mode
+	actionCalled := false
+	f := &factory.Factory{Quiet: true}
+	err := SpinWhile(f, "Test action", func() {
+		actionCalled = true
+	})
+	if err != nil {
+		t.Errorf("SpinWhile should not return error: %v", err)
+	}
+
+	if !actionCalled {
+		t.Error("Action should have been called")
+	}
 }

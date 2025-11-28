@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
 
 func TestMigrationAPIEndpoint(t *testing.T) {
@@ -365,7 +367,7 @@ jobs:
 		t.Fatalf("Failed to write test file: %v", err)
 	}
 
-	cmd := NewCmdPipelineMigrate()
+	cmd := NewCmdPipelineMigrate(&factory.Factory{})
 	if cmd == nil {
 		t.Fatal("Failed to create migrate command")
 	}

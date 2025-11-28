@@ -30,7 +30,7 @@ func NewCmdJobRetry(f *factory.Factory) *cobra.Command {
 
 			var err error
 			var j *graphql.RetryJobResponse
-			spinErr := bk_io.SpinWhile("Retrying job", func() {
+			spinErr := bk_io.SpinWhile(f, "Retrying job", func() {
 				j, err = graphql.RetryJob(cmd.Context(), f.GraphQLClient, graphqlID)
 			})
 			if spinErr != nil {

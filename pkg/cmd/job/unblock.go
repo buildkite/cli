@@ -55,7 +55,7 @@ func NewCmdJobUnblock(f *factory.Factory) *cobra.Command {
 			}
 
 			var err error
-			spinErr := bk_io.SpinWhile("Unblocking job", func() {
+			spinErr := bk_io.SpinWhile(f, "Unblocking job", func() {
 				_, err = graphql.UnblockJob(cmd.Context(), f.GraphQLClient, graphqlID, fields)
 			})
 			if spinErr != nil {

@@ -8,7 +8,6 @@ import (
 	"github.com/buildkite/cli/v3/internal/graphql"
 	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/util"
-	"github.com/buildkite/cli/v3/internal/validation/scopes"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/spf13/cobra"
 )
@@ -34,10 +33,6 @@ func NewCmdJobCancel(f *factory.Factory) *cobra.Command {
 			# Cancel a job and open it in browser
 			$ bk job --yes cancel 0190046e-e199-453b-a302-a21a4d649d31 --web
 		`),
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			f.SetGlobalFlags(cmd)
-			return nil
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			jobID := args[0]
 			graphqlID := util.GenerateGraphQLID("JobTypeCommand---", jobID)
@@ -48,15 +43,11 @@ func NewCmdJobCancel(f *factory.Factory) *cobra.Command {
 			}
 
 			if confirmed {
-				return cancelJob(cmd.Context(), graphqlID, web, f)
+				return cancelJob(cmd.Context(), jobID, graphqlID, web, f)
 			}
 
 			return nil
 		},
-	}
-
-	cmd.Annotations = map[string]string{
-		"requiredScopes": string(scopes.WriteBuilds),
 	}
 
 	cmd.Flags().BoolVarP(&web, "web", "w", false, "Open the job in a web browser after it has been cancelled.")
@@ -65,11 +56,11 @@ func NewCmdJobCancel(f *factory.Factory) *cobra.Command {
 	return &cmd
 }
 
-func cancelJob(ctx context.Context, jobID string, web bool, f *factory.Factory) error {
+func cancelJob(ctx context.Context, displayID, apiID string, web bool, f *factory.Factory) error {
 	var err error
 	var result *graphql.CancelJobResponse
-	spinErr := bk_io.SpinWhile(fmt.Sprintf("Cancelling job %s", jobID), func() {
-		result, err = graphql.CancelJob(ctx, f.GraphQLClient, jobID)
+	spinErr := bk_io.SpinWhile(f, fmt.Sprintf("Cancelling job %s", displayID), func() {
+		result, err = graphql.CancelJob(ctx, f.GraphQLClient, apiID)
 	})
 	if spinErr != nil {
 		return spinErr

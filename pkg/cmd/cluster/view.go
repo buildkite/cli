@@ -113,7 +113,7 @@ func NewCmdClusterView(f *factory.Factory) *cobra.Command {
 			}
 
 			var cluster buildkite.Cluster
-			spinErr := io.SpinWhile("Loading cluster information", func() {
+			spinErr := io.SpinWhile(f, "Loading cluster information", func() {
 				cluster, _, err = f.RestAPIClient.Clusters.Get(cmd.Context(), f.Config.OrganizationSlug(), args[0])
 			})
 			if spinErr != nil {

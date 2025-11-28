@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"sync"
 
@@ -12,6 +13,7 @@ import (
 	bk_io "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/semaphore"
 )
@@ -70,7 +72,7 @@ func RunStop(cmd *cobra.Command, args []string, opts *AgentStopOptions) error {
 			id := scanner.Text()
 			if strings.TrimSpace(id) != "" {
 				wg.Add(1)
-				agents = append(agents, agent.NewStoppableAgent(id, stopper(cmd.Context(), id, opts.f, opts.force, sem, &wg)))
+				agents = append(agents, agent.NewStoppableAgent(id, stopper(cmd.Context(), id, opts.f, opts.force, sem, &wg), opts.f.Quiet))
 			}
 		}
 
@@ -81,7 +83,7 @@ func RunStop(cmd *cobra.Command, args []string, opts *AgentStopOptions) error {
 		for _, id := range args {
 			if strings.TrimSpace(id) != "" {
 				wg.Add(1)
-				agents = append(agents, agent.NewStoppableAgent(id, stopper(cmd.Context(), id, opts.f, opts.force, sem, &wg)))
+				agents = append(agents, agent.NewStoppableAgent(id, stopper(cmd.Context(), id, opts.f, opts.force, sem, &wg), opts.f.Quiet))
 			}
 		}
 	} else {
@@ -92,7 +94,11 @@ func RunStop(cmd *cobra.Command, args []string, opts *AgentStopOptions) error {
 		Agents: agents,
 	}
 
-	p := tea.NewProgram(bulkAgent, tea.WithOutput(cmd.OutOrStdout()))
+	programOpts := []tea.ProgramOption{tea.WithOutput(cmd.OutOrStdout())}
+	if !isatty.IsTerminal(os.Stdin.Fd()) {
+		programOpts = append(programOpts, tea.WithInput(nil))
+	}
+	p := tea.NewProgram(bulkAgent, programOpts...)
 
 	// send a quit message after all agents have stopped
 	go func() {

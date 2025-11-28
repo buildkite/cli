@@ -107,7 +107,7 @@ func NewCmdJobList(f *factory.Factory) *cobra.Command {
 			org := f.Config.OrganizationSlug()
 			var jobs []buildkite.Job
 
-			err = io.SpinWhile("Loading jobs", func() {
+			err = io.SpinWhile(f, "Loading jobs", func() {
 				if opts.queue != "" {
 					jobs, err = fetchJobsWithQueueFilter(cmd.Context(), f, org, opts)
 				} else {

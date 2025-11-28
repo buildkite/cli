@@ -74,7 +74,7 @@ func NewCmdPackagePush(f *factory.Factory) *cobra.Command {
 			}
 
 			var pkg buildkite.Package
-			spinErr := bk_io.SpinWhile("Pushing file", func() {
+			spinErr := bk_io.SpinWhile(f, "Pushing file", func() {
 				pkg, _, err = f.RestAPIClient.PackagesService.Create(cmd.Context(), f.Config.OrganizationSlug(), cfg.RegistrySlug, buildkite.CreatePackageInput{
 					Filename: packageName,
 					Package:  from,

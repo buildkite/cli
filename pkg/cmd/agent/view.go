@@ -47,7 +47,7 @@ func NewCmdAgentView(f *factory.Factory) *cobra.Command {
 
 			if format != output.FormatText {
 				var agentData buildkite.Agent
-				spinErr := bk_io.SpinWhile("Loading agent", func() {
+				spinErr := bk_io.SpinWhile(f, "Loading agent", func() {
 					agentData, _, err = f.RestAPIClient.Agents.Get(cmd.Context(), org, id)
 				})
 				if spinErr != nil {
@@ -60,7 +60,7 @@ func NewCmdAgentView(f *factory.Factory) *cobra.Command {
 			}
 
 			var agentData buildkite.Agent
-			spinErr := bk_io.SpinWhile("Loading agent", func() {
+			spinErr := bk_io.SpinWhile(f, "Loading agent", func() {
 				agentData, _, err = f.RestAPIClient.Agents.Get(cmd.Context(), org, id)
 			})
 			if spinErr != nil {

@@ -3,7 +3,6 @@ package agent
 import (
 	"fmt"
 
-	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -29,42 +28,35 @@ type StatusUpdate struct {
 type StopFn func() StatusUpdate
 
 type StoppableAgent struct {
-	err     error
-	id      string
-	spinner spinner.Model
-	status  Status
-	stopFn  StopFn
+	err    error
+	id     string
+	status Status
+	stopFn StopFn
+	quiet  bool
 }
 
-func NewStoppableAgent(id string, stopFn StopFn) StoppableAgent {
+func NewStoppableAgent(id string, stopFn StopFn, quiet bool) StoppableAgent {
 	return StoppableAgent{
-		id:      id,
-		spinner: spinner.New(spinner.WithSpinner(spinner.Points)),
-		status:  Waiting,
-		stopFn:  stopFn,
+		id:     id,
+		status: Waiting,
+		stopFn: stopFn,
+		quiet:  quiet,
 	}
 }
 
 // Init implements tea.Model
 func (agent StoppableAgent) Init() tea.Cmd {
-	return tea.Batch(
-		agent.spinner.Tick,
-		func() tea.Msg {
-			if agent.stopFn != nil {
-				return agent.stopFn()
-			}
-			return nil
-		},
-	)
+	return func() tea.Msg {
+		if agent.stopFn != nil {
+			return agent.stopFn()
+		}
+		return nil
+	}
 }
 
 // Update implements tea.Model.
 func (agent StoppableAgent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
 	switch msg := msg.(type) {
-	case spinner.TickMsg:
-		agent.spinner, cmd = agent.spinner.Update(msg)
-		return agent, cmd
 	case StatusUpdate:
 		// if the msg ID doesn't match this agent, do nothing as it doesnt apply to this instance
 		if msg.ID != agent.id {
@@ -76,13 +68,8 @@ func (agent StoppableAgent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			agent.status = Failed
 			return agent, msg.Cmd
 		}
-		// only update the spinner if status is Stopping
-		var spinCmd tea.Cmd
-		if msg.Status == Stopping {
-			agent.spinner, spinCmd = agent.spinner.Update(msg)
-		}
 		agent.status = msg.Status
-		return agent, tea.Batch(msg.Cmd, spinCmd)
+		return agent, msg.Cmd
 	default:
 		return agent, nil
 	}
@@ -90,20 +77,23 @@ func (agent StoppableAgent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View implements tea.Model.
 func (agent StoppableAgent) View() string {
-	var out string
-
 	switch agent.status {
 	case Waiting:
-		out = fmt.Sprintf("%s Waiting to stop agent %s\n", agent.spinner.Spinner.Frames[0], agent.id)
+		if agent.quiet {
+			return ""
+		}
+		return fmt.Sprintf("... Waiting to stop agent %s\n", agent.id)
 	case Stopping:
-		out = fmt.Sprintf("%s Stopping agent %s\n", agent.spinner.View(), agent.id)
+		if agent.quiet {
+			return ""
+		}
+		return fmt.Sprintf("... Stopping agent %s\n", agent.id)
 	case Succeeded:
-		out = fmt.Sprintf("✓   Stopped agent %s\n", agent.id)
+		return fmt.Sprintf("✓   Stopped agent %s\n", agent.id)
 	case Failed:
-		out = fmt.Sprintf("✗   Failed to stop agent %s (error: %s)\n", agent.id, agent.err.Error())
+		return fmt.Sprintf("✗   Failed to stop agent %s (error: %s)\n", agent.id, agent.err.Error())
 	}
-
-	return out
+	return ""
 }
 
 func (agent StoppableAgent) Errored() bool {
