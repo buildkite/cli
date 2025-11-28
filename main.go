@@ -6,6 +6,8 @@ import (
 	"os"
 
 	"github.com/alecthomas/kong"
+	"github.com/buildkite/cli/v3/cmd/build"
+	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -14,6 +16,11 @@ import (
 
 // Kong CLI structure, with base commands defined as additional commands are defined in their respective files
 type CLI struct {
+	// Global flags
+	Yes     bool `help:"Skip all confirmation prompts" short:"y"`
+	NoInput bool `help:"Disable all interactive prompts" name:"no-input"`
+	// Verbose bool `help:"Enable verbose error output" short:"V"` // TODO: Implement this, atm this is just a skeleton flag
+
 	Agent     AgentCmd     `cmd:"" help:"Manage agents"`
 	Api       ApiCmd       `cmd:"" help:"Interact with the Buildkite API"`
 	Artifacts ArtifactsCmd `cmd:"" help:"Manage pipeline build artifacts"`
@@ -42,7 +49,13 @@ type (
 		Args []string `arg:"" optional:"" passthrough:"all"`
 	}
 	BuildCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		Create   build.CreateCmd   `cmd:"" aliases:"new" help:"Create a new build."` // Aliasing "new" because we've renamed this to "create", but we need to support backwards compatibility
+		Cancel   build.CancelCmd   `cmd:"" help:"Cancel a build."`
+		View     build.ViewCmd     `cmd:"" help:"View build information."`
+		List     build.ListCmd     `cmd:"" help:"List builds."`
+		Download build.DownloadCmd `cmd:"" help:"Download resources for a build."`
+		Rebuild  build.RebuildCmd  `cmd:"" help:"Rebuild a build."`
+		Watch    build.WatchCmd    `cmd:"" help:"Watch a build's progress in real-time."`
 	}
 	ClusterCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
@@ -77,31 +90,58 @@ type (
 )
 
 // Delegation methods, we should delete when native Kong implementations ready
-func (v *VersionCmd) Run(*CLI) error   { return delegateToCobraSystem("version", v.Args) }
-func (a *AgentCmd) Run(*CLI) error     { return delegateToCobraSystem("agent", a.Args) }
-func (a *ArtifactsCmd) Run(*CLI) error { return delegateToCobraSystem("artifacts", a.Args) }
-func (b *BuildCmd) Run(*CLI) error     { return delegateToCobraSystem("build", b.Args) }
-func (c *ClusterCmd) Run(*CLI) error   { return delegateToCobraSystem("cluster", c.Args) }
-func (j *JobCmd) Run(*CLI) error       { return delegateToCobraSystem("job", j.Args) }
-func (p *PackageCmd) Run(*CLI) error   { return delegateToCobraSystem("package", p.Args) }
-func (p *PipelineCmd) Run(*CLI) error  { return delegateToCobraSystem("pipeline", p.Args) }
-func (u *UserCmd) Run(*CLI) error      { return delegateToCobraSystem("user", u.Args) }
-func (a *ApiCmd) Run(*CLI) error       { return delegateToCobraSystem("api", a.Args) }
-func (c *ConfigureCmd) Run(*CLI) error { return delegateToCobraSystem("configure", c.Args) }
-func (i *InitCmd) Run(*CLI) error      { return delegateToCobraSystem("init", i.Args) }
-func (u *UseCmd) Run(*CLI) error       { return delegateToCobraSystem("use", u.Args) }
-func (w *WhoamiCmd) Run(*CLI) error    { return delegateToCobraSystem("whoami", w.Args) }
+func (v *VersionCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("version", v.Args) }
+func (a *AgentCmd) Run(cli *CLI) error     { return cli.delegateToCobraSystem("agent", a.Args) }
+func (a *ArtifactsCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("artifacts", a.Args) }
+func (c *ClusterCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("cluster", c.Args) }
+func (j *JobCmd) Run(cli *CLI) error       { return cli.delegateToCobraSystem("job", j.Args) }
+func (p *PackageCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("package", p.Args) }
+func (p *PipelineCmd) Run(cli *CLI) error  { return cli.delegateToCobraSystem("pipeline", p.Args) }
+func (u *UserCmd) Run(cli *CLI) error      { return cli.delegateToCobraSystem("user", u.Args) }
+func (a *ApiCmd) Run(cli *CLI) error       { return cli.delegateToCobraSystem("api", a.Args) }
+func (c *ConfigureCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("configure", c.Args) }
+func (i *InitCmd) Run(cli *CLI) error      { return cli.delegateToCobraSystem("init", i.Args) }
+func (u *UseCmd) Run(cli *CLI) error       { return cli.delegateToCobraSystem("use", u.Args) }
+func (w *WhoamiCmd) Run(cli *CLI) error    { return cli.delegateToCobraSystem("whoami", w.Args) }
 
-func delegateToCobraSystem(command string, args []string) error {
+// delegateToCobraSystem delegates execution to the legacy Cobra command system.
+// This is a temporary bridge during the Kong migration that ensures backwards compatibility
+// by reconstructing global flags that Kong has already parsed.
+func (cli *CLI) delegateToCobraSystem(command string, args []string) error {
+	// Preserve and restore original args for safety
 	originalArgs := os.Args
 	defer func() { os.Args = originalArgs }()
 
-	os.Args = append([]string{os.Args[0], command}, args...)
+	// Reconstruct command args with global flags for Cobra compatibility
+	reconstructedArgs := cli.buildCobraArgs(command, args)
+	os.Args = reconstructedArgs
 
 	if code := runCobraSystem(); code != 0 {
 		os.Exit(code)
 	}
 	return nil
+}
+
+// buildCobraArgs constructs the argument slice for Cobra, including global flags.
+// Kong parses and consumes global flags before delegation, so we need to reconstruct
+// them to maintain backwards compatibility with Cobra commands.
+func (cli *CLI) buildCobraArgs(command string, passthroughArgs []string) []string {
+	args := []string{os.Args[0], command}
+
+	if cli.Yes {
+		args = append(args, "--yes")
+	}
+	if cli.NoInput {
+		args = append(args, "--no-input")
+	}
+	// TODO: Add verbose flag reconstruction when implemented
+	// if cli.Verbose {
+	// 	args = append(args, "--verbose")
+	// }
+
+	args = append(args, passthroughArgs...)
+
+	return args
 }
 
 func runCobraSystem() int {
@@ -131,6 +171,15 @@ func handleError(err error) {
 	bkErrors.NewHandler().Handle(err)
 }
 
+func newKongParser(cli *CLI) (*kong.Kong, error) {
+	return kong.New(
+		cli,
+		kong.Name("bk"),
+		kong.Description("Work with Buildkite from the command line."),
+		kong.UsageOnError(),
+	)
+}
+
 func main() {
 	os.Exit(run())
 }
@@ -140,8 +189,7 @@ func run() int {
 	// This addresses the Kong limitation described in https://github.com/alecthomas/kong/issues/33
 	if len(os.Args) <= 1 {
 		cli := &CLI{}
-		parser, err := kong.New(cli,
-			kong.Description("Buildkite CLI"))
+		parser, err := newKongParser(cli)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			return 1
@@ -155,8 +203,9 @@ func run() int {
 		return runCobraSystem()
 	}
 
-	cli := &CLI{}
-	parser, err := kong.New(cli, kong.Description("Buildkite CLI"), kong.UsageOnError())
+	cliInstance := &CLI{}
+
+	parser, err := newKongParser(cliInstance)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
@@ -167,7 +216,14 @@ func run() int {
 		return 1
 	}
 
-	if err := ctx.Run(cli); err != nil {
+	globals := cli.Globals{
+		Yes:     cliInstance.Yes,
+		NoInput: cliInstance.NoInput,
+	}
+
+	ctx.BindTo(cli.GlobalFlags(globals), (*cli.GlobalFlags)(nil))
+
+	if err := ctx.Run(cliInstance); err != nil {
 		handleError(err)
 		return 1
 	}
@@ -183,6 +239,11 @@ func isHelpRequest() bool {
 
 	// Global help, e.g. bk --help - let Kong handle this too
 	if len(os.Args) == 2 && (os.Args[1] == "-h" || os.Args[1] == "--help") {
+		return false
+	}
+
+	// Let Kong handle build subcommand help since build is fully migrated
+	if len(os.Args) >= 2 && os.Args[1] == "build" {
 		return false
 	}
 
