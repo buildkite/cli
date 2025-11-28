@@ -50,6 +50,7 @@ type (
 	}
 	BuildCmd struct {
 		Create build.CreateCmd `cmd:"" aliases:"new" help:"Create a new build."` // Aliasing "new" because we've renamed this to "create", but we need to support backwards compatibility
+		Cancel build.CancelCmd `cmd:"" help:"Cancel a build."`
 	}
 	ClusterCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
