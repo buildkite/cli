@@ -242,6 +242,11 @@ func isHelpRequest() bool {
 		return false
 	}
 
+	// Let Kong handle build subcommand help since build is fully migrated
+	if len(os.Args) >= 2 && os.Args[1] == "build" {
+		return false
+	}
+
 	// Subcommand help, e.g. bk agent --help - delegate to Cobra
 	if len(os.Args) == 3 && (os.Args[2] == "-h" || os.Args[2] == "--help") {
 		return true
