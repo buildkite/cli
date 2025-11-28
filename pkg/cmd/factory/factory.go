@@ -26,15 +26,12 @@ type Factory struct {
 }
 
 // SetGlobalFlags reads the global persistent flags and sets them on the factory.
-// This should be called in PreRunE of commands that need to use global flags.
+// This should be called in PreRunE of Cobra commands that need to use global flags.
 // It's safe to call multiple times and will only set flags if they're present.
 //
-// NOTE: Due to Cobra limitations, global flags must be positioned AFTER at least one subcommand.
-// Valid:   bk job --yes cancel <id>  or  bk job cancel --yes <id>
-// Invalid: bk --yes job cancel <id>
-//
-// Once the CLI is fully migrated to Kong (currently in progress), the limitation will be removed
-// and global flags will work in any position, including: bk --yes job cancel <id>
+// NOTE: This is only used by legacy Cobra commands. Kong commands receive global
+// flags via cli.GlobalFlags which are set at the root level and work in any position
+// (e.g., bk --yes job cancel <id>).
 func (f *Factory) SetGlobalFlags(cmd *cobra.Command) {
 	if yes, err := cmd.Flags().GetBool("yes"); err == nil && yes {
 		f.SkipConfirm = yes
