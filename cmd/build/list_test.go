@@ -7,6 +7,19 @@ import (
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
+type buildListOptions struct {
+	duration string
+	message  string
+}
+
+func applyClientSideFilters(builds []buildkite.Build, opts buildListOptions) ([]buildkite.Build, error) {
+	cmd := &ListCmd{
+		Duration: opts.duration,
+		Message:  opts.message,
+	}
+	return cmd.applyClientSideFilters(builds)
+}
+
 func TestFilterBuilds(t *testing.T) {
 	now := time.Now()
 	builds := []buildkite.Build{
