@@ -27,6 +27,7 @@ const (
 	pageSize      = 100
 )
 
+//nolint:unused // exported for testing
 type buildListOptions struct {
 	pipeline string
 	since    string
