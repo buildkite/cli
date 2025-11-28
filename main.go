@@ -54,6 +54,7 @@ type (
 		View     build.ViewCmd     `cmd:"" help:"View build information."`
 		List     build.ListCmd     `cmd:"" help:"List builds."`
 		Download build.DownloadCmd `cmd:"" help:"Download resources for a build."`
+		Rebuild  build.RebuildCmd  `cmd:"" help:"Rebuild a build."`
 	}
 	ClusterCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
