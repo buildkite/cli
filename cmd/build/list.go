@@ -27,6 +27,20 @@ const (
 	pageSize      = 100
 )
 
+type buildListOptions struct {
+	pipeline string
+	since    string
+	until    string
+	duration string
+	state    []string
+	branch   []string
+	creator  string
+	commit   string
+	message  string
+	limit    int
+	noLimit  bool
+}
+
 type ListCmd struct {
 	Pipeline string   `help:"The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
 	Since    string   `help:"Filter builds created since this time (e.g. 1h, 30m)"`
@@ -564,4 +578,13 @@ func getStateColor(state string) lipgloss.Style {
 	default:
 		return lipgloss.NewStyle()
 	}
+}
+
+// Test helpers - exported for testing only
+func applyClientSideFilters(builds []buildkite.Build, opts buildListOptions) ([]buildkite.Build, error) {
+	cmd := &ListCmd{
+		Duration: opts.duration,
+		Message:  opts.message,
+	}
+	return cmd.applyClientSideFilters(builds)
 }
