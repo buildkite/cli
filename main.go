@@ -19,6 +19,7 @@ type CLI struct {
 	// Global flags
 	Yes     bool `help:"Skip all confirmation prompts" short:"y"`
 	NoInput bool `help:"Disable all interactive prompts" name:"no-input"`
+	Quiet   bool `help:"Suppress progress output" short:"q"`
 	// Verbose bool `help:"Enable verbose error output" short:"V"` // TODO: Implement this, atm this is just a skeleton flag
 
 	Agent     AgentCmd     `cmd:"" help:"Manage agents"`
@@ -134,6 +135,9 @@ func (cli *CLI) buildCobraArgs(command string, passthroughArgs []string) []strin
 	if cli.NoInput {
 		args = append(args, "--no-input")
 	}
+	if cli.Quiet {
+		args = append(args, "--quiet")
+	}
 	// TODO: Add verbose flag reconstruction when implemented
 	// if cli.Verbose {
 	// 	args = append(args, "--verbose")
@@ -219,6 +223,7 @@ func run() int {
 	globals := cli.Globals{
 		Yes:     cliInstance.Yes,
 		NoInput: cliInstance.NoInput,
+		Quiet:   cliInstance.Quiet,
 	}
 
 	ctx.BindTo(cli.GlobalFlags(globals), (*cli.GlobalFlags)(nil))

@@ -28,7 +28,10 @@ func NewCmdAgent(f *factory.Factory) *cobra.Command {
 		       # To resume an agent
 		       $ bk agent resume 018a2b90-ba7f-4220-94ca-4903fa0ba410
 	       `),
-		PersistentPreRunE: validation.CheckValidConfiguration(f.Config),
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			f.SetGlobalFlags(cmd)
+			return validation.CheckValidConfiguration(f.Config)(cmd, args)
+		},
 		Annotations: map[string]string{
 			"help:arguments": heredoc.Doc(`
 				An agent can be supplied as an argument in any of the following formats:

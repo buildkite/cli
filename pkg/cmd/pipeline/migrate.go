@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 
 	bkio "github.com/buildkite/cli/v3/internal/io"
+	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
 
 // MigrationEndpoint is the API endpoint for pipeline migration
@@ -46,7 +47,7 @@ type statusResponse struct {
 	Error       string `json:"error,omitempty"`
 }
 
-func NewCmdPipelineMigrate() *cobra.Command {
+func NewCmdPipelineMigrate(f *factory.Factory) *cobra.Command {
 	var filePath string
 	var vendor string
 	var useAI bool
@@ -133,7 +134,7 @@ func NewCmdPipelineMigrate() *cobra.Command {
 
 			// Poll for job completion with spinner
 			var result *statusResponse
-			err = bkio.SpinWhile("Processing migration...", func() {
+			err = bkio.SpinWhile(f, "Processing migration...", func() {
 				result, err = pollJobStatus(jobResp.JobID, timeoutSeconds)
 			})
 			if err != nil {

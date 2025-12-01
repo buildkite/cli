@@ -77,6 +77,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 				return err
 			}
 
+			// Skip TUI when using non-text format (JSON/YAML)
 			if format != output.FormatText {
 				agents := []buildkite.Agent{}
 				page := 1
@@ -142,7 +143,7 @@ func NewCmdAgentList(f *factory.Factory) *cobra.Command {
 				}
 			}
 
-			model := agent.NewAgentList(loader, 1, perpage)
+			model := agent.NewAgentList(loader, 1, perpage, f.Quiet)
 
 			p := tea.NewProgram(model, tea.WithAltScreen())
 			_, err = p.Run()

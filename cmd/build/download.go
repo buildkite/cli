@@ -54,6 +54,7 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 
 	f.SkipConfirm = globals.SkipConfirmation()
 	f.NoInput = globals.DisableInput()
+	f.Quiet = globals.IsQuiet()
 
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
 		return err
@@ -106,7 +107,7 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 	}
 
 	var dir string
-	spinErr := bk_io.SpinWhile("Downloading build resources", func() {
+	spinErr := bk_io.SpinWhile(f, "Downloading build resources", func() {
 		dir, err = download(ctx, bld, f)
 	})
 	if spinErr != nil {

@@ -1,22 +1,44 @@
 package io
 
 import (
+	"fmt"
 	"os"
+	"time"
 
-	"github.com/charmbracelet/huh/spinner"
+	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/mattn/go-isatty"
 )
 
-func SpinWhile(name string, action func()) error {
-	if !isatty.IsTerminal(os.Stdout.Fd()) {
-		// No TTY available, just run the action without spinner
+func SpinWhile(f *factory.Factory, name string, action func()) error {
+	// If quiet mode is on or not a terminal, just run the action
+	if f.Quiet || !isatty.IsTerminal(os.Stdout.Fd()) {
 		action()
 		return nil
 	}
 
-	// TTY is available, use the spinner
-	return spinner.New().
-		Title(name).
-		Action(action).
-		Run()
+	done := make(chan struct{})
+
+	go func() {
+		ticker := time.NewTicker(200 * time.Millisecond)
+		defer ticker.Stop()
+
+		i := 0
+		chars := []string{".  ", ".. ", "..."}
+
+		for {
+			select {
+			case <-done:
+				fmt.Fprintf(os.Stderr, "\r%s... Done\n", name)
+				return
+			case <-ticker.C:
+				fmt.Fprintf(os.Stderr, "\r%s %s", name, chars[i%len(chars)])
+				i++
+			}
+		}
+	}()
+
+	action()
+	close(done)
+
+	return nil
 }

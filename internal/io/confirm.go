@@ -33,7 +33,7 @@ func Confirm(f *factory.Factory, prompt string) (bool, error) {
 		return false, fmt.Errorf("interactive input required but --no-input is set")
 	}
 
-	fmt.Printf("%s [y/N]: ", prompt)
+	fmt.Printf("%s [Y/N]: ", prompt)
 
 	response, err := ReadLine()
 	if err != nil {

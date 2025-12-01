@@ -99,6 +99,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	f.SkipConfirm = globals.SkipConfirmation()
 	f.NoInput = globals.DisableInput()
+	f.Quiet = globals.IsQuiet()
 
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
 		return err
@@ -114,7 +115,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	if c.Creator != "" && isValidEmail(c.Creator) {
 		originalEmail := c.Creator
-		err = io.SpinWhile("Looking up user", func() {
+		err = io.SpinWhile(f, "Looking up user", func() {
 			c.Creator, err = resolveCreatorEmailToUserID(ctx, f, originalEmail)
 		})
 		if err != nil {
@@ -249,7 +250,7 @@ func (c *ListCmd) fetchBuilds(ctx context.Context, f *factory.Factory, org strin
 			rawSinceConfirm = 0
 		}
 
-		spinErr := io.SpinWhile(spinnerMsg, func() {
+		spinErr := io.SpinWhile(f, spinnerMsg, func() {
 			if c.Pipeline != "" {
 				builds, err = c.getBuildsByPipeline(ctx, f, org, listOpts)
 			} else {

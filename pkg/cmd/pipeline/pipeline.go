@@ -19,14 +19,17 @@ func NewCmdPipeline(f *factory.Factory) *cobra.Command {
 			# To validate a pipeline configuration
 			$ bk pipeline validate
 		`),
-		PersistentPreRunE: validation.CheckValidConfiguration(f.Config),
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			f.SetGlobalFlags(cmd)
+			return validation.CheckValidConfiguration(f.Config)(cmd, args)
+		},
 	}
 
 	cmd.AddCommand(NewCmdPipelineCreate(f))
 	cmd.AddCommand(NewCmdPipelineList(f))
 	cmd.AddCommand(NewCmdPipelineView(f))
 	cmd.AddCommand(NewCmdPipelineValidate(f))
-	cmd.AddCommand(NewCmdPipelineMigrate())
+	cmd.AddCommand(NewCmdPipelineMigrate(f))
 
 	return &cmd
 }

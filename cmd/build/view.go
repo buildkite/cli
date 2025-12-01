@@ -70,6 +70,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	f.SkipConfirm = globals.SkipConfirmation()
 	f.NoInput = globals.DisableInput()
+	f.Quiet = globals.IsQuiet()
 
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
 		return err
@@ -140,7 +141,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
-	spinErr := bk_io.SpinWhile("Loading build information", func() {
+	spinErr := bk_io.SpinWhile(f, "Loading build information", func() {
 		wg.Add(3)
 		go func() {
 			defer wg.Done()

@@ -26,6 +26,7 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 	var verbose bool
 	var skipConfirm bool
 	var noInput bool
+	var quiet bool
 
 	cmd := &cobra.Command{
 		Use:              "bk <command> <subcommand> [flags]",
@@ -78,11 +79,13 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 	// Once migrated to Kong, they'll work anywhere (e.g., 'bk --yes job cancel')
 	cmd.PersistentFlags().BoolVarP(&skipConfirm, "yes", "y", false, "Skip all confirmation prompts (useful for automation)")
 	cmd.PersistentFlags().BoolVar(&noInput, "no-input", false, "Disable all interactive prompts (fail if input is required)")
+	cmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "Suppress all progress output")
 
 	// Set factory flags before any command runs
 	cmd.PersistentPreRunE = func(c *cobra.Command, args []string) error {
 		f.SkipConfirm = skipConfirm
 		f.NoInput = noInput
+		f.Quiet = quiet
 		return nil
 	}
 

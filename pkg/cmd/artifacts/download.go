@@ -32,7 +32,7 @@ func NewCmdArtifactsDownload(f *factory.Factory) *cobra.Command {
 
 			var err error
 			var downloadDir string
-			spinErr := bk_io.SpinWhile("Downloading artifact", func() {
+			spinErr := bk_io.SpinWhile(f, "Downloading artifact", func() {
 				downloadDir, err = download(cmd.Context(), f, artifactId)
 			})
 			if spinErr != nil {

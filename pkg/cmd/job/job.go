@@ -8,11 +8,14 @@ import (
 
 func NewCmdJob(f *factory.Factory) *cobra.Command {
 	cmd := cobra.Command{
-		Use:               "job <command>",
-		Short:             "Manage jobs within a build",
-		Long:              "Manage jobs within a build",
-		Example:           "$ bk job unblock 0190046e-e199-453b-a302-a21a4d649d31",
-		PersistentPreRunE: validation.CheckValidConfiguration(f.Config),
+		Use:     "job <command>",
+		Short:   "Manage jobs within a build",
+		Long:    "Manage jobs within a build",
+		Example: "$ bk job unblock 0190046e-e199-453b-a302-a21a4d649d31",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			f.SetGlobalFlags(cmd)
+			return validation.CheckValidConfiguration(f.Config)(cmd, args)
+		},
 	}
 
 	cmd.AddCommand(NewCmdJobList(f))

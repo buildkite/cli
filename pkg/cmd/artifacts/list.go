@@ -78,7 +78,7 @@ func NewCmdArtifactsList(f *factory.Factory) *cobra.Command {
 			var wg sync.WaitGroup
 			var mu sync.Mutex
 
-			spinErr := bk_io.SpinWhile("Loading artifacts information", func() {
+			spinErr := bk_io.SpinWhile(f, "Loading artifacts information", func() {
 				wg.Add(1)
 
 				go func() {

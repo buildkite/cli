@@ -56,6 +56,7 @@ func (c *RebuildCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	f.SkipConfirm = globals.SkipConfirmation()
 	f.NoInput = globals.DisableInput()
+	f.Quiet = globals.IsQuiet()
 
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
 		return err
@@ -113,7 +114,7 @@ func (c *RebuildCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 func rebuild(ctx context.Context, org string, pipeline string, buildId string, web bool, f *factory.Factory) error {
 	var err error
 	var build buildkite.Build
-	spinErr := bk_io.SpinWhile(fmt.Sprintf("Rerunning build #%s for pipeline %s", buildId, pipeline), func() {
+	spinErr := bk_io.SpinWhile(f, fmt.Sprintf("Rerunning build #%s for pipeline %s", buildId, pipeline), func() {
 		build, err = f.RestAPIClient.Builds.Rebuild(ctx, org, pipeline, buildId)
 	})
 	if spinErr != nil {

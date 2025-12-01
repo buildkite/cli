@@ -19,7 +19,7 @@ func ResolveFromRepository(f *factory.Factory, picker PipelinePicker) PipelineRe
 	return func(ctx context.Context) (*pipeline.Pipeline, error) {
 		var err error
 		var pipelines []pipeline.Pipeline
-		spinErr := bk_io.SpinWhile("Resolving pipeline", func() {
+		spinErr := bk_io.SpinWhile(f, "Resolving pipeline", func() {
 			pipelines, err = resolveFromRepository(ctx, f)
 		})
 		if spinErr != nil {
