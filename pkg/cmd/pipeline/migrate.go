@@ -22,7 +22,7 @@ import (
 // MigrationEndpoint is the API endpoint for pipeline migration
 // It can be overridden at build time using ldflags:
 // -X github.com/buildkite/cli/v3/pkg/cmd/pipeline.MigrationEndpoint=https://example.com/migrate
-var MigrationEndpoint = "https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate"
+var MigrationEndpoint = "https://migrate.buildkite.com"
 
 type migrationRequest struct {
 	Vendor string `json:"vendor"`
