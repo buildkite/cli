@@ -238,6 +238,7 @@ type PipelineDryRun struct {
 	AllowRebuilds                   bool                 `json:"allow_rebuilds"`
 	Emoji                           *string              `json:"emoji"`
 	Color                           *string              `json:"color"`
+	CreatedBy                       *buildkite.User      `json:"created_by"`
 }
 
 func initialisePipelineDryRun() PipelineDryRun {
@@ -299,6 +300,8 @@ func createPipelineDryRun(ctx context.Context, f *factory.Factory, pipelineName,
 			Repository:          extractRepoPath(repoURL),
 		},
 	}
+
+	pipeline.CreatedBy = getCreatedByDetails(ctx, f)
 
 	jsonOutput, err := json.MarshalIndent(pipeline, "", "  ")
 	if err != nil {
@@ -397,4 +400,12 @@ func getClusterUrl(orgSlug, clusterID string) string {
 		return ""
 	}
 	return fmt.Sprintf("https://api.buildkite.com/v2/organizations/%s/clusters/%s", orgSlug, clusterID)
+}
+
+func getCreatedByDetails(ctx context.Context, f *factory.Factory) *buildkite.User {
+	user, _, err := f.RestAPIClient.User.CurrentUser(ctx)
+	if err != nil {
+		return nil
+	}
+	return &user
 }
