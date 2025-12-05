@@ -18,7 +18,7 @@ const (
 	// FormatYAML outputs in YAML format
 	FormatYAML Format = "yaml"
 	// FormatText outputs in plain text/default format
-	FormatText Format = "text"
+	FormatText    Format = "text"
 	DefaultFormat Format = FormatJSON
 )
 
