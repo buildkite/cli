@@ -7,6 +7,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/cmd/build"
+	"github.com/buildkite/cli/v3/cmd/job"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	"github.com/buildkite/cli/v3/internal/version"
@@ -62,7 +63,7 @@ type (
 		Args []string `arg:"" optional:"" passthrough:"all"`
 	}
 	JobCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		Cancel job.CancelCmd `cmd:"" help:"Cancel a job."`
 	}
 	PackageCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
@@ -95,7 +96,6 @@ func (v *VersionCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("v
 func (a *AgentCmd) Run(cli *CLI) error     { return cli.delegateToCobraSystem("agent", a.Args) }
 func (a *ArtifactsCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("artifacts", a.Args) }
 func (c *ClusterCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("cluster", c.Args) }
-func (j *JobCmd) Run(cli *CLI) error       { return cli.delegateToCobraSystem("job", j.Args) }
 func (p *PackageCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("package", p.Args) }
 func (p *PipelineCmd) Run(cli *CLI) error  { return cli.delegateToCobraSystem("pipeline", p.Args) }
 func (u *UserCmd) Run(cli *CLI) error      { return cli.delegateToCobraSystem("user", u.Args) }
