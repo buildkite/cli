@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc"
-	agentCmd "github.com/buildkite/cli/v3/pkg/cmd/agent"
 	apiCmd "github.com/buildkite/cli/v3/pkg/cmd/api"
 	artifactsCmd "github.com/buildkite/cli/v3/pkg/cmd/artifacts"
 	clusterCmd "github.com/buildkite/cli/v3/pkg/cmd/cluster"
@@ -56,7 +55,6 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 		},
 	}
 
-	cmd.AddCommand(agentCmd.NewCmdAgent(f))
 	cmd.AddCommand(apiCmd.NewCmdAPI(f))
 	cmd.AddCommand(artifactsCmd.NewCmdArtifacts(f))
 	cmd.AddCommand(clusterCmd.NewCmdCluster(f))
