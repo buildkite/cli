@@ -19,6 +19,7 @@ const (
 	FormatYAML Format = "yaml"
 	// FormatText outputs in plain text/default format
 	FormatText Format = "text"
+	DefaultFormat Format = FormatJSON
 )
 
 // Formatter is an interface that types must implement to support formatted output
@@ -65,7 +66,7 @@ func writeText(w io.Writer, v interface{}) error {
 
 // AddFlags adds format flag to the command flags
 func AddFlags(flags *pflag.FlagSet) {
-	flags.StringP("output", "o", "json", "Output format. One of: json, yaml, text")
+	flags.StringP("output", "o", string(DefaultFormat), "Output format. One of: json, yaml, text")
 }
 
 // GetFormat gets the format from command flags
