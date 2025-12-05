@@ -29,7 +29,7 @@ type ViewCmd struct {
 	User        string `help:"Filter builds to this user. You can use name or email." short:"u" xor:"userfilter"`
 	Mine        bool   `help:"Filter builds to only my user." xor:"userfilter"`
 	Web         bool   `help:"Open the build in a web browser." short:"w"`
-	Output      string `help:"Output format. One of: json, yaml, text" short:"o" default:"json"`
+	Output      string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}"`
 }
 
 func (c *ViewCmd) Help() string {
