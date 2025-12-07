@@ -6,12 +6,14 @@ import (
 	"os"
 
 	"github.com/alecthomas/kong"
+	"github.com/buildkite/cli/v3/cmd/agent"
 	"github.com/buildkite/cli/v3/cmd/build"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/root"
+	"github.com/buildkite/cli/v3/pkg/output"
 )
 
 // Kong CLI structure, with base commands defined as additional commands are defined in their respective files
@@ -44,7 +46,11 @@ type (
 		Args []string `arg:"" optional:"" passthrough:"all"`
 	}
 	AgentCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		Pause  agent.PauseCmd  `cmd:"" help:"Pause a Buildkite agent."`
+		List   agent.ListCmd   `cmd:"" help:"List agents."`
+		Resume agent.ResumeCmd `cmd:"" help:"Resume a Buildkite agent."`
+		Stop   agent.StopCmd   `cmd:"" help:"Stop Buildkite agents."`
+		View   agent.ViewCmd   `cmd:"" help:"View details of an agent."`
 	}
 	ArtifactsCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
@@ -92,7 +98,6 @@ type (
 
 // Delegation methods, we should delete when native Kong implementations ready
 func (v *VersionCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("version", v.Args) }
-func (a *AgentCmd) Run(cli *CLI) error     { return cli.delegateToCobraSystem("agent", a.Args) }
 func (a *ArtifactsCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("artifacts", a.Args) }
 func (c *ClusterCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("cluster", c.Args) }
 func (j *JobCmd) Run(cli *CLI) error       { return cli.delegateToCobraSystem("job", j.Args) }
@@ -181,6 +186,9 @@ func newKongParser(cli *CLI) (*kong.Kong, error) {
 		kong.Name("bk"),
 		kong.Description("Work with Buildkite from the command line."),
 		kong.UsageOnError(),
+		kong.Vars{
+			"output_default_format": string(output.DefaultFormat),
+		},
 	)
 }
 
@@ -252,7 +260,10 @@ func isHelpRequest() bool {
 		return false
 	}
 
-	// Subcommand help, e.g. bk agent --help - delegate to Cobra
+	if len(os.Args) >= 2 && os.Args[1] == "agent" {
+		return false
+	}
+
 	if len(os.Args) == 3 && (os.Args[2] == "-h" || os.Args[2] == "--help") {
 		return true
 	}
