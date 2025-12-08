@@ -7,4 +7,3 @@ mutation RetryJob($id: ID!) {
         }
     }
 }
-
