@@ -69,9 +69,10 @@ type (
 		Args []string `arg:"" optional:"" passthrough:"all"`
 	}
 	JobCmd struct {
-		Cancel job.CancelCmd `cmd:"" help:"Cancel a job."`
-		List   job.ListCmd   `cmd:"" help:"List jobs."`
-		Retry  job.RetryCmd  `cmd:"" help:"Retry a job."`
+		Cancel  job.CancelCmd  `cmd:"" help:"Cancel a job."`
+		List    job.ListCmd    `cmd:"" help:"List jobs."`
+		Retry   job.RetryCmd   `cmd:"" help:"Retry a job."`
+		Unblock job.UnblockCmd `cmd:"" help:"Unblock a job."`
 	}
 	PackageCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
@@ -263,6 +264,10 @@ func isHelpRequest() bool {
 	}
 
 	if len(os.Args) >= 2 && os.Args[1] == "agent" {
+		return false
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "job" {
 		return false
 	}
 
