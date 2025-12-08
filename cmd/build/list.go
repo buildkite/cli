@@ -39,7 +39,7 @@ type ListCmd struct {
 	Message  string   `help:"Filter by message content"`
 	Limit    int      `help:"Maximum number of builds to return" default:"50"`
 	NoLimit  bool     `help:"Fetch all builds (overrides --limit)"`
-	Output   string   `help:"Output format. One of: json, yaml, text" short:"o" default:"json"`
+	Output   string   `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}"`
 }
 
 func (c *ListCmd) Help() string {

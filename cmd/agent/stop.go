@@ -8,82 +8,92 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/MakeNowJust/heredoc"
+	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/agent"
+	"github.com/buildkite/cli/v3/internal/cli"
 	bk_io "github.com/buildkite/cli/v3/internal/io"
+	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mattn/go-isatty"
-	"github.com/spf13/cobra"
 	"golang.org/x/sync/semaphore"
 )
 
-type AgentStopOptions struct {
-	force bool
-	limit int64
-	f     *factory.Factory
+type StopCmd struct {
+	Agents []string `arg:"" optional:"" help:"Agent IDs to stop"`
+	Force  bool     `help:"Force stop the agent. Terminating any jobs in progress"`
+	Limit  int64    `help:"Limit parallel API requests" short:"l" default:"5"`
 }
 
-func NewCmdAgentStop(f *factory.Factory) *cobra.Command {
-	options := AgentStopOptions{
-		f: f,
-	}
+func (c *StopCmd) Help() string {
+	return `Instruct one or more agents to stop accepting new build jobs and shut itself down.
+Agents can be supplied as positional arguments or from STDIN, one per line.
 
-	cmd := cobra.Command{
-		DisableFlagsInUseLine: true,
-		Use:                   "stop <agent>... [--force]",
-		Args:                  cobra.ArbitraryArgs,
-		Short:                 "Stop Buildkite agents",
-		Long: heredoc.Doc(`
-			Instruct one or more agents to stop accepting new build jobs and shut itself down.
-			Agents can be supplied as positional arguments or from STDIN, one per line.
+If the "ORGANIZATION_SLUG/" portion of the "ORGANIZATION_SLUG/UUID" agent argument
+is omitted, it uses the currently selected organization.
 
-			If the "ORGANIZATION_SLUG/" portion of the "ORGANIZATION_SLUG/UUID" agent argument
-			is omitted, it uses the currently selected organization.
+The --force flag applies to all agents that are stopped.
 
-			The --force flag applies to all agents that are stopped.
-		`),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return RunStop(cmd, args, &options)
-		},
-	}
+Examples:
+  # Stop a single agent
+  $ bk agent stop 0198d108-a532-4a62-9bd7-b2e744bf5c45
 
-	cmd.Flags().BoolVar(&options.force, "force", false, "Force stop the agent. Terminating any jobs in progress")
-	cmd.Flags().Int64VarP(&options.limit, "limit", "l", 5, "Limit parallel API requests")
+  # Stop multiple agents
+  $ bk agent stop agent-1 agent-2 agent-3
 
-	return &cmd
+  # Force stop an agent
+  $ bk agent stop 0198d108-a532-4a62-9bd7-b2e744bf5c45 --force
+
+  # Stop agents from STDIN
+  $ cat agent-ids.txt | bk agent stop`
 }
 
-func RunStop(cmd *cobra.Command, args []string, opts *AgentStopOptions) error {
+func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	f, err := factory.New(version.Version)
+	if err != nil {
+		return err
+	}
+
+	f.SkipConfirm = globals.SkipConfirmation()
+	f.NoInput = globals.DisableInput()
+	f.Quiet = globals.IsQuiet()
+
+	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+
 	// use a wait group to ensure we exit the program after all agents have finished
 	var wg sync.WaitGroup
 	// this semaphore is used to limit how many concurrent API requests can be sent
-	sem := semaphore.NewWeighted(opts.limit)
+	sem := semaphore.NewWeighted(c.Limit)
 
 	var agents []agent.StoppableAgent
 	// this command accepts either input from stdin or positional arguments (not both) in that order
 	// so we need to check if stdin has data for us to read and read that, otherwise use positional args and if
 	// there are none, then we need to error
 	// if stdin has data available, use that
-	if bk_io.HasDataAvailable(cmd.InOrStdin()) {
-		scanner := bufio.NewScanner(cmd.InOrStdin())
+	if bk_io.HasDataAvailable(os.Stdin) {
+		scanner := bufio.NewScanner(os.Stdin)
 		scanner.Split(bufio.ScanLines)
 		for scanner.Scan() {
 			id := scanner.Text()
 			if strings.TrimSpace(id) != "" {
 				wg.Add(1)
-				agents = append(agents, agent.NewStoppableAgent(id, stopper(cmd.Context(), id, opts.f, opts.force, sem, &wg), opts.f.Quiet))
+				agents = append(agents, agent.NewStoppableAgent(id, stopper(ctx, id, f, c.Force, sem, &wg), f.Quiet))
 			}
 		}
 
 		if scanner.Err() != nil {
 			return scanner.Err()
 		}
-	} else if len(args) > 0 {
-		for _, id := range args {
+	} else if len(c.Agents) > 0 {
+		for _, id := range c.Agents {
 			if strings.TrimSpace(id) != "" {
 				wg.Add(1)
-				agents = append(agents, agent.NewStoppableAgent(id, stopper(cmd.Context(), id, opts.f, opts.force, sem, &wg), opts.f.Quiet))
+				agents = append(agents, agent.NewStoppableAgent(id, stopper(ctx, id, f, c.Force, sem, &wg), f.Quiet))
 			}
 		}
 	} else {
@@ -94,7 +104,7 @@ func RunStop(cmd *cobra.Command, args []string, opts *AgentStopOptions) error {
 		Agents: agents,
 	}
 
-	programOpts := []tea.ProgramOption{tea.WithOutput(cmd.OutOrStdout())}
+	programOpts := []tea.ProgramOption{tea.WithOutput(os.Stdout)}
 	if !isatty.IsTerminal(os.Stdin.Fd()) {
 		programOpts = append(programOpts, tea.WithInput(nil))
 	}
@@ -106,7 +116,7 @@ func RunStop(cmd *cobra.Command, args []string, opts *AgentStopOptions) error {
 		p.Send(tea.Quit())
 	}()
 
-	_, err := p.Run()
+	_, err = p.Run()
 	if err != nil {
 		return err
 	}
