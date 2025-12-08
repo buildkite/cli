@@ -3,28 +3,81 @@ package job
 import (
 	"context"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/MakeNowJust/heredoc"
+	"github.com/alecthomas/kong"
+	"github.com/buildkite/cli/v3/internal/cli"
 	bkGraphQL "github.com/buildkite/cli/v3/internal/graphql"
 	"github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
-	"github.com/buildkite/cli/v3/internal/validation/scopes"
+	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/spf13/cobra"
 )
 
 const (
 	maxJobLimit = 5000
 	pageSize    = 100
 )
+
+type ListCmd struct {
+	Pipeline string   `help:"Filter by pipeline slug" short:"p"`
+	Since    string   `help:"Filter jobs from builds created since this time (e.g. 1h, 30m)"`
+	Until    string   `help:"Filter jobs from builds created before this time (e.g. 1h, 30m)"`
+	Duration string   `help:"Filter by duration (e.g. >10m, <5m, 20m) - supports >, <, >=, <= operators"`
+	State    []string `help:"Filter by job state"`
+	Queue    string   `help:"Filter by queue name"`
+	OrderBy  string   `help:"Order results by field (start_time, duration)" name:"order-by"`
+	Limit    int      `help:"Maximum number of jobs to return" default:"100"`
+	Output   string   `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}"`
+}
+
+func (c *ListCmd) Help() string {
+	return `This command supports both server-side filtering (fast) and client-side filtering.
+Server-side filters are applied when fetching builds, while client-side filters
+are applied after extracting jobs from builds.
+
+Client-side filters: --queue, --state, --duration
+Server-side filters: --pipeline, --since, --until
+
+Jobs can be filtered by queue, state, duration, and other attributes.
+When filtering by duration, you can use operators like >, <, >=, and <= to specify your criteria.
+Supported duration units are seconds (s), minutes (m), and hours (h).
+
+Examples:
+  # List recent jobs (100 by default)
+  $ bk job list
+
+  # List jobs from a specific queue
+  $ bk job list --queue test-queue
+
+  # List running jobs
+  $ bk job list --state running
+
+  # List jobs that took longer than 10 minutes
+  $ bk job list --duration ">10m"
+
+  # List jobs from the last hour
+  $ bk job list --since 1h
+
+  # Combine filters
+  $ bk job list --queue test-queue --state running --duration ">10m"
+
+  # Order by duration (longest first)
+  $ bk job list --order-by duration
+
+  # Get JSON output for bulk operations
+  $ bk job list --queue test-queue -o json
+`
+}
 
 type jobListOptions struct {
 	pipeline string
@@ -43,122 +96,81 @@ func (opts jobListOptions) withoutQueue() jobListOptions {
 	return newOpts
 }
 
-func NewCmdJobList(f *factory.Factory) *cobra.Command {
-	var opts jobListOptions
-
-	cmd := cobra.Command{
-		DisableFlagsInUseLine: true,
-		Use:                   "list [flags]",
-		Short:                 "List jobs",
-		Long: heredoc.Doc(`
-			List jobs with optional filtering.
-
-			This command supports both server-side filtering (fast) and client-side filtering.
-			Server-side filters are applied when fetching builds, while client-side filters
-			are applied after extracting jobs from builds.
-
-			Client-side filters: --queue, --state, --duration
-			Server-side filters: --pipeline, --since, --until
-
-			Jobs can be filtered by queue, state, duration, and other attributes.
-			When filtering by duration, you can use operators like >, <, >=, and <= to specify your criteria.
-			Supported duration units are seconds (s), minutes (m), and hours (h).
-		`),
-		Example: heredoc.Doc(`
-			# List recent jobs (100 by default)
-			$ bk job list
-
-			# List jobs from a specific queue
-			$ bk job list --queue test-queue
-
-			# List running jobs
-			$ bk job list --state running
-
-			# List jobs that took longer than 10 minutes
-			$ bk job list --duration ">10m"
-
-			# List jobs from the last hour
-			$ bk job list --since 1h
-
-			# Combine filters
-			$ bk job list --queue test-queue --state running --duration ">10m"
-
-			# Order by duration (longest first)
-			$ bk job list --order-by duration
-
-			# Get JSON output for bulk operations
-			$ bk job list --queue test-queue -o json
-		`),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			format, err := output.GetFormat(cmd.Flags())
-			if err != nil {
-				return err
-			}
-
-			if opts.limit > maxJobLimit {
-				return fmt.Errorf("limit cannot exceed %d jobs (requested: %d)", maxJobLimit, opts.limit)
-			}
-
-			listOpts, err := jobListOptionsFromFlags(&opts)
-			if err != nil {
-				return err
-			}
-
-			org := f.Config.OrganizationSlug()
-			var jobs []buildkite.Job
-
-			err = io.SpinWhile(f, "Loading jobs", func() {
-				if opts.queue != "" {
-					jobs, err = fetchJobsWithQueueFilter(cmd.Context(), f, org, opts)
-				} else {
-					jobs, err = fetchJobs(cmd.Context(), f, org, opts, listOpts)
-				}
-			})
-			if err != nil {
-				return fmt.Errorf("failed to list jobs: %w", err)
-			}
-
-			if opts.queue == "" && (len(opts.state) > 0 || opts.duration != "") {
-				jobs, err = applyClientSideFilters(jobs, opts)
-				if err != nil {
-					return fmt.Errorf("failed to apply filters: %w", err)
-				}
-			}
-
-			if opts.orderBy != "" {
-				jobs = sortJobs(jobs, opts.orderBy)
-			}
-
-			if len(jobs) > opts.limit {
-				jobs = jobs[:opts.limit]
-			}
-
-			if len(jobs) == 0 {
-				fmt.Fprintln(cmd.OutOrStdout(), "No jobs found matching the specified criteria.")
-				return nil
-			}
-
-			return displayJobs(cmd, jobs, format)
-		},
+func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	f, err := factory.New(version.Version)
+	if err != nil {
+		return err
 	}
 
-	cmd.Annotations = map[string]string{
-		"requiredScopes": string(scopes.ReadBuilds),
+	f.SkipConfirm = globals.SkipConfirmation()
+	f.NoInput = globals.DisableInput()
+	f.Quiet = globals.IsQuiet()
+
+	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
+		return err
 	}
 
-	cmd.Flags().StringVarP(&opts.pipeline, "pipeline", "p", "", "Filter by pipeline slug")
-	cmd.Flags().StringVar(&opts.since, "since", "", "Filter jobs from builds created since this time (e.g. 1h, 30m)")
-	cmd.Flags().StringVar(&opts.until, "until", "", "Filter jobs from builds created before this time (e.g. 1h, 30m)")
-	cmd.Flags().StringVar(&opts.duration, "duration", "", "Filter by duration (e.g. >10m, <5m, 20m) - supports >, <, >=, <= operators")
-	cmd.Flags().StringSliceVar(&opts.state, "state", []string{}, "Filter by job state")
-	cmd.Flags().StringVar(&opts.queue, "queue", "", "Filter by queue name")
-	cmd.Flags().StringVar(&opts.orderBy, "order-by", "", "Order results by field (start_time, duration)")
-	cmd.Flags().IntVar(&opts.limit, "limit", 100, fmt.Sprintf("Maximum number of jobs to return (max: %d)", maxJobLimit))
+	format := output.Format(c.Output)
+	if format != output.FormatJSON && format != output.FormatYAML && format != output.FormatText {
+		return fmt.Errorf("invalid output format: %s", c.Output)
+	}
 
-	output.AddFlags(cmd.Flags())
-	cmd.Flags().SortFlags = false
+	if c.Limit > maxJobLimit {
+		return fmt.Errorf("limit cannot exceed %d jobs (requested: %d)", maxJobLimit, c.Limit)
+	}
 
-	return &cmd
+	opts := jobListOptions{
+		pipeline: c.Pipeline,
+		since:    c.Since,
+		until:    c.Until,
+		duration: c.Duration,
+		state:    c.State,
+		queue:    c.Queue,
+		orderBy:  c.OrderBy,
+		limit:    c.Limit,
+	}
+
+	listOpts, err := jobListOptionsFromFlags(&opts)
+	if err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+	org := f.Config.OrganizationSlug()
+	var jobs []buildkite.Job
+
+	err = io.SpinWhile(f, "Loading jobs", func() {
+		if opts.queue != "" {
+			jobs, err = fetchJobsWithQueueFilter(ctx, f, org, opts)
+		} else {
+			jobs, err = fetchJobs(ctx, f, org, opts, listOpts)
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list jobs: %w", err)
+	}
+
+	if opts.queue == "" && (len(opts.state) > 0 || opts.duration != "") {
+		jobs, err = applyClientSideFilters(jobs, opts)
+		if err != nil {
+			return fmt.Errorf("failed to apply filters: %w", err)
+		}
+	}
+
+	if opts.orderBy != "" {
+		jobs = sortJobs(jobs, opts.orderBy)
+	}
+
+	if len(jobs) > opts.limit {
+		jobs = jobs[:opts.limit]
+	}
+
+	if len(jobs) == 0 {
+		fmt.Println("No jobs found matching the specified criteria.")
+		return nil
+	}
+
+	return displayJobs(jobs, format)
 }
 
 func fetchJobs(ctx context.Context, f *factory.Factory, org string, opts jobListOptions, listOpts *buildkite.BuildsListOptions) ([]buildkite.Job, error) {
@@ -698,9 +710,9 @@ func getJobDuration(job buildkite.Job) time.Duration {
 	return time.Since(job.StartedAt.Time)
 }
 
-func displayJobs(cmd *cobra.Command, jobs []buildkite.Job, format output.Format) error {
+func displayJobs(jobs []buildkite.Job, format output.Format) error {
 	if format != output.FormatText {
-		return output.Write(cmd.OutOrStdout(), jobs, format)
+		return output.Write(os.Stdout, jobs, format)
 	}
 
 	const (
@@ -774,8 +786,8 @@ func displayJobs(cmd *cobra.Command, jobs []buildkite.Job, format output.Format)
 		buf.WriteString("\n")
 	}
 
-	_, err := cmd.OutOrStdout().Write([]byte(buf.String()))
-	return err
+	fmt.Print(buf.String())
+	return nil
 }
 
 func formatDuration(d time.Duration) string {

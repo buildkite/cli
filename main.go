@@ -70,6 +70,7 @@ type (
 	}
 	JobCmd struct {
 		Cancel job.CancelCmd `cmd:"" help:"Cancel a job."`
+		List   job.ListCmd   `cmd:"" help:"List jobs"`
 	}
 	PackageCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
