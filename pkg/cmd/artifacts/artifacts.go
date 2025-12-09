@@ -25,7 +25,6 @@ func NewCmdArtifacts(f *factory.Factory) *cobra.Command {
 			return validation.CheckValidConfiguration(f.Config)(cmd, args)
 		},
 	}
-	cmd.AddCommand(NewCmdArtifactsList(f))
 
 	return &cmd
 }

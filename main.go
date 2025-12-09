@@ -56,6 +56,7 @@ type (
 	}
 	ArtifactsCmd struct {
 		Download artifacts.DownloadCmd `cmd:"" help:"Download an artifact by its UUID."`
+		List     artifacts.ListCmd     `cmd:"" help:"List artifacts for a build or a job in a build."`
 	}
 	BuildCmd struct {
 		Create   build.CreateCmd   `cmd:"" aliases:"new" help:"Create a new build."` // Aliasing "new" because we've renamed this to "create", but we need to support backwards compatibility
