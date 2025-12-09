@@ -26,7 +26,6 @@ func NewCmdArtifacts(f *factory.Factory) *cobra.Command {
 		},
 	}
 	cmd.AddCommand(NewCmdArtifactsList(f))
-	cmd.AddCommand(NewCmdArtifactsDownload(f))
 
 	return &cmd
 }
