@@ -23,7 +23,6 @@ func NewCmdCluster(f *factory.Factory) *cobra.Command {
 		},
 	}
 	cmd.AddCommand(NewCmdClusterView(f))
-	cmd.AddCommand(NewCmdClusterList(f))
 
 	return &cmd
 }

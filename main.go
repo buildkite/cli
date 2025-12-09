@@ -8,6 +8,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/cmd/agent"
 	"github.com/buildkite/cli/v3/cmd/build"
+	"github.com/buildkite/cli/v3/cmd/cluster"
 	"github.com/buildkite/cli/v3/cmd/job"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
@@ -66,7 +67,7 @@ type (
 		Watch    build.WatchCmd    `cmd:"" help:"Watch a build's progress in real-time."`
 	}
 	ClusterCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		List cluster.ListCmd `cmd:"" help:"List clusters."`
 	}
 	JobCmd struct {
 		Cancel  job.CancelCmd  `cmd:"" help:"Cancel a job."`
@@ -103,7 +104,6 @@ type (
 // Delegation methods, we should delete when native Kong implementations ready
 func (v *VersionCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("version", v.Args) }
 func (a *ArtifactsCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("artifacts", a.Args) }
-func (c *ClusterCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("cluster", c.Args) }
 func (p *PackageCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("package", p.Args) }
 func (p *PipelineCmd) Run(cli *CLI) error  { return cli.delegateToCobraSystem("pipeline", p.Args) }
 func (u *UserCmd) Run(cli *CLI) error      { return cli.delegateToCobraSystem("user", u.Args) }
@@ -268,6 +268,10 @@ func isHelpRequest() bool {
 	}
 
 	if len(os.Args) >= 2 && os.Args[1] == "job" {
+		return false
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "cluster" {
 		return false
 	}
 
