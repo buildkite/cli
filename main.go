@@ -7,6 +7,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/cmd/agent"
+	"github.com/buildkite/cli/v3/cmd/artifacts"
 	"github.com/buildkite/cli/v3/cmd/build"
 	"github.com/buildkite/cli/v3/cmd/job"
 	"github.com/buildkite/cli/v3/internal/cli"
@@ -54,7 +55,8 @@ type (
 		View   agent.ViewCmd   `cmd:"" help:"View details of an agent."`
 	}
 	ArtifactsCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		Download artifacts.DownloadCmd `cmd:"" help:"Download an artifact by its UUID."`
+		List     artifacts.ListCmd     `cmd:"" help:"List artifacts for a build or a job in a build."`
 	}
 	BuildCmd struct {
 		Create   build.CreateCmd   `cmd:"" aliases:"new" help:"Create a new build."` // Aliasing "new" because we've renamed this to "create", but we need to support backwards compatibility
@@ -102,7 +104,6 @@ type (
 
 // Delegation methods, we should delete when native Kong implementations ready
 func (v *VersionCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("version", v.Args) }
-func (a *ArtifactsCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("artifacts", a.Args) }
 func (c *ClusterCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("cluster", c.Args) }
 func (p *PackageCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("package", p.Args) }
 func (p *PipelineCmd) Run(cli *CLI) error  { return cli.delegateToCobraSystem("pipeline", p.Args) }
@@ -268,6 +269,10 @@ func isHelpRequest() bool {
 	}
 
 	if len(os.Args) >= 2 && os.Args[1] == "job" {
+		return false
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "artifacts" {
 		return false
 	}
 

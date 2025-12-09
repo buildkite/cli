@@ -7,7 +7,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/internal/graphql"
-	bk_io "github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -50,7 +50,7 @@ func (c *CancelCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	ctx := context.Background()
 	graphqlID := util.GenerateGraphQLID("JobTypeCommand---", c.JobID)
 
-	confirmed, err := bk_io.Confirm(f, fmt.Sprintf("Cancel job %s", c.JobID))
+	confirmed, err := bkIO.Confirm(f, fmt.Sprintf("Cancel job %s", c.JobID))
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func (c *CancelCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 func (c *CancelCmd) cancelJob(ctx context.Context, displayID, apiID string, f *factory.Factory) error {
 	var err error
 	var result *graphql.CancelJobResponse
-	spinErr := bk_io.SpinWhile(f, fmt.Sprintf("Cancelling job %s", displayID), func() {
+	spinErr := bkIO.SpinWhile(f, fmt.Sprintf("Cancelling job %s", displayID), func() {
 		result, err = graphql.CancelJob(ctx, f.GraphQLClient, apiID)
 	})
 	if spinErr != nil {

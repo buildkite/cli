@@ -12,7 +12,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/internal/graphql"
-	"github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -115,7 +115,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	if c.Creator != "" && isValidEmail(c.Creator) {
 		originalEmail := c.Creator
-		err = io.SpinWhile(f, "Looking up user", func() {
+		err = bkIO.SpinWhile(f, "Looking up user", func() {
 			c.Creator, err = resolveCreatorEmailToUserID(ctx, f, originalEmail)
 		})
 		if err != nil {
@@ -237,7 +237,7 @@ func (c *ListCmd) fetchBuilds(ctx context.Context, f *factory.Factory, org strin
 				)
 			}
 
-			confirmed, err := io.Confirm(f, prompt)
+			confirmed, err := bkIO.Confirm(f, prompt)
 			if err != nil {
 				return nil, err
 			}
@@ -250,7 +250,7 @@ func (c *ListCmd) fetchBuilds(ctx context.Context, f *factory.Factory, org strin
 			rawSinceConfirm = 0
 		}
 
-		spinErr := io.SpinWhile(f, spinnerMsg, func() {
+		spinErr := bkIO.SpinWhile(f, spinnerMsg, func() {
 			if c.Pipeline != "" {
 				builds, err = c.getBuildsByPipeline(ctx, f, org, listOpts)
 			} else {

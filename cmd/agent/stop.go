@@ -11,7 +11,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/agent"
 	"github.com/buildkite/cli/v3/internal/cli"
-	bk_io "github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
@@ -75,7 +75,7 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	// so we need to check if stdin has data for us to read and read that, otherwise use positional args and if
 	// there are none, then we need to error
 	// if stdin has data available, use that
-	if bk_io.HasDataAvailable(os.Stdin) {
+	if bkIO.HasDataAvailable(os.Stdin) {
 		scanner := bufio.NewScanner(os.Stdin)
 		scanner.Split(bufio.ScanLines)
 		for scanner.Scan() {
