@@ -10,6 +10,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/artifacts"
 	"github.com/buildkite/cli/v3/cmd/build"
 	"github.com/buildkite/cli/v3/cmd/job"
+	"github.com/buildkite/cli/v3/cmd/pipeline"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	"github.com/buildkite/cli/v3/internal/version"
@@ -80,7 +81,11 @@ type (
 		Args []string `arg:"" optional:"" passthrough:"all"`
 	}
 	PipelineCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		Create   pipeline.CreateCmd   `cmd:"" help:"Create a new pipeline."`
+		List     pipeline.ListCmd     `cmd:"" help:"List pipelines."`
+		Migrate  pipeline.MigrateCmd  `cmd:"" help:"Migrate a CI/CD pipeline configuration to Buildkite format."`
+		Validate pipeline.ValidateCmd `cmd:"" help:"Validate a pipeline YAML file."`
+		View     pipeline.ViewCmd     `cmd:"" help:"View a pipeline."`
 	}
 	UserCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
@@ -106,7 +111,6 @@ type (
 func (v *VersionCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("version", v.Args) }
 func (c *ClusterCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("cluster", c.Args) }
 func (p *PackageCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("package", p.Args) }
-func (p *PipelineCmd) Run(cli *CLI) error  { return cli.delegateToCobraSystem("pipeline", p.Args) }
 func (u *UserCmd) Run(cli *CLI) error      { return cli.delegateToCobraSystem("user", u.Args) }
 func (a *ApiCmd) Run(cli *CLI) error       { return cli.delegateToCobraSystem("api", a.Args) }
 func (c *ConfigureCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("configure", c.Args) }
@@ -273,6 +277,10 @@ func isHelpRequest() bool {
 	}
 
 	if len(os.Args) >= 2 && os.Args[1] == "artifacts" {
+		return false
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "pipeline" {
 		return false
 	}
 

@@ -1,0 +1,286 @@
+package pipeline
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/alecthomas/kong"
+	"github.com/buildkite/cli/v3/internal/cli"
+	bk_io "github.com/buildkite/cli/v3/internal/io"
+	"github.com/buildkite/cli/v3/internal/version"
+	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+)
+
+var MigrationEndpoint = "https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate"
+
+type migrationRequest struct {
+	Vendor string `json:"vendor"`
+	Code   string `json:"code"`
+	AI     bool   `json:"ai,omitempty"`
+}
+
+type migrationResponse struct {
+	JobID     string `json:"jobId"`
+	Status    string `json:"status"`
+	Message   string `json:"message"`
+	StatusURL string `json:"statusUrl"`
+}
+
+type statusResponse struct {
+	JobID       string `json:"jobId"`
+	Status      string `json:"status"`
+	Vendor      string `json:"vendor"`
+	CreatedAt   string `json:"createdAt"`
+	CompletedAt string `json:"completedAt,omitempty"`
+	Result      string `json:"result,omitempty"`
+	Error       string `json:"error,omitempty"`
+}
+
+type MigrateCmd struct {
+	File    string `help:"Path to the pipeline file to migrate (required)" short:"F" required:""`
+	Vendor  string `help:"CI/CD vendor (auto-detected if not specified)" short:"v"`
+	AI      bool   `help:"Use AI-powered migration (recommended for Jenkins)"`
+	Output  string `help:"Custom path to save the migrated pipeline (default: .buildkite/pipeline.<vendor>.yml)" short:"o"`
+	Timeout int    `help:"Timeout in seconds (use 600+ for AI migrations)" default:"300"`
+}
+
+func (c *MigrateCmd) Help() string {
+	return `Migrate a CI/CD pipeline configuration from various vendors to Buildkite format.
+
+Supported vendors:
+  - github (GitHub Actions)
+  - bitbucket (Bitbucket Pipelines)
+  - circleci (CircleCI)
+  - jenkins (Jenkins)
+
+The command will automatically detect the vendor based on the file name if not specified.
+
+By default, the migrated pipeline is saved to .buildkite/pipeline.<vendor>.yml.
+Use the --output flag to specify a custom output path.
+
+Note: This command does not require an API token since it uses a public migration API.
+
+Examples:
+  # Migrate a GitHub Actions workflow
+  $ bk pipeline migrate -F .github/workflows/ci.yml
+
+  # Migrate with explicit vendor specification
+  $ bk pipeline migrate -F pipeline.yml --vendor circleci
+
+  # Migrate Jenkins pipeline with AI support
+  $ bk pipeline migrate -F Jenkinsfile --ai
+
+  # Save output to a file
+  $ bk pipeline migrate -F .github/workflows/ci.yml -o .buildkite/pipeline.yml
+`
+}
+
+func (c *MigrateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	f, err := factory.New(version.Version)
+	if err != nil {
+		return err
+	}
+
+	f.SkipConfirm = globals.SkipConfirmation()
+	f.NoInput = globals.DisableInput()
+	f.Quiet = globals.IsQuiet()
+
+	content, err := os.ReadFile(c.File)
+	if err != nil {
+		return fmt.Errorf("error reading file: %w", err)
+	}
+
+	if c.Vendor == "" {
+		c.Vendor, err = detectVendor(c.File)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Detected vendor: %s\n", c.Vendor)
+	}
+
+	supportedVendors := []string{"github", "bitbucket", "circleci", "jenkins"}
+	if !contains(supportedVendors, c.Vendor) {
+		return fmt.Errorf("unsupported vendor: %s (supported: %s)", c.Vendor, strings.Join(supportedVendors, ", "))
+	}
+
+	req := migrationRequest{
+		Vendor: c.Vendor,
+		Code:   string(content),
+		AI:     c.AI,
+	}
+
+	fmt.Println("Submitting migration job...")
+
+	jobResp, err := submitMigrationJob(req)
+	if err != nil {
+		return fmt.Errorf("error submitting migration job: %w", err)
+	}
+
+	if c.AI {
+		fmt.Println("Job submitted. Processing with AI (this may take several minutes)...")
+	} else {
+		fmt.Println("Job submitted. Processing migration...")
+	}
+
+	var result *statusResponse
+	err = bk_io.SpinWhile(f, "Processing migration...", func() {
+		result, err = pollJobStatus(jobResp.JobID, c.Timeout)
+	})
+	if err != nil {
+		return fmt.Errorf("error polling job status: %w", err)
+	}
+
+	if result.Status == "failed" {
+		return fmt.Errorf("migration failed: %s", result.Error)
+	}
+
+	if c.Output != "" {
+		if err := os.WriteFile(c.Output, []byte(result.Result), 0o644); err != nil {
+			return fmt.Errorf("error writing output file: %w", err)
+		}
+		fmt.Printf("\n✅ Migration completed successfully!\n")
+		fmt.Printf("Output saved to: %s\n", c.Output)
+	} else {
+		buildkiteDir := ".buildkite"
+		if err := os.MkdirAll(buildkiteDir, 0o755); err != nil {
+			return fmt.Errorf("error creating .buildkite directory: %w", err)
+		}
+
+		outputFilename := fmt.Sprintf("pipeline.%s.yml", c.Vendor)
+		defaultOutputPath := filepath.Join(buildkiteDir, outputFilename)
+
+		if err := os.WriteFile(defaultOutputPath, []byte(result.Result), 0o644); err != nil {
+			return fmt.Errorf("error writing output file: %w", err)
+		}
+
+		fmt.Printf("\n✅ Migration completed successfully!\n")
+		fmt.Printf("Output saved to: %s\n", defaultOutputPath)
+	}
+
+	return nil
+}
+
+func detectVendor(filePath string) (string, error) {
+	fileName := filepath.Base(filePath)
+
+	if strings.Contains(filePath, ".github/workflows") || strings.Contains(filePath, ".github\\workflows") {
+		return "github", nil
+	}
+
+	if fileName == "bitbucket-pipelines.yml" || fileName == "bitbucket-pipelines.yaml" {
+		return "bitbucket", nil
+	}
+
+	if strings.Contains(filePath, ".circleci") {
+		return "circleci", nil
+	}
+
+	if fileName == "Jenkinsfile" || strings.HasPrefix(fileName, "Jenkinsfile.") {
+		return "jenkins", nil
+	}
+
+	return "", fmt.Errorf("could not detect vendor from file path. Please specify vendor explicitly with --vendor")
+}
+
+func contains(slice []string, str string) bool {
+	for _, s := range slice {
+		if s == str {
+			return true
+		}
+	}
+	return false
+}
+
+func submitMigrationJob(req migrationRequest) (*migrationResponse, error) {
+	reqBody, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(context.Background(), "POST", MigrationEndpoint, bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %w", err)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("error making request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var jobResp migrationResponse
+	if err := json.Unmarshal(body, &jobResp); err != nil {
+		return nil, fmt.Errorf("error parsing response: %w", err)
+	}
+
+	return &jobResp, nil
+}
+
+func pollJobStatus(jobID string, timeoutSeconds int) (*statusResponse, error) {
+	statusURL := fmt.Sprintf("%s/%s/status", MigrationEndpoint, jobID)
+	client := &http.Client{Timeout: 30 * time.Second}
+
+	maxAttempts := timeoutSeconds / 5
+	if maxAttempts < 1 {
+		maxAttempts = 1
+	}
+
+	for i := 0; i < maxAttempts; i++ {
+		time.Sleep(5 * time.Second)
+
+		req, err := http.NewRequestWithContext(context.Background(), "GET", statusURL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("error creating status request: %w", err)
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("error checking status: %w", err)
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("error reading status response: %w", err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("status check failed (status %d): %s", resp.StatusCode, string(body))
+		}
+
+		var status statusResponse
+		if err := json.Unmarshal(body, &status); err != nil {
+			return nil, fmt.Errorf("error parsing status response: %w", err)
+		}
+
+		if status.Status == "completed" {
+			return &status, nil
+		}
+
+		if status.Status == "failed" {
+			return &status, nil
+		}
+	}
+
+	return nil, fmt.Errorf("migration timed out after %d seconds", timeoutSeconds)
+}
