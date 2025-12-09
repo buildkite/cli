@@ -8,7 +8,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
-	bk_io "github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
@@ -88,7 +88,7 @@ func (c *ListCmd) runPipelineList(ctx context.Context, f *factory.Factory) error
 	var pipelines []buildkite.Pipeline
 	var err error
 
-	err = bk_io.SpinWhile(f, "Loading pipelines", func() {
+	err = bkIO.SpinWhile(f, "Loading pipelines", func() {
 		pipelines, err = c.fetchPipelines(ctx, f, org, listOpts)
 	})
 	if err != nil {

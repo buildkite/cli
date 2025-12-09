@@ -10,7 +10,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
-	bk_io "github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
@@ -70,7 +70,7 @@ func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) erro
 	var err error
 	var pipeline buildkite.Pipeline
 
-	spinErr := bk_io.SpinWhile(f, fmt.Sprintf("Creating new pipeline %s for %s", c.Name, f.Config.OrganizationSlug()), func() {
+	spinErr := bkIO.SpinWhile(f, fmt.Sprintf("Creating new pipeline %s for %s", c.Name, f.Config.OrganizationSlug()), func() {
 		createPipeline := buildkite.CreatePipeline{
 			Name:          c.Name,
 			Repository:    c.Repository,

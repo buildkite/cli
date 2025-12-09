@@ -14,7 +14,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
-	bk_io "github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
@@ -131,7 +131,7 @@ func (c *MigrateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	var result *statusResponse
-	err = bk_io.SpinWhile(f, "Processing migration...", func() {
+	err = bkIO.SpinWhile(f, "Processing migration...", func() {
 		result, err = pollJobStatus(jobResp.JobID, c.Timeout)
 	})
 	if err != nil {
