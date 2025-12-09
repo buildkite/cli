@@ -8,7 +8,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/agent"
 	"github.com/buildkite/cli/v3/internal/cli"
-	bk_io "github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
@@ -69,7 +69,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	if format != output.FormatText {
 		var agentData buildkite.Agent
-		spinErr := bk_io.SpinWhile(f, "Loading agent", func() {
+		spinErr := bkIO.SpinWhile(f, "Loading agent", func() {
 			agentData, _, err = f.RestAPIClient.Agents.Get(ctx, org, id)
 		})
 		if spinErr != nil {
@@ -82,7 +82,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	var agentData buildkite.Agent
-	spinErr := bk_io.SpinWhile(f, "Loading agent", func() {
+	spinErr := bkIO.SpinWhile(f, "Loading agent", func() {
 		agentData, _, err = f.RestAPIClient.Agents.Get(ctx, org, id)
 	})
 	if spinErr != nil {
