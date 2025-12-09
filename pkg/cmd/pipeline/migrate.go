@@ -15,7 +15,7 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
 
-	bkio "github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
 
@@ -134,7 +134,7 @@ func NewCmdPipelineMigrate(f *factory.Factory) *cobra.Command {
 
 			// Poll for job completion with spinner
 			var result *statusResponse
-			err = bkio.SpinWhile(f, "Processing migration...", func() {
+			err = bkIO.SpinWhile(f, "Processing migration...", func() {
 				result, err = pollJobStatus(jobResp.JobID, timeoutSeconds)
 			})
 			if err != nil {

@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
-	bk_io "github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
@@ -91,7 +91,7 @@ func runPipelineList(ctx context.Context, f *factory.Factory, opts *pipelineList
 	var pipelines []buildkite.Pipeline
 	var err error
 
-	err = bk_io.SpinWhile(f, "Loading pipelines", func() {
+	err = bkIO.SpinWhile(f, "Loading pipelines", func() {
 		pipelines, err = fetchPipelines(ctx, f, org, opts, listOpts)
 	})
 	if err != nil {
