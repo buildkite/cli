@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	bk_io "github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
@@ -19,7 +19,7 @@ func ResolveFromRepository(f *factory.Factory, picker PipelinePicker) PipelineRe
 	return func(ctx context.Context) (*pipeline.Pipeline, error) {
 		var err error
 		var pipelines []pipeline.Pipeline
-		spinErr := bk_io.SpinWhile(f, "Resolving pipeline", func() {
+		spinErr := bkIO.SpinWhile(f, "Resolving pipeline", func() {
 			pipelines, err = resolveFromRepository(ctx, f)
 		})
 		if spinErr != nil {

@@ -26,6 +26,8 @@ type ListCmd struct {
 
 func (c *ListCmd) Help() string {
 	return `
+List the clusters for an organization.
+
 Examples:
   # List all clusters
   $ bk cluster list

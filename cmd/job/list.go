@@ -13,7 +13,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkGraphQL "github.com/buildkite/cli/v3/internal/graphql"
-	"github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -139,7 +139,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	org := f.Config.OrganizationSlug()
 	var jobs []buildkite.Job
 
-	err = io.SpinWhile(f, "Loading jobs", func() {
+	err = bkIO.SpinWhile(f, "Loading jobs", func() {
 		if opts.queue != "" {
 			jobs, err = fetchJobsWithQueueFilter(ctx, f, org, opts)
 		} else {

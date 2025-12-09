@@ -7,7 +7,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkGraphQL "github.com/buildkite/cli/v3/internal/graphql"
-	"github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -49,7 +49,7 @@ func (c *RetryCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	ctx := context.Background()
 	var j *bkGraphQL.RetryJobResponse
 
-	err = io.SpinWhile(f, "Retrying job", func() {
+	err = bkIO.SpinWhile(f, "Retrying job", func() {
 		j, err = bkGraphQL.RetryJob(ctx, f.GraphQLClient, graphqlID)
 	})
 	if err != nil {

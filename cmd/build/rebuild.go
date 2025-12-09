@@ -8,7 +8,7 @@ import (
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	"github.com/buildkite/cli/v3/internal/cli"
-	bk_io "github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/internal/version"
@@ -114,7 +114,7 @@ func (c *RebuildCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 func rebuild(ctx context.Context, org string, pipeline string, buildId string, web bool, f *factory.Factory) error {
 	var err error
 	var build buildkite.Build
-	spinErr := bk_io.SpinWhile(f, fmt.Sprintf("Rerunning build #%s for pipeline %s", buildId, pipeline), func() {
+	spinErr := bkIO.SpinWhile(f, fmt.Sprintf("Rerunning build #%s for pipeline %s", buildId, pipeline), func() {
 		build, err = f.RestAPIClient.Builds.Rebuild(ctx, org, pipeline, buildId)
 	})
 	if spinErr != nil {

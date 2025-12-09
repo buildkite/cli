@@ -1,0 +1,45 @@
+# Git files
+.git
+.github
+.gitignore
+
+# Documentation
+*.md
+docs/
+images/
+LICENSE.md
+CHANGELOG.md
+CONTRIBUTING.md
+AGENT.md
+README.md
+
+# Build artifacts
+dist/
+build-logs-*
+
+# Test files
+*_test.go
+fixtures/
+internal/*/resolver/*_test.go
+internal/ui/ui_test.go
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# CI/CD files
+.buildkite/
+buildkite.yaml
+.bk.yaml
+
+# Config files not needed for build
+.golangci.yaml
+.graphqlrc.yml
+genqlient.yaml
+
+# Dependencies (these will be downloaded during build)
+vendor/

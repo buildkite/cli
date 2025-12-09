@@ -10,7 +10,7 @@ import (
 
 	survey "github.com/AlecAivazis/survey/v2"
 	"github.com/MakeNowJust/heredoc"
-	bk_io "github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/lipgloss"
@@ -177,7 +177,7 @@ func createPipeline(ctx context.Context, f *factory.Factory, pipelineName, descr
 	var err error
 	var output string
 
-	spinErr := bk_io.SpinWhile(f, fmt.Sprintf("Creating new pipeline %s for %s", pipelineName, f.Config.OrganizationSlug()), func() {
+	spinErr := bkIO.SpinWhile(f, fmt.Sprintf("Creating new pipeline %s for %s", pipelineName, f.Config.OrganizationSlug()), func() {
 		createPipeline := buildkite.CreatePipeline{
 			Name:          pipelineName,
 			Repository:    repoURL,
