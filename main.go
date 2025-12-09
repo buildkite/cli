@@ -105,8 +105,8 @@ type (
 )
 
 // Delegation methods, we should delete when native Kong implementations ready
-func (v *VersionCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("version", v.Args) }
-func (p *PackageCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("package", p.Args) }
+func (v *VersionCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("version", v.Args) }
+func (p *PackageCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("package", p.Args) }
 func (p *PipelineCmd) Run(cli *CLI) error  { return cli.delegateToCobraSystem("pipeline", p.Args) }
 func (u *UserCmd) Run(cli *CLI) error      { return cli.delegateToCobraSystem("user", u.Args) }
 func (a *ApiCmd) Run(cli *CLI) error       { return cli.delegateToCobraSystem("api", a.Args) }
