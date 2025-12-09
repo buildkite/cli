@@ -68,6 +68,7 @@ type (
 	}
 	ClusterCmd struct {
 		List cluster.ListCmd `cmd:"" help:"List clusters."`
+		View cluster.ViewCmd `cmd:"" help:"View cluster information."`
 	}
 	JobCmd struct {
 		Cancel  job.CancelCmd  `cmd:"" help:"Cancel a job."`
