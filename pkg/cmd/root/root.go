@@ -4,8 +4,6 @@ import (
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc"
-	apiCmd "github.com/buildkite/cli/v3/pkg/cmd/api"
-	clusterCmd "github.com/buildkite/cli/v3/pkg/cmd/cluster"
 	configureCmd "github.com/buildkite/cli/v3/pkg/cmd/configure"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	initCmd "github.com/buildkite/cli/v3/pkg/cmd/init"
@@ -20,7 +18,6 @@ import (
 )
 
 func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
-	var verbose bool
 	var skipConfirm bool
 	var noInput bool
 	var quiet bool
@@ -53,8 +50,6 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 		},
 	}
 
-	cmd.AddCommand(apiCmd.NewCmdAPI(f))
-	cmd.AddCommand(clusterCmd.NewCmdCluster(f))
 	cmd.AddCommand(configureCmd.NewCmdConfigure(f))
 	cmd.AddCommand(initCmd.NewCmdInit(f))
 	cmd.AddCommand(packageCmd.NewCmdPackage(f))
@@ -66,8 +61,6 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 	cmd.AddCommand(versionCmd.NewCmdVersion(f))
 
 	cmd.Flags().BoolP("version", "v", false, "Print the version number")
-	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "V", false, "Enable verbose error output")
-
 	// Global flags for automation and scripting
 	// NOTE: Due to Cobra, these must come AFTER a subcommand (e.g., 'bk job --yes cancel')
 	// Once migrated to Kong, they'll work anywhere (e.g., 'bk --yes job cancel')

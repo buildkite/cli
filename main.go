@@ -7,6 +7,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/cmd/agent"
+	apiCmd "github.com/buildkite/cli/v3/cmd/api"
 	"github.com/buildkite/cli/v3/cmd/artifacts"
 	"github.com/buildkite/cli/v3/cmd/build"
 	"github.com/buildkite/cli/v3/cmd/job"
@@ -86,7 +87,7 @@ type (
 		Args []string `arg:"" optional:"" passthrough:"all"`
 	}
 	ApiCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		apiCmd.ApiCmd `cmd:"" help:"Interact with the Buildkite API"`
 	}
 	ConfigureCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
@@ -108,7 +109,6 @@ func (c *ClusterCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("c
 func (p *PackageCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("package", p.Args) }
 func (p *PipelineCmd) Run(cli *CLI) error  { return cli.delegateToCobraSystem("pipeline", p.Args) }
 func (u *UserCmd) Run(cli *CLI) error      { return cli.delegateToCobraSystem("user", u.Args) }
-func (a *ApiCmd) Run(cli *CLI) error       { return cli.delegateToCobraSystem("api", a.Args) }
 func (c *ConfigureCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("configure", c.Args) }
 func (i *InitCmd) Run(cli *CLI) error      { return cli.delegateToCobraSystem("init", i.Args) }
 func (u *UseCmd) Run(cli *CLI) error       { return cli.delegateToCobraSystem("use", u.Args) }
@@ -273,6 +273,10 @@ func isHelpRequest() bool {
 	}
 
 	if len(os.Args) >= 2 && os.Args[1] == "artifacts" {
+		return false
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "api" {
 		return false
 	}
 
