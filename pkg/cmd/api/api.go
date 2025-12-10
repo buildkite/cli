@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/MakeNowJust/heredoc"
@@ -23,6 +24,7 @@ var (
 	data      string
 	analytics bool
 	queryFile string
+	verbose   bool
 )
 
 func NewCmdAPI(f *factory.Factory) *cobra.Command {
@@ -71,6 +73,7 @@ func NewCmdAPI(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVarP(&data, "data", "d", "", "Data to send in the request body")
 	cmd.Flags().BoolVar(&analytics, "analytics", false, "Use the Test Analytics endpoint")
 	cmd.Flags().StringVarP(&queryFile, "file", "f", "", "File containing GraphQL query")
+	cmd.Flags().BoolVar(&verbose, "verbose", false, "Enable verbose output (currently only provides information about rate limit exceeded retries)")
 
 	return &cmd
 }
@@ -106,6 +109,11 @@ func apiCaller(cmd *cobra.Command, args []string, f *factory.Factory) error {
 	client := httpClient.NewClient(
 		f.Config.APIToken(),
 		httpClient.WithBaseURL(f.RestAPIClient.BaseURL.String()),
+		httpClient.WithOnRetry(func(attempt int, delay time.Duration) {
+			if verbose {
+				fmt.Fprintf(os.Stderr, "WARNING: Rate limit exceeded, retrying in %v @ %q (attempt %d)\n", delay, time.Now().Add(delay).Format(time.RFC3339), attempt)
+			}
+		}),
 	)
 
 	// Process custom headers
