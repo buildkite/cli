@@ -49,9 +49,8 @@ are applied after extracting jobs from builds.
 Client-side filters: --queue, --state, --duration
 Server-side filters: --pipeline, --since, --until
 
-IMPORTANT: When using client-side filters (--duration, --state, --queue), you may need
-to use --no-limit to ensure all matching jobs are found, as the default behavior only
-fetches a limited number of builds.
+By default, fetches up to 200 builds for filtering. Use --no-limit if you need to
+search across more builds to find all matching jobs.
 
 Jobs can be filtered by queue, state, duration, and other attributes.
 When filtering by duration, you can use operators like >, <, >=, and <= to specify your criteria.
@@ -190,8 +189,9 @@ func fetchJobs(ctx context.Context, f *factory.Factory, org string, opts jobList
 		// When --no-limit is set, fetch all available builds (no upper bound)
 		maxBuildsToFetch = 0 // 0 means unlimited
 	} else {
-		// By default, be conservative and only fetch what we need based on limit
-		maxBuildsToFetch = min(200, opts.limit*2)
+		// By default, fetch a reasonable number of builds (200 = 2 pages)
+		// This provides a good pool for filtering without being tied to --limit
+		maxBuildsToFetch = 200
 	}
 
 	allJobs := make([]buildkite.Job, 0, opts.limit*2)
@@ -237,11 +237,6 @@ func fetchJobs(ctx context.Context, f *factory.Factory, org string, opts jobList
 				allJobs = newJobs
 			}
 			allJobs = append(allJobs, build.Jobs...)
-		}
-
-		// Without --no-limit, stop early once we have enough jobs
-		if !opts.noLimit && len(allJobs) >= opts.limit*2 {
-			break
 		}
 
 		// Stop if we got fewer builds than requested (last page)
