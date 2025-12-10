@@ -17,6 +17,7 @@ func SpinWhile(f *factory.Factory, name string, action func()) error {
 	}
 
 	done := make(chan struct{})
+	finished := make(chan struct{})
 
 	go func() {
 		ticker := time.NewTicker(200 * time.Millisecond)
@@ -24,14 +25,22 @@ func SpinWhile(f *factory.Factory, name string, action func()) error {
 
 		i := 0
 		chars := []string{".  ", ".. ", "..."}
+		maxLen := 0
 
 		for {
 			select {
 			case <-done:
-				fmt.Fprintf(os.Stderr, "\r%s... Done\n", name)
+				// Clear the line by overwriting with spaces
+				clearLine := "\r" + fmt.Sprintf("%*s", maxLen, "") + "\r"
+				fmt.Fprint(os.Stderr, clearLine)
+				close(finished)
 				return
 			case <-ticker.C:
-				fmt.Fprintf(os.Stderr, "\r%s %s", name, chars[i%len(chars)])
+				line := fmt.Sprintf("%s %s", name, chars[i%len(chars)])
+				if len(line) > maxLen {
+					maxLen = len(line)
+				}
+				fmt.Fprintf(os.Stderr, "\r%s", line)
 				i++
 			}
 		}
@@ -39,6 +48,7 @@ func SpinWhile(f *factory.Factory, name string, action func()) error {
 
 	action()
 	close(done)
+	<-finished // Wait for spinner to finish clearing
 
 	return nil
 }
