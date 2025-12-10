@@ -133,22 +133,22 @@ func (c *Client) Do(ctx context.Context, method, endpoint string, body interface
 		endpoint = "/" + endpoint
 	}
 
-	// Separate path and query string before joining
-	path := endpoint
-	queryString := ""
-	if idx := strings.Index(endpoint, "?"); idx != -1 {
-		path = endpoint[:idx]
-		queryString = endpoint[idx:]
+	// Parse the endpoint to properly handle path, query string, and fragments
+	parsedEndpoint, err := url.Parse(endpoint)
+	if err != nil {
+		return fmt.Errorf("failed to parse endpoint: %w", err)
 	}
 
-	// Create the request URL (JoinPath only handles the path portion)
-	reqURL, err := url.JoinPath(c.baseURL, path)
+	// Create the request URL using only the path portion
+	reqURL, err := url.JoinPath(c.baseURL, parsedEndpoint.Path)
 	if err != nil {
 		return fmt.Errorf("failed to create request URL: %w", err)
 	}
 
-	// Reattach query string if present
-	reqURL += queryString
+	// Reattach query string if present (properly encoded)
+	if parsedEndpoint.RawQuery != "" {
+		reqURL += "?" + parsedEndpoint.RawQuery
+	}
 
 	// Create the request body
 	var bodyReader io.Reader

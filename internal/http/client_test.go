@@ -176,6 +176,61 @@ func TestClient(t *testing.T) {
 		}
 	})
 
+	t.Run("handles encoded query parameters", func(t *testing.T) {
+		t.Parallel()
+
+		var receivedQuery string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			receivedQuery = r.URL.RawQuery
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(testResponse{Message: "success"})
+		}))
+		defer server.Close()
+
+		client := NewClient("test-token", WithBaseURL(server.URL))
+
+		var resp testResponse
+		err := client.Get(context.Background(), "/builds?branch=feature%2Ftest%20name", &resp)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		expectedQuery := "branch=feature%2Ftest%20name"
+		if receivedQuery != expectedQuery {
+			t.Errorf("expected query string %q, got %q", expectedQuery, receivedQuery)
+		}
+	})
+
+	t.Run("strips fragments from endpoint", func(t *testing.T) {
+		t.Parallel()
+
+		var receivedPath string
+		var receivedQuery string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			receivedPath = r.URL.Path
+			receivedQuery = r.URL.RawQuery
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(testResponse{Message: "success"})
+		}))
+		defer server.Close()
+
+		client := NewClient("test-token", WithBaseURL(server.URL))
+
+		var resp testResponse
+		err := client.Get(context.Background(), "/builds?branch=main#foo", &resp)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if receivedPath != "/builds" {
+			t.Errorf("expected path %q, got %q", "/builds", receivedPath)
+		}
+		expectedQuery := "branch=main"
+		if receivedQuery != expectedQuery {
+			t.Errorf("expected query string %q, got %q", expectedQuery, receivedQuery)
+		}
+	})
+
 	t.Run("handles endpoint without query parameters", func(t *testing.T) {
 		t.Parallel()
 
