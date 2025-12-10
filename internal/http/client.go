@@ -103,9 +103,6 @@ func NewClient(token string, opts ...ClientOption) *Client {
 		token:     token,
 		userAgent: "buildkite-cli",
 		client:    http.DefaultClient,
-
-		maxRetries:    3,
-		maxRetryDelay: 60 * time.Second,
 	}
 
 	for _, opt := range opts {

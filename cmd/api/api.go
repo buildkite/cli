@@ -108,6 +108,8 @@ func (c *ApiCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	client := httpClient.NewClient(
 		f.Config.APIToken(),
 		httpClient.WithBaseURL(f.RestAPIClient.BaseURL.String()),
+		httpClient.WithMaxRetries(3),
+		httpClient.WithMaxRetryDelay(60*time.Second),
 		httpClient.WithOnRetry(func(attempt int, delay time.Duration) {
 			if c.Verbose {
 				fmt.Fprintf(os.Stderr, "WARNING: Rate limit exceeded, retrying in %v @ %q (attempt %d)\n", delay, time.Now().Add(delay).Format(time.RFC3339), attempt)
