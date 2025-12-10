@@ -22,7 +22,7 @@ type CreateCmd struct {
 	Name        string `arg:"" help:"Name of the pipeline" required:""`
 	Description string `help:"Description of the pipeline" short:"d"`
 	Repository  string `help:"Repository URL" short:"r"`
-	ClusterID   string `help:"Cluster ID to assign the pipeline to" short:"c"`
+	ClusterID   string `help:"Cluster name or ID to assign the pipeline to" short:"c"`
 	DryRun      bool   `help:"Outputs the pipeline that would be created without actually creating it"`
 }
 
@@ -32,12 +32,18 @@ func (c *CreateCmd) Help() string {
 You can specify a --dry-run flag to see the pipeline that would be created without
 actually creating it. This outputs a JSON representation of the pipeline to be created.
 
+The --cluster-id flag accepts either a cluster name or cluster ID. If a name is provided,
+it will be automatically resolved to the corresponding cluster ID.
+
 Examples:
   # Create a new pipeline
   $ bk pipeline create "My Pipeline" --description "My pipeline description" --repository "git@github.com:org/repo.git"
 
-  # Create a pipeline with a cluster
-  $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" -c "cluster-id"
+  # Create a pipeline with a cluster (by name)
+  $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" -c "my-cluster"
+
+  # Create a pipeline with a cluster (by ID)
+  $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" -c "cluster-id-123"
 
   # View the pipeline that would be created without actually creating it
   $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" --dry-run
@@ -68,7 +74,12 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 }
 
 func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) error {
-	var err error
+	// Resolve cluster name to ID if provided
+	clusterID, err := resolveClusterID(ctx, f, c.ClusterID)
+	if err != nil {
+		return err
+	}
+
 	var pipeline buildkite.Pipeline
 	var resp *buildkite.Response
 
@@ -77,7 +88,7 @@ func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) erro
 			Name:          c.Name,
 			Repository:    c.Repository,
 			Description:   c.Description,
-			ClusterID:     c.ClusterID,
+			ClusterID:     clusterID,
 			Configuration: "steps:\n  - label: \":pipeline:\"\n    command: buildkite-agent pipeline upload",
 		}
 
@@ -356,6 +367,38 @@ func listClusterNames(ctx context.Context, f *factory.Factory) ([]string, error)
 	sort.Strings(clusterNames)
 
 	return clusterNames, nil
+}
+
+func resolveClusterID(ctx context.Context, f *factory.Factory, clusterNameOrID string) (string, error) {
+	if clusterNameOrID == "" {
+		return "", nil
+	}
+
+	// First, try to get clusters map
+	clusterMap, err := getClusters(ctx, f)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch clusters: %w", err)
+	}
+
+	// Check if it's a cluster name
+	if clusterID, exists := clusterMap[clusterNameOrID]; exists {
+		return clusterID, nil
+	}
+
+	// Check if it's already a valid cluster ID
+	for _, id := range clusterMap {
+		if id == clusterNameOrID {
+			return clusterNameOrID, nil
+		}
+	}
+
+	// Not found - provide helpful error with available clusters
+	clusterNames, _ := listClusterNames(ctx, f)
+	if len(clusterNames) > 0 {
+		return "", fmt.Errorf("cluster '%s' not found. Available clusters: %s", clusterNameOrID, strings.Join(clusterNames, ", "))
+	}
+
+	return "", fmt.Errorf("cluster '%s' not found", clusterNameOrID)
 }
 
 func getCreatedByDetails(ctx context.Context, f *factory.Factory) *buildkite.User {
