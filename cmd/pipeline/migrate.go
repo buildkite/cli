@@ -15,7 +15,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
-	"github.com/buildkite/cli/v3/internal/version"
+	"github.com/buildkite/cli/v3/cmd/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
 
