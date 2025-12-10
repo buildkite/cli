@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/MakeNowJust/heredoc"
@@ -76,6 +77,8 @@ func NewCmdAPI(f *factory.Factory) *cobra.Command {
 }
 
 func apiCaller(cmd *cobra.Command, args []string, f *factory.Factory) error {
+	verbose, _ := cmd.Flags().GetBool("verbose")
+
 	// Handle GraphQL file queries
 	if queryFile != "" {
 		return handleGraphQLQuery(cmd, f)
@@ -106,6 +109,13 @@ func apiCaller(cmd *cobra.Command, args []string, f *factory.Factory) error {
 	client := httpClient.NewClient(
 		f.Config.APIToken(),
 		httpClient.WithBaseURL(f.RestAPIClient.BaseURL.String()),
+		httpClient.WithMaxRetries(3),
+		httpClient.WithMaxRetryDelay(60*time.Second),
+		httpClient.WithOnRetry(func(attempt int, delay time.Duration) {
+			if verbose {
+				fmt.Fprintf(os.Stderr, "WARNING: Rate limit exceeded, retrying in %v @ %q (attempt %d)\n", delay, time.Now().Add(delay).Format(time.RFC3339), attempt)
+			}
+		}),
 	)
 
 	// Process custom headers
