@@ -13,11 +13,10 @@ import (
 	"github.com/buildkite/cli/v3/cmd/cluster"
 	"github.com/buildkite/cli/v3/cmd/job"
 	"github.com/buildkite/cli/v3/cmd/pipeline"
-	versionCmd "github.com/buildkite/cli/v3/cmd/version"
+	"github.com/buildkite/cli/v3/cmd/version"
 	"github.com/buildkite/cli/v3/cmd/whoami"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
-	"github.com/buildkite/cli/v3/cmd/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/root"
 	"github.com/buildkite/cli/v3/pkg/output"
@@ -50,7 +49,7 @@ type CLI struct {
 // Hybrid delegation commands, we should delete from these when native Kong implementations ready
 type (
 	VersionCmd struct {
-		versionCmd.VersionCmd `cmd:"" help:"Print the version of the CLI being used"`
+		version.VersionCmd `cmd:"" help:"Print the version of the CLI being used"`
 	}
 	AgentCmd struct {
 		Pause  agent.PauseCmd  `cmd:"" help:"Pause a Buildkite agent."`
@@ -160,7 +159,7 @@ func (cli *CLI) buildCobraArgs(command string, passthroughArgs []string) []strin
 }
 
 func runCobraSystem() int {
-	f, err := factory.New(version.Version)
+	f, err := factory.New()
 	if err != nil {
 		handleError(bkErrors.NewInternalError(err, "failed to initialize CLI", "This is likely a bug", "Report to Buildkite"))
 		return bkErrors.ExitCodeInternalError

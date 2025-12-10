@@ -59,7 +59,7 @@ func (a *gqlHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	return a.client.Do(req)
 }
 
-func New(version string) (*Factory, error) {
+func New() (*Factory, error) {
 	repo, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{DetectDotGit: true, EnableDotGitCommonDir: true})
 	if err != nil {
 		if err == git.ErrRepositoryNotExists {
@@ -84,6 +84,6 @@ func New(version string) (*Factory, error) {
 		GitRepository: repo,
 		GraphQLClient: graphql.NewClient(conf.GetGraphQLEndpoint(), graphqlHTTPClient),
 		RestAPIClient: buildkiteClient,
-		Version:       version,
+		Version:       version.Version,
 	}, nil
 }
