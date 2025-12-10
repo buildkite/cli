@@ -8,7 +8,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // ErrorResponse represents an error response from the API
@@ -17,6 +19,7 @@ type ErrorResponse struct {
 	Status     string
 	URL        string
 	Body       []byte
+	Headers    http.Header
 }
 
 // Error implements the error interface
@@ -39,6 +42,9 @@ type Client struct {
 	token     string
 	userAgent string
 	client    *http.Client
+
+	maxRetries    int
+	maxRetryDelay time.Duration
 }
 
 // ClientOption is a function that modifies a Client
@@ -65,6 +71,20 @@ func WithHTTPClient(client *http.Client) ClientOption {
 	}
 }
 
+// WithMaxRetries sets the maximum number of retries for rate-limited requests.
+func WithMaxRetries(n int) ClientOption {
+	return func(c *Client) {
+		c.maxRetries = n
+	}
+}
+
+// WithMaxRetryDelay sets the maximum delay between retries
+func WithMaxRetryDelay(d time.Duration) ClientOption {
+	return func(c *Client) {
+		c.maxRetryDelay = d
+	}
+}
+
 // NewClient creates a new HTTP client with the given token and options
 func NewClient(token string, opts ...ClientOption) *Client {
 	c := &Client{
@@ -72,6 +92,9 @@ func NewClient(token string, opts ...ClientOption) *Client {
 		token:     token,
 		userAgent: "buildkite-cli",
 		client:    http.DefaultClient,
+
+		maxRetries:    3,
+		maxRetryDelay: 60 * time.Second,
 	}
 
 	for _, opt := range opts {
@@ -126,7 +149,29 @@ func (e *ErrorResponse) IsServerError() bool {
 	return e.StatusCode >= 500
 }
 
-// Do performs an HTTP request with the given method, endpoint, and body
+// IsTooManyRequests returns true if the error is a 429 Too Many Requests
+func (e *ErrorResponse) IsTooManyRequests() bool {
+	return e.StatusCode == http.StatusTooManyRequests
+}
+
+// RetryAfter returns the duration to wait before retrying, based on the RateLimit-Reset header.
+// Returns 0 if the header is missing or invalid.
+func (e *ErrorResponse) RetryAfter() time.Duration {
+	if e.Headers == nil {
+		return 0
+	}
+	resetStr := e.Headers.Get("RateLimit-Reset")
+	if resetStr == "" {
+		return 0
+	}
+	seconds, err := strconv.Atoi(resetStr)
+	if err != nil || seconds < 0 {
+		return 0
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+// Do performs an HTTP request with the given method, endpoint, and body.
 func (c *Client) Do(ctx context.Context, method, endpoint string, body interface{}, v interface{}) error {
 	// Ensure endpoint starts with "/"
 	if !strings.HasPrefix(endpoint, "/") {
@@ -150,20 +195,48 @@ func (c *Client) Do(ctx context.Context, method, endpoint string, body interface
 		reqURL += "?" + parsedEndpoint.RawQuery
 	}
 
-	// Create the request body
-	var bodyReader io.Reader
+	var bodyBytes []byte
 	if body != nil {
-		bodyBytes, err := json.Marshal(body)
+		// We need to nest this in a branch because otherwise
+		// `json.Marshal(nil)` produces `null` instead of `nil`.
+		bodyBytes, err = json.Marshal(body)
 		if err != nil {
 			return fmt.Errorf("failed to marshal request body: %w", err)
 		}
-		bodyReader = bytes.NewReader(bodyBytes)
 	}
 
+	for attempt := 0; attempt <= c.maxRetries; attempt++ {
+		var respBody []byte
+		respBody, err = c.send(ctx, method, reqURL, bodyBytes)
+		if err == nil {
+			// Parse the response if a target was provided
+			if v != nil && len(respBody) > 0 {
+				if err := json.Unmarshal(respBody, v); err != nil {
+					return fmt.Errorf("failed to unmarshal response: %w", err)
+				}
+			}
+
+			return nil
+		}
+
+		if delay, ok := c.shouldRetry(err, attempt); ok {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+				continue
+			}
+		}
+	}
+
+	panic("unreachable")
+}
+
+func (c *Client) send(ctx context.Context, method, reqURL string, body []byte) ([]byte, error) {
 	// Create the request
-	req, err := http.NewRequestWithContext(ctx, method, reqURL, bodyReader)
+	req, err := http.NewRequestWithContext(ctx, method, reqURL, bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	// Set common headers
@@ -177,32 +250,52 @@ func (c *Client) Do(ctx context.Context, method, endpoint string, body interface
 	// Execute the request
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to execute request: %w", err)
+		return nil, fmt.Errorf("failed to execute request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// Read response body
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	// Check for error status
 	if resp.StatusCode >= 400 {
-		return &ErrorResponse{
+		return nil, &ErrorResponse{
 			StatusCode: resp.StatusCode,
 			Status:     resp.Status,
 			URL:        reqURL,
 			Body:       respBody,
+			Headers:    resp.Header,
 		}
 	}
 
-	// Parse the response if a target was provided
-	if v != nil && len(respBody) > 0 {
-		if err := json.Unmarshal(respBody, v); err != nil {
-			return fmt.Errorf("failed to unmarshal response: %w", err)
-		}
+	return respBody, nil
+}
+
+func (c *Client) shouldRetry(err error, attempt int) (time.Duration, bool) {
+	// If the error is not a 429 Too Many Requests, we don't retry.
+	errResp, ok := err.(*ErrorResponse)
+	if !ok || !errResp.IsTooManyRequests() {
+		return 0, false
 	}
 
-	return nil
+	// If we've reached the maximum number of retries, we don't retry.
+	if attempt == c.maxRetries {
+		return 0, false
+	}
+
+	// TODO: If RateLimit-Reset header is missing, delay will be 0. Figure out
+	// if this is possible.
+	delay := errResp.RetryAfter()
+	if attempt > 0 {
+		// Got rate-limited again means contention - back off exponentially
+		delay *= time.Duration(1 << attempt)
+	}
+
+	// Clamp to max retry delay
+	delay = min(delay, c.maxRetryDelay)
+
+	return delay, true
 }
