@@ -16,6 +16,12 @@ import (
 func TestValidatePipeline(t *testing.T) {
 	t.Parallel()
 
+	// Create a test schema that matches actual Buildkite schema requirements:
+	// This simplified schema ensures:
+	// - Steps are required
+	// - Each step must have at least a "command" field
+	// - A "label" field is optional and must be a string
+	// - A "command" field must be a string
 	testSchema := []byte(`{
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
@@ -235,9 +241,12 @@ func TestFindPipelineFile(t *testing.T) {
 	})
 }
 
+// Test formatting validation errors
 func TestFormatValidationError(t *testing.T) {
 	t.Parallel()
 
+	// This is a simplified test since we can't directly create gojsonschema.ResultError objects
+	// Create a test schema that we can use to generate validation errors
 	schemaJSON := []byte(`{
 		"type": "object",
 		"properties": {
@@ -254,6 +263,7 @@ func TestFormatValidationError(t *testing.T) {
 		}
 	}`)
 
+	// Invalid YAML that will cause validation errors
 	invalidYaml := `
 steps:
   - label: "Test"
@@ -262,6 +272,7 @@ steps:
     command: 123
 `
 
+	// Load the pipeline file
 	tmpFile, err := os.CreateTemp("", "invalid-pipeline-*.yaml")
 	if err != nil {
 		t.Fatal(err)
@@ -282,11 +293,13 @@ steps:
 		t.Fatalf("error reading pipeline file: %v", err)
 	}
 
+	// Convert YAML to JSON for validation
 	jsonData, err := yaml.YAMLToJSON(pipelineData)
 	if err != nil {
 		t.Fatalf("error converting YAML to JSON: %v", err)
 	}
 
+	// Validate using our test schema
 	schemaLoader := gojsonschema.NewBytesLoader(schemaJSON)
 	documentLoader := gojsonschema.NewBytesLoader(jsonData)
 	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
@@ -294,6 +307,7 @@ steps:
 		t.Fatalf("error validating pipeline: %v", err)
 	}
 
+	// Output the validation errors to the buffer
 	fmt.Fprintf(&buf, "❌ Pipeline file is invalid: %s\n\n", tmpFile.Name())
 	for _, err := range result.Errors() {
 		message := formatValidationError(err)
@@ -302,6 +316,7 @@ steps:
 
 	output := buf.String()
 
+	// Output should mention the error for the invalid field type
 	if !strings.Contains(output, "invalid") {
 		t.Errorf("Expected output to mention invalid field, got: %s", output)
 	}

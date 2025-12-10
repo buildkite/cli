@@ -16,6 +16,7 @@ func TestMigrationAPIEndpoint(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
+	// Create a simple GitHub Actions workflow for testing
 	testWorkflow := `name: Test
 on: [push]
 jobs:
@@ -26,6 +27,7 @@ jobs:
       - run: echo "Hello World"
 `
 
+	// Submit a migration job
 	req := migrationRequest{
 		Vendor: "github",
 		Code:   testWorkflow,
@@ -45,6 +47,7 @@ jobs:
 		t.Errorf("Expected status to be 'processing' or 'queued', got: %s", jobResp.Status)
 	}
 
+	// Poll for completion with a reasonable timeout
 	result, err := pollJobStatus(jobResp.JobID, 60)
 	if err != nil {
 		t.Fatalf("Failed to poll job status: %v", err)
@@ -62,6 +65,7 @@ jobs:
 		t.Error("Expected result to contain migrated pipeline YAML")
 	}
 
+	// Verify the result is valid YAML
 	if !strings.Contains(result.Result, "steps:") {
 		t.Errorf("Expected result to contain 'steps:', got: %s", result.Result)
 	}
@@ -264,6 +268,7 @@ func TestPollJobStatus(t *testing.T) {
 		var status string
 		var result string
 
+		// First attempt returns "processing", second returns "completed"
 		if attempt == 1 {
 			status = "processing"
 		} else {

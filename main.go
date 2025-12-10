@@ -285,7 +285,7 @@ func isHelpRequest() bool {
 	if len(os.Args) >= 2 && os.Args[1] == "pipeline" {
 		return false
 	}
-	
+
 	if len(os.Args) >= 2 && os.Args[1] == "whoami" {
 		return false
 	}
