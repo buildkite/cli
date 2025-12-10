@@ -24,7 +24,6 @@ var (
 	data      string
 	analytics bool
 	queryFile string
-	verbose   bool
 )
 
 func NewCmdAPI(f *factory.Factory) *cobra.Command {
@@ -73,12 +72,13 @@ func NewCmdAPI(f *factory.Factory) *cobra.Command {
 	cmd.Flags().StringVarP(&data, "data", "d", "", "Data to send in the request body")
 	cmd.Flags().BoolVar(&analytics, "analytics", false, "Use the Test Analytics endpoint")
 	cmd.Flags().StringVarP(&queryFile, "file", "f", "", "File containing GraphQL query")
-	cmd.Flags().BoolVar(&verbose, "verbose", false, "Enable verbose output (currently only provides information about rate limit exceeded retries)")
 
 	return &cmd
 }
 
 func apiCaller(cmd *cobra.Command, args []string, f *factory.Factory) error {
+	verbose, _ := cmd.Flags().GetBool("verbose")
+
 	// Handle GraphQL file queries
 	if queryFile != "" {
 		return handleGraphQLQuery(cmd, f)
