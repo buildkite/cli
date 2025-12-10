@@ -2,99 +2,99 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/MakeNowJust/heredoc"
+	"github.com/alecthomas/kong"
+	"github.com/buildkite/cli/v3/internal/cli"
 	httpClient "github.com/buildkite/cli/v3/internal/http"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
-	"github.com/spf13/cobra"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/parser"
 )
 
-var (
-	method    string
-	headers   []string
-	data      string
-	analytics bool
-	queryFile string
-)
-
-func NewCmdAPI(f *factory.Factory) *cobra.Command {
-	cmd := cobra.Command{
-		Use:   "api <endpoint>",
-		Short: "Interact with the Buildkite API",
-		Long:  "Interact with either the REST or GraphQL Buildkite APIs",
-		Args:  cobra.MaximumNArgs(1),
-		Example: heredoc.Doc(`
-      # To get a build
-      $ bk api /pipelines/example-pipeline/builds/420
-
-      # To create a pipeline
-      $ bk api --method POST /pipelines --data '
-      {
-        "name": "My Cool Pipeline",
-        "repository": "git@github.com:acme-inc/my-pipeline.git",
-        "configuration": "steps:\n - command: env"
-      }
-      '
-
-      # To update a cluster
-      $ bk api --method PUT /clusters/CLUSTER_UUID --data '
-      {
-        "name": "My Updated Cluster",
-      }
-      '
-
-      # To get all test suites
-      $ bk api --analytics /suites
-
-      # Run GraphQL query from file
-      $ bk api --file get_build.graphql
-      `),
-		PersistentPreRunE: validation.CheckValidConfiguration(f.Config),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if data != "" && !cmd.Flags().Changed("method") {
-				method = "POST"
-			}
-			return apiCaller(cmd, args, f)
-		},
-	}
-
-	cmd.Flags().StringVarP(&method, "method", "X", "GET", "HTTP method to use")
-	cmd.Flags().StringArrayVarP(&headers, "header", "H", []string{}, "Headers to include in the request")
-	cmd.Flags().StringVarP(&data, "data", "d", "", "Data to send in the request body")
-	cmd.Flags().BoolVar(&analytics, "analytics", false, "Use the Test Analytics endpoint")
-	cmd.Flags().StringVarP(&queryFile, "file", "f", "", "File containing GraphQL query")
-
-	return &cmd
+type ApiCmd struct {
+	Endpoint  string   `arg:"" optional:"" help:"API endpoint to call"`
+	Method    string   `help:"HTTP method to use" short:"X"`
+	Headers   []string `help:"Headers to include in the request" short:"H"`
+	Data      string   `help:"Data to send in the request body" short:"d"`
+	Analytics bool     `help:"Use the Test Analytics endpoint"`
+	File      string   `help:"File containing GraphQL query" short:"f"`
 }
 
-func apiCaller(cmd *cobra.Command, args []string, f *factory.Factory) error {
+func (c *ApiCmd) Help() string {
+	return `
+Interact with either the REST or GraphQL Buildkite APIs.
+
+Examples:
+  # To get a build
+  $ bk api /pipelines/example-pipeline/builds/420
+
+  # To create a pipeline
+  $ bk api --method POST /pipelines --data '
+  {
+    "name": "My Cool Pipeline",
+    "repository": "git@github.com:acme-inc/my-pipeline.git",
+    "configuration": "steps:\n - command: env"
+  }
+  '
+
+  # To update a cluster
+  $ bk api --method PUT /clusters/CLUSTER_UUID --data '
+  {
+    "name": "My Updated Cluster",
+  }
+  '
+
+  # To get all test suites
+  $ bk api --analytics /suites
+
+  # Run GraphQL query from file
+  $ bk api --file get_build.graphql
+`
+}
+
+func (c *ApiCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	f, err := factory.New()
+	if err != nil {
+		return err
+	}
+
+	f.SkipConfirm = globals.SkipConfirmation()
+	f.NoInput = globals.DisableInput()
+	f.Quiet = globals.IsQuiet()
+
+	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
+		return err
+	}
+
+	// Determine HTTP method: default to GET, but use POST if data is provided and method not explicitly set
+	method := c.Method
+	if method == "" {
+		if c.Data != "" {
+			method = "POST"
+		} else {
+			method = "GET"
+		}
+	}
+
 	// Handle GraphQL file queries
-	if queryFile != "" {
-		return handleGraphQLQuery(cmd, f)
+	if c.File != "" {
+		return c.handleGraphQLQuery(context.Background(), f)
 	}
 
-	var endpoint string
-	var endpointPrefix string
-
-	if len(args) > 1 {
-		return fmt.Errorf("incorrect number of arguments. expected 1, got %d", len(args))
-	}
-
-	if len(args) == 0 {
+	endpoint := c.Endpoint
+	if endpoint == "" {
 		endpoint = "/"
-	} else {
-		endpoint = args[0]
 	}
 
-	if analytics {
+	var endpointPrefix string
+	if c.Analytics {
 		endpointPrefix = fmt.Sprintf("v2/analytics/organizations/%s", f.Config.OrganizationSlug())
 	} else {
 		endpointPrefix = fmt.Sprintf("v2/organizations/%s", f.Config.OrganizationSlug())
@@ -110,7 +110,7 @@ func apiCaller(cmd *cobra.Command, args []string, f *factory.Factory) error {
 
 	// Process custom headers
 	customHeaders := make(map[string]string)
-	for _, header := range headers {
+	for _, header := range c.Headers {
 		parts := strings.SplitN(header, ":", 2)
 		if len(parts) == 2 {
 			customHeaders[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
@@ -118,27 +118,26 @@ func apiCaller(cmd *cobra.Command, args []string, f *factory.Factory) error {
 	}
 
 	var requestData interface{}
-	if data != "" {
+	if c.Data != "" {
 		// Try to parse as JSON first
-		if err := json.Unmarshal([]byte(data), &requestData); err != nil {
+		if err := json.Unmarshal([]byte(c.Data), &requestData); err != nil {
 			// If not JSON, use raw string
-			requestData = data
+			requestData = c.Data
 		}
 	}
 
 	var response interface{}
-	var err error
 
 	switch method {
 	case "GET":
-		err = client.Get(cmd.Context(), fullEndpoint, &response)
+		err = client.Get(context.Background(), fullEndpoint, &response)
 	case "POST":
-		err = client.Post(cmd.Context(), fullEndpoint, requestData, &response)
+		err = client.Post(context.Background(), fullEndpoint, requestData, &response)
 	case "PUT":
-		err = client.Put(cmd.Context(), fullEndpoint, requestData, &response)
+		err = client.Put(context.Background(), fullEndpoint, requestData, &response)
 	default:
 		// For other methods, use the Do method directly
-		err = client.Do(cmd.Context(), method, fullEndpoint, requestData, &response)
+		err = client.Do(context.Background(), method, fullEndpoint, requestData, &response)
 	}
 
 	if err != nil {
@@ -162,17 +161,17 @@ func apiCaller(cmd *cobra.Command, args []string, f *factory.Factory) error {
 	return nil
 }
 
-func handleGraphQLQuery(cmd *cobra.Command, f *factory.Factory) error {
+func (c *ApiCmd) handleGraphQLQuery(ctx context.Context, f *factory.Factory) error {
 	// Read the GraphQL query from file
-	queryBytes, err := os.ReadFile(queryFile)
+	queryBytes, err := os.ReadFile(c.File)
 	if err != nil {
-		return fmt.Errorf("error reading GraphQL query file %s: %w", queryFile, err)
+		return fmt.Errorf("error reading GraphQL query file %s: %w", c.File, err)
 	}
 
 	// Validate and parse GraphQL query
 	query := strings.TrimSpace(string(queryBytes))
 	if query == "" {
-		return fmt.Errorf("GraphQL query file %s is empty", queryFile)
+		return fmt.Errorf("GraphQL query file %s is empty", c.File)
 	}
 
 	doc, err := parser.ParseQuery(&ast.Source{Input: query})
@@ -201,7 +200,7 @@ func handleGraphQLQuery(cmd *cobra.Command, f *factory.Factory) error {
 	resp := &graphql.Response{Data: new(interface{})}
 
 	// Use the existing GraphQL client
-	if err = f.GraphQLClient.MakeRequest(cmd.Context(), req, resp); err != nil {
+	if err = f.GraphQLClient.MakeRequest(ctx, req, resp); err != nil {
 		return fmt.Errorf("error making GraphQL request: %w", err)
 	}
 

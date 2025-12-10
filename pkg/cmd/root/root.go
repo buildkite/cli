@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc"
-	apiCmd "github.com/buildkite/cli/v3/pkg/cmd/api"
 	configureCmd "github.com/buildkite/cli/v3/pkg/cmd/configure"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	initCmd "github.com/buildkite/cli/v3/pkg/cmd/init"
@@ -12,12 +11,10 @@ import (
 	promptCmd "github.com/buildkite/cli/v3/pkg/cmd/prompt"
 	useCmd "github.com/buildkite/cli/v3/pkg/cmd/use"
 	"github.com/buildkite/cli/v3/pkg/cmd/user"
-	versionCmd "github.com/buildkite/cli/v3/pkg/cmd/version"
 	"github.com/spf13/cobra"
 )
 
 func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
-	var verbose bool
 	var skipConfirm bool
 	var noInput bool
 	var quiet bool
@@ -31,13 +28,10 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 		Example: heredoc.Doc(`
 			$ bk build view
 		`),
-		Annotations: map[string]string{
-			"versionInfo": versionCmd.Format(f.Version),
-		},
 		Run: func(cmd *cobra.Command, args []string) {
 			versionFlag, _ := cmd.Flags().GetBool("version")
 			if versionFlag {
-				fmt.Println(versionCmd.Format(f.Version))
+				fmt.Printf("bk version %s\n\n", f.Version)
 				return
 			}
 			// If --version flag is not used, show help
@@ -50,18 +44,14 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 		},
 	}
 
-	cmd.AddCommand(apiCmd.NewCmdAPI(f))
 	cmd.AddCommand(configureCmd.NewCmdConfigure(f))
 	cmd.AddCommand(initCmd.NewCmdInit(f))
 	cmd.AddCommand(packageCmd.NewCmdPackage(f))
 	cmd.AddCommand(promptCmd.NewCmdPrompt(f))
 	cmd.AddCommand(useCmd.NewCmdUse(f))
 	cmd.AddCommand(user.CommandUser(f))
-	cmd.AddCommand(versionCmd.NewCmdVersion(f))
 
 	cmd.Flags().BoolP("version", "v", false, "Print the version number")
-	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "V", false, "Enable verbose error output")
-
 	// Global flags for automation and scripting
 	// NOTE: Due to Cobra, these must come AFTER a subcommand (e.g., 'bk job --yes cancel')
 	// Once migrated to Kong, they'll work anywhere (e.g., 'bk --yes job cancel')

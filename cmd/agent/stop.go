@@ -12,7 +12,6 @@ import (
 	"github.com/buildkite/cli/v3/internal/agent"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
-	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	tea "github.com/charmbracelet/bubbletea"
@@ -50,7 +49,7 @@ Examples:
 }
 
 func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New(version.Version)
+	f, err := factory.New()
 	if err != nil {
 		return err
 	}

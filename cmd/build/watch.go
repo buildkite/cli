@@ -12,7 +12,6 @@ import (
 	"github.com/buildkite/cli/v3/internal/cli"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/validation"
-	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	pkgValidation "github.com/buildkite/cli/v3/pkg/cmd/validation"
 )
@@ -44,7 +43,7 @@ Examples:
 }
 
 func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New(version.Version)
+	f, err := factory.New()
 	if err != nil {
 		return err
 	}

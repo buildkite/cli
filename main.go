@@ -7,15 +7,16 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/cmd/agent"
+	"github.com/buildkite/cli/v3/cmd/api"
 	"github.com/buildkite/cli/v3/cmd/artifacts"
 	"github.com/buildkite/cli/v3/cmd/build"
 	"github.com/buildkite/cli/v3/cmd/cluster"
 	"github.com/buildkite/cli/v3/cmd/job"
 	"github.com/buildkite/cli/v3/cmd/pipeline"
+	"github.com/buildkite/cli/v3/cmd/version"
 	"github.com/buildkite/cli/v3/cmd/whoami"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
-	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/root"
 	"github.com/buildkite/cli/v3/pkg/output"
@@ -48,7 +49,7 @@ type CLI struct {
 // Hybrid delegation commands, we should delete from these when native Kong implementations ready
 type (
 	VersionCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		version.VersionCmd `cmd:"" help:"Print the version of the CLI being used"`
 	}
 	AgentCmd struct {
 		Pause  agent.PauseCmd  `cmd:"" help:"Pause a Buildkite agent."`
@@ -94,7 +95,7 @@ type (
 		Args []string `arg:"" optional:"" passthrough:"all"`
 	}
 	ApiCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		api.ApiCmd `cmd:"" help:"Interact with the Buildkite API"`
 	}
 	ConfigureCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
@@ -108,10 +109,8 @@ type (
 )
 
 // Delegation methods, we should delete when native Kong implementations ready
-func (v *VersionCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("version", v.Args) }
 func (p *PackageCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("package", p.Args) }
 func (u *UserCmd) Run(cli *CLI) error      { return cli.delegateToCobraSystem("user", u.Args) }
-func (a *ApiCmd) Run(cli *CLI) error       { return cli.delegateToCobraSystem("api", a.Args) }
 func (c *ConfigureCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("configure", c.Args) }
 func (i *InitCmd) Run(cli *CLI) error      { return cli.delegateToCobraSystem("init", i.Args) }
 func (u *UseCmd) Run(cli *CLI) error       { return cli.delegateToCobraSystem("use", u.Args) }
@@ -160,7 +159,7 @@ func (cli *CLI) buildCobraArgs(command string, passthroughArgs []string) []strin
 }
 
 func runCobraSystem() int {
-	f, err := factory.New(version.Version)
+	f, err := factory.New()
 	if err != nil {
 		handleError(bkErrors.NewInternalError(err, "failed to initialize CLI", "This is likely a bug", "Report to Buildkite"))
 		return bkErrors.ExitCodeInternalError
@@ -279,6 +278,14 @@ func isHelpRequest() bool {
 	}
 
 	if len(os.Args) >= 2 && os.Args[1] == "artifacts" {
+		return false
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "api" {
+		return false
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "version" {
 		return false
 	}
 
