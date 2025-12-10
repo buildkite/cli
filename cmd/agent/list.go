@@ -9,7 +9,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/agent"
 	"github.com/buildkite/cli/v3/internal/cli"
-	"github.com/buildkite/cli/v3/internal/version"
+	"github.com/buildkite/cli/v3/cmd/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/buildkite/cli/v3/pkg/output"

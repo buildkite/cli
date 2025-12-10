@@ -12,7 +12,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/agent"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
-	"github.com/buildkite/cli/v3/internal/version"
+	"github.com/buildkite/cli/v3/cmd/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	tea "github.com/charmbracelet/bubbletea"

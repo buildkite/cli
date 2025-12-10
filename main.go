@@ -7,13 +7,14 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/cmd/agent"
-	apiCmd "github.com/buildkite/cli/v3/cmd/api"
+	"github.com/buildkite/cli/v3/cmd/api"
 	"github.com/buildkite/cli/v3/cmd/artifacts"
 	"github.com/buildkite/cli/v3/cmd/build"
 	"github.com/buildkite/cli/v3/cmd/job"
+	versionCmd "github.com/buildkite/cli/v3/cmd/version"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
-	"github.com/buildkite/cli/v3/internal/version"
+	"github.com/buildkite/cli/v3/cmd/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/root"
 	"github.com/buildkite/cli/v3/pkg/output"
@@ -46,7 +47,7 @@ type CLI struct {
 // Hybrid delegation commands, we should delete from these when native Kong implementations ready
 type (
 	VersionCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		versionCmd.VersionCmd `cmd:"" help:"Print the version of the CLI being used"`
 	}
 	AgentCmd struct {
 		Pause  agent.PauseCmd  `cmd:"" help:"Pause a Buildkite agent."`
@@ -87,7 +88,7 @@ type (
 		Args []string `arg:"" optional:"" passthrough:"all"`
 	}
 	ApiCmd struct {
-		apiCmd.ApiCmd `cmd:"" help:"Interact with the Buildkite API"`
+		api.ApiCmd `cmd:"" help:"Interact with the Buildkite API"`
 	}
 	ConfigureCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
@@ -104,7 +105,6 @@ type (
 )
 
 // Delegation methods, we should delete when native Kong implementations ready
-func (v *VersionCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("version", v.Args) }
 func (c *ClusterCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("cluster", c.Args) }
 func (p *PackageCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("package", p.Args) }
 func (p *PipelineCmd) Run(cli *CLI) error  { return cli.delegateToCobraSystem("pipeline", p.Args) }
@@ -277,6 +277,14 @@ func isHelpRequest() bool {
 	}
 
 	if len(os.Args) >= 2 && os.Args[1] == "api" {
+		return false
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "api" {
+		return false
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "version" {
 		return false
 	}
 
