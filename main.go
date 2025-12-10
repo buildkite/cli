@@ -11,6 +11,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/build"
 	"github.com/buildkite/cli/v3/cmd/cluster"
 	"github.com/buildkite/cli/v3/cmd/job"
+	"github.com/buildkite/cli/v3/cmd/whoami"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	"github.com/buildkite/cli/v3/internal/version"
@@ -27,20 +28,20 @@ type CLI struct {
 	Quiet   bool `help:"Suppress progress output" short:"q"`
 	// Verbose bool `help:"Enable verbose error output" short:"V"` // TODO: Implement this, atm this is just a skeleton flag
 
-	Agent     AgentCmd     `cmd:"" help:"Manage agents"`
-	Api       ApiCmd       `cmd:"" help:"Interact with the Buildkite API"`
-	Artifacts ArtifactsCmd `cmd:"" help:"Manage pipeline build artifacts"`
-	Build     BuildCmd     `cmd:"" help:"Manage pipeline builds"`
-	Cluster   ClusterCmd   `cmd:"" help:"Manage organization clusters"`
-	Configure ConfigureCmd `cmd:"" help:"Configure Buildkite API token"`
-	Init      InitCmd      `cmd:"" help:"Initialize a pipeline.yaml file"`
-	Job       JobCmd       `cmd:"" help:"Manage jobs within a build"`
-	Pipeline  PipelineCmd  `cmd:"" help:"Manage pipelines"`
-	Package   PackageCmd   `cmd:"" help:"Manage packages"`
-	Use       UseCmd       `cmd:"" help:"Select an organization"`
-	User      UserCmd      `cmd:"" help:"Invite users to the organization"`
-	Version   VersionCmd   `cmd:"" help:"Print the version of the CLI being used"`
-	Whoami    WhoamiCmd    `cmd:"" help:"Print the current user and organization"`
+	Agent     AgentCmd         `cmd:"" help:"Manage agents"`
+	Api       ApiCmd           `cmd:"" help:"Interact with the Buildkite API"`
+	Artifacts ArtifactsCmd     `cmd:"" help:"Manage pipeline build artifacts"`
+	Build     BuildCmd         `cmd:"" help:"Manage pipeline builds"`
+	Cluster   ClusterCmd       `cmd:"" help:"Manage organization clusters"`
+	Configure ConfigureCmd     `cmd:"" help:"Configure Buildkite API token"`
+	Init      InitCmd          `cmd:"" help:"Initialize a pipeline.yaml file"`
+	Job       JobCmd           `cmd:"" help:"Manage jobs within a build"`
+	Pipeline  PipelineCmd      `cmd:"" help:"Manage pipelines"`
+	Package   PackageCmd       `cmd:"" help:"Manage packages"`
+	Use       UseCmd           `cmd:"" help:"Select an organization"`
+	User      UserCmd          `cmd:"" help:"Invite users to the organization"`
+	Version   VersionCmd       `cmd:"" help:"Print the version of the CLI being used"`
+	Whoami    whoami.WhoAmICmd `cmd:"" help:"Print the current user and organization"`
 }
 
 // Hybrid delegation commands, we should delete from these when native Kong implementations ready
@@ -99,9 +100,6 @@ type (
 	UseCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
 	}
-	WhoamiCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
-	}
 )
 
 // Delegation methods, we should delete when native Kong implementations ready
@@ -113,7 +111,6 @@ func (a *ApiCmd) Run(cli *CLI) error       { return cli.delegateToCobraSystem("a
 func (c *ConfigureCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("configure", c.Args) }
 func (i *InitCmd) Run(cli *CLI) error      { return cli.delegateToCobraSystem("init", i.Args) }
 func (u *UseCmd) Run(cli *CLI) error       { return cli.delegateToCobraSystem("use", u.Args) }
-func (w *WhoamiCmd) Run(cli *CLI) error    { return cli.delegateToCobraSystem("whoami", w.Args) }
 
 // delegateToCobraSystem delegates execution to the legacy Cobra command system.
 // This is a temporary bridge during the Kong migration that ensures backwards compatibility
@@ -278,6 +275,10 @@ func isHelpRequest() bool {
 	}
 
 	if len(os.Args) >= 2 && os.Args[1] == "artifacts" {
+		return false
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "whoami" {
 		return false
 	}
 
