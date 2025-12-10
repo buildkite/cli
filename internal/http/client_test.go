@@ -554,4 +554,52 @@ func TestClientRetry(t *testing.T) {
 			t.Errorf("expected body to be preserved on retry, got %v", parsed)
 		}
 	})
+
+	t.Run("invokes OnRetry callback before sleeping", func(t *testing.T) {
+		t.Parallel()
+
+		var requestCount atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			count := requestCount.Add(1)
+			if count <= 2 {
+				w.Header().Set("RateLimit-Reset", "1")
+				w.WriteHeader(http.StatusTooManyRequests)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(testResponse{Message: "success"})
+		}))
+		defer server.Close()
+
+		type callback struct {
+			attempt int
+			delay   time.Duration
+		}
+		var callbacks []callback
+
+		client := NewClient("test-token",
+			WithBaseURL(server.URL),
+			WithMaxRetries(3),
+			WithMaxRetryDelay(10*time.Millisecond),
+			WithOnRetry(func(attempt int, delay time.Duration) {
+				callbacks = append(callbacks, callback{attempt, delay})
+			}),
+		)
+
+		var resp testResponse
+		err := client.Get(context.Background(), "/test", &resp)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(callbacks) != 2 {
+			t.Fatalf("expected 2 callbacks, got %d", len(callbacks))
+		}
+		if callbacks[0].attempt != 0 {
+			t.Errorf("first callback attempt: expected 0, got %d", callbacks[0].attempt)
+		}
+		if callbacks[1].attempt != 1 {
+			t.Errorf("second callback attempt: expected 1, got %d", callbacks[1].attempt)
+		}
+	})
 }

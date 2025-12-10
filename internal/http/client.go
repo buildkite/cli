@@ -45,6 +45,7 @@ type Client struct {
 
 	maxRetries    int
 	maxRetryDelay time.Duration
+	onRetry       OnRetryFunc
 }
 
 // ClientOption is a function that modifies a Client
@@ -84,6 +85,16 @@ func WithMaxRetryDelay(d time.Duration) ClientOption {
 		c.maxRetryDelay = d
 	}
 }
+
+// WithOnRetry sets a callback that is invoked before each retry sleep.
+func WithOnRetry(f OnRetryFunc) ClientOption {
+	return func(c *Client) {
+		c.onRetry = f
+	}
+}
+
+// OnRetryFunc is called before each retry sleep with the attempt number and delay duration.
+type OnRetryFunc func(attempt int, delay time.Duration)
 
 // NewClient creates a new HTTP client with the given token and options
 func NewClient(token string, opts ...ClientOption) *Client {
@@ -219,13 +230,20 @@ func (c *Client) Do(ctx context.Context, method, endpoint string, body interface
 			return nil
 		}
 
-		if delay, ok := c.shouldRetry(err, attempt); ok {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(delay):
-				continue
-			}
+		delay, ok := c.shouldRetry(err, attempt)
+		if !ok {
+			return err
+		}
+
+		if c.onRetry != nil {
+			c.onRetry(attempt, delay)
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+			continue
 		}
 	}
 
