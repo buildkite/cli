@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
 	"time"
@@ -69,8 +70,9 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) error {
 	var err error
 	var pipeline buildkite.Pipeline
+	var resp *buildkite.Response
 
-	spinErr := bkIO.SpinWhile(f, fmt.Sprintf("Creating new pipeline %s for %s", c.Name, f.Config.OrganizationSlug()), func() {
+	spinErr := bkIO.SpinWhile(f, fmt.Sprintf("Creating pipeline %s", c.Name), func() {
 		createPipeline := buildkite.CreatePipeline{
 			Name:          c.Name,
 			Repository:    c.Repository,
@@ -79,7 +81,7 @@ func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) erro
 			Configuration: "steps:\n  - label: \":pipeline:\"\n    command: buildkite-agent pipeline upload",
 		}
 
-		pipeline, _, err = f.RestAPIClient.Pipelines.Create(ctx, f.Config.OrganizationSlug(), createPipeline)
+		pipeline, resp, err = f.RestAPIClient.Pipelines.Create(ctx, f.Config.OrganizationSlug(), createPipeline)
 	})
 
 	if spinErr != nil {
@@ -87,10 +89,38 @@ func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) erro
 	}
 
 	if err != nil {
+		// Check if this is a 422 error (validation failed)
+		if resp != nil && resp.StatusCode == http.StatusUnprocessableEntity {
+			// Try to find an existing pipeline with the same name
+			if existingPipeline := c.findPipelineByName(ctx, f); existingPipeline != nil {
+				return fmt.Errorf("a pipeline with the name '%s' already exists: %s", c.Name, existingPipeline.WebURL)
+			}
+		}
 		return err
 	}
 
-	fmt.Printf("Pipeline created: %s\n", pipeline.WebURL)
+	fmt.Printf("%s\n", pipeline.WebURL)
+	return nil
+}
+
+func (c *CreateCmd) findPipelineByName(ctx context.Context, f *factory.Factory) *buildkite.Pipeline {
+	opts := buildkite.PipelineListOptions{
+		ListOptions: buildkite.ListOptions{
+			PerPage: 100,
+		},
+	}
+
+	pipelines, _, err := f.RestAPIClient.Pipelines.List(ctx, f.Config.OrganizationSlug(), &opts)
+	if err != nil {
+		return nil
+	}
+
+	for _, p := range pipelines {
+		if p.Name == c.Name {
+			return &p
+		}
+	}
+
 	return nil
 }
 
