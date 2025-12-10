@@ -7,16 +7,15 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/MakeNowJust/heredoc"
+	"github.com/alecthomas/kong"
+	"github.com/buildkite/cli/v3/internal/cli"
+	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/ghodss/yaml"
-	"github.com/spf13/cobra"
 	"github.com/xeipuuv/gojsonschema"
 )
 
-const (
-	schemaURL = "https://raw.githubusercontent.com/buildkite/pipeline-schema/main/schema.json"
-)
+const schemaURL = "https://raw.githubusercontent.com/buildkite/pipeline-schema/main/schema.json"
 
 // fallbackSchema is a simplified schema used when the online schema cannot be accessed
 // It implements the basic structure validation but doesn't include all checks
@@ -46,72 +45,69 @@ var fallbackSchema = []byte(`{
 	"required": ["steps"]
 }`)
 
-func NewCmdPipelineValidate(f *factory.Factory) *cobra.Command {
-	var filePaths []string
+type ValidateCmd struct {
+	File []string `help:"Path to the pipeline YAML file(s) to validate" short:"f"`
+}
 
-	cmd := cobra.Command{
-		DisableFlagsInUseLine: true,
-		Use:                   "validate [flags]",
-		Short:                 "Validate a pipeline YAML file",
-		Args:                  cobra.NoArgs,
-		Long: heredoc.Doc(`
-			Validate a pipeline YAML file against the Buildkite pipeline schema.
+func (c *ValidateCmd) Help() string {
+	return `Validate a pipeline YAML file against the Buildkite pipeline schema.
 
-			By default, this command looks for a file at .buildkite/pipeline.yaml or .buildkite/pipeline.yml
-			in the current directory. You can specify different files using the --file flag.
+By default, this command looks for a file at .buildkite/pipeline.yaml or .buildkite/pipeline.yml
+in the current directory. You can specify different files using the --file flag.
 
-			Note: This command does not require an API token since validation is done locally.
-		`),
-		Example: heredoc.Doc(`
-			# Validate the default pipeline file
-			$ bk pipeline validate
+Note: This command does not require an API token since validation is done locally.
 
-			# Validate a specific pipeline file
-			$ bk pipeline validate --file path/to/pipeline.yaml
+Examples:
+  # Validate the default pipeline file
+  $ bk pipeline validate
 
-			# Validate multiple pipeline files
-			$ bk pipeline validate --file path/to/pipeline1.yaml --file path/to/pipeline2.yaml
-		`),
-		// No PersistentPreRunE is set, so API token validation is skipped
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// If no file paths provided, find the default
-			if len(filePaths) == 0 {
-				defaultPath, err := findPipelineFile()
-				if err != nil {
-					return err
-				}
-				filePaths = []string{defaultPath}
-			}
+  # Validate a specific pipeline file
+  $ bk pipeline validate --file path/to/pipeline.yaml
 
-			// Track validation errors
-			var validationErrors []string
-			fileCount := len(filePaths)
+  # Validate multiple pipeline files
+  $ bk pipeline validate --file path/to/pipeline1.yaml --file path/to/pipeline2.yaml
+`
+}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Validating %d pipeline file(s)...\n\n", fileCount)
-
-			// Validate each file
-			for _, filePath := range filePaths {
-				err := validatePipeline(cmd.OutOrStdout(), filePath)
-				if err != nil {
-					validationErrors = append(validationErrors, fmt.Sprintf("%s: %v", filePath, err))
-					// Continue validating other files even if one fails
-				}
-			}
-
-			if len(validationErrors) > 0 {
-				errorCount := len(validationErrors)
-				fmt.Fprintf(cmd.OutOrStdout(), "\n%d of %d file(s) failed validation.\n", errorCount, fileCount)
-				return fmt.Errorf("pipeline validation failed")
-			}
-
-			fmt.Fprintf(cmd.OutOrStdout(), "\nAll pipeline files passed validation successfully!\n")
-			return nil
-		},
+func (c *ValidateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	f, err := factory.New(version.Version)
+	if err != nil {
+		return err
 	}
 
-	cmd.Flags().StringArrayVarP(&filePaths, "file", "f", []string{}, "Path to the pipeline YAML file(s) to validate")
+	f.SkipConfirm = globals.SkipConfirmation()
+	f.NoInput = globals.DisableInput()
+	f.Quiet = globals.IsQuiet()
 
-	return &cmd
+	filePaths := c.File
+	if len(filePaths) == 0 {
+		defaultPath, err := findPipelineFile()
+		if err != nil {
+			return err
+		}
+		filePaths = []string{defaultPath}
+	}
+
+	var validationErrors []string
+	fileCount := len(filePaths)
+
+	fmt.Printf("Validating %d pipeline file(s)...\n\n", fileCount)
+
+	for _, filePath := range filePaths {
+		err := validatePipeline(os.Stdout, filePath)
+		if err != nil {
+			validationErrors = append(validationErrors, fmt.Sprintf("%s: %v", filePath, err))
+		}
+	}
+
+	if len(validationErrors) > 0 {
+		errorCount := len(validationErrors)
+		fmt.Printf("\n%d of %d file(s) failed validation.\n", errorCount, fileCount)
+		return fmt.Errorf("pipeline validation failed")
+	}
+
+	fmt.Println("\nAll pipeline files passed validation successfully!")
+	return nil
 }
 
 // findPipelineFile attempts to locate a pipeline file in the default locations
@@ -219,7 +215,6 @@ func validatePipeline(w io.Writer, filePath string) error {
 func formatValidationError(err gojsonschema.ResultError) string {
 	field := err.Field()
 
-	// For array items, make the error message more readable
 	if strings.Contains(field, "[") && strings.Contains(field, "]") {
 		parts := strings.Split(field, ".")
 		for i, part := range parts {
