@@ -1,19 +1,23 @@
-// pkg/cmd/cluster/view.go
-
 package cluster
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
-	"github.com/MakeNowJust/heredoc"
-	"github.com/buildkite/cli/v3/internal/io"
+	"github.com/alecthomas/kong"
+	"github.com/buildkite/cli/v3/internal/cli"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
+	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/spf13/cobra"
 )
 
 // CreatedByView represents cluster creator information
@@ -95,65 +99,82 @@ func (c ClusterView) TextOutput() string {
 	return b.String()
 }
 
-func NewCmdClusterView(f *factory.Factory) *cobra.Command {
-	cmd := cobra.Command{
-		DisableFlagsInUseLine: true,
-		Use:                   "view <id>",
-		Args:                  cobra.MinimumNArgs(1),
-		Short:                 "View cluster information.",
-		Long: heredoc.Doc(`
-			View cluster information.
+type ViewCmd struct {
+	ClusterID string `arg:"" help:"Cluster ID to view"`
+	Output    string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}"`
+}
 
-			It accepts org slug and cluster id.
-		`),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			format, err := output.GetFormat(cmd.Flags())
-			if err != nil {
-				return err
-			}
+func (c *ViewCmd) Help() string {
+	return `
+It accepts cluster id.
 
-			var cluster buildkite.Cluster
-			spinErr := io.SpinWhile(f, "Loading cluster information", func() {
-				cluster, _, err = f.RestAPIClient.Clusters.Get(cmd.Context(), f.Config.OrganizationSlug(), args[0])
-			})
-			if spinErr != nil {
-				return spinErr
-			}
-			if err != nil {
-				return err
-			}
+Examples:
+  # View a cluster
+  $ bk cluster view my-cluster-id
 
-			view := ClusterView{
-				ID:              cluster.ID,
-				GraphQLID:       cluster.GraphQLID,
-				DefaultQueueID:  cluster.DefaultQueueID,
-				Name:            cluster.Name,
-				Description:     cluster.Description,
-				Emoji:           cluster.Emoji,
-				Color:           cluster.Color,
-				URL:             cluster.URL,
-				WebURL:          cluster.WebURL,
-				DefaultQueueURL: cluster.DefaultQueueURL,
-				QueuesURL:       cluster.QueuesURL,
-				CreatedAt:       cluster.CreatedAt.Time,
-			}
+  # View cluster in JSON format
+  $ bk cluster view my-cluster-id -o json
+`
+}
 
-			if cluster.CreatedBy.ID != "" {
-				view.CreatedBy = &CreatedByView{
-					ID:        cluster.CreatedBy.ID,
-					GraphQLID: cluster.CreatedBy.GraphQLID,
-					Name:      cluster.CreatedBy.Name,
-					Email:     cluster.CreatedBy.Email,
-					AvatarURL: cluster.CreatedBy.AvatarURL,
-					CreatedAt: cluster.CreatedBy.CreatedAt.Time,
-				}
-			}
-
-			return output.Write(cmd.OutOrStdout(), view, format)
-		},
+func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	f, err := factory.New(version.Version)
+	if err != nil {
+		return err
 	}
 
-	output.AddFlags(cmd.Flags())
+	f.SkipConfirm = globals.SkipConfirmation()
+	f.NoInput = globals.DisableInput()
+	f.Quiet = globals.IsQuiet()
 
-	return &cmd
+	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
+		return err
+	}
+
+	format := output.Format(c.Output)
+	if format != output.FormatJSON && format != output.FormatYAML && format != output.FormatText {
+		return fmt.Errorf("invalid output format: %s", c.Output)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	var cluster buildkite.Cluster
+	spinErr := bkIO.SpinWhile(f, "Loading cluster information", func() {
+		cluster, _, err = f.RestAPIClient.Clusters.Get(ctx, f.Config.OrganizationSlug(), c.ClusterID)
+	})
+	if spinErr != nil {
+		return spinErr
+	}
+	if err != nil {
+		return err
+	}
+
+	view := ClusterView{
+		ID:              cluster.ID,
+		GraphQLID:       cluster.GraphQLID,
+		DefaultQueueID:  cluster.DefaultQueueID,
+		Name:            cluster.Name,
+		Description:     cluster.Description,
+		Emoji:           cluster.Emoji,
+		Color:           cluster.Color,
+		URL:             cluster.URL,
+		WebURL:          cluster.WebURL,
+		DefaultQueueURL: cluster.DefaultQueueURL,
+		QueuesURL:       cluster.QueuesURL,
+		CreatedAt:       cluster.CreatedAt.Time,
+	}
+
+	if cluster.CreatedBy.ID != "" {
+		view.CreatedBy = &CreatedByView{
+			ID:        cluster.CreatedBy.ID,
+			GraphQLID: cluster.CreatedBy.GraphQLID,
+			Name:      cluster.CreatedBy.Name,
+			Email:     cluster.CreatedBy.Email,
+			AvatarURL: cluster.CreatedBy.AvatarURL,
+			CreatedAt: cluster.CreatedBy.CreatedAt.Time,
+		}
+	}
+
+	return output.Write(os.Stdout, view, format)
 }

@@ -5,7 +5,6 @@ import (
 
 	"github.com/MakeNowJust/heredoc"
 	apiCmd "github.com/buildkite/cli/v3/pkg/cmd/api"
-	clusterCmd "github.com/buildkite/cli/v3/pkg/cmd/cluster"
 	configureCmd "github.com/buildkite/cli/v3/pkg/cmd/configure"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	initCmd "github.com/buildkite/cli/v3/pkg/cmd/init"
@@ -14,7 +13,6 @@ import (
 	useCmd "github.com/buildkite/cli/v3/pkg/cmd/use"
 	"github.com/buildkite/cli/v3/pkg/cmd/user"
 	versionCmd "github.com/buildkite/cli/v3/pkg/cmd/version"
-	"github.com/buildkite/cli/v3/pkg/cmd/whoami"
 	"github.com/spf13/cobra"
 )
 
@@ -53,14 +51,12 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 	}
 
 	cmd.AddCommand(apiCmd.NewCmdAPI(f))
-	cmd.AddCommand(clusterCmd.NewCmdCluster(f))
 	cmd.AddCommand(configureCmd.NewCmdConfigure(f))
 	cmd.AddCommand(initCmd.NewCmdInit(f))
 	cmd.AddCommand(packageCmd.NewCmdPackage(f))
 	cmd.AddCommand(promptCmd.NewCmdPrompt(f))
 	cmd.AddCommand(useCmd.NewCmdUse(f))
 	cmd.AddCommand(user.CommandUser(f))
-	cmd.AddCommand(whoami.NewCmdWhoami(f))
 	cmd.AddCommand(versionCmd.NewCmdVersion(f))
 
 	cmd.Flags().BoolP("version", "v", false, "Print the version number")
