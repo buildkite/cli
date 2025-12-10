@@ -45,7 +45,8 @@ func (c *ListCmd) Help() string {
 Server-side filters are applied when fetching builds, while client-side filters
 are applied after extracting jobs from builds.
 
-Client-side filters: --queue, --state, --duration
+Client-side filters: --queue, --duration
+Hybrid filters: --state (used as server-side hint, then applied exactly to jobs)
 Server-side filters: --pipeline, --since, --until
 
 Jobs can be filtered by queue, state, duration, and other attributes.
@@ -174,14 +175,28 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 }
 
 func fetchJobs(ctx context.Context, f *factory.Factory, org string, opts jobListOptions, listOpts *buildkite.BuildsListOptions) ([]buildkite.Job, error) {
-	allJobs := make([]buildkite.Job, 0, opts.limit*2)
-	maxBuildsToFetch := min(200, opts.limit*2)
+	// When client-side filters are present, we need to fetch more builds to ensure
+	// we have enough jobs after filtering. Otherwise, we can optimize by only
+	// fetching what we need based on the limit.
+	hasClientSideFilters := len(opts.state) > 0 || opts.duration != ""
 
+	var maxBuildsToFetch int
+	if hasClientSideFilters {
+		// When filtering client-side, fetch all available builds up to a reasonable maximum
+		// to ensure we don't miss matching jobs. Use maxJobLimit (5000) as the upper bound.
+		maxBuildsToFetch = maxJobLimit
+	} else {
+		// Without client-side filters, we can be more conservative
+		maxBuildsToFetch = min(200, opts.limit*2)
+	}
+
+	allJobs := make([]buildkite.Job, 0, opts.limit*2)
+	buildsFetched := 0
 	maxPages := (maxBuildsToFetch + pageSize - 1) / pageSize
-	for page := 1; len(allJobs) < opts.limit*2 && page <= maxPages; page++ {
+
+	for page := 1; page <= maxPages; page++ {
 		listOpts.Page = page
-		remaining := maxBuildsToFetch - ((page - 1) * pageSize)
-		listOpts.PerPage = min(pageSize, remaining)
+		listOpts.PerPage = pageSize
 
 		var builds []buildkite.Build
 		var err error
@@ -200,6 +215,8 @@ func fetchJobs(ctx context.Context, f *factory.Factory, org string, opts jobList
 			break
 		}
 
+		buildsFetched += len(builds)
+
 		for _, build := range builds {
 			if len(allJobs)+len(build.Jobs) > cap(allJobs) {
 				newJobs := make([]buildkite.Job, len(allJobs), len(allJobs)+len(build.Jobs)+100)
@@ -209,11 +226,18 @@ func fetchJobs(ctx context.Context, f *factory.Factory, org string, opts jobList
 			allJobs = append(allJobs, build.Jobs...)
 		}
 
-		if len(allJobs) >= opts.limit*2 {
+		// Without client-side filters, stop early once we have enough jobs
+		if !hasClientSideFilters && len(allJobs) >= opts.limit*2 {
 			break
 		}
 
-		if len(builds) < listOpts.PerPage {
+		// Stop if we got fewer builds than requested (last page)
+		if len(builds) < pageSize {
+			break
+		}
+
+		// Stop if we've reached the maximum builds to fetch
+		if buildsFetched >= maxBuildsToFetch {
 			break
 		}
 	}
@@ -541,6 +565,18 @@ func jobListOptionsFromFlags(opts *jobListOptions) (*buildkite.BuildsListOptions
 			return nil, fmt.Errorf("invalid until duration '%s': %w", opts.until, err)
 		}
 		listOpts.CreatedTo = now.Add(-d)
+	}
+
+	// Pass state as a server-side filter hint to reduce builds fetched
+	// Note: This filters builds by state, but we'll still apply exact job-level
+	// state filtering client-side since build state != job state
+	if len(opts.state) > 0 {
+		// Map job states to build states where they align
+		// Job states like "passed", "failed", "running", etc. map reasonably to build states
+		listOpts.State = make([]string, len(opts.state))
+		for i, state := range opts.state {
+			listOpts.State[i] = strings.ToLower(state)
+		}
 	}
 
 	return listOpts, nil
