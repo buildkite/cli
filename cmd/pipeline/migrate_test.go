@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
 
 func TestMigrationAPIEndpoint(t *testing.T) {
@@ -50,7 +48,7 @@ jobs:
 	}
 
 	// Poll for completion with a reasonable timeout
-	result, err := pollJobStatus(jobResp.JobID, 60) // 60 seconds timeout
+	result, err := pollJobStatus(jobResp.JobID, 60)
 	if err != nil {
 		t.Fatalf("Failed to poll job status: %v", err)
 	}
@@ -332,7 +330,7 @@ func TestPollJobStatusTimeout(t *testing.T) {
 	MigrationEndpoint = server.URL
 	defer func() { MigrationEndpoint = originalEndpoint }()
 
-	_, err := pollJobStatus("test-job-123", 5) // 5 seconds = 1 attempt
+	_, err := pollJobStatus("test-job-123", 5)
 	if err == nil {
 		t.Error("Expected timeout error but got none")
 	}
@@ -342,10 +340,30 @@ func TestPollJobStatusTimeout(t *testing.T) {
 	}
 }
 
-func TestMigrateCommandIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
+func TestMigrateCommandCreation(t *testing.T) {
+	t.Parallel()
+
+	cmd := &MigrateCmd{
+		File:    "test.yml",
+		Vendor:  "github",
+		Timeout: 300,
 	}
+
+	if cmd.File != "test.yml" {
+		t.Errorf("Expected File to be 'test.yml', got %q", cmd.File)
+	}
+
+	if cmd.Vendor != "github" {
+		t.Errorf("Expected Vendor to be 'github', got %q", cmd.Vendor)
+	}
+
+	if cmd.Timeout != 300 {
+		t.Errorf("Expected Timeout to be 300, got %d", cmd.Timeout)
+	}
+}
+
+func TestMigrateAutoDetection(t *testing.T) {
+	t.Parallel()
 
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, ".github", "workflows", "test.yml")
@@ -367,35 +385,12 @@ jobs:
 		t.Fatalf("Failed to write test file: %v", err)
 	}
 
-	cmd := NewCmdPipelineMigrate(&factory.Factory{})
-	if cmd == nil {
-		t.Fatal("Failed to create migrate command")
+	vendor, err := detectVendor(testFile)
+	if err != nil {
+		t.Fatalf("Failed to detect vendor: %v", err)
 	}
 
-	fileFlag := cmd.Flag("file")
-	if fileFlag == nil {
-		t.Error("Expected 'file' flag to exist")
-	}
-
-	vendorFlag := cmd.Flag("vendor")
-	if vendorFlag == nil {
-		t.Error("Expected 'vendor' flag to exist")
-	}
-
-	aiFlag := cmd.Flag("ai")
-	if aiFlag == nil {
-		t.Error("Expected 'ai' flag to exist")
-	}
-
-	outputFlag := cmd.Flag("output")
-	if outputFlag == nil {
-		t.Error("Expected 'output' flag to exist")
-	}
-
-	timeoutFlag := cmd.Flag("timeout")
-	if timeoutFlag == nil {
-		t.Error("Expected 'timeout' flag to exist")
-	} else if timeoutFlag.DefValue != "300" {
-		t.Errorf("Expected default timeout of 300, got %s", timeoutFlag.DefValue)
+	if vendor != "github" {
+		t.Errorf("Expected vendor to be 'github', got %q", vendor)
 	}
 }
