@@ -37,6 +37,7 @@ type ListCmd struct {
 	Queue    string   `help:"Filter by queue name"`
 	OrderBy  string   `help:"Order results by field (start_time, duration)" name:"order-by"`
 	Limit    int      `help:"Maximum number of jobs to return" default:"100"`
+	NoLimit  bool     `help:"Fetch all jobs (overrides --limit)" name:"no-limit"`
 	Output   string   `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}"`
 }
 
@@ -47,6 +48,9 @@ are applied after extracting jobs from builds.
 
 Client-side filters: --queue, --state, --duration
 Server-side filters: --pipeline, --since, --until
+
+By default, fetches up to 200 builds for filtering. Use --no-limit if you need to
+search across more builds to find all matching jobs.
 
 Jobs can be filtered by queue, state, duration, and other attributes.
 When filtering by duration, you can use operators like >, <, >=, and <= to specify your criteria.
@@ -71,6 +75,9 @@ Examples:
   # Combine filters
   $ bk job list --queue test-queue --state running --duration ">10m"
 
+  # Fetch all jobs matching filters (no limit)
+  $ bk job list --duration ">10m" --no-limit
+
   # Order by duration (longest first)
   $ bk job list --order-by duration
 
@@ -88,6 +95,7 @@ type jobListOptions struct {
 	queue    string
 	orderBy  string
 	limit    int
+	noLimit  bool
 }
 
 func (opts jobListOptions) withoutQueue() jobListOptions {
@@ -115,8 +123,8 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return fmt.Errorf("invalid output format: %s", c.Output)
 	}
 
-	if c.Limit > maxJobLimit {
-		return fmt.Errorf("limit cannot exceed %d jobs (requested: %d)", maxJobLimit, c.Limit)
+	if !c.NoLimit && c.Limit > maxJobLimit {
+		return fmt.Errorf("limit cannot exceed %d jobs (requested: %d); if you need more, use --no-limit", maxJobLimit, c.Limit)
 	}
 
 	opts := jobListOptions{
@@ -128,6 +136,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		queue:    c.Queue,
 		orderBy:  c.OrderBy,
 		limit:    c.Limit,
+		noLimit:  c.NoLimit,
 	}
 
 	listOpts, err := jobListOptionsFromFlags(&opts)
@@ -161,7 +170,8 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		jobs = sortJobs(jobs, opts.orderBy)
 	}
 
-	if len(jobs) > opts.limit {
+	// Apply limit only if --no-limit is not set
+	if !opts.noLimit && len(jobs) > opts.limit {
 		jobs = jobs[:opts.limit]
 	}
 
@@ -174,14 +184,32 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 }
 
 func fetchJobs(ctx context.Context, f *factory.Factory, org string, opts jobListOptions, listOpts *buildkite.BuildsListOptions) ([]buildkite.Job, error) {
-	allJobs := make([]buildkite.Job, 0, opts.limit*2)
-	maxBuildsToFetch := min(200, opts.limit*2)
+	var maxBuildsToFetch int
+	if opts.noLimit {
+		// When --no-limit is set, fetch all available builds (no upper bound)
+		maxBuildsToFetch = 0 // 0 means unlimited
+	} else {
+		// By default, fetch a reasonable number of builds (200 = 2 pages)
+		// This provides a good pool for filtering without being tied to --limit
+		maxBuildsToFetch = 200
+	}
 
-	maxPages := (maxBuildsToFetch + pageSize - 1) / pageSize
-	for page := 1; len(allJobs) < opts.limit*2 && page <= maxPages; page++ {
+	allJobs := make([]buildkite.Job, 0, opts.limit*2)
+	buildsFetched := 0
+
+	// Calculate max pages (0 means unlimited)
+	var maxPages int
+	if maxBuildsToFetch > 0 {
+		maxPages = (maxBuildsToFetch + pageSize - 1) / pageSize
+	}
+
+	for page := 1; ; page++ {
+		// Check page limit if set
+		if maxPages > 0 && page > maxPages {
+			break
+		}
 		listOpts.Page = page
-		remaining := maxBuildsToFetch - ((page - 1) * pageSize)
-		listOpts.PerPage = min(pageSize, remaining)
+		listOpts.PerPage = pageSize
 
 		var builds []buildkite.Build
 		var err error
@@ -200,6 +228,8 @@ func fetchJobs(ctx context.Context, f *factory.Factory, org string, opts jobList
 			break
 		}
 
+		buildsFetched += len(builds)
+
 		for _, build := range builds {
 			if len(allJobs)+len(build.Jobs) > cap(allJobs) {
 				newJobs := make([]buildkite.Job, len(allJobs), len(allJobs)+len(build.Jobs)+100)
@@ -209,11 +239,13 @@ func fetchJobs(ctx context.Context, f *factory.Factory, org string, opts jobList
 			allJobs = append(allJobs, build.Jobs...)
 		}
 
-		if len(allJobs) >= opts.limit*2 {
+		// Stop if we got fewer builds than requested (last page)
+		if len(builds) < pageSize {
 			break
 		}
 
-		if len(builds) < listOpts.PerPage {
+		// Stop if we've reached the maximum builds to fetch (only when limit is set)
+		if maxBuildsToFetch > 0 && buildsFetched >= maxBuildsToFetch {
 			break
 		}
 	}
