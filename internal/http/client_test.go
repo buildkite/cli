@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -476,6 +477,41 @@ func TestClientRetry(t *testing.T) {
 
 		if err != context.DeadlineExceeded {
 			t.Errorf("expected DeadlineExceeded, got %v", err)
+		}
+	})
+
+	t.Run("honors RateLimit-Reset header when no max retry delay is set", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("RateLimit-Reset", "1")
+			w.WriteHeader(http.StatusTooManyRequests)
+		}))
+		defer server.Close()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		var observedDelay time.Duration
+
+		client := NewClient("test-token",
+			WithBaseURL(server.URL),
+			WithMaxRetries(1),
+			WithOnRetry(func(attempt int, delay time.Duration) {
+				// Stop the request as soon as we see the computed delay so the test
+				// doesn't actually sleep for the full backoff.
+				observedDelay = delay
+				cancel()
+			}),
+		)
+
+		var resp testResponse
+		err := client.Get(ctx, "/test", &resp)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected context cancellation, got %v", err)
+		}
+		if observedDelay != time.Second {
+			t.Fatalf("expected retry delay from RateLimit-Reset to be 1s, got %v", observedDelay)
 		}
 	})
 

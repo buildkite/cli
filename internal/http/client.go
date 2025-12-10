@@ -310,7 +310,9 @@ func (c *Client) shouldRetry(err error, attempt int) (time.Duration, bool) {
 	}
 
 	// Clamp to max retry delay
-	delay = min(delay, c.maxRetryDelay)
+	if c.maxRetryDelay > 0 {
+		delay = min(delay, c.maxRetryDelay)
+	}
 
 	return delay, true
 }
