@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/alecthomas/kong"
@@ -25,6 +26,7 @@ type ApiCmd struct {
 	Data      string   `help:"Data to send in the request body" short:"d"`
 	Analytics bool     `help:"Use the Test Analytics endpoint"`
 	File      string   `help:"File containing GraphQL query" short:"f"`
+	Verbose   bool     `help:"Enable verbose output (currently only provides information about rate limit exceeded retries)"`
 }
 
 func (c *ApiCmd) Help() string {
@@ -106,6 +108,11 @@ func (c *ApiCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	client := httpClient.NewClient(
 		f.Config.APIToken(),
 		httpClient.WithBaseURL(f.RestAPIClient.BaseURL.String()),
+		httpClient.WithOnRetry(func(attempt int, delay time.Duration) {
+			if c.Verbose {
+				fmt.Fprintf(os.Stderr, "WARNING: Rate limit exceeded, retrying in %v @ %q (attempt %d)\n", delay, time.Now().Add(delay).Format(time.RFC3339), attempt)
+			}
+		}),
 	)
 
 	// Process custom headers
