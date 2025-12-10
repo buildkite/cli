@@ -139,7 +139,6 @@ func getRepoURLS(f *factory.Factory) []string {
 }
 
 func getClusters(ctx context.Context, f *factory.Factory) (map[string]string, error) {
-
 	clusterMap := make(map[string]string) // map of cluster name to cluster ID
 	page := 1
 	per_page := 30
@@ -254,7 +253,6 @@ func initialisePipelineDryRun() PipelineDryRun {
 }
 
 func createPipelineDryRun(ctx context.Context, f *factory.Factory, pipelineName, description, clusterID, repoURL string) error {
-
 	pipelineSlug := generateSlug(pipelineName)
 
 	pipelineSlug, err := getAvailablePipelineSlug(ctx, f, pipelineSlug, pipelineName)

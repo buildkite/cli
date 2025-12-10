@@ -14,7 +14,6 @@ import (
 	useCmd "github.com/buildkite/cli/v3/pkg/cmd/use"
 	"github.com/buildkite/cli/v3/pkg/cmd/user"
 	versionCmd "github.com/buildkite/cli/v3/pkg/cmd/version"
-	"github.com/buildkite/cli/v3/pkg/cmd/whoami"
 	"github.com/spf13/cobra"
 )
 
@@ -60,7 +59,6 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 	cmd.AddCommand(promptCmd.NewCmdPrompt(f))
 	cmd.AddCommand(useCmd.NewCmdUse(f))
 	cmd.AddCommand(user.CommandUser(f))
-	cmd.AddCommand(whoami.NewCmdWhoami(f))
 	cmd.AddCommand(versionCmd.NewCmdVersion(f))
 
 	cmd.Flags().BoolP("version", "v", false, "Print the version number")
