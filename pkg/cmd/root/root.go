@@ -6,7 +6,6 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	configureCmd "github.com/buildkite/cli/v3/pkg/cmd/configure"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	initCmd "github.com/buildkite/cli/v3/pkg/cmd/init"
 	packageCmd "github.com/buildkite/cli/v3/pkg/cmd/pkg"
 	promptCmd "github.com/buildkite/cli/v3/pkg/cmd/prompt"
 	"github.com/buildkite/cli/v3/pkg/cmd/user"
@@ -44,7 +43,6 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 	}
 
 	cmd.AddCommand(configureCmd.NewCmdConfigure(f))
-	cmd.AddCommand(initCmd.NewCmdInit(f))
 	cmd.AddCommand(packageCmd.NewCmdPackage(f))
 	cmd.AddCommand(promptCmd.NewCmdPrompt(f))
 	cmd.AddCommand(user.CommandUser(f))

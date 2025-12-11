@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/spf13/cobra"
+	"github.com/alecthomas/kong"
+	"github.com/buildkite/cli/v3/internal/cli"
 )
 
 const (
@@ -15,33 +15,26 @@ const (
     command: echo "Hello, world!"`
 )
 
-func NewCmdInit(f *factory.Factory) *cobra.Command {
-	return &cobra.Command{
-		Use:   "init",
-		Args:  cobra.NoArgs,
-		Short: "Initialize a pipeline.yaml file",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if found, path := findExistingPipelineFile(""); found {
-				fmt.Printf("✨ File found at %s. You're good to go!\n", path)
-				return nil
-			}
+type InitCmd struct{}
 
-			pipelineFile := filepath.Join(".buildkite", "pipeline.yaml")
-			err := os.MkdirAll(filepath.Dir(pipelineFile), 0o755)
-			if err != nil {
-				return err
-			}
-
-			err = os.WriteFile(pipelineFile, []byte(defaultPipelineYAML), 0o660)
-			if err != nil {
-				return err
-			}
-
-			fmt.Printf("✨ File created at %s. You're good to go!\n", pipelineFile)
-
-			return nil
-		},
+func (c *InitCmd) Run(_ *kong.Context, globals cli.GlobalFlags) error {
+	if found, path := findExistingPipelineFile(""); found {
+		fmt.Printf("✨ File found at %s. You're good to go!\n", path)
+		return nil
 	}
+
+	pipelineFile := filepath.Join(".buildkite", "pipeline.yaml")
+	if err := os.MkdirAll(filepath.Dir(pipelineFile), 0o755); err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(pipelineFile, []byte(defaultPipelineYAML), 0o660); err != nil {
+		return err
+	}
+
+	fmt.Printf("✨ File created at %s. You're good to go!\n", pipelineFile)
+
+	return nil
 }
 
 func findExistingPipelineFile(base string) (bool, string) {
