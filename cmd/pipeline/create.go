@@ -40,7 +40,7 @@ Examples:
   $ bk pipeline create "My Pipeline" --description "My pipeline description" --repository "git@github.com:org/repo.git"
 
   # Create a new pipeline and view the created pipeline in JSON format
-  $ bk pipeline create "My Pipeline" --description "My pipeline description" --repository "git@github.com:org/repo.git"
+  $ bk pipeline create "My Pipeline" --description "My pipeline description" --repository "git@github.com:org/repo.git" --output json
 
   # Create a pipeline with a cluster (by name)
   $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" -c "my-cluster"
