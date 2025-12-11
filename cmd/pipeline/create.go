@@ -2,7 +2,6 @@ package pipeline
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"sort"
@@ -14,6 +13,7 @@ import (
 	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
+	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
@@ -22,14 +22,15 @@ type CreateCmd struct {
 	Description string `help:"Description of the pipeline" short:"d"`
 	Repository  string `help:"Repository URL" short:"r"`
 	ClusterID   string `help:"Cluster name or ID to assign the pipeline to" short:"c"`
-	DryRun      bool   `help:"Outputs the pipeline that would be created without actually creating it"`
+	DryRun      bool   `help:"Simulate pipeline creation without actually creating it"`
+	Output      string `help:"Outputs the created pipeline. One of: json, yaml, text" short:"o" default:"text"`
 }
 
 func (c *CreateCmd) Help() string {
 	return `Creates a new pipeline in the current org and outputs the URL to the pipeline.
 
 You can specify a --dry-run flag to see the pipeline that would be created without
-actually creating it. This outputs a JSON representation of the pipeline to be created.
+actually creating it. This outputs a JSON representation of the pipeline to be created by default.
 
 The --cluster-id flag accepts either a cluster name or cluster ID. If a name is provided,
 it will be automatically resolved to the corresponding cluster ID.
@@ -38,14 +39,17 @@ Examples:
   # Create a new pipeline
   $ bk pipeline create "My Pipeline" --description "My pipeline description" --repository "git@github.com:org/repo.git"
 
+  # Create a new pipeline and view the created pipeline in JSON format
+  $ bk pipeline create "My Pipeline" --description "My pipeline description" --repository "git@github.com:org/repo.git"
+
   # Create a pipeline with a cluster (by name)
   $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" -c "my-cluster"
 
   # Create a pipeline with a cluster (by ID)
   $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" -c "cluster-id-123"
 
-  # View the pipeline that would be created without actually creating it
-  $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" --dry-run
+  # Simulate creating a pipeline and view the output in yaml format
+  $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" --dry-run --output yaml
 `
 }
 
@@ -65,18 +69,36 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	ctx := context.Background()
 
+	format := output.Format(c.Output)
+
 	if c.DryRun {
-		return c.createPipelineDryRun(ctx, f)
+		pipeline, err := c.createPipelineDryRun(ctx, f)
+		if err != nil {
+			return err
+		}
+		// for dry-run, if text format is requested, always default to json
+		if format == output.FormatText {
+			format = output.FormatJSON
+		}
+		return output.Write(kongCtx.Stdout, pipeline, format)
 	}
 
-	return c.createPipeline(ctx, f)
+	pipeline, err := c.createPipeline(ctx, f)
+	if err != nil {
+		return err
+	}
+	if format != output.FormatText {
+		return output.Write(kongCtx.Stdout, pipeline, format)
+	}
+	fmt.Printf("%s\n", pipeline.WebURL)
+	return nil
 }
 
-func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) error {
+func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) (*buildkite.Pipeline, error) {
 	// Resolve cluster name to ID if provided
 	clusterID, err := resolveClusterID(ctx, f, c.ClusterID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var pipeline buildkite.Pipeline
@@ -95,7 +117,7 @@ func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) erro
 	})
 
 	if spinErr != nil {
-		return spinErr
+		return nil, spinErr
 	}
 
 	if err != nil {
@@ -103,14 +125,13 @@ func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) erro
 		if resp != nil && resp.StatusCode == http.StatusUnprocessableEntity {
 			// Try to find an existing pipeline with the same name
 			if existingPipeline := c.findPipelineByName(ctx, f); existingPipeline != nil {
-				return fmt.Errorf("a pipeline with the name '%s' already exists: %s", c.Name, existingPipeline.WebURL)
+				return nil, fmt.Errorf("a pipeline with the name '%s' already exists: %s", c.Name, existingPipeline.WebURL)
 			}
 		}
-		return err
+		return nil, err
 	}
 
-	fmt.Printf("%s\n", pipeline.WebURL)
-	return nil
+	return &pipeline, nil
 }
 
 func (c *CreateCmd) findPipelineByName(ctx context.Context, f *factory.Factory) *buildkite.Pipeline {
@@ -184,12 +205,12 @@ func initialisePipelineDryRun() PipelineDryRun {
 	}
 }
 
-func (c *CreateCmd) createPipelineDryRun(ctx context.Context, f *factory.Factory) error {
+func (c *CreateCmd) createPipelineDryRun(ctx context.Context, f *factory.Factory) (*PipelineDryRun, error) {
 	pipelineSlug := generateSlug(c.Name)
 
 	pipelineSlug, err := getAvailablePipelineSlug(ctx, f, pipelineSlug, c.Name)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	orgSlug := f.Config.OrganizationSlug()
@@ -232,13 +253,7 @@ func (c *CreateCmd) createPipelineDryRun(ctx context.Context, f *factory.Factory
 
 	pipeline.CreatedBy = getCreatedByDetails(ctx, f)
 
-	jsonOutput, err := json.MarshalIndent(pipeline, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal dry run response: %w", err)
-	}
-
-	fmt.Println(string(jsonOutput))
-	return nil
+	return &pipeline, nil
 }
 
 func generateSlug(name string) string {
