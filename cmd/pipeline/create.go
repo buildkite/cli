@@ -67,21 +67,31 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
-	ctx := context.Background()
+	if c.DryRun {
+		return c.runPipelineCreateDryRun(kongCtx, f)
+	}
+	return c.runPipelineCreate(kongCtx, f)
+}
 
+func (c *CreateCmd) runPipelineCreateDryRun(kongCtx *kong.Context, f *factory.Factory) error {
+	ctx := context.Background()
 	format := output.Format(c.Output)
 
-	if c.DryRun {
-		pipeline, err := c.createPipelineDryRun(ctx, f)
-		if err != nil {
-			return err
-		}
-		// for dry-run, if text format is requested, always default to json
-		if format == output.FormatText {
-			format = output.FormatJSON
-		}
-		return output.Write(kongCtx.Stdout, pipeline, format)
+	pipeline, err := c.createPipelineDryRun(ctx, f)
+	if err != nil {
+		return err
 	}
+	// for dry-run, if text format is requested, always default to json
+	if format == output.FormatText {
+		format = output.FormatJSON
+	}
+	return output.Write(kongCtx.Stdout, pipeline, format)
+}
+
+func (c *CreateCmd) runPipelineCreate(kongCtx *kong.Context, f *factory.Factory) error {
+
+	ctx := context.Background()
+	format := output.Format(c.Output)
 
 	pipeline, err := c.createPipeline(ctx, f)
 	if err != nil {
@@ -91,7 +101,6 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return output.Write(kongCtx.Stdout, pipeline, format)
 	}
 	fmt.Printf("%s\n", pipeline.WebURL)
-	return nil
 }
 
 func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) (*buildkite.Pipeline, error) {
