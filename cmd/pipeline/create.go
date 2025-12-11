@@ -101,6 +101,7 @@ func (c *CreateCmd) runPipelineCreate(kongCtx *kong.Context, f *factory.Factory)
 		return output.Write(kongCtx.Stdout, pipeline, format)
 	}
 	fmt.Printf("%s\n", pipeline.WebURL)
+	return nil
 }
 
 func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) (*buildkite.Pipeline, error) {
