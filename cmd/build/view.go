@@ -12,9 +12,8 @@ import (
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	"github.com/buildkite/cli/v3/internal/build/view"
 	"github.com/buildkite/cli/v3/internal/cli"
-	bk_io "github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
-	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
@@ -29,7 +28,7 @@ type ViewCmd struct {
 	User        string `help:"Filter builds to this user. You can use name or email." short:"u" xor:"userfilter"`
 	Mine        bool   `help:"Filter builds to only my user." xor:"userfilter"`
 	Web         bool   `help:"Open the build in a web browser." short:"w"`
-	Output      string `help:"Output format. One of: json, yaml, text" short:"o" default:"json"`
+	Output      string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}"`
 }
 
 func (c *ViewCmd) Help() string {
@@ -63,7 +62,7 @@ Examples:
 }
 
 func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New(version.Version)
+	f, err := factory.New()
 	if err != nil {
 		return err
 	}
@@ -141,7 +140,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
-	spinErr := bk_io.SpinWhile(f, "Loading build information", func() {
+	spinErr := bkIO.SpinWhile(f, "Loading build information", func() {
 		wg.Add(3)
 		go func() {
 			defer wg.Done()

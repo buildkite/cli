@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/MakeNowJust/heredoc"
-	bk_io "github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
@@ -74,7 +74,7 @@ func NewCmdPackagePush(f *factory.Factory) *cobra.Command {
 			}
 
 			var pkg buildkite.Package
-			spinErr := bk_io.SpinWhile(f, "Pushing file", func() {
+			spinErr := bkIO.SpinWhile(f, "Pushing file", func() {
 				pkg, _, err = f.RestAPIClient.PackagesService.Create(cmd.Context(), f.Config.OrganizationSlug(), cfg.RegistrySlug, buildkite.CreatePackageInput{
 					Filename: packageName,
 					Package:  from,

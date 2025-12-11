@@ -12,9 +12,8 @@ import (
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	"github.com/buildkite/cli/v3/internal/cli"
-	bk_io "github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
-	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 )
@@ -47,7 +46,7 @@ Examples:
 }
 
 func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New(version.Version)
+	f, err := factory.New()
 	if err != nil {
 		return err
 	}
@@ -107,7 +106,7 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 	}
 
 	var dir string
-	spinErr := bk_io.SpinWhile(f, "Downloading build resources", func() {
+	spinErr := bkIO.SpinWhile(f, "Downloading build resources", func() {
 		dir, err = download(ctx, bld, f)
 	})
 	if spinErr != nil {

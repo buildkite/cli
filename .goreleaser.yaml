@@ -35,7 +35,7 @@ builds:
     binary: bk
     main: .
     ldflags:
-      - -s -w -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}} -X github.com/buildkite/cli/v3/pkg/cmd/pipeline.MigrationEndpoint=https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate
+      - -s -w -X github.com/buildkite/cli/v3/cmd/version.Version={{.Version}} -X github.com/buildkite/cli/v3/pkg/cmd/pipeline.MigrationEndpoint=https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate
 
   - id: linux
     goos: [linux]
@@ -45,7 +45,7 @@ builds:
     binary: bk
     main: .
     ldflags:
-      - -s -w -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}} -X github.com/buildkite/cli/v3/pkg/cmd/pipeline.MigrationEndpoint=https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate
+      - -s -w -X github.com/buildkite/cli/v3/cmd/version.Version={{.Version}} -X github.com/buildkite/cli/v3/pkg/cmd/pipeline.MigrationEndpoint=https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate
 
   - id: windows
     goos: [windows]
@@ -53,7 +53,7 @@ builds:
     binary: bk
     main: .
     ldflags:
-      - -s -w -X github.com/buildkite/cli/v3/internal/version.Version={{.Version}} -X github.com/buildkite/cli/v3/pkg/cmd/pipeline.MigrationEndpoint=https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate
+      - -s -w -X github.com/buildkite/cli/v3/cmd/version.Version={{.Version}} -X github.com/buildkite/cli/v3/pkg/cmd/pipeline.MigrationEndpoint=https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate
 
 archives:
   - id: macos-archive

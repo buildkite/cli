@@ -1,0 +1,11 @@
+mutation CancelJob($jobId: ID!) {
+  jobTypeCommandCancel(input: { id: $jobId }) {
+    clientMutationId
+    jobTypeCommand {
+      id
+      uuid
+      state
+      url
+    }
+  }
+}

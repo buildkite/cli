@@ -12,9 +12,8 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/internal/graphql"
-	"github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
-	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
@@ -39,7 +38,7 @@ type ListCmd struct {
 	Message  string   `help:"Filter by message content"`
 	Limit    int      `help:"Maximum number of builds to return" default:"50"`
 	NoLimit  bool     `help:"Fetch all builds (overrides --limit)"`
-	Output   string   `help:"Output format. One of: json, yaml, text" short:"o" default:"json"`
+	Output   string   `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}"`
 }
 
 func (c *ListCmd) Help() string {
@@ -92,7 +91,7 @@ Examples:
 }
 
 func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New(version.Version)
+	f, err := factory.New()
 	if err != nil {
 		return err
 	}
@@ -115,7 +114,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	if c.Creator != "" && isValidEmail(c.Creator) {
 		originalEmail := c.Creator
-		err = io.SpinWhile(f, "Looking up user", func() {
+		err = bkIO.SpinWhile(f, "Looking up user", func() {
 			c.Creator, err = resolveCreatorEmailToUserID(ctx, f, originalEmail)
 		})
 		if err != nil {
@@ -237,7 +236,7 @@ func (c *ListCmd) fetchBuilds(ctx context.Context, f *factory.Factory, org strin
 				)
 			}
 
-			confirmed, err := io.Confirm(f, prompt)
+			confirmed, err := bkIO.Confirm(f, prompt)
 			if err != nil {
 				return nil, err
 			}
@@ -250,7 +249,7 @@ func (c *ListCmd) fetchBuilds(ctx context.Context, f *factory.Factory, org strin
 			rawSinceConfirm = 0
 		}
 
-		spinErr := io.SpinWhile(f, spinnerMsg, func() {
+		spinErr := bkIO.SpinWhile(f, spinnerMsg, func() {
 			if c.Pipeline != "" {
 				builds, err = c.getBuildsByPipeline(ctx, f, org, listOpts)
 			} else {

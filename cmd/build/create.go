@@ -10,10 +10,9 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
-	bk_io "github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/util"
-	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	buildkite "github.com/buildkite/go-buildkite/v4"
@@ -49,7 +48,7 @@ Examples:
 
 func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	// Initialize factory
-	f, err := factory.New(version.Version)
+	f, err := factory.New()
 	if err != nil {
 		return bkErrors.NewInternalError(err, "failed to initialize CLI", "This is likely a bug", "Report to Buildkite")
 	}
@@ -83,7 +82,7 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		)
 	}
 
-	confirmed, err := bk_io.Confirm(f, fmt.Sprintf("Create new build on %s?", resolvedPipeline.Name))
+	confirmed, err := bkIO.Confirm(f, fmt.Sprintf("Create new build on %s?", resolvedPipeline.Name))
 	if err != nil {
 		return bkErrors.NewUserAbortedError(err, "confirmation canceled")
 	}
@@ -171,7 +170,7 @@ func parseAuthor(author string) buildkite.Author {
 func createBuild(ctx context.Context, org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool, env map[string]string, metaData map[string]string, ignoreBranchFilters bool, author string) error {
 	var actionErr error
 	var build buildkite.Build
-	spinErr := bk_io.SpinWhile(f, fmt.Sprintf("Starting new build for %s", pipeline), func() {
+	spinErr := bkIO.SpinWhile(f, fmt.Sprintf("Starting new build for %s", pipeline), func() {
 		branch = strings.TrimSpace(branch)
 		if len(branch) == 0 {
 			p, _, err := f.RestAPIClient.Pipelines.Get(ctx, org, pipeline)

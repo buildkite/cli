@@ -1,0 +1,9 @@
+mutation RetryJob($id: ID!) {
+    jobTypeCommandRetry(input: {id: $id}) {
+        jobTypeCommand {
+            id
+            state
+            url
+        }
+    }
+}

@@ -1,0 +1,118 @@
+query FindClusters($org: ID!, $cursor: String) {
+  organization(slug: $org) {
+    clusters(first: 100, after: $cursor) {
+      edges {
+        node {
+          id
+          name
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+}
+
+query FindQueuesForCluster($clusterId: ID!, $cursor: String) {
+  node(id: $clusterId) {
+    ... on Cluster {
+      id
+      name
+      queues(first: 100, after: $cursor) {
+        edges {
+          node {
+            id
+            key
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+}
+
+query ListJobsByQueue($org: ID!, $clusterQueue: [ID!], $first: Int, $after: String) {
+  organization(slug: $org) {
+    jobs(clusterQueue: $clusterQueue, first: $first, after: $after) {
+      edges {
+        node {
+          ... on JobTypeCommand {
+            id
+            uuid
+            command
+            state
+            exitStatus
+            url
+            startedAt
+            finishedAt
+            createdAt
+            cluster {
+              id
+              name
+            }
+            clusterQueue {
+              id
+              key
+            }
+            agent {
+              id
+              name
+              hostname
+              metaData
+            }
+          }
+        }
+      }
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
+    }
+  }
+}
+
+query ListJobsByState($org: ID!, $state: [JobStates!], $first: Int, $after: String) {
+  organization(slug: $org) {
+    jobs(state: $state, first: $first, after: $after) {
+      edges {
+        node {
+          ... on JobTypeCommand {
+            id
+            uuid
+            label
+            command
+            state
+            exitStatus
+            url
+            startedAt
+            finishedAt
+            createdAt
+            cluster {
+              id
+              name
+            }
+            clusterQueue {
+              id
+              key
+            }
+            agent {
+              id
+              name
+              hostname
+              metaData
+            }
+          }
+        }
+      }
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
+    }
+  }
+}

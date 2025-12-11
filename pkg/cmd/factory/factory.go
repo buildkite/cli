@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/buildkite/cli/v3/cmd/version"
 	"github.com/buildkite/cli/v3/internal/config"
-	"github.com/buildkite/cli/v3/internal/version"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	git "github.com/go-git/go-git/v5"
 	"github.com/spf13/cobra"
@@ -59,7 +59,7 @@ func (a *gqlHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	return a.client.Do(req)
 }
 
-func New(version string) (*Factory, error) {
+func New() (*Factory, error) {
 	repo, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{DetectDotGit: true, EnableDotGitCommonDir: true})
 	if err != nil {
 		if err == git.ErrRepositoryNotExists {
@@ -84,6 +84,6 @@ func New(version string) (*Factory, error) {
 		GitRepository: repo,
 		GraphQLClient: graphql.NewClient(conf.GetGraphQLEndpoint(), graphqlHTTPClient),
 		RestAPIClient: buildkiteClient,
-		Version:       version,
+		Version:       version.Version,
 	}, nil
 }

@@ -6,12 +6,20 @@ import (
 	"os"
 
 	"github.com/alecthomas/kong"
+	"github.com/buildkite/cli/v3/cmd/agent"
+	"github.com/buildkite/cli/v3/cmd/api"
+	"github.com/buildkite/cli/v3/cmd/artifacts"
 	"github.com/buildkite/cli/v3/cmd/build"
+	"github.com/buildkite/cli/v3/cmd/cluster"
+	"github.com/buildkite/cli/v3/cmd/job"
+	"github.com/buildkite/cli/v3/cmd/pipeline"
+	"github.com/buildkite/cli/v3/cmd/version"
+	"github.com/buildkite/cli/v3/cmd/whoami"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
-	"github.com/buildkite/cli/v3/internal/version"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/root"
+	"github.com/buildkite/cli/v3/pkg/output"
 )
 
 // Kong CLI structure, with base commands defined as additional commands are defined in their respective files
@@ -22,32 +30,37 @@ type CLI struct {
 	Quiet   bool `help:"Suppress progress output" short:"q"`
 	// Verbose bool `help:"Enable verbose error output" short:"V"` // TODO: Implement this, atm this is just a skeleton flag
 
-	Agent     AgentCmd     `cmd:"" help:"Manage agents"`
-	Api       ApiCmd       `cmd:"" help:"Interact with the Buildkite API"`
-	Artifacts ArtifactsCmd `cmd:"" help:"Manage pipeline build artifacts"`
-	Build     BuildCmd     `cmd:"" help:"Manage pipeline builds"`
-	Cluster   ClusterCmd   `cmd:"" help:"Manage organization clusters"`
-	Configure ConfigureCmd `cmd:"" help:"Configure Buildkite API token"`
-	Init      InitCmd      `cmd:"" help:"Initialize a pipeline.yaml file"`
-	Job       JobCmd       `cmd:"" help:"Manage jobs within a build"`
-	Pipeline  PipelineCmd  `cmd:"" help:"Manage pipelines"`
-	Package   PackageCmd   `cmd:"" help:"Manage packages"`
-	Use       UseCmd       `cmd:"" help:"Select an organization"`
-	User      UserCmd      `cmd:"" help:"Invite users to the organization"`
-	Version   VersionCmd   `cmd:"" help:"Print the version of the CLI being used"`
-	Whoami    WhoamiCmd    `cmd:"" help:"Print the current user and organization"`
+	Agent     AgentCmd         `cmd:"" help:"Manage agents"`
+	Api       ApiCmd           `cmd:"" help:"Interact with the Buildkite API"`
+	Artifacts ArtifactsCmd     `cmd:"" help:"Manage pipeline build artifacts"`
+	Build     BuildCmd         `cmd:"" help:"Manage pipeline builds"`
+	Cluster   ClusterCmd       `cmd:"" help:"Manage organization clusters"`
+	Configure ConfigureCmd     `cmd:"" help:"Configure Buildkite API token"`
+	Init      InitCmd          `cmd:"" help:"Initialize a pipeline.yaml file"`
+	Job       JobCmd           `cmd:"" help:"Manage jobs within a build"`
+	Pipeline  PipelineCmd      `cmd:"" help:"Manage pipelines"`
+	Package   PackageCmd       `cmd:"" help:"Manage packages"`
+	Use       UseCmd           `cmd:"" help:"Select an organization"`
+	User      UserCmd          `cmd:"" help:"Invite users to the organization"`
+	Version   VersionCmd       `cmd:"" help:"Print the version of the CLI being used"`
+	Whoami    whoami.WhoAmICmd `cmd:"" help:"Print the current user and organization"`
 }
 
 // Hybrid delegation commands, we should delete from these when native Kong implementations ready
 type (
 	VersionCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		version.VersionCmd `cmd:"" help:"Print the version of the CLI being used"`
 	}
 	AgentCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		Pause  agent.PauseCmd  `cmd:"" help:"Pause a Buildkite agent."`
+		List   agent.ListCmd   `cmd:"" help:"List agents."`
+		Resume agent.ResumeCmd `cmd:"" help:"Resume a Buildkite agent."`
+		Stop   agent.StopCmd   `cmd:"" help:"Stop Buildkite agents."`
+		View   agent.ViewCmd   `cmd:"" help:"View details of an agent."`
 	}
 	ArtifactsCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		Download artifacts.DownloadCmd `cmd:"" help:"Download an artifact by its UUID."`
+		List     artifacts.ListCmd     `cmd:"" help:"List artifacts for a build or a job in a build."`
 	}
 	BuildCmd struct {
 		Create   build.CreateCmd   `cmd:"" aliases:"new" help:"Create a new build."` // Aliasing "new" because we've renamed this to "create", but we need to support backwards compatibility
@@ -59,22 +72,30 @@ type (
 		Watch    build.WatchCmd    `cmd:"" help:"Watch a build's progress in real-time."`
 	}
 	ClusterCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		List cluster.ListCmd `cmd:"" help:"List clusters."`
+		View cluster.ViewCmd `cmd:"" help:"View cluster information."`
 	}
 	JobCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		Cancel  job.CancelCmd  `cmd:"" help:"Cancel a job."`
+		List    job.ListCmd    `cmd:"" help:"List jobs."`
+		Retry   job.RetryCmd   `cmd:"" help:"Retry a job."`
+		Unblock job.UnblockCmd `cmd:"" help:"Unblock a job."`
 	}
 	PackageCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
 	}
 	PipelineCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		Create   pipeline.CreateCmd   `cmd:"" help:"Create a new pipeline."`
+		List     pipeline.ListCmd     `cmd:"" help:"List pipelines."`
+		Migrate  pipeline.MigrateCmd  `cmd:"" help:"Migrate a CI/CD pipeline configuration to Buildkite format."`
+		Validate pipeline.ValidateCmd `cmd:"" help:"Validate a pipeline YAML file."`
+		View     pipeline.ViewCmd     `cmd:"" help:"View a pipeline."`
 	}
 	UserCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
 	}
 	ApiCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		api.ApiCmd `cmd:"" help:"Interact with the Buildkite API"`
 	}
 	ConfigureCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
@@ -85,25 +106,14 @@ type (
 	UseCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
 	}
-	WhoamiCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
-	}
 )
 
 // Delegation methods, we should delete when native Kong implementations ready
-func (v *VersionCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("version", v.Args) }
-func (a *AgentCmd) Run(cli *CLI) error     { return cli.delegateToCobraSystem("agent", a.Args) }
-func (a *ArtifactsCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("artifacts", a.Args) }
-func (c *ClusterCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("cluster", c.Args) }
-func (j *JobCmd) Run(cli *CLI) error       { return cli.delegateToCobraSystem("job", j.Args) }
 func (p *PackageCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("package", p.Args) }
-func (p *PipelineCmd) Run(cli *CLI) error  { return cli.delegateToCobraSystem("pipeline", p.Args) }
 func (u *UserCmd) Run(cli *CLI) error      { return cli.delegateToCobraSystem("user", u.Args) }
-func (a *ApiCmd) Run(cli *CLI) error       { return cli.delegateToCobraSystem("api", a.Args) }
 func (c *ConfigureCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("configure", c.Args) }
 func (i *InitCmd) Run(cli *CLI) error      { return cli.delegateToCobraSystem("init", i.Args) }
 func (u *UseCmd) Run(cli *CLI) error       { return cli.delegateToCobraSystem("use", u.Args) }
-func (w *WhoamiCmd) Run(cli *CLI) error    { return cli.delegateToCobraSystem("whoami", w.Args) }
 
 // delegateToCobraSystem delegates execution to the legacy Cobra command system.
 // This is a temporary bridge during the Kong migration that ensures backwards compatibility
@@ -149,7 +159,7 @@ func (cli *CLI) buildCobraArgs(command string, passthroughArgs []string) []strin
 }
 
 func runCobraSystem() int {
-	f, err := factory.New(version.Version)
+	f, err := factory.New()
 	if err != nil {
 		handleError(bkErrors.NewInternalError(err, "failed to initialize CLI", "This is likely a bug", "Report to Buildkite"))
 		return bkErrors.ExitCodeInternalError
@@ -181,6 +191,9 @@ func newKongParser(cli *CLI) (*kong.Kong, error) {
 		kong.Name("bk"),
 		kong.Description("Work with Buildkite from the command line."),
 		kong.UsageOnError(),
+		kong.Vars{
+			"output_default_format": string(output.DefaultFormat),
+		},
 	)
 }
 
@@ -252,7 +265,38 @@ func isHelpRequest() bool {
 		return false
 	}
 
-	// Subcommand help, e.g. bk agent --help - delegate to Cobra
+	if len(os.Args) >= 2 && os.Args[1] == "agent" {
+		return false
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "job" {
+		return false
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "cluster" {
+		return false
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "artifacts" {
+		return false
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "api" {
+		return false
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "version" {
+		return false
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "pipeline" {
+		return false
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "whoami" {
+		return false
+	}
+
 	if len(os.Args) == 3 && (os.Args[2] == "-h" || os.Args[2] == "--help") {
 		return true
 	}
