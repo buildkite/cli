@@ -4,75 +4,35 @@
 
 A command line interface for [Buildkite](https://buildkite.com/).
 
-Use `bk` to interact with your Buildkite organization without leaving the terminal 🙌.
+Full documentation is available at [buildkite.com/docs/platform/cli](https://buildkite.com/docs/platform/cli).
 
-![bk cli](./images/demo.gif)
+## Quick Start
 
-## Installing
-
-### Using the binary
-
-`bk` is available as a downloadable binary from the [releases page](https://github.com/buildkite/cli/releases).
-
-### Using Brew
+### Install
 
 ```sh
 brew tap buildkite/buildkite && brew install buildkite/buildkite/bk
 ```
 
-## Usage
-
-```
-Work with Buildkite from the command line.
-
-Usage:
-  bk [command]
-
-Examples:
-$ bk build view
-
-
-Available Commands:
-  agent       Manage agents
-  api         Interact with the Buildkite API
-  build       Manage pipeline builds
-  cluster     Manage organization clusters
-  completion  Generate the autocompletion script for the specified shell
-  configure   Configure Buildkite API token
-  help        Help about any command
-  init        Initialize a pipeline.yaml file
-  job         Manage jobs within a build
-  package     Manage packages
-  pipeline    Manage pipelines
-  use         Select an organization
-  user        Invite users to the organization
-
-Flags:
-  -h, --help   help for bk
-
-Use "bk [command] --help" for more information about a command.
-```
+Or download a binary from the [releases page](https://github.com/buildkite/cli/releases).
 
 ### Configure
 
-You'll need to run `bk configure` first to set up your organization and API token.
+```sh
+bk configure
+```
 
-### Shell Prompt Integration
-
-Want to display your current Buildkite organization in your shell prompt? Check out our [Shell Prompt Integration Guide](/docs/shell-prompt-integration.md) for detailed instructions for Zsh, Bash, and Powerlevel10k.
-
-## 💬 Feedback
+## Feedback
 
 We'd love to hear any feedback and questions you might have. Please [file an issue on GitHub](https://github.com/buildkite/cli/issues) and let us know!
 
-## 🔨 Development
+## Development
 
-Developed using Golang 1.20+ with modules.
+Developed using Go 1.20+ with modules.
 
 ```bash
 git clone git@github.com:buildkite/cli.git
 cd cli/
-export BUILDKITE_GRAPHQL_TOKEN="<token>"
 go generate
 go run main.go --help
 ```
