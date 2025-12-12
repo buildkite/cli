@@ -20,6 +20,45 @@ func applyClientSideFilters(builds []buildkite.Build, opts buildListOptions) ([]
 	return cmd.applyClientSideFilters(builds)
 }
 
+func TestBuildListOptions_MetaData(t *testing.T) {
+	cmd := &ListCmd{
+		MetaData: map[string]string{
+			"env":    "production",
+			"deploy": "true",
+		},
+	}
+
+	opts, err := cmd.buildListOptions()
+	if err != nil {
+		t.Fatalf("buildListOptions failed: %v", err)
+	}
+
+	if len(opts.MetaData.MetaData) != 2 {
+		t.Errorf("Expected 2 meta-data filters, got %d", len(opts.MetaData.MetaData))
+	}
+
+	if opts.MetaData.MetaData["env"] != "production" {
+		t.Errorf("Expected env=production, got env=%s", opts.MetaData.MetaData["env"])
+	}
+
+	if opts.MetaData.MetaData["deploy"] != "true" {
+		t.Errorf("Expected deploy=true, got deploy=%s", opts.MetaData.MetaData["deploy"])
+	}
+}
+
+func TestBuildListOptions_EmptyMetaData(t *testing.T) {
+	cmd := &ListCmd{}
+
+	opts, err := cmd.buildListOptions()
+	if err != nil {
+		t.Fatalf("buildListOptions failed: %v", err)
+	}
+
+	if len(opts.MetaData.MetaData) != 0 {
+		t.Errorf("Expected empty meta-data, got %d entries", len(opts.MetaData.MetaData))
+	}
+}
+
 func TestFilterBuilds(t *testing.T) {
 	now := time.Now()
 	builds := []buildkite.Build{
