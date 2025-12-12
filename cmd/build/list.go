@@ -27,18 +27,19 @@ const (
 )
 
 type ListCmd struct {
-	Pipeline string   `help:"The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
-	Since    string   `help:"Filter builds created since this time (e.g. 1h, 30m)"`
-	Until    string   `help:"Filter builds created before this time (e.g. 1h, 30m)"`
-	Duration string   `help:"Filter by duration (e.g. >5m, <10m, 20m) - supports >, <, >=, <= operators"`
-	State    []string `help:"Filter by build state"`
-	Branch   []string `help:"Filter by branch name"`
-	Creator  string   `help:"Filter by creator (email address or user ID)"`
-	Commit   string   `help:"Filter by commit SHA"`
-	Message  string   `help:"Filter by message content"`
-	Limit    int      `help:"Maximum number of builds to return" default:"50"`
-	NoLimit  bool     `help:"Fetch all builds (overrides --limit)"`
-	Output   string   `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}"`
+	Pipeline string            `help:"The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
+	Since    string            `help:"Filter builds created since this time (e.g. 1h, 30m)"`
+	Until    string            `help:"Filter builds created before this time (e.g. 1h, 30m)"`
+	Duration string            `help:"Filter by duration (e.g. >5m, <10m, 20m) - supports >, <, >=, <= operators"`
+	State    []string          `help:"Filter by build state"`
+	Branch   []string          `help:"Filter by branch name"`
+	Creator  string            `help:"Filter by creator (email address or user ID)"`
+	Commit   string            `help:"Filter by commit SHA"`
+	Message  string            `help:"Filter by message content"`
+	MetaData map[string]string `help:"Filter by build meta-data (key=value format, can be specified multiple times)"`
+	Limit    int               `help:"Maximum number of builds to return" default:"50"`
+	NoLimit  bool              `help:"Fetch all builds (overrides --limit)"`
+	Output   string            `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}"`
 }
 
 func (c *ListCmd) Help() string {
@@ -49,7 +50,7 @@ Server-side filters are applied by the Buildkite API, while client-side filters
 are applied after fetching results and may require loading more builds.
 
 Client-side filters: --duration, --message
-Server-side filters: --pipeline, --since, --until, --state, --branch, --creator, --commit
+Server-side filters: --pipeline, --since, --until, --state, --branch, --creator, --commit, --meta-data
 
 Builds can be filtered by their duration, message content, and other attributes.
 When filtering by duration, you can use operators like >, <, >=, and <= to specify your criteria.
@@ -85,6 +86,12 @@ Examples:
 
   # Find builds containing "deploy" in the message
   $ bk build list --message deploy
+
+  # Filter builds by meta-data
+  $ bk build list --meta-data env=production
+
+  # Filter by multiple meta-data keys
+  $ bk build list --meta-data env=production --meta-data deploy=true
 
   # Complex filtering: slow builds (>30m) that failed on feature branches
   $ bk build list --duration ">30m" --state failed --branch feature/`
@@ -183,6 +190,12 @@ func (c *ListCmd) buildListOptions() (*buildkite.BuildsListOptions, error) {
 	listOpts.Branch = c.Branch
 	listOpts.Creator = c.Creator
 	listOpts.Commit = c.Commit
+
+	if len(c.MetaData) > 0 {
+		listOpts.MetaData = buildkite.MetaDataFilters{
+			MetaData: c.MetaData,
+		}
+	}
 
 	return listOpts, nil
 }
