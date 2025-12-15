@@ -308,6 +308,10 @@ func isHelpRequest() bool {
 		return false
 	}
 
+	if len(os.Args) >= 2 && os.Args[1] == "package" {
+		return false
+	}
+
 	if len(os.Args) == 3 && (os.Args[2] == "-h" || os.Args[2] == "--help") {
 		return true
 	}
