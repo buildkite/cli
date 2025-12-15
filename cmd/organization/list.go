@@ -8,8 +8,6 @@ import (
 	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/output"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
 )
 
 type ListCmd struct {
@@ -65,20 +63,13 @@ func (c *ListCmd) Run(globals cli.GlobalFlags) error {
 		return output.Write(os.Stdout, organizations, format)
 	}
 
-	t := table.New().
-		Border(lipgloss.NormalBorder()).
-		BorderStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("238"))).
-		Headers("ORGANIZATION", "SELECTED")
-
 	for _, org := range organizations {
-		selected := ""
 		if org.Selected {
-			selected = "*"
+			fmt.Fprintf(os.Stdout, "%s *\n", org.Slug)
+		} else {
+			fmt.Fprintln(os.Stdout, org.Slug)
 		}
-		t.Row(org.Slug, selected)
 	}
-
-	fmt.Fprintln(os.Stdout, t)
 
 	return nil
 }
