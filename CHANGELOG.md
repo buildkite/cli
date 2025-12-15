@@ -2,6 +2,7 @@
 # Changelog
 
 ## Unreleased
+- Fix pipeline picker to respect --no-input flag for automation scenarios
 - SUP-1693 Bind "s" to stop agent by [[PR #188](https://github.com/buildkite/cli/pull/188)] @jradtilbrook
 - SUP-1698: Keybind for viewing agent data within `bk agent list` by [[PR #192](https://github.com/buildkite/cli/pull/192)] @james2791
 - Fix runtime error introduced in SUP-1695 by [[PR #194](https://github.com/buildkite/cli/pull/194)] @lizrabuya

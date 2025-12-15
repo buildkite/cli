@@ -580,7 +580,7 @@ func jobListOptionsFromFlags(opts *jobListOptions) (*buildkite.BuildsListOptions
 func getBuildsByPipeline(ctx context.Context, f *factory.Factory, org, pipelineFlag string, listOpts *buildkite.BuildsListOptions) ([]buildkite.Build, error) {
 	pipelineRes := pipelineResolver.NewAggregateResolver(
 		pipelineResolver.ResolveFromFlag(pipelineFlag, f.Config),
-		pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
+		pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOneWithFactory(f)),
 	)
 
 	pipeline, err := pipelineRes.Resolve(ctx)

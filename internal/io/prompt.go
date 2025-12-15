@@ -2,7 +2,10 @@ package io
 
 import (
 	"fmt"
+	"os"
 	"strconv"
+
+	"golang.org/x/term"
 )
 
 const (
@@ -13,12 +16,19 @@ const (
 // PromptForOne will show the list of options to the user, allowing them to select one to return.
 // It's possible for them to choose none or cancel the selection, resulting in an error.
 // If noInput is true, it will fail instead of prompting.
+// If there's no TTY available, it will also fail instead of prompting.
 //
 // For global flag support requirements, see the Confirm() function documentation.
 func PromptForOne(resource string, options []string, noInput bool) (string, error) {
 	if noInput {
 		return "", fmt.Errorf("interactive input required but --no-input flag is set")
 	}
+
+	// Check if we have a TTY available - if not, treat it as if noInput is true
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return "", fmt.Errorf("interactive input required but no TTY available")
+	}
+
 	var message string
 	switch resource {
 	case "pipeline":
