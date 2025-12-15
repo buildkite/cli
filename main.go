@@ -11,6 +11,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/artifacts"
 	"github.com/buildkite/cli/v3/cmd/build"
 	"github.com/buildkite/cli/v3/cmd/cluster"
+	bkInit "github.com/buildkite/cli/v3/cmd/init"
 	"github.com/buildkite/cli/v3/cmd/job"
 	"github.com/buildkite/cli/v3/cmd/pipeline"
 	"github.com/buildkite/cli/v3/cmd/version"
@@ -36,7 +37,7 @@ type CLI struct {
 	Build     BuildCmd         `cmd:"" help:"Manage pipeline builds"`
 	Cluster   ClusterCmd       `cmd:"" help:"Manage organization clusters"`
 	Configure ConfigureCmd     `cmd:"" help:"Configure Buildkite API token"`
-	Init      InitCmd          `cmd:"" help:"Initialize a pipeline.yaml file"`
+	Init      bkInit.InitCmd   `cmd:"" help:"Initialize a pipeline.yaml file"`
 	Job       JobCmd           `cmd:"" help:"Manage jobs within a build"`
 	Pipeline  PipelineCmd      `cmd:"" help:"Manage pipelines"`
 	Package   PackageCmd       `cmd:"" help:"Manage packages"`
@@ -100,9 +101,6 @@ type (
 	ConfigureCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
 	}
-	InitCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
-	}
 	UseCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
 	}
@@ -112,7 +110,6 @@ type (
 func (p *PackageCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("package", p.Args) }
 func (u *UserCmd) Run(cli *CLI) error      { return cli.delegateToCobraSystem("user", u.Args) }
 func (c *ConfigureCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("configure", c.Args) }
-func (i *InitCmd) Run(cli *CLI) error      { return cli.delegateToCobraSystem("init", i.Args) }
 func (u *UseCmd) Run(cli *CLI) error       { return cli.delegateToCobraSystem("use", u.Args) }
 
 // delegateToCobraSystem delegates execution to the legacy Cobra command system.
@@ -294,6 +291,10 @@ func isHelpRequest() bool {
 	}
 
 	if len(os.Args) >= 2 && os.Args[1] == "whoami" {
+		return false
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "init" {
 		return false
 	}
 
