@@ -292,10 +292,10 @@ func isHelpRequest() bool {
 	}
 
 	if len(os.Args) >= 2 && os.Args[1] == "init" {
-    return false
+		return false
 	}
 
-  if len(os.Args) >= 2 && os.Args[1] == "use" {
+	if len(os.Args) >= 2 && os.Args[1] == "use" {
 		return false
 	}
 
