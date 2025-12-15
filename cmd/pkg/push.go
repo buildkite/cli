@@ -26,16 +26,15 @@ var (
 )
 
 type PushCmd struct {
-	RegistrySlug  string `help:"The slug of the registry to push the package to" arg:"" required:""`
-	FilePath      string `help:"Path to the package file to push" name:"file-path" xor:"input"`
-	StdinFileName string `help:"The filename to use when reading the package from stdin" name:"stdin-file-name" xor:"input"`
-	StdInArg      string `arg:"" optional:"" help:"Use '-' as value to pass package via stdin. Required if --stdin-file-name is used."`
-	Web           bool   `help:"Open the pipeline in a web browser." short:"w"`
+	RegistrySlug  string `arg:"" required:"" help:"The slug of the registry to push the package to" `
+	FilePath      string `xor:"input" help:"Path to the package file to push"`
+	StdinFileName string `xor:"input" help:"The filename to use when reading the package from stdin"`
+	StdInArg      string `arg:"" optional:"" hidden:"" help:"Use '-' as value to pass package via stdin. Required if --stdin-file-name is used."`
+	Web           bool   `short:"w" help:"Open the pipeline in a web browser." `
 }
 
 func (c *PushCmd) Help() string {
-	return ` 	
-Push a new package to a Buildkite registry. The package can be passed as a path to a file in the second positional argument,
+	return `Push a new package to a Buildkite registry. The package can be passed as a path to a file with the --file-path flag,
 or via stdin. If passed via stdin, the filename must be provided with the --stdin-file-name flag, as a Buildkite
 registry requires a filename for the package.
 
@@ -135,7 +134,7 @@ func (c *PushCmd) Validate() error {
 
 	if c.StdinFileName != "" {
 		if c.StdInArg != "-" {
-			return fmt.Errorf("%w:  When passing a package file via stdin, the final argument must be '-'", ErrInvalidConfig)
+			return fmt.Errorf("%w:  when passing a package file via stdin, the final argument must be '-'", ErrInvalidConfig)
 		}
 
 		stdInReadable, err := isStdInReadableFunc()
@@ -149,7 +148,11 @@ func (c *PushCmd) Validate() error {
 
 		return nil
 	} else {
-		// No stdin file name, so we expect a file path as the second argument
+		//Validate if an std-in arg is provided without stdin-file-name
+		if c.StdInArg == "-" {
+			return fmt.Errorf("%w: when passing a package file via stdin, --stdin-file-name must be provided", ErrInvalidConfig)
+		}
+		//We have a file path, check it exists and is a regular file
 		fi, err := os.Stat(c.FilePath)
 		if err != nil {
 			return fmt.Errorf("%w: %w", ErrInvalidConfig, err)

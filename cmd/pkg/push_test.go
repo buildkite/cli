@@ -64,6 +64,18 @@ func TestPackagePushCommandArgs(t *testing.T) {
 			wantErrContain: "cannot provide both a file path argument and --stdin-file-name",
 		},
 		{
+			name: "file path but with stdin arg '-'",
+			cmd: PushCmd{
+				RegistrySlug:  "my-registry",
+				FilePath:      "/directory/test.pkg",
+				StdinFileName: "",
+				StdInArg:      "-",
+			},
+			stdin:          strings.NewReader("test package stream contents!"),
+			wantErr:        ErrInvalidConfig,
+			wantErrContain: "when passing a package file via stdin, --stdin-file-name must be provided",
+		},
+		{
 			name: "stdin without --stdin-file-name",
 			cmd: PushCmd{
 				RegistrySlug:  "my-registry",
@@ -73,7 +85,7 @@ func TestPackagePushCommandArgs(t *testing.T) {
 			},
 			stdin:          strings.NewReader("test package stream contents!"),
 			wantErr:        ErrInvalidConfig,
-			wantErrContain: "When passing a package file via stdin, the final argument must be '-'",
+			wantErrContain: "when passing a package file via stdin, the final argument must be '-'",
 		},
 	}
 
