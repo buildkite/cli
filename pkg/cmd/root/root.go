@@ -8,7 +8,6 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	initCmd "github.com/buildkite/cli/v3/pkg/cmd/init"
 	promptCmd "github.com/buildkite/cli/v3/pkg/cmd/prompt"
-	"github.com/buildkite/cli/v3/pkg/cmd/user"
 	"github.com/spf13/cobra"
 )
 
@@ -45,7 +44,6 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 	cmd.AddCommand(configureCmd.NewCmdConfigure(f))
 	cmd.AddCommand(initCmd.NewCmdInit(f))
 	cmd.AddCommand(promptCmd.NewCmdPrompt(f))
-	cmd.AddCommand(user.CommandUser(f))
 
 	cmd.Flags().BoolP("version", "v", false, "Print the version number")
 	// Global flags for automation and scripting
