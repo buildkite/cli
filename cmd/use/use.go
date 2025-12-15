@@ -3,29 +3,42 @@ package use
 import (
 	"fmt"
 
+	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/spf13/cobra"
 )
 
-func NewCmdUse(f *factory.Factory) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:                   "use <organization>",
-		Args:                  cobra.RangeArgs(0, 1),
-		DisableFlagsInUseLine: true,
-		Short:                 "Select an organization",
-		Long:                  "Select a configured organization.",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			var org *string
-			if len(args) > 0 {
-				org = &args[0]
-			}
-			return useRun(org, f.Config, f.GitRepository != nil, f.NoInput)
-		},
+type UseCmd struct {
+	OrganizationSlug string `arg:"" optional:"" help:"Organization slug to use"`
+}
+
+func (c *UseCmd) Help() string {
+	return `Select a configured organization.
+
+Examples:
+	# Use the 'my-cool-org' configuration
+	$ bk use my-cool-org
+
+	# Interactively select an organization
+	$ bk use
+`
+}
+
+func (c *UseCmd) Run(globals cli.GlobalFlags) error {
+	f, err := factory.New()
+	if err != nil {
+		return err
 	}
 
-	return cmd
+	f.NoInput = globals.DisableInput()
+
+	var org *string
+	if c.OrganizationSlug != "" {
+		org = &c.OrganizationSlug
+	}
+
+	return useRun(org, f.Config, f.GitRepository != nil, f.NoInput)
 }
 
 func useRun(org *string, conf *config.Config, inGitRepo bool, noInput bool) error {
