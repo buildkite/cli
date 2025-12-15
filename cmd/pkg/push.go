@@ -33,21 +33,30 @@ var (
 
 type PushCmd struct {
 	RegistrySlug  string `help:"The slug of the registry to push the package to" arg:"" required:""`
-	FilePath      string `help:"Path to the package file to push" arg:""`
-	StdinFileName string `help:"The filename to use when reading the package from stdin" name:"stdin-file-name"`
+	FilePath      string `help:"Path to the package file to push" name:"file-path" xor:"input"`
+	StdinFileName string `help:"The filename to use when reading the package from stdin" name:"stdin-file-name" xor:"input"`
+	StdInArg      string `arg:"" optional:"" help:"Use '-' as value to pass package via stdin. Required if --stdin-file-name is used."`
 	Web           bool   `help:"Open the pipeline in a web browser." short:"w"`
 }
 
 func (c *PushCmd) Help() string {
-	return `
-Push a package to a Buildkite registry. The web URL of the uploaded package will be printed to stdout.
+	return ` 	
+Push a new package to a Buildkite registry. The package can be passed as a path to a file in the second positional argument,
+or via stdin. If passed via stdin, the filename must be provided with the --stdin-file-name flag, as a Buildkite
+registry requires a filename for the package.
 
 Examples:
-	$ bk package push my-registry my-package.tar.gz
+	Push a package to a Buildkite registry
+	The web URL of the uploaded package will be printed to stdout.
+
+	# Push package from file
+	$ bk package push my-registry --file-path my-package.tar.gz
+
+	# Push package via stdin
 	$ cat my-package.tar.gz | bk package push my-registry --stdin-file-name my-package.tar.gz - # Pass package via stdin, note hyphen as the argument
- 
+
 	# add -w to open the build in your web browser
-	$ bk package push my-registry my-package.tar.gz -w	
+	$ bk package push my-registry --file-path my-package.tar.gz -w
 `
 }
 
@@ -61,7 +70,7 @@ func (c *PushCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
 
-	err = c.validateCmdArgs()
+	err = c.Validate()
 	if err != nil {
 		return fmt.Errorf("failed to validate flags and args: %w", err)
 	}
@@ -117,7 +126,7 @@ func isStdinReadable() (bool, error) {
 	return readable, nil
 }
 
-func (c *PushCmd) validateCmdArgs() error {
+func (c *PushCmd) Validate() error {
 
 	// Validate the args such that either a file path is provided or stdin is being used
 
@@ -126,11 +135,15 @@ func (c *PushCmd) validateCmdArgs() error {
 		return fmt.Errorf("%w: either a file path argument or --stdin-file-name must be provided", ErrInvalidConfig)
 	}
 
-	if len(c.FilePath) > 0 && c.StdinFileName != "" {
+	if c.FilePath != "" && c.StdinFileName != "" {
 		return fmt.Errorf("%w: cannot provide both a file path argument and --stdin-file-name", ErrInvalidConfig)
 	}
 
-	if c.FilePath == "" && c.StdinFileName != "" {
+	if c.StdinFileName != "" {
+		if c.StdInArg != "-" {
+			return fmt.Errorf("%w:  When passing a package file via stdin, the final argument must be '-'", ErrInvalidConfig)
+		}
+
 		stdInReadable, err := isStdInReadableFunc()
 		if err != nil {
 			return fmt.Errorf("failed to check if stdin is readable: %w", err)

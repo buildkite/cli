@@ -3,23 +3,12 @@ package pkg
 import (
 	"errors"
 	"io"
-	"os"
 	"strings"
 	"testing"
 )
 
 func TestPackagePushCommandArgs(t *testing.T) {
 	t.Parallel()
-
-	tempFile, err := os.CreateTemp("", "test.pkg")
-	if err != nil {
-		t.Fatalf("creating temp file: %v", err)
-	}
-
-	t.Cleanup(func() { tempFile.Close() })
-	t.Cleanup(func() { os.Remove(tempFile.Name()) })
-
-	io.WriteString(tempFile, "test package file contents!")
 
 	cases := []struct {
 		name  string
@@ -36,6 +25,7 @@ func TestPackagePushCommandArgs(t *testing.T) {
 				RegistrySlug:  "my-registry",
 				FilePath:      "",
 				StdinFileName: "",
+				StdInArg:      "",
 			},
 			wantErrContain: "either a file path argument or --stdin-file-name must be provided",
 			wantErr:        ErrInvalidConfig,
@@ -46,6 +36,7 @@ func TestPackagePushCommandArgs(t *testing.T) {
 				RegistrySlug:  "my-registry",
 				FilePath:      "/",
 				StdinFileName: "",
+				StdInArg:      "",
 			},
 			wantErr:        ErrInvalidConfig,
 			wantErrContain: "file at / is not a regular file, mode was: directory",
@@ -56,20 +47,33 @@ func TestPackagePushCommandArgs(t *testing.T) {
 				RegistrySlug:  "my-registry",
 				FilePath:      "/does-not-exist",
 				StdinFileName: "",
+				StdInArg:      "",
 			},
 			wantErr:        ErrInvalidConfig,
 			wantErrContain: "stat /does-not-exist: no such file or directory",
+		},
+		{
+			name: "cannot provide both file path and stdin file name",
+			cmd: PushCmd{
+				RegistrySlug:  "my-registry",
+				FilePath:      "/a-test-package.pkg",
+				StdinFileName: "a-test-package.pkg",
+				StdInArg:      "",
+			},
+			wantErr:        ErrInvalidConfig,
+			wantErrContain: "cannot provide both a file path argument and --stdin-file-name",
 		},
 		{
 			name: "stdin without --stdin-file-name",
 			cmd: PushCmd{
 				RegistrySlug:  "my-registry",
 				FilePath:      "",
-				StdinFileName: "",
+				StdinFileName: "test",
+				StdInArg:      "",
 			},
 			stdin:          strings.NewReader("test package stream contents!"),
 			wantErr:        ErrInvalidConfig,
-			wantErrContain: "When passing a package file via stdin, the --stdin-file-name flag must be provided",
+			wantErrContain: "When passing a package file via stdin, the final argument must be '-'",
 		},
 	}
 
@@ -78,7 +82,7 @@ func TestPackagePushCommandArgs(t *testing.T) {
 
 			t.Parallel()
 
-			err := tc.cmd.validateCmdArgs()
+			err := tc.cmd.Validate()
 			if !errors.Is(err, tc.wantErr) {
 				t.Errorf("Expected error %v, got %v", tc.wantErr, err)
 			}

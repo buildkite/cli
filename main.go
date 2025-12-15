@@ -13,6 +13,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/cluster"
 	"github.com/buildkite/cli/v3/cmd/job"
 	"github.com/buildkite/cli/v3/cmd/pipeline"
+	"github.com/buildkite/cli/v3/cmd/pkg"
 	"github.com/buildkite/cli/v3/cmd/version"
 	"github.com/buildkite/cli/v3/cmd/whoami"
 	"github.com/buildkite/cli/v3/internal/cli"
@@ -82,7 +83,7 @@ type (
 		Unblock job.UnblockCmd `cmd:"" help:"Unblock a job."`
 	}
 	PackageCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		Push pkg.PushCmd `cmd:"" help:"Push a new package to a Buildkite registry"`
 	}
 	PipelineCmd struct {
 		Create   pipeline.CreateCmd   `cmd:"" help:"Create a new pipeline."`
@@ -109,7 +110,6 @@ type (
 )
 
 // Delegation methods, we should delete when native Kong implementations ready
-func (p *PackageCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("package", p.Args) }
 func (u *UserCmd) Run(cli *CLI) error      { return cli.delegateToCobraSystem("user", u.Args) }
 func (c *ConfigureCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("configure", c.Args) }
 func (i *InitCmd) Run(cli *CLI) error      { return cli.delegateToCobraSystem("init", i.Args) }
