@@ -15,12 +15,6 @@ import (
 	"github.com/buildkite/go-buildkite/v4"
 )
 
-type pushPackageConfig struct {
-	RegistrySlug  string
-	FilePath      string
-	StdinFileName string
-}
-
 var (
 	ErrInvalidConfig = errors.New("invalid config")
 	ErrAPIError      = errors.New("API error")
