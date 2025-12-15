@@ -17,8 +17,7 @@ type InviteCmd struct {
 }
 
 func (c *InviteCmd) Help() string {
-	return `Invite 1 or many users to your organization.
-
+	return `
 Examples:
   # Invite a single user to your organization
   $ bk user invite bob@supercoolorg.com
