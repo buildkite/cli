@@ -196,10 +196,10 @@ func TestFindPipelineFile(t *testing.T) {
 
 		tmpDir := t.TempDir()
 		buildkiteDir := filepath.Join(tmpDir, ".buildkite")
-		os.MkdirAll(buildkiteDir, 0755)
+		os.MkdirAll(buildkiteDir, 0o755)
 
 		testFile := filepath.Join(buildkiteDir, "pipeline.yml")
-		os.WriteFile(testFile, []byte("steps: []"), 0644)
+		os.WriteFile(testFile, []byte("steps: []"), 0o644)
 
 		origDir, _ := os.Getwd()
 		defer os.Chdir(origDir)
@@ -221,10 +221,10 @@ func TestFindPipelineFile(t *testing.T) {
 
 		tmpDir := t.TempDir()
 		buildkiteDir := filepath.Join(tmpDir, ".buildkite")
-		os.MkdirAll(buildkiteDir, 0755)
+		os.MkdirAll(buildkiteDir, 0o755)
 
 		testFile := filepath.Join(buildkiteDir, "pipeline.yaml")
-		os.WriteFile(testFile, []byte("steps: []"), 0644)
+		os.WriteFile(testFile, []byte("steps: []"), 0o644)
 
 		origDir, _ := os.Getwd()
 		defer os.Chdir(origDir)

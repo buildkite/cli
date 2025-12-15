@@ -13,6 +13,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/cluster"
 	"github.com/buildkite/cli/v3/cmd/job"
 	"github.com/buildkite/cli/v3/cmd/pipeline"
+	"github.com/buildkite/cli/v3/cmd/use"
 	"github.com/buildkite/cli/v3/cmd/version"
 	"github.com/buildkite/cli/v3/cmd/whoami"
 	"github.com/buildkite/cli/v3/internal/cli"
@@ -40,7 +41,7 @@ type CLI struct {
 	Job       JobCmd           `cmd:"" help:"Manage jobs within a build"`
 	Pipeline  PipelineCmd      `cmd:"" help:"Manage pipelines"`
 	Package   PackageCmd       `cmd:"" help:"Manage packages"`
-	Use       UseCmd           `cmd:"" help:"Select an organization"`
+	Use       use.UseCmd       `cmd:"" help:"Select an organization"`
 	User      UserCmd          `cmd:"" help:"Invite users to the organization"`
 	Version   VersionCmd       `cmd:"" help:"Print the version of the CLI being used"`
 	Whoami    whoami.WhoAmICmd `cmd:"" help:"Print the current user and organization"`
@@ -103,9 +104,6 @@ type (
 	InitCmd struct {
 		Args []string `arg:"" optional:"" passthrough:"all"`
 	}
-	UseCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
-	}
 )
 
 // Delegation methods, we should delete when native Kong implementations ready
@@ -113,7 +111,6 @@ func (p *PackageCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("p
 func (u *UserCmd) Run(cli *CLI) error      { return cli.delegateToCobraSystem("user", u.Args) }
 func (c *ConfigureCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("configure", c.Args) }
 func (i *InitCmd) Run(cli *CLI) error      { return cli.delegateToCobraSystem("init", i.Args) }
-func (u *UseCmd) Run(cli *CLI) error       { return cli.delegateToCobraSystem("use", u.Args) }
 
 // delegateToCobraSystem delegates execution to the legacy Cobra command system.
 // This is a temporary bridge during the Kong migration that ensures backwards compatibility
@@ -294,6 +291,10 @@ func isHelpRequest() bool {
 	}
 
 	if len(os.Args) >= 2 && os.Args[1] == "whoami" {
+		return false
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "use" {
 		return false
 	}
 

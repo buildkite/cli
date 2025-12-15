@@ -89,7 +89,6 @@ func (c *CreateCmd) runPipelineCreateDryRun(kongCtx *kong.Context, f *factory.Fa
 }
 
 func (c *CreateCmd) runPipelineCreate(kongCtx *kong.Context, f *factory.Factory) error {
-
 	ctx := context.Background()
 	format := output.Format(c.Output)
 
