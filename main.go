@@ -307,9 +307,9 @@ func isHelpRequest() bool {
 		return false
 	}
 	if len(os.Args) >= 2 && os.Args[1] == "package" {
-    return false
-  } 
-	if len(os.Args) >= 2 && os.Args[1] == "user" { 
+		return false
+	}
+	if len(os.Args) >= 2 && os.Args[1] == "user" {
 		return false
 	}
 
