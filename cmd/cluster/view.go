@@ -61,7 +61,7 @@ func renderClusterText(c buildkite.Cluster) string {
 		field("Email", c.CreatedBy.Email)
 		field("ID", c.CreatedBy.ID)
 		if c.CreatedAt != nil {
-			field("Created At", c.CreatedAt.Time.Format(time.RFC3339))
+			field("Created At", c.CreatedAt.Format(time.RFC3339))
 		}
 	}
 
