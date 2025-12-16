@@ -11,6 +11,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/artifacts"
 	"github.com/buildkite/cli/v3/cmd/build"
 	"github.com/buildkite/cli/v3/cmd/cluster"
+	"github.com/buildkite/cli/v3/cmd/configure"
 	bkInit "github.com/buildkite/cli/v3/cmd/init"
 	"github.com/buildkite/cli/v3/cmd/job"
 	"github.com/buildkite/cli/v3/cmd/organization"
@@ -35,21 +36,21 @@ type CLI struct {
 	Quiet   bool `help:"Suppress progress output" short:"q"`
 	// Verbose bool `help:"Enable verbose error output" short:"V"` // TODO: Implement this, atm this is just a skeleton flag
 
-	Agent        AgentCmd         `cmd:"" help:"Manage agents"`
-	Api          ApiCmd           `cmd:"" help:"Interact with the Buildkite API"`
-	Artifacts    ArtifactsCmd     `cmd:"" help:"Manage pipeline build artifacts"`
-	Build        BuildCmd         `cmd:"" help:"Manage pipeline builds"`
-	Cluster      ClusterCmd       `cmd:"" help:"Manage organization clusters"`
-	Configure    ConfigureCmd     `cmd:"" help:"Configure Buildkite API token"`
-	Init         bkInit.InitCmd   `cmd:"" help:"Initialize a pipeline.yaml file"`
-	Job          JobCmd           `cmd:"" help:"Manage jobs within a build"`
-	Organization OrganizationCmd  `cmd:"" help:"Manage organizations" aliases:"org"`
-	Pipeline     PipelineCmd      `cmd:"" help:"Manage pipelines"`
-	Package      PackageCmd       `cmd:"" help:"Manage packages"`
-	Use          use.UseCmd       `cmd:"" help:"Select an organization"`
-	User         UserCmd          `cmd:"" help:"Invite users to the organization"`
-	Version      VersionCmd       `cmd:"" help:"Print the version of the CLI being used"`
-	Whoami       whoami.WhoAmICmd `cmd:"" help:"Print the current user and organization"`
+	Agent        AgentCmd               `cmd:"" help:"Manage agents"`
+	Api          ApiCmd                 `cmd:"" help:"Interact with the Buildkite API"`
+	Artifacts    ArtifactsCmd           `cmd:"" help:"Manage pipeline build artifacts"`
+	Build        BuildCmd               `cmd:"" help:"Manage pipeline builds"`
+	Cluster      ClusterCmd             `cmd:"" help:"Manage organization clusters"`
+	Configure    configure.ConfigureCmd `cmd:"" help:"Configure Buildkite API token"`
+	Init         bkInit.InitCmd         `cmd:"" help:"Initialize a pipeline.yaml file"`
+	Job          JobCmd                 `cmd:"" help:"Manage jobs within a build"`
+	Organization OrganizationCmd        `cmd:"" help:"Manage organizations" aliases:"org"`
+	Pipeline     PipelineCmd            `cmd:"" help:"Manage pipelines"`
+	Package      PackageCmd             `cmd:"" help:"Manage packages"`
+	Use          use.UseCmd             `cmd:"" help:"Select an organization"`
+	User         UserCmd                `cmd:"" help:"Invite users to the organization"`
+	Version      VersionCmd             `cmd:"" help:"Print the version of the CLI being used"`
+	Whoami       whoami.WhoAmICmd       `cmd:"" help:"Print the current user and organization"`
 }
 
 // Hybrid delegation commands, we should delete from these when native Kong implementations ready
@@ -106,56 +107,7 @@ type (
 	ApiCmd struct {
 		api.ApiCmd `cmd:"" help:"Interact with the Buildkite API"`
 	}
-	ConfigureCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
-	}
 )
-
-// Delegation methods, we should delete when native Kong implementations ready
-func (c *ConfigureCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("configure", c.Args) }
-
-// delegateToCobraSystem delegates execution to the legacy Cobra command system.
-// This is a temporary bridge during the Kong migration that ensures backwards compatibility
-// by reconstructing global flags that Kong has already parsed.
-func (cli *CLI) delegateToCobraSystem(command string, args []string) error {
-	// Preserve and restore original args for safety
-	originalArgs := os.Args
-	defer func() { os.Args = originalArgs }()
-
-	// Reconstruct command args with global flags for Cobra compatibility
-	reconstructedArgs := cli.buildCobraArgs(command, args)
-	os.Args = reconstructedArgs
-
-	if code := runCobraSystem(); code != 0 {
-		os.Exit(code)
-	}
-	return nil
-}
-
-// buildCobraArgs constructs the argument slice for Cobra, including global flags.
-// Kong parses and consumes global flags before delegation, so we need to reconstruct
-// them to maintain backwards compatibility with Cobra commands.
-func (cli *CLI) buildCobraArgs(command string, passthroughArgs []string) []string {
-	args := []string{os.Args[0], command}
-
-	if cli.Yes {
-		args = append(args, "--yes")
-	}
-	if cli.NoInput {
-		args = append(args, "--no-input")
-	}
-	if cli.Quiet {
-		args = append(args, "--quiet")
-	}
-	// TODO: Add verbose flag reconstruction when implemented
-	// if cli.Verbose {
-	// 	args = append(args, "--verbose")
-	// }
-
-	args = append(args, passthroughArgs...)
-
-	return args
-}
 
 func runCobraSystem() int {
 	f, err := factory.New()
@@ -310,6 +262,9 @@ func isHelpRequest() bool {
 		return false
 	}
 	if len(os.Args) >= 2 && os.Args[1] == "user" {
+		return false
+	}
+	if len(os.Args) >= 2 && os.Args[1] == "configure" {
 		return false
 	}
 
