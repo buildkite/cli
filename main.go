@@ -93,6 +93,7 @@ type (
 		Args []string `arg:"" optional:"" passthrough:"all"`
 	}
 	PipelineCmd struct {
+		Copy     pipeline.CopyCmd     `cmd:"" help:"Copy an existing pipeline." aliases:"cp"`
 		Create   pipeline.CreateCmd   `cmd:"" help:"Create a new pipeline."`
 		List     pipeline.ListCmd     `cmd:"" help:"List pipelines." aliases:"ls"`
 		Migrate  pipeline.MigrateCmd  `cmd:"" help:"Migrate a CI/CD pipeline configuration to Buildkite format."`
