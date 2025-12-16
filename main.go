@@ -15,6 +15,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/job"
 	"github.com/buildkite/cli/v3/cmd/organization"
 	"github.com/buildkite/cli/v3/cmd/pipeline"
+	"github.com/buildkite/cli/v3/cmd/pkg"
 	"github.com/buildkite/cli/v3/cmd/use"
 	"github.com/buildkite/cli/v3/cmd/user"
 	"github.com/buildkite/cli/v3/cmd/version"
@@ -90,7 +91,7 @@ type (
 		List organization.ListCmd `cmd:"" help:"List configured organizations." aliases:"ls"`
 	}
 	PackageCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		Push pkg.PushCmd `cmd:"" help:"Push a new package to a Buildkite registry"`
 	}
 	PipelineCmd struct {
 		Copy     pipeline.CopyCmd     `cmd:"" help:"Copy an existing pipeline." aliases:"cp"`
@@ -112,7 +113,6 @@ type (
 )
 
 // Delegation methods, we should delete when native Kong implementations ready
-func (p *PackageCmd) Run(cli *CLI) error   { return cli.delegateToCobraSystem("package", p.Args) }
 func (c *ConfigureCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("configure", c.Args) }
 
 // delegateToCobraSystem delegates execution to the legacy Cobra command system.
@@ -304,11 +304,12 @@ func isHelpRequest() bool {
 	if len(os.Args) >= 2 && os.Args[1] == "organization" {
 		return false
 	}
-
 	if len(os.Args) >= 2 && os.Args[1] == "use" {
 		return false
 	}
-
+	if len(os.Args) >= 2 && os.Args[1] == "package" {
+		return false
+	}
 	if len(os.Args) >= 2 && os.Args[1] == "user" {
 		return false
 	}
