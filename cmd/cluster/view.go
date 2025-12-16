@@ -16,48 +16,16 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
-	"github.com/charmbracelet/lipgloss"
 )
 
-// CreatedByView represents cluster creator information
-type CreatedByView struct {
-	ID        string    `json:"id" yaml:"id"`
-	GraphQLID string    `json:"graphql_id" yaml:"graphql_id"`
-	Name      string    `json:"name" yaml:"name"`
-	Email     string    `json:"email" yaml:"email"`
-	AvatarURL string    `json:"avatar_url" yaml:"avatar_url"`
-	CreatedAt time.Time `json:"created_at" yaml:"created_at"`
-}
-
-// ClusterView provides a formatted view of cluster data
-type ClusterView struct {
-	ID              string         `json:"id" yaml:"id"`
-	GraphQLID       string         `json:"graphql_id" yaml:"graphql_id"`
-	DefaultQueueID  string         `json:"default_queue_id" yaml:"default_queue_id"`
-	Name            string         `json:"name" yaml:"name"`
-	Description     string         `json:"description,omitempty" yaml:"description,omitempty"`
-	Emoji           string         `json:"emoji,omitempty" yaml:"emoji,omitempty"`
-	Color           string         `json:"color,omitempty" yaml:"color,omitempty"`
-	URL             string         `json:"url" yaml:"url"`
-	WebURL          string         `json:"web_url" yaml:"web_url"`
-	DefaultQueueURL string         `json:"default_queue_url" yaml:"default_queue_url"`
-	QueuesURL       string         `json:"queues_url" yaml:"queues_url"`
-	CreatedAt       time.Time      `json:"created_at" yaml:"created_at"`
-	CreatedBy       *CreatedByView `json:"created_by,omitempty" yaml:"created_by,omitempty"`
-}
-
-// TextOutput implements the output.Formatter interface
-func (c ClusterView) TextOutput() string {
+func renderClusterText(c buildkite.Cluster) string {
 	var b bytes.Buffer
 
-	// Helper functions for consistent styling
-	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("5"))
-	label := lipgloss.NewStyle().Width(15).Bold(true)
 	section := func(name string) {
-		fmt.Fprintf(&b, "\n%s\n", title.Render(name))
+		fmt.Fprintf(&b, "\n%s\n", name)
 	}
 	field := func(name, value string) {
-		fmt.Fprintf(&b, "%s %s\n", label.Render(name+":"), value)
+		fmt.Fprintf(&b, "  %-16s %s\n", name+":", value)
 	}
 
 	// Basic Information
@@ -87,12 +55,14 @@ func (c ClusterView) TextOutput() string {
 	field("Queue URL", c.DefaultQueueURL)
 
 	// Creator Information
-	if c.CreatedBy != nil {
+	if c.CreatedBy.ID != "" {
 		section("Created By")
 		field("Name", c.CreatedBy.Name)
 		field("Email", c.CreatedBy.Email)
 		field("ID", c.CreatedBy.ID)
-		field("Created At", c.CreatedAt.Format(time.RFC3339))
+		if c.CreatedAt != nil {
+			field("Created At", c.CreatedAt.Time.Format(time.RFC3339))
+		}
 	}
 
 	return b.String()
@@ -149,31 +119,10 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
-	view := ClusterView{
-		ID:              cluster.ID,
-		GraphQLID:       cluster.GraphQLID,
-		DefaultQueueID:  cluster.DefaultQueueID,
-		Name:            cluster.Name,
-		Description:     cluster.Description,
-		Emoji:           cluster.Emoji,
-		Color:           cluster.Color,
-		URL:             cluster.URL,
-		WebURL:          cluster.WebURL,
-		DefaultQueueURL: cluster.DefaultQueueURL,
-		QueuesURL:       cluster.QueuesURL,
-		CreatedAt:       cluster.CreatedAt.Time,
+	clusterView := output.Viewable[buildkite.Cluster]{
+		Data:   cluster,
+		Render: renderClusterText,
 	}
 
-	if cluster.CreatedBy.ID != "" {
-		view.CreatedBy = &CreatedByView{
-			ID:        cluster.CreatedBy.ID,
-			GraphQLID: cluster.CreatedBy.GraphQLID,
-			Name:      cluster.CreatedBy.Name,
-			Email:     cluster.CreatedBy.Email,
-			AvatarURL: cluster.CreatedBy.AvatarURL,
-			CreatedAt: cluster.CreatedBy.CreatedAt.Time,
-		}
-	}
-
-	return output.Write(os.Stdout, view, format)
+	return output.Write(os.Stdout, clusterView, format)
 }
