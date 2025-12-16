@@ -1,0 +1,16 @@
+pre-commit:
+  parallel: true
+  commands:
+    format:
+      glob: "*.go"
+      run: |
+        if command -v gofumpt >/dev/null 2>&1; then
+          gofumpt -w {staged_files}
+        else
+          gofmt -w {staged_files}
+        fi
+      stage_fixed: true
+    lint:
+      glob: "*.go"
+      run: golangci-lint run --fix {staged_files}
+      stage_fixed: true
