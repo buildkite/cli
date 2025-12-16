@@ -475,7 +475,7 @@ func TestClientRetry(t *testing.T) {
 			t.Errorf("expected quick cancellation, took %v", elapsed)
 		}
 
-		if err != context.DeadlineExceeded {
+		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Errorf("expected DeadlineExceeded, got %v", err)
 		}
 	})

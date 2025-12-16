@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/buildkite/roko"
 )
 
 // ErrorResponse represents an error response from the API
@@ -213,38 +215,32 @@ func (c *Client) Do(ctx context.Context, method, endpoint string, body interface
 		}
 	}
 
-	for attempt := 0; attempt <= c.maxRetries; attempt++ {
-		var respBody []byte
-		respBody, err = c.send(ctx, method, reqURL, bodyBytes)
-		if err == nil {
-			// Parse the response if a target was provided
-			if v != nil && len(respBody) > 0 {
-				if err := json.Unmarshal(respBody, v); err != nil {
-					return fmt.Errorf("failed to unmarshal response: %w", err)
-				}
+	r := roko.NewRetrier(
+		roko.WithMaxAttempts(c.maxRetries+1),
+		roko.WithStrategy(roko.Constant(0)),
+	)
+
+	respBody, err := roko.DoFunc(ctx, r, func(r *roko.Retrier) ([]byte, error) {
+		resp, err := c.send(ctx, method, reqURL, bodyBytes)
+		if err != nil {
+			if !c.handleRetry(r, err) {
+				r.Break()
 			}
-
-			return nil
+			return nil, err
 		}
+		return resp, nil
+	})
+	if err != nil {
+		return err
+	}
 
-		delay, ok := c.shouldRetry(err, attempt)
-		if !ok {
-			return err
-		}
-
-		if c.onRetry != nil {
-			c.onRetry(attempt, delay)
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(delay):
-			continue
+	if v != nil && len(respBody) > 0 {
+		if err := json.Unmarshal(respBody, v); err != nil {
+			return fmt.Errorf("failed to unmarshal response: %w", err)
 		}
 	}
 
-	panic("unreachable")
+	return nil
 }
 
 func (c *Client) send(ctx context.Context, method, reqURL string, body []byte) ([]byte, error) {
@@ -289,30 +285,29 @@ func (c *Client) send(ctx context.Context, method, reqURL string, body []byte) (
 	return respBody, nil
 }
 
-func (c *Client) shouldRetry(err error, attempt int) (time.Duration, bool) {
-	// If the error is not a 429 Too Many Requests, we don't retry.
+// handleRetry checks if an error is retryable and configures the retrier accordingly.
+// Returns true if the request should be retried, false otherwise.
+func (c *Client) handleRetry(r *roko.Retrier, err error) bool {
 	errResp, ok := err.(*ErrorResponse)
 	if !ok || !errResp.IsTooManyRequests() {
-		return 0, false
+		return false
 	}
 
-	// If we've reached the maximum number of retries, we don't retry.
-	if attempt == c.maxRetries {
-		return 0, false
-	}
-
-	// TODO: If RateLimit-Reset header is missing, delay will be 0. Figure out
-	// if this is possible.
+	attempt := r.AttemptCount()
 	delay := errResp.RetryAfter()
 	if attempt > 0 {
 		// Got rate-limited again means contention - back off exponentially
 		delay *= time.Duration(1 << attempt)
 	}
 
-	// Clamp to max retry delay
 	if c.maxRetryDelay > 0 {
 		delay = min(delay, c.maxRetryDelay)
 	}
 
-	return delay, true
+	if c.onRetry != nil {
+		c.onRetry(attempt, delay)
+	}
+
+	r.SetNextInterval(delay)
+	return true
 }
