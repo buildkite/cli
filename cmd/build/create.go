@@ -65,8 +65,8 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	resolvers := resolver.NewAggregateResolver(
 		resolver.ResolveFromFlag(c.Pipeline, f.Config),
-		resolver.ResolveFromConfig(f.Config, resolver.PickOne),
-		resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOne, f.GitRepository != nil)),
+		resolver.ResolveFromConfig(f.Config, resolver.PickOneWithFactory(f)),
+		resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOneWithFactory(f), f.GitRepository != nil)),
 	)
 
 	resolvedPipeline, err := resolvers.Resolve(ctx)

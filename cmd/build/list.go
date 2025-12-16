@@ -345,7 +345,7 @@ func (c *ListCmd) fetchBuilds(ctx context.Context, f *factory.Factory, org strin
 func (c *ListCmd) getBuildsByPipeline(ctx context.Context, f *factory.Factory, org string, listOpts *buildkite.BuildsListOptions) ([]buildkite.Build, error) {
 	pipelineRes := pipelineResolver.NewAggregateResolver(
 		pipelineResolver.ResolveFromFlag(c.Pipeline, f.Config),
-		pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
+		pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOneWithFactory(f)),
 	)
 
 	pipeline, err := pipelineRes.Resolve(ctx)

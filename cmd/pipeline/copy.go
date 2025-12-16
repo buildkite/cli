@@ -130,8 +130,8 @@ func (c *CopyCmd) resolveSourcePipeline(ctx context.Context, f *factory.Factory)
 
 	pipelineRes := resolver.NewAggregateResolver(
 		resolver.ResolveFromPositionalArgument(args, 0, f.Config),
-		resolver.ResolveFromConfig(f.Config, resolver.PickOne),
-		resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOne, f.GitRepository != nil)),
+		resolver.ResolveFromConfig(f.Config, resolver.PickOneWithFactory(f)),
+		resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOneWithFactory(f), f.GitRepository != nil)),
 	)
 
 	p, err := pipelineRes.Resolve(ctx)

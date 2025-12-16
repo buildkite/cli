@@ -6,6 +6,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline"
+	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
 
 // PipelinePicker is a function used to pick a pipeline from a list.
@@ -17,32 +18,41 @@ func PassthruPicker(p []pipeline.Pipeline) *pipeline.Pipeline {
 	return &p[0]
 }
 
-func PickOne(pipelines []pipeline.Pipeline) *pipeline.Pipeline {
-	if len(pipelines) == 0 {
-		return nil
+// PickOneWithFactory returns a picker that uses the factory's NoInput flag.
+// When multiple pipelines are found and NoInput is true, it fails instead of prompting.
+func PickOneWithFactory(f *factory.Factory) PipelinePicker {
+	return func(pipelines []pipeline.Pipeline) *pipeline.Pipeline {
+		if len(pipelines) == 0 {
+			return nil
+		}
+
+		// no need to prompt for only one option
+		if len(pipelines) == 1 {
+			return &pipelines[0]
+		}
+
+		names := make([]string, len(pipelines))
+		for i, p := range pipelines {
+			names[i] = p.Name
+		}
+
+		chosen, err := io.PromptForOne("pipeline", names, f.NoInput)
+		if err != nil {
+			return nil
+		}
+
+		// Find which pipeline was chosen
+		index := slices.IndexFunc[[]pipeline.Pipeline](pipelines, func(p pipeline.Pipeline) bool {
+			return p.Name == chosen
+		})
+
+		if index < 0 {
+			// Shouldn't happen, just in case
+			return nil
+		}
+
+		return &pipelines[index]
 	}
-
-	// no need to prompt for only one option
-	if len(pipelines) == 1 {
-		return &pipelines[0]
-	}
-
-	names := make([]string, len(pipelines))
-	for i, p := range pipelines {
-		names[i] = p.Name
-	}
-
-	chosen, err := io.PromptForOne("pipeline", names, false)
-	if err != nil {
-		return nil
-	}
-
-	// find the index of the pipeline that was chosen so we can set the org on the return
-	index := slices.IndexFunc[[]pipeline.Pipeline](pipelines, func(p pipeline.Pipeline) bool {
-		return p.Name == chosen
-	})
-
-	return &pipelines[index]
 }
 
 // CachedPicker returns a PipelinePicker that saves the given pipelines to local config as well as running the provider
