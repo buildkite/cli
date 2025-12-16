@@ -3,6 +3,7 @@ package io
 import (
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -49,4 +50,38 @@ func PromptForOne(resource string, options []string, noInput bool) (string, erro
 	}
 
 	return options[num-1], nil
+}
+
+// PromptForInput prompts the user to enter a string value.
+// If a default value is provided, it will be shown in brackets and used if the user presses enter.
+// If noInput is true, it will return the default value or an error if no default is provided.
+func PromptForInput(prompt, defaultVal string, noInput bool) (string, error) {
+	if noInput {
+		if defaultVal != "" {
+			return defaultVal, nil
+		}
+		return "", fmt.Errorf("interactive input required but --no-input flag is set")
+	}
+
+	if defaultVal != "" {
+		fmt.Printf("%s [%s]: ", prompt, defaultVal)
+	} else {
+		fmt.Printf("%s: ", prompt)
+	}
+
+	response, err := ReadLine()
+	if err != nil {
+		return "", err
+	}
+
+	response = strings.TrimSpace(response)
+	if response == "" && defaultVal != "" {
+		return defaultVal, nil
+	}
+
+	if response == "" {
+		return "", fmt.Errorf("no value provided for %s", prompt)
+	}
+
+	return response, nil
 }
