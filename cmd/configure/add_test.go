@@ -61,101 +61,101 @@ func TestGetTokenForOrg(t *testing.T) {
 	})
 }
 
-// func TestConfigureWithCredentials(t *testing.T) {
-// 	t.Parallel()
-// 	t.Skip("Skipping test due to recent code changes") // Remove this line when re-enabling the test
+func TestConfigureWithCredentials(t *testing.T) {
+	t.Parallel()
+	t.Skip("Skipping test due to recent code changes") // Remove this line when re-enabling the test
 
-// 	t.Run("configures organization and token", func(t *testing.T) {
-// 		t.Parallel()
-// 		fs := afero.NewMemMapFs()
-// 		conf := config.New(fs, nil)
-// 		f := &factory.Factory{Config: conf}
+	t.Run("configures organization and token", func(t *testing.T) {
+		t.Parallel()
+		fs := afero.NewMemMapFs()
+		conf := config.New(fs, nil)
+		f := &factory.Factory{Config: conf}
 
-// 		org := "test-org"
-// 		token := "bk_test_token_12345"
+		org := "test-org"
+		token := "bk_test_token_12345"
 
-// 		err := ConfigureWithCredentials(f, org, token)
-// 		if err != nil {
-// 			t.Errorf("expected no error, got %s", err)
-// 		}
+		err := ConfigureWithCredentials(f, org, token)
+		if err != nil {
+			t.Errorf("expected no error, got %s", err)
+		}
 
-// 		if conf.OrganizationSlug() != org {
-// 			t.Errorf("expected organization to be %s, got %s", org, conf.OrganizationSlug())
-// 		}
+		if conf.OrganizationSlug() != org {
+			t.Errorf("expected organization to be %s, got %s", org, conf.OrganizationSlug())
+		}
 
-// 		if conf.GetTokenForOrg(org) != token {
-// 			t.Errorf("expected token to be %s, got %s", token, conf.GetTokenForOrg(org))
-// 		}
-// 	})
-// }
+		if conf.GetTokenForOrg(org) != token {
+			t.Errorf("expected token to be %s, got %s", token, conf.GetTokenForOrg(org))
+		}
+	})
+}
 
-// func TestConfigureTokenReuse(t *testing.T) {
-// 	t.Parallel()
-// 	t.Skip("Skipping test due to recent code changes") // Remove this line when re-enabling the test
+func TestConfigureTokenReuse(t *testing.T) {
+	t.Parallel()
+	t.Skip("Skipping test due to recent code changes") // Remove this line when re-enabling the test
 
-// 	t.Run("reuses existing token when available", func(t *testing.T) {
-// 		t.Parallel()
-// 		fs := afero.NewMemMapFs()
-// 		conf := config.New(fs, nil)
-// 		f := &factory.Factory{Config: conf}
+	t.Run("reuses existing token when available", func(t *testing.T) {
+		t.Parallel()
+		fs := afero.NewMemMapFs()
+		conf := config.New(fs, nil)
+		f := &factory.Factory{Config: conf}
 
-// 		org := "test-org"
-// 		existingToken := "bk_existing_token_12345"
+		org := "test-org"
+		existingToken := "bk_existing_token_12345"
 
-// 		// Pre-configure a token for the organization
-// 		conf.SetTokenForOrg(org, existingToken)
+		// Pre-configure a token for the organization
+		conf.SetTokenForOrg(org, existingToken)
 
-// 		// Verify the token can be retrieved
-// 		retrievedToken := getTokenForOrg(f, org)
-// 		if retrievedToken != existingToken {
-// 			t.Errorf("expected to retrieve existing token %s, got %s", existingToken, retrievedToken)
-// 		}
+		// Verify the token can be retrieved
+		retrievedToken := getTokenForOrg(f, org)
+		if retrievedToken != existingToken {
+			t.Errorf("expected to retrieve existing token %s, got %s", existingToken, retrievedToken)
+		}
 
-// 		// Configure with the existing token (simulating the logic in ConfigureRun)
-// 		err := ConfigureWithCredentials(f, org, retrievedToken)
-// 		if err != nil {
-// 			t.Errorf("expected no error, got %s", err)
-// 		}
+		// Configure with the existing token (simulating the logic in ConfigureRun)
+		err := ConfigureWithCredentials(f, org, retrievedToken)
+		if err != nil {
+			t.Errorf("expected no error, got %s", err)
+		}
 
-// 		// Verify the configuration still works
-// 		if conf.OrganizationSlug() != org {
-// 			t.Errorf("expected organization to be %s, got %s", org, conf.OrganizationSlug())
-// 		}
+		// Verify the configuration still works
+		if conf.OrganizationSlug() != org {
+			t.Errorf("expected organization to be %s, got %s", org, conf.OrganizationSlug())
+		}
 
-// 		if conf.GetTokenForOrg(org) != existingToken {
-// 			t.Errorf("expected token to be %s, got %s", existingToken, conf.GetTokenForOrg(org))
-// 		}
-// 	})
-// }
+		if conf.GetTokenForOrg(org) != existingToken {
+			t.Errorf("expected token to be %s, got %s", existingToken, conf.GetTokenForOrg(org))
+		}
+	})
+}
 
-// func TestConfigureRequiresGitRepository(t *testing.T) {
-// 	t.Parallel()
-// 	t.Skip("Skipping test due to recent code changes") // Remove this line when re-enabling the test
+func TestConfigureRequiresGitRepository(t *testing.T) {
+	t.Parallel()
+	t.Skip("Skipping test due to recent code changes") // Remove this line when re-enabling the test
 
-// 	t.Run("fails when not in a git repository", func(t *testing.T) {
-// 		t.Parallel()
-// 		fs := afero.NewMemMapFs()
-// 		conf := config.New(fs, nil)
+	t.Run("fails when not in a git repository", func(t *testing.T) {
+		t.Parallel()
+		fs := afero.NewMemMapFs()
+		conf := config.New(fs, nil)
 
-// 		// Create a factory with nil GitRepository (simulating not being in a git repo)
-// 		f := &factory.Factory{Config: conf, GitRepository: nil}
+		// Create a factory with nil GitRepository (simulating not being in a git repo)
+		f := &factory.Factory{Config: conf, GitRepository: nil}
 
-// 		err := ConfigureRun(f)
+		err := ConfigureRun(f)
 
-// 		if err == nil {
-// 			t.Error("expected error when not in a git repository, got nil")
-// 		}
+		if err == nil {
+			t.Error("expected error when not in a git repository, got nil")
+		}
 
-// 		expectedErr := "not in a Git repository - bk should be configured at the root of a Git repository"
-// 		if err.Error() != expectedErr {
-// 			t.Errorf("expected error message %q, got %q", expectedErr, err.Error())
-// 		}
-// 	})
+		expectedErr := "not in a Git repository - bk should be configured at the root of a Git repository"
+		if err.Error() != expectedErr {
+			t.Errorf("expected error message %q, got %q", expectedErr, err.Error())
+		}
+	})
 
-// 	t.Run("succeeds when in a git repository", func(t *testing.T) {
-// 		// Skip this test because we can't easily mock the interactive prompts
-// 		// In a real implementation, we would need to mock the promptForInput function
-// 		// or restructure the code to allow for testing without interactive input
-// 		t.Skip("skipping test that requires interactive input")
-// 	})
-// }
+	t.Run("succeeds when in a git repository", func(t *testing.T) {
+		// Skip this test because we can't easily mock the interactive prompts
+		// In a real implementation, we would need to mock the promptForInput function
+		// or restructure the code to allow for testing without interactive input
+		t.Skip("skipping test that requires interactive input")
+	})
+}
