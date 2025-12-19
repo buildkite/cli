@@ -36,21 +36,21 @@ type CLI struct {
 	Quiet   bool `help:"Suppress progress output" short:"q"`
 	// Verbose bool `help:"Enable verbose error output" short:"V"` // TODO: Implement this, atm this is just a skeleton flag
 
-	Agent        AgentCmd               `cmd:"" help:"Manage agents"`
-	Api          ApiCmd                 `cmd:"" help:"Interact with the Buildkite API"`
-	Artifacts    ArtifactsCmd           `cmd:"" help:"Manage pipeline build artifacts"`
-	Build        BuildCmd               `cmd:"" help:"Manage pipeline builds"`
-	Cluster      ClusterCmd             `cmd:"" help:"Manage organization clusters"`
-	Configure    configure.ConfigureCmd `cmd:"" help:"Configure Buildkite API token"`
-	Init         bkInit.InitCmd         `cmd:"" help:"Initialize a pipeline.yaml file"`
-	Job          JobCmd                 `cmd:"" help:"Manage jobs within a build"`
-	Organization OrganizationCmd        `cmd:"" help:"Manage organizations" aliases:"org"`
-	Pipeline     PipelineCmd            `cmd:"" help:"Manage pipelines"`
-	Package      PackageCmd             `cmd:"" help:"Manage packages"`
-	Use          use.UseCmd             `cmd:"" help:"Select an organization"`
-	User         UserCmd                `cmd:"" help:"Invite users to the organization"`
-	Version      VersionCmd             `cmd:"" help:"Print the version of the CLI being used"`
-	Whoami       whoami.WhoAmICmd       `cmd:"" help:"Print the current user and organization"`
+	Agent        AgentCmd         `cmd:"" help:"Manage agents"`
+	Api          ApiCmd           `cmd:"" help:"Interact with the Buildkite API"`
+	Artifacts    ArtifactsCmd     `cmd:"" help:"Manage pipeline build artifacts"`
+	Build        BuildCmd         `cmd:"" help:"Manage pipeline builds"`
+	Cluster      ClusterCmd       `cmd:"" help:"Manage organization clusters"`
+	Configure    ConfigureCmd     `cmd:"" help:"Configure Buildkite API token"`
+	Init         bkInit.InitCmd   `cmd:"" help:"Initialize a pipeline.yaml file"`
+	Job          JobCmd           `cmd:"" help:"Manage jobs within a build"`
+	Organization OrganizationCmd  `cmd:"" help:"Manage organizations" aliases:"org"`
+	Pipeline     PipelineCmd      `cmd:"" help:"Manage pipelines"`
+	Package      PackageCmd       `cmd:"" help:"Manage packages"`
+	Use          use.UseCmd       `cmd:"" help:"Select an organization"`
+	User         UserCmd          `cmd:"" help:"Invite users to the organization"`
+	Version      VersionCmd       `cmd:"" help:"Print the version of the CLI being used"`
+	Whoami       whoami.WhoAmICmd `cmd:"" help:"Print the current user and organization"`
 }
 
 // Hybrid delegation commands, we should delete from these when native Kong implementations ready
@@ -107,6 +107,10 @@ type (
 	}
 	ApiCmd struct {
 		api.ApiCmd `cmd:"" help:"Interact with the Buildkite API"`
+	}
+	ConfigureCmd struct {
+		configure.ConfigureCmd `cmd:"" help:"Configure Buildkite API token"`
+		//Add                    add.AddCmd `cmd:"" optional:"" hidden:"" help:"Add configuration for a new organization"`
 	}
 )
 

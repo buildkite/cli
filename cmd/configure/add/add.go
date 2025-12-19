@@ -2,18 +2,23 @@ package add
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"syscall"
 
+	"github.com/alecthomas/kong"
+	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"golang.org/x/term"
 )
 
-type AddCmd struct{}
+type AddCmd struct {
+	Org   string `help:"Organization slug"`
+	Token string `help:"API token"`
+}
 
 func (c *AddCmd) Help() string {
 	return ` 
@@ -23,30 +28,54 @@ Examples:
 `
 }
 
+func (c *AddCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	f, err := factory.New()
+
+	if err != nil {
+		return err
+	}
+
+	f.SkipConfirm = globals.SkipConfirmation()
+	f.NoInput = globals.DisableInput()
+	f.Quiet = globals.IsQuiet()
+
+	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
+		return err
+	}
+
+	// If flags are provided, use them directly
+	if c.Org != "" && c.Token != "" {
+		return ConfigureWithCredentials(f, c.Org, c.Token)
+	}
+
+	return ConfigureRun(f, c.Org)
+}
+
 func ConfigureWithCredentials(f *factory.Factory, org, token string) error {
 	if err := f.Config.SelectOrganization(org, f.GitRepository != nil); err != nil {
 		return err
 	}
-
-	if token == "" {
-		// Check if token already exists for this organization
-		existingToken := getTokenForOrg(f, org)
-		if existingToken != "" {
-			fmt.Printf("Using existing API token for organization: %s\n", org)
-			return f.Config.SelectOrganization(org, f.GitRepository != nil)
-		}
-		return errors.New("API token cannot be empty")
-	}
-
 	return f.Config.SetTokenForOrg(org, token)
 }
 
-func ConfigureRun(ctx context.Context, f *factory.Factory, org, token string) error {
+func ConfigureRun(f *factory.Factory, org string) error {
 	// Check if we're in a Git repository
 	if f.GitRepository == nil {
 		return errors.New("not in a Git repository - bk should be configured at the root of a Git repository")
 	}
 
+	if org == "" {
+		// Get organization slug
+		inputOrg, err := promptForInput("Organization slug: ", false)
+
+		if err != nil {
+			return err
+		}
+		if inputOrg == "" {
+			return errors.New("organization slug cannot be empty")
+		}
+		org = inputOrg
+	}
 	// Check if token already exists for this organization
 	existingToken := getTokenForOrg(f, org)
 	if existingToken != "" {
@@ -54,16 +83,13 @@ func ConfigureRun(ctx context.Context, f *factory.Factory, org, token string) er
 		return f.Config.SelectOrganization(org, f.GitRepository != nil)
 	}
 
+	// Get API token with password input (no echo)
+	token, err := promptForInput("API Token: ", true)
+	if err != nil {
+		return err
+	}
 	if token == "" {
-		// Get API token with password input (no echo)
-		inputToken, err := promptForInput("API Token: ", true)
-		if err != nil {
-			return err
-		}
-		if inputToken == "" {
-			return errors.New("API token cannot be empty")
-		}
-		token = inputToken
+		return errors.New("API token cannot be empty")
 	}
 
 	fmt.Println("API token set for organization:", org)

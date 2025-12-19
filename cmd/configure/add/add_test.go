@@ -1,7 +1,6 @@
 package add
 
 import (
-	"context"
 	"testing"
 
 	"github.com/buildkite/cli/v3/internal/config"
@@ -140,7 +139,7 @@ func TestConfigureRequiresGitRepository(t *testing.T) {
 		// Create a factory with nil GitRepository (simulating not being in a git repo)
 		f := &factory.Factory{Config: conf, GitRepository: nil}
 
-		err := ConfigureRun(context.Background(), f, "test-org", "some-token")
+		err := ConfigureRun(f, "test-org")
 
 		if err == nil {
 			t.Error("expected error when not in a git repository, got nil")
