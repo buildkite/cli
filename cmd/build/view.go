@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/alecthomas/kong"
-	"github.com/buildkite/cli/v3/internal/build/models"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	"github.com/buildkite/cli/v3/internal/build/view"
@@ -84,8 +83,8 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	// Resolve pipeline first
 	pipelineRes := pipelineResolver.NewAggregateResolver(
 		pipelineResolver.ResolveFromFlag(opts.Pipeline, f.Config),
-		pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
-		pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOne, f.GitRepository != nil)),
+		pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOneWithFactory(f)),
+		pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOneWithFactory(f), f.GitRepository != nil)),
 	)
 
 	// Resolve build options
@@ -202,7 +201,23 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
-	buildView := models.NewBuildView(&build, artifacts, annotations)
+	// Create a combined view for JSON/YAML output
+	type BuildOutput struct {
+		buildkite.Build
+		Artifacts   []buildkite.Artifact   `json:"artifacts,omitempty"`
+		Annotations []buildkite.Annotation `json:"annotations,omitempty"`
+	}
 
-	return output.Write(os.Stdout, buildView, output.Format(c.Output))
+	buildOutput := output.Viewable[BuildOutput]{
+		Data: BuildOutput{
+			Build:       build,
+			Artifacts:   artifacts,
+			Annotations: annotations,
+		},
+		Render: func(b BuildOutput) string {
+			return view.NewBuildView(&b.Build, b.Artifacts, b.Annotations).Render()
+		},
+	}
+
+	return output.Write(os.Stdout, buildOutput, output.Format(c.Output))
 }

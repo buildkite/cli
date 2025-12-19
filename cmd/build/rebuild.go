@@ -69,8 +69,8 @@ func (c *RebuildCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	// 3. find pipelines matching the current repository from the API
 	pipelineRes := pipelineResolver.NewAggregateResolver(
 		pipelineResolver.ResolveFromFlag(c.Pipeline, f.Config),
-		pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
-		pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOne, f.GitRepository != nil)),
+		pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOneWithFactory(f)),
+		pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOneWithFactory(f), f.GitRepository != nil)),
 	)
 
 	// we resolve a build based on the following rules:

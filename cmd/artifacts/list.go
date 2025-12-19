@@ -75,8 +75,8 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	// Resolve a pipeline based on how bk build resolves the pipeline
 	pipelineRes := pipelineResolver.NewAggregateResolver(
 		pipelineResolver.ResolveFromFlag(c.Pipeline, f.Config),
-		pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOne),
-		pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOne, f.GitRepository != nil)),
+		pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOneWithFactory(f)),
+		pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOneWithFactory(f), f.GitRepository != nil)),
 	)
 
 	// We resolve a build an optional argument or positional argument
