@@ -140,7 +140,7 @@ func TestConfigureRequiresGitRepository(t *testing.T) {
 		// Create a factory with nil GitRepository (simulating not being in a git repo)
 		f := &factory.Factory{Config: conf, GitRepository: nil}
 
-		err := ConfigureRun(context.Background(), f, "test-org")
+		err := ConfigureRun(context.Background(), f, "test-org", "some-token")
 
 		if err == nil {
 			t.Error("expected error when not in a git repository, got nil")

@@ -14,18 +14,19 @@ import (
 type ConfigureCmd struct {
 	Force bool   `help:"Force setting a new token"`
 	Org   string `help:"Organization slug"`
+	Token string `help:"API token"`
 
-	Add addCmd.AddCmd `cmd:"" optional:"" help:"Add configuration for a new organization" default:"1"`
+	Add addCmd.AddCmd `cmd:"" help:"Add configuration for a new organization" default:"1"`
 }
 
 func (c *ConfigureCmd) Help() string {
 	return `
 Examples:
   # Configure Buildkite API token
-  $ bk configure --org my-org 
+  $ bk configure --org my-org --token my-token
 
   # Force setting a new token
-  $ bk configure --force --org my-org
+  $ bk configure --force --org my-org --token my-token
 `
 }
 
@@ -54,5 +55,5 @@ func (c *ConfigureCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		return errors.New("API token already configured. You must use --force")
 	}
 
-	return addCmd.ConfigureRun(ctx, f, c.Org)
+	return addCmd.ConfigureRun(ctx, f, c.Org, c.Token)
 }

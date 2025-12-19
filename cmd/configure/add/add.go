@@ -41,7 +41,7 @@ func ConfigureWithCredentials(f *factory.Factory, org, token string) error {
 	return f.Config.SetTokenForOrg(org, token)
 }
 
-func ConfigureRun(ctx context.Context, f *factory.Factory, org string) error {
+func ConfigureRun(ctx context.Context, f *factory.Factory, org, token string) error {
 	// Check if we're in a Git repository
 	if f.GitRepository == nil {
 		return errors.New("not in a Git repository - bk should be configured at the root of a Git repository")
@@ -54,13 +54,16 @@ func ConfigureRun(ctx context.Context, f *factory.Factory, org string) error {
 		return f.Config.SelectOrganization(org, f.GitRepository != nil)
 	}
 
-	// Get API token with password input (no echo)
-	token, err := promptForInput("API Token: ", true)
-	if err != nil {
-		return err
-	}
 	if token == "" {
-		return errors.New("API token cannot be empty")
+		// Get API token with password input (no echo)
+		inputToken, err := promptForInput("API Token: ", true)
+		if err != nil {
+			return err
+		}
+		if inputToken == "" {
+			return errors.New("API token cannot be empty")
+		}
+		token = inputToken
 	}
 
 	fmt.Println("API token set for organization:", org)
