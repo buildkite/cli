@@ -1,6 +1,7 @@
-package configure
+package add
 
 import (
+	"context"
 	"testing"
 
 	"github.com/buildkite/cli/v3/internal/config"
@@ -130,7 +131,6 @@ func TestConfigureTokenReuse(t *testing.T) {
 
 func TestConfigureRequiresGitRepository(t *testing.T) {
 	t.Parallel()
-	t.Skip("Skipping test due to recent code changes") // Remove this line when re-enabling the test
 
 	t.Run("fails when not in a git repository", func(t *testing.T) {
 		t.Parallel()
@@ -140,7 +140,7 @@ func TestConfigureRequiresGitRepository(t *testing.T) {
 		// Create a factory with nil GitRepository (simulating not being in a git repo)
 		f := &factory.Factory{Config: conf, GitRepository: nil}
 
-		err := ConfigureRun(f)
+		err := ConfigureRun(context.Background(), f, "test-org")
 
 		if err == nil {
 			t.Error("expected error when not in a git repository, got nil")

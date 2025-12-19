@@ -1,4 +1,4 @@
-package configure
+package add
 
 import (
 	"bufio"
@@ -64,7 +64,7 @@ func ConfigureRun(ctx context.Context, f *factory.Factory, org string) error {
 	}
 
 	fmt.Println("API token set for organization:", org)
-	return ConfigureWithCredentials(ctx, f, org, token)
+	return ConfigureWithCredentials(f, org, token)
 }
 
 // getTokenForOrg retrieves the token for a specific organization from the user config
