@@ -8,48 +8,74 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/alecthomas/kong"
+	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/spf13/cobra"
+	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"golang.org/x/term"
 )
 
-func NewCmdAdd(f *factory.Factory) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "add",
-		Args:  cobra.NoArgs,
-		Short: "Add config for new organization",
-		Long:  "Add configuration for a new organization.",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return ConfigureRun(f)
-		},
+type AddCmd struct {
+	Org   string `help:"Organization slug"`
+	Token string `help:"API token"`
+}
+
+func (c *AddCmd) Help() string {
+	return ` 
+Examples:
+  # Add configuration for a new organization
+  $ bk configure add
+`
+}
+
+func (c *AddCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	f, err := factory.New()
+
+	if err != nil {
+		return err
 	}
 
-	return cmd
+	f.SkipConfirm = globals.SkipConfirmation()
+	f.NoInput = globals.DisableInput()
+	f.Quiet = globals.IsQuiet()
+
+	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
+		return err
+	}
+
+	// If flags are provided, use them directly
+	if c.Org != "" && c.Token != "" {
+		return ConfigureWithCredentials(f, c.Org, c.Token)
+	}
+
+	return ConfigureRun(f, c.Org)
 }
 
 func ConfigureWithCredentials(f *factory.Factory, org, token string) error {
 	if err := f.Config.SelectOrganization(org, f.GitRepository != nil); err != nil {
 		return err
 	}
-
 	return f.Config.SetTokenForOrg(org, token)
 }
 
-func ConfigureRun(f *factory.Factory) error {
+func ConfigureRun(f *factory.Factory, org string) error {
 	// Check if we're in a Git repository
 	if f.GitRepository == nil {
 		return errors.New("not in a Git repository - bk should be configured at the root of a Git repository")
 	}
 
-	// Get organization slug
-	org, err := promptForInput("Organization slug: ", false)
-	if err != nil {
-		return err
-	}
 	if org == "" {
-		return errors.New("organization slug cannot be empty")
-	}
+		// Get organization slug
+		inputOrg, err := promptForInput("Organization slug: ", false)
 
+		if err != nil {
+			return err
+		}
+		if inputOrg == "" {
+			return errors.New("organization slug cannot be empty")
+		}
+		org = inputOrg
+	}
 	// Check if token already exists for this organization
 	existingToken := getTokenForOrg(f, org)
 	if existingToken != "" {
