@@ -23,6 +23,7 @@ type Factory struct {
 	SkipConfirm   bool
 	NoInput       bool
 	Quiet         bool
+	NoPager       bool
 }
 
 // SetGlobalFlags reads the global persistent flags and sets them on the factory.
