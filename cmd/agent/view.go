@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
-	"github.com/buildkite/cli/v3/internal/agent"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -84,7 +83,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return output.Write(os.Stdout, agentData, format)
 	}
 
-	metadata, queue := agent.ParseMetadata(agentData.Metadata)
+	metadata, queue := parseMetadata(agentData.Metadata)
 	metadata = strings.TrimSpace(strings.ReplaceAll(metadata, "\n", ", "))
 	if metadata == "" {
 		metadata = "~"
@@ -120,4 +119,30 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	fmt.Fprint(writer, table)
 
 	return nil
+}
+
+func parseMetadata(metadataList []string) (string, string) {
+	var metadata, queue string
+
+	if len(metadataList) == 1 {
+		return "~", parseQueue(metadataList[0])
+	}
+
+	for _, v := range metadataList {
+		if queueValue := parseQueue(v); queueValue != "" {
+			queue = queueValue
+		} else {
+			metadata += v + "\n"
+		}
+	}
+
+	return metadata, queue
+}
+
+func parseQueue(metadata string) string {
+	parts := strings.Split(metadata, "=")
+	if len(parts) > 1 && parts[0] == "queue" {
+		return parts[1]
+	}
+	return ""
 }
