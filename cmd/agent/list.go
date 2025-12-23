@@ -121,7 +121,9 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		agents = append(agents, filtered...)
 		page++
 
-		// If we have more than the limit, there are definitely more results
+		// If we have more than the limit, there are definitely more results, so we'll set hasMore to true, which will add a '+' to the total count display in the output
+		// this is just to make it clear to the user that there's more results available than what are shown, as otherwise if they set --limit to say 5
+		// then it'd say showing 5 out of 30 agents (assuming there are more than 30 agents)
 		if len(agents) >= c.Limit {
 			hasMore = true
 		}
@@ -168,7 +170,6 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		_ = cleanup()
 	}()
 
-	// Print summary line
 	totalDisplay := fmt.Sprintf("%d", totalFetched)
 	if hasMore {
 		totalDisplay = fmt.Sprintf("%d+", totalFetched)
