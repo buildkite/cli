@@ -90,7 +90,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 	connected := "-"
 	if agentData.CreatedAt != nil {
-		connected = agentData.CreatedAt.Time.Format(time.RFC3339)
+		connected = agentData.CreatedAt.Format(time.RFC3339)
 	}
 
 	headers := []string{"Property", "Value"}
