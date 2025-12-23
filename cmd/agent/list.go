@@ -9,7 +9,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
-	"github.com/buildkite/cli/v3/internal/io"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
@@ -165,7 +165,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 	table := output.Table(headers, rows, columnStyles)
 
-	writer, cleanup := io.Pager(f.NoPager)
+	writer, cleanup := bkIO.Pager(f.NoPager)
 	defer func() {
 		_ = cleanup()
 	}()

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/agent"
@@ -49,6 +51,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.SkipConfirm = globals.SkipConfirmation()
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
+	f.NoPager = globals.DisablePager()
 
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
 		return err
@@ -66,20 +69,6 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return browser.OpenURL(url)
 	}
 
-	if format != output.FormatText {
-		var agentData buildkite.Agent
-		spinErr := bkIO.SpinWhile(f, "Loading agent", func() {
-			agentData, _, err = f.RestAPIClient.Agents.Get(ctx, org, id)
-		})
-		if spinErr != nil {
-			return spinErr
-		}
-		if err != nil {
-			return err
-		}
-		return output.Write(os.Stdout, agentData, format)
-	}
-
 	var agentData buildkite.Agent
 	spinErr := bkIO.SpinWhile(f, "Loading agent", func() {
 		agentData, _, err = f.RestAPIClient.Agents.Get(ctx, org, id)
@@ -91,7 +80,44 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", agent.AgentDataTable(agentData))
+	if format != output.FormatText {
+		return output.Write(os.Stdout, agentData, format)
+	}
 
-	return err
+	metadata, queue := agent.ParseMetadata(agentData.Metadata)
+	metadata = strings.TrimSpace(strings.ReplaceAll(metadata, "\n", ", "))
+	if metadata == "" {
+		metadata = "~"
+	}
+	connected := "-"
+	if agentData.CreatedAt != nil {
+		connected = agentData.CreatedAt.Time.Format(time.RFC3339)
+	}
+
+	headers := []string{"Property", "Value"}
+	rows := [][]string{
+		{"ID", agentData.ID},
+		{"Name", agentData.Name},
+		{"State", agentData.ConnectedState},
+		{"Queue", queue},
+		{"Version", agentData.Version},
+		{"Hostname", agentData.Hostname},
+		{"User Agent", agentData.UserAgent},
+		{"IP Address", agentData.IPAddress},
+		{"Connected", connected},
+		{"Metadata", metadata},
+	}
+
+	table := output.Table(headers, rows, map[string]string{
+		"Property": "bold",
+		"Value":    "dim",
+	})
+
+	writer, cleanup := bkIO.Pager(f.NoPager)
+	defer func() { _ = cleanup() }()
+
+	fmt.Fprintf(writer, "Agent %s (%s)\n\n", agentData.Name, agentData.ID)
+	fmt.Fprint(writer, table)
+
+	return nil
 }
