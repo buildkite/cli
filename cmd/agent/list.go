@@ -164,7 +164,9 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	table := output.Table(headers, rows, columnStyles)
 
 	writer, cleanup := io.Pager(f.NoPager)
-	defer cleanup()
+	defer func() {
+		_ = cleanup()
+	}()
 
 	// Print summary line
 	totalDisplay := fmt.Sprintf("%d", totalFetched)
