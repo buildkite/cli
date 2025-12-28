@@ -182,6 +182,13 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	if format == output.FormatText {
 		writer, cleanup := bkIO.Pager(f.NoPager)
 		defer func() { _ = cleanup() }()
+
+		target := org
+		if c.Pipeline != "" {
+			target = fmt.Sprintf("%s/%s", org, c.Pipeline)
+		}
+
+		fmt.Fprintf(writer, "Showing %d jobs for %s\n\n", len(jobs), target)
 		return displayJobs(jobs, format, writer)
 	}
 
