@@ -86,5 +86,6 @@ func New() (*Factory, error) {
 		GraphQLClient: graphql.NewClient(conf.GetGraphQLEndpoint(), graphqlHTTPClient),
 		RestAPIClient: buildkiteClient,
 		Version:       version.Version,
+		NoPager:       conf.PagerDisabled(),
 	}, nil
 }
