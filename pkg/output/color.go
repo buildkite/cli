@@ -3,6 +3,8 @@ package output
 import (
 	"os"
 	"sync"
+
+	"github.com/mattn/go-isatty"
 )
 
 var (
@@ -16,6 +18,17 @@ func ColorEnabled() bool {
 	colorOnce.Do(func() {
 		if _, disabled := os.LookupEnv("NO_COLOR"); disabled {
 			colorEnabled = false
+			return
+		}
+
+		if term := os.Getenv("TERM"); term == "dumb" {
+			colorEnabled = false
+			return
+		}
+
+		if !(isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())) {
+			colorEnabled = false
+			return
 		}
 	})
 	return colorEnabled
