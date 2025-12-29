@@ -1,10 +1,14 @@
 package view
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
+	"github.com/buildkite/cli/v3/internal/artifact"
 	"github.com/buildkite/cli/v3/internal/ui"
 	"github.com/buildkite/cli/v3/internal/validation"
+	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
@@ -31,76 +35,207 @@ func (o *ViewOptions) Validate() error {
 
 // BuildView encapsulates the build view functionality
 type BuildView struct {
-	Build       *buildkite.Build
-	Artifacts   []buildkite.Artifact
-	Annotations []buildkite.Annotation
+	Build        *buildkite.Build
+	Artifacts    []buildkite.Artifact
+	Annotations  []buildkite.Annotation
+	Organization string
+	Pipeline     string
 }
 
 // NewBuildView creates a new BuildView instance
-func NewBuildView(build *buildkite.Build, artifacts []buildkite.Artifact, annotations []buildkite.Annotation) *BuildView {
+func NewBuildView(build *buildkite.Build, artifacts []buildkite.Artifact, annotations []buildkite.Annotation, organization, pipeline string) *BuildView {
 	return &BuildView{
-		Build:       build,
-		Artifacts:   artifacts,
-		Annotations: annotations,
+		Build:        build,
+		Artifacts:    artifacts,
+		Annotations:  annotations,
+		Organization: organization,
+		Pipeline:     pipeline,
 	}
+}
+
+func BuildSummary(b *buildkite.Build, organization, pipeline string) string {
+	return buildSummary(b, organization, pipeline)
+}
+
+func BuildSummaryWithJobs(b *buildkite.Build, organization, pipeline string) string {
+	var sb strings.Builder
+	sb.WriteString(buildSummary(b, organization, pipeline))
+
+	if jobs := renderJobs(b.Jobs); jobs != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(jobs)
+	}
+
+	return sb.String()
+}
+
+// RenderJobSummary renders a single job's summary
+func RenderJobSummary(j buildkite.Job) string {
+	return renderJobs([]buildkite.Job{j})
 }
 
 // Render returns the complete build view
 func (v *BuildView) Render() string {
-	var sections []string
+	var sb strings.Builder
 
-	// Add build summary
-	sections = append(sections, ui.RenderBuildSummary(v.Build))
+	sb.WriteString(buildSummary(v.Build, v.Organization, v.Pipeline))
 
-	// Add job details if present
-	if len(v.Build.Jobs) > 0 {
-		jobsSection := ui.Section("Jobs", v.renderJobs())
-		sections = append(sections, jobsSection)
+	if jobs := renderJobs(v.Build.Jobs); jobs != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(jobs)
 	}
 
 	// Add artifacts if present
-	if len(v.Artifacts) > 0 {
-		artifactsSection := ui.Section("Artifacts", v.renderArtifacts())
-		sections = append(sections, artifactsSection)
+
+	if artifacts := renderArtifacts(v.Artifacts); artifacts != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(artifacts)
 	}
 
-	// Add annotations if present
-	if len(v.Annotations) > 0 {
-		annotationsSection := ui.Section("Annotations", v.renderAnnotations())
-		sections = append(sections, annotationsSection)
+	if annotations := renderAnnotations(v.Annotations); annotations != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(annotations)
 	}
 
-	return ui.SpacedVertical(sections...)
+	return sb.String()
 }
 
-func (v *BuildView) renderJobs() string {
-	var jobSections []string
+func buildSummary(b *buildkite.Build, organization, pipeline string) string {
+	var sb strings.Builder
 
-	for _, j := range v.Build.Jobs {
-		if j.Type == "script" {
-			jobSections = append(jobSections, ui.RenderJobSummary(j))
+	fmt.Fprintf(&sb, "Build %s/%s #%d (%s)\n\n", valueOrDash(organization), valueOrDash(pipeline), b.Number, b.State)
+
+	summary := output.Table(
+		[]string{"Field", "Value"},
+		[][]string{
+			{"Message", valueOrDash(ui.TruncateText(b.Message, 140))},
+			{"Source", valueOrDash(b.Source)},
+			{"Creator", creatorName(b)},
+			{"Branch", valueOrDash(b.Branch)},
+			{"Commit", shortenCommit(b.Commit)},
+			{"URL", valueOrDash(b.WebURL)},
+		},
+		map[string]string{"field": "bold", "value": "dim"},
+	)
+
+	sb.WriteString(summary)
+
+	return sb.String()
+}
+
+func renderJobs(jobs []buildkite.Job) string {
+	scriptJobs := filterScriptJobs(jobs)
+	if len(scriptJobs) == 0 {
+		return ""
+	}
+
+	headers := []string{"State", "Name", "Duration"}
+	rows := make([][]string, 0, len(scriptJobs))
+	for _, job := range scriptJobs {
+		name := job.Name
+		if name == "" {
+			name = job.Label
+		}
+		if name == "" {
+			parts := strings.Split(job.Command, "\n")
+			if len(parts) > 0 {
+				name = parts[0]
+			}
+		}
+		if name == "" {
+			name = "-"
+		}
+		name = ui.TruncateText(name, 72)
+
+		rows = append(rows, []string{
+			job.State,
+			name,
+			formatJobDuration(job),
+		})
+	}
+
+	table := output.Table(headers, rows, map[string]string{"state": "bold", "name": "italic", "duration": "dim"})
+
+	return fmt.Sprintf("Jobs (%d)\n\n%s", len(scriptJobs), table)
+}
+
+func renderArtifacts(artifacts []buildkite.Artifact) string {
+	if len(artifacts) == 0 {
+		return ""
+	}
+
+	headers := []string{"ID", "Path", "Size"}
+	rows := make([][]string, 0, len(artifacts))
+	for _, a := range artifacts {
+		size := artifact.FormatBytes(a.FileSize)
+		rows = append(rows, []string{a.ID, a.Path, size})
+	}
+
+	table := output.Table(headers, rows, map[string]string{"id": "dim", "path": "bold", "size": "dim"})
+
+	return fmt.Sprintf("Artifacts (%d)\n\n%s", len(artifacts), table)
+}
+
+func renderAnnotations(annotations []buildkite.Annotation) string {
+	if len(annotations) == 0 {
+		return ""
+	}
+
+	headers := []string{"Style", "Context"}
+	rows := make([][]string, 0, len(annotations))
+	for _, ann := range annotations {
+		rows = append(rows, []string{ann.Style, ann.Context})
+	}
+
+	table := output.Table(headers, rows, map[string]string{"style": "bold", "context": "italic"})
+
+	return fmt.Sprintf("Annotations (%d)\n\n%s", len(annotations), table)
+}
+
+func filterScriptJobs(jobs []buildkite.Job) []buildkite.Job {
+	result := make([]buildkite.Job, 0, len(jobs))
+	for _, job := range jobs {
+		if job.Type == "script" {
+			result = append(result, job)
 		}
 	}
-
-	return strings.Join(jobSections, "\n")
+	return result
 }
 
-func (v *BuildView) renderArtifacts() string {
-	var artifactSections []string
-
-	for _, artifact := range v.Artifacts {
-		artifactSections = append(artifactSections, ui.RenderArtifact(&artifact))
+func creatorName(build *buildkite.Build) string {
+	if build.Creator.ID != "" {
+		return build.Creator.Name
 	}
-
-	return strings.Join(artifactSections, "\n")
+	if build.Author.Username != "" {
+		return build.Author.Name
+	}
+	return "Unknown"
 }
 
-func (v *BuildView) renderAnnotations() string {
-	var annotationSections []string
-
-	for _, annotation := range v.Annotations {
-		annotationSections = append(annotationSections, ui.RenderAnnotation(&annotation))
+func formatJobDuration(job buildkite.Job) string {
+	if job.StartedAt == nil {
+		return "-"
 	}
+	if job.FinishedAt != nil {
+		d := job.FinishedAt.Sub(job.StartedAt.Time)
+		return ui.FormatDuration(d)
+	}
+	return ui.FormatDuration(time.Since(job.StartedAt.Time)) + " (running)"
+}
 
-	return strings.Join(annotationSections, "\n")
+func shortenCommit(commit string) string {
+	if strings.TrimSpace(commit) == "" {
+		return "-"
+	}
+	if len(commit) <= 12 {
+		return commit
+	}
+	return commit[:12]
+}
+
+func valueOrDash(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return "-"
+	}
+	return s
 }
