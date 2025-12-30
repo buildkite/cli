@@ -64,10 +64,7 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	ctx := context.Background()
 
 	// this semaphore is used to limit how many concurrent API requests can be sent
-	limit := c.Limit
-	if limit < 1 {
-		limit = 1
-	}
+	limit := max(c.Limit, 1)
 	sem := semaphore.NewWeighted(limit)
 
 	var agentIDs []string
@@ -106,16 +103,29 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	isTTY := isatty.IsTerminal(writer.Fd())
 
 	total := len(agentIDs)
-	updates := make(chan stopResult, total)
+
+	workerCount := int(min(limit, int64(total)))
+
+	work := make(chan string, workerCount)
+	updates := make(chan stopResult, workerCount)
 
 	var wg sync.WaitGroup
-	for _, id := range agentIDs {
+	for i := 0; i < workerCount; i++ {
 		wg.Add(1)
-		go func(agentID string) {
+		go func() {
 			defer wg.Done()
-			updates <- stopAgent(ctx, agentID, f, c.Force, sem)
-		}(id)
+			for agentID := range work {
+				updates <- stopAgent(ctx, agentID, f, c.Force, sem)
+			}
+		}()
 	}
+
+	go func() {
+		for _, id := range agentIDs {
+			work <- id
+		}
+		close(work)
+	}()
 
 	go func() {
 		wg.Wait()
