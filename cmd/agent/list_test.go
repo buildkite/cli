@@ -102,6 +102,7 @@ func TestCmdAgentList(t *testing.T) {
 				ID:             "agent-1",
 				Name:           "test-agent",
 				ConnectedState: "connected",
+				Job:            &buildkite.Job{ID: "job-1"},
 				Version:        "3.50.0",
 				Hostname:       "test-host",
 				Metadata:       []string{"queue=default"},
@@ -113,8 +114,9 @@ func TestCmdAgentList(t *testing.T) {
 		rows := make([][]string, len(agents))
 		for i, agent := range agents {
 			queue := extractQueue(agent.Metadata)
+			state := displayState(agent)
 			rows[i] = []string{
-				agent.ConnectedState,
+				state,
 				agent.Name,
 				agent.Version,
 				queue,
@@ -137,8 +139,8 @@ func TestCmdAgentList(t *testing.T) {
 		if !strings.Contains(table, "test-agent") {
 			t.Error("expected table to contain agent name")
 		}
-		if !strings.Contains(table, "connected") {
-			t.Error("expected table to contain state")
+		if !strings.Contains(table, "running") {
+			t.Error("expected table to contain semantic state 'running'")
 		}
 		if !strings.Contains(table, "3.50.0") {
 			t.Error("expected table to contain version")
@@ -232,6 +234,46 @@ func TestAgentListInvalidState(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "invalid state") {
 		t.Errorf("expected error to mention 'invalid state', got: %v", err)
+	}
+}
+
+func TestDisplayState(t *testing.T) {
+	t.Parallel()
+
+	paused := true
+	notPaused := false
+
+	tests := []struct {
+		name string
+		agent buildkite.Agent
+		want  string
+	}{
+		{
+			name: "running when job present",
+			agent: buildkite.Agent{Job: &buildkite.Job{ID: "job-1"}},
+			want:  stateRunning,
+		},
+		{
+			name: "paused when paused flag",
+			agent: buildkite.Agent{Paused: &paused},
+			want:  statePaused,
+		},
+		{
+			name: "idle default",
+			agent: buildkite.Agent{Paused: &notPaused},
+			want:  stateIdle,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := displayState(tt.agent)
+			if got != tt.want {
+				t.Fatalf("displayState() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

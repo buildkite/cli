@@ -162,8 +162,9 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	rows := make([][]string, len(agents))
 	for i, agent := range agents {
 		queue := extractQueue(agent.Metadata)
+		state := displayState(agent)
 		rows[i] = []string{
-			agent.ConnectedState,
+			state,
 			agent.Name,
 			agent.Version,
 			queue,
@@ -260,4 +261,16 @@ func extractQueue(metadata []string) string {
 		}
 	}
 	return "default"
+}
+
+func displayState(a buildkite.Agent) string {
+	if a.Job != nil {
+		return stateRunning
+	}
+
+	if a.Paused != nil && *a.Paused {
+		return statePaused
+	}
+
+	return stateIdle
 }
