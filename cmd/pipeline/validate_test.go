@@ -178,8 +178,6 @@ func TestFindPipelineFile(t *testing.T) {
 	t.Parallel()
 
 	t.Run("no file exists", func(t *testing.T) {
-		t.Parallel()
-
 		tmpDir := t.TempDir()
 		origDir, _ := os.Getwd()
 		defer os.Chdir(origDir)
@@ -192,8 +190,6 @@ func TestFindPipelineFile(t *testing.T) {
 	})
 
 	t.Run("find pipeline.yml", func(t *testing.T) {
-		t.Parallel()
-
 		tmpDir := t.TempDir()
 		buildkiteDir := filepath.Join(tmpDir, ".buildkite")
 		os.MkdirAll(buildkiteDir, 0o755)
@@ -217,8 +213,6 @@ func TestFindPipelineFile(t *testing.T) {
 	})
 
 	t.Run("find pipeline.yaml", func(t *testing.T) {
-		t.Parallel()
-
 		tmpDir := t.TempDir()
 		buildkiteDir := filepath.Join(tmpDir, ".buildkite")
 		os.MkdirAll(buildkiteDir, 0o755)
