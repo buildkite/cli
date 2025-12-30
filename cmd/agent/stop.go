@@ -115,6 +115,10 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		go func() {
 			defer wg.Done()
 			for agentID := range work {
+				if ctx.Err() != nil {
+					updates <- stopResult{id: agentID, err: ctx.Err()}
+					continue
+				}
 				updates <- stopAgent(ctx, agentID, f, c.Force, sem)
 			}
 		}()
@@ -122,7 +126,12 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	go func() {
 		for _, id := range agentIDs {
-			work <- id
+			select {
+			case <-ctx.Done():
+				close(work)
+				return
+			case work <- id:
+			}
 		}
 		close(work)
 	}()
@@ -173,6 +182,14 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	if len(errorDetails) > 0 {
 		for _, detail := range errorDetails {
 			fmt.Fprintln(os.Stderr, detail)
+		}
+	}
+
+	if !f.Quiet {
+		if failed > 0 {
+			fmt.Fprintf(writer, "\nStopped %d of %d agents (%d failed)\n", succeeded, total, failed)
+		} else {
+			fmt.Fprintf(writer, "\nSuccessfully stopped %d of %d agents\n", succeeded, total)
 		}
 	}
 
