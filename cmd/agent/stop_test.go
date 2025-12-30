@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/buildkite/cli/v3/internal/config"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/spf13/afero"
 )
 
@@ -132,6 +133,78 @@ func TestStopAgentBulkOperationErrorHandling(t *testing.T) {
 
 		if !strings.Contains(errorDetails[1], "not found") {
 			t.Error("expected second error to include 'not found'")
+		}
+	})
+
+	t.Run("progress tracking", func(t *testing.T) {
+		t.Parallel()
+
+		total := 10
+		succeeded := 0
+		failed := 0
+		completed := 0
+
+		updates := []stopResult{
+			{id: "agent-1", err: nil},
+			{id: "agent-2", err: nil},
+			{id: "agent-3", err: fmt.Errorf("timeout")},
+			{id: "agent-4", err: nil},
+			{id: "agent-5", err: fmt.Errorf("not found")},
+		}
+
+		for _, update := range updates {
+			completed++
+			if update.err != nil {
+				failed++
+			} else {
+				succeeded++
+			}
+		}
+
+		if completed != 5 {
+			t.Errorf("expected completed=5, got %d", completed)
+		}
+
+		if succeeded != 3 {
+			t.Errorf("expected succeeded=3, got %d", succeeded)
+		}
+
+		if failed != 2 {
+			t.Errorf("expected failed=2, got %d", failed)
+		}
+
+		expectedPercent := (completed * 100) / total
+		if expectedPercent != 50 {
+			t.Errorf("expected 50%% progress, got %d%%", expectedPercent)
+		}
+	})
+}
+
+func TestStopProgressOutput(t *testing.T) {
+	t.Parallel()
+
+	t.Run("progress line format", func(t *testing.T) {
+		t.Parallel()
+
+		line := bkIO.ProgressLine("Stopping agents", 5, 10, 3, 2, 6)
+		
+		if !strings.Contains(line, "Stopping agents") {
+			t.Error("expected line to contain 'Stopping agents'")
+		}
+		if !strings.Contains(line, "50%") {
+			t.Error("expected line to contain percentage")
+		}
+		if !strings.Contains(line, "5/10") {
+			t.Error("expected line to contain completed/total")
+		}
+		if !strings.Contains(line, "passed:3") {
+			t.Error("expected line to contain pass count")
+		}
+		if !strings.Contains(line, "failed:2") {
+			t.Error("expected line to contain fail count")
+		}
+		if !strings.Contains(line, "[") || !strings.Contains(line, "]") {
+			t.Error("expected line to contain progress bar brackets")
 		}
 	})
 }

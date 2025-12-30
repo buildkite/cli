@@ -9,9 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/buildkite/cli/v3/internal/config"
+	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
-	"github.com/spf13/afero"
 )
 
 func testFilterAgents(agents []buildkite.Agent, state string, tags []string) []buildkite.Agent {
@@ -21,12 +20,29 @@ func testFilterAgents(agents []buildkite.Agent, state string, tags []string) []b
 func TestCmdAgentList(t *testing.T) {
 	t.Parallel()
 
-	t.Run("returns agents as JSON", func(t *testing.T) {
+	t.Run("fetches agents through API", func(t *testing.T) {
 		t.Parallel()
 
+		paused := false
 		agents := []buildkite.Agent{
-			{ID: "123", Name: "my-agent"},
-			{ID: "456", Name: "another-agent"},
+			{
+				ID:             "123",
+				Name:           "my-agent",
+				ConnectedState: "connected",
+				Version:        "3.50.0",
+				Hostname:       "host1",
+				Metadata:       []string{"queue=default"},
+				Paused:         &paused,
+			},
+			{
+				ID:             "456",
+				Name:           "another-agent",
+				ConnectedState: "idle",
+				Version:        "3.51.0",
+				Hostname:       "host2",
+				Metadata:       []string{"queue=deploy", "os=linux"},
+				Paused:         &paused,
+			},
 		}
 
 		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -41,21 +57,125 @@ func TestCmdAgentList(t *testing.T) {
 		}))
 		defer s.Close()
 
-		_, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+		client, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		conf := config.New(afero.NewMemMapFs(), nil)
-		conf.SelectOrganization("test", true)
+		ctx := context.Background()
+		fetchedAgents, _, err := client.Agents.List(ctx, "test-org", &buildkite.AgentListOptions{
+			ListOptions: buildkite.ListOptions{Page: 1, PerPage: 30},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		t.Skip("Kong command execution test - command works via CLI")
+		if len(fetchedAgents) != 2 {
+			t.Fatalf("expected 2 agents, got %d", len(fetchedAgents))
+		}
+
+		if fetchedAgents[0].Name != "my-agent" {
+			t.Errorf("expected first agent name 'my-agent', got %q", fetchedAgents[0].Name)
+		}
+
+		if fetchedAgents[1].Hostname != "host2" {
+			t.Errorf("expected second agent hostname 'host2', got %q", fetchedAgents[1].Hostname)
+		}
+
+		queue := extractQueue(fetchedAgents[0].Metadata)
+		if queue != "default" {
+			t.Errorf("expected queue 'default', got %q", queue)
+		}
+
+		deployQueue := extractQueue(fetchedAgents[1].Metadata)
+		if deployQueue != "deploy" {
+			t.Errorf("expected queue 'deploy', got %q", deployQueue)
+		}
+	})
+
+	t.Run("renders table output", func(t *testing.T) {
+		t.Parallel()
+
+		paused := false
+		agents := []buildkite.Agent{
+			{
+				ID:             "agent-1",
+				Name:           "test-agent",
+				ConnectedState: "connected",
+				Version:        "3.50.0",
+				Hostname:       "test-host",
+				Metadata:       []string{"queue=default"},
+				Paused:         &paused,
+			},
+		}
+
+		headers := []string{"State", "Name", "Version", "Queue", "Hostname"}
+		rows := make([][]string, len(agents))
+		for i, agent := range agents {
+			queue := extractQueue(agent.Metadata)
+			rows[i] = []string{
+				agent.ConnectedState,
+				agent.Name,
+				agent.Version,
+				queue,
+				agent.Hostname,
+			}
+		}
+
+		columnStyles := map[string]string{
+			"state":    "bold",
+			"name":     "bold",
+			"hostname": "dim",
+			"version":  "italic",
+			"queue":    "italic",
+		}
+		table := output.Table(headers, rows, columnStyles)
+
+		if !strings.Contains(table, "STATE") {
+			t.Error("expected table to contain header 'STATE'")
+		}
+		if !strings.Contains(table, "test-agent") {
+			t.Error("expected table to contain agent name")
+		}
+		if !strings.Contains(table, "connected") {
+			t.Error("expected table to contain state")
+		}
+		if !strings.Contains(table, "3.50.0") {
+			t.Error("expected table to contain version")
+		}
+		if !strings.Contains(table, "default") {
+			t.Error("expected table to contain queue")
+		}
+		if !strings.Contains(table, "test-host") {
+			t.Error("expected table to contain hostname")
+		}
 	})
 
 	t.Run("empty result returns empty array", func(t *testing.T) {
 		t.Parallel()
-		// Kong command execution test - skip
-		t.Skip("Kong command execution test - command works via CLI")
+
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode([]buildkite.Agent{})
+		}))
+		defer s.Close()
+
+		client, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ctx := context.Background()
+		agents, _, err := client.Agents.List(ctx, "test-org", &buildkite.AgentListOptions{
+			ListOptions: buildkite.ListOptions{Page: 1, PerPage: 30},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(agents) != 0 {
+			t.Errorf("expected 0 agents, got %d", len(agents))
+		}
 	})
 }
 
