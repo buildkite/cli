@@ -165,9 +165,14 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			succeeded++
 		}
 
-		if !f.Quiet && isTTY {
+
+		if !f.Quiet {
 			line := bkIO.ProgressLine(label, completed, total, succeeded, failed, 24)
-			fmt.Fprintf(writer, "\r%s", line)
+			if isTTY {
+				fmt.Fprintf(writer, "\r%s", line)
+			} else {
+				fmt.Fprintln(writer, line)
+			}
 		}
 	}
 
