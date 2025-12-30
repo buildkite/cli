@@ -1,10 +1,16 @@
 package output
 
 import (
+	"math"
+	"os"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 
+	"github.com/mattn/go-isatty"
 	"github.com/mattn/go-runewidth"
+	"golang.org/x/term"
 )
 
 const (
@@ -16,6 +22,9 @@ const (
 	ansiDimUnder      = "\033[2;4m"
 	ansiStrikeThrough = "\033[9m"
 	colSeparator      = "    "
+	minColumnWidth    = 3
+	ellipsisWidth     = 3
+	defaultTableWidth = 120
 )
 
 // ansiPattern strips ANSI/OSC escape sequences
@@ -27,6 +36,7 @@ func Table(headers []string, rows [][]string, columnStyles map[string]string) st
 	}
 
 	useColor := ColorEnabled()
+	maxWidth := detectedTableWidth()
 
 	upperHeaders := make([]string, len(headers))
 	colStyles := make([]string, len(headers))
@@ -52,43 +62,42 @@ func Table(headers []string, rows [][]string, columnStyles map[string]string) st
 		}
 	}
 
-	// Start widths from rendered headers
 	colWidths := make([]int, len(headers))
 	for i, header := range upperHeaders {
 		colWidths[i] = displayWidth(header)
 	}
 
-	// Ensure widths grow based on content
 	for _, row := range rows {
 		for i := 0; i < len(row) && i < len(colWidths); i++ {
-			if w := displayWidth(row[i]); w > colWidths[i] {
-				colWidths[i] = w
+			if width := displayWidth(row[i]); width > colWidths[i] {
+				colWidths[i] = width
 			}
 		}
 	}
 
-	// Roughly size the buffer to avoid extra allocations
+	colWidths = clampColumnWidths(colWidths, len(headers), len(colSeparator), maxWidth)
+
 	totalWidth := 0
-	for _, w := range colWidths {
-		totalWidth += w + len(colSeparator) // width + separator
+	for _, width := range colWidths {
+		totalWidth += width + len(colSeparator)
 	}
-	estimatedSize := totalWidth * (len(rows) + 1) // headers + all rows
-	var sb strings.Builder
-	sb.Grow(estimatedSize)
+	estimatedSize := totalWidth * (len(rows) + 1)
+	var builder strings.Builder
+	builder.Grow(estimatedSize)
 
 	for i, upperHeader := range upperHeaders {
 		if useColor {
-			sb.WriteString(ansiDimUnder)
+			builder.WriteString(ansiDimUnder)
 		}
-		writePadded(&sb, upperHeader, colWidths[i])
+		writePadded(&builder, truncateToWidth(upperHeader, colWidths[i]), colWidths[i])
 		if useColor {
-			sb.WriteString(ansiReset)
+			builder.WriteString(ansiReset)
 		}
-		if i < len(headers)-1 {
-			sb.WriteString(colSeparator)
+		if i < len(headers)-1 && colWidths[i] > 0 {
+			builder.WriteString(colSeparator)
 		}
 	}
-	sb.WriteString("\n")
+	builder.WriteString("\n")
 
 	for _, row := range rows {
 		for i := range headers {
@@ -97,37 +106,189 @@ func Table(headers []string, rows [][]string, columnStyles map[string]string) st
 				value = row[i]
 			}
 
-			if colStyles[i] != "" {
-				sb.WriteString(colStyles[i])
-			}
-
-			writePadded(&sb, value, colWidths[i])
+			value = truncateToWidth(value, colWidths[i])
 
 			if colStyles[i] != "" {
-				sb.WriteString(ansiReset)
+				builder.WriteString(colStyles[i])
 			}
 
-			if i < len(headers)-1 {
-				sb.WriteString(colSeparator)
+			writePadded(&builder, value, colWidths[i])
+
+			if colStyles[i] != "" {
+				builder.WriteString(ansiReset)
+			}
+
+			if i < len(headers)-1 && colWidths[i] > 0 {
+				builder.WriteString(colSeparator)
 			}
 		}
-		sb.WriteString("\n")
+		builder.WriteString("\n")
 	}
 
-	return sb.String()
+	return builder.String()
 }
 
-// displayWidth returns visible width without escape codes.
 func displayWidth(s string) int {
 	stripped := ansiPattern.ReplaceAllString(s, "")
 	return runewidth.StringWidth(stripped)
 }
 
-// writePadded writes s and pads based on visible width.
-func writePadded(sb *strings.Builder, s string, width int) {
+func writePadded(builder *strings.Builder, s string, width int) {
 	visible := displayWidth(s)
-	sb.WriteString(s)
+	builder.WriteString(s)
 	for i := visible; i < width; i++ {
-		sb.WriteByte(' ')
+		builder.WriteByte(' ')
 	}
+}
+
+func truncateToWidth(s string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+
+	if displayWidth(s) <= width {
+		return s
+	}
+
+	if width <= ellipsisWidth {
+		return trimToWidth(s, width)
+	}
+
+	trimmed := trimToWidth(s, width-ellipsisWidth)
+	return trimmed + "..."
+}
+
+func trimToWidth(s string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+
+	var builder strings.Builder
+	builder.Grow(len(s))
+	currentWidth := 0
+
+	for _, runeVal := range s {
+		runeWidth := runewidth.RuneWidth(runeVal)
+		if runeWidth == 0 {
+			builder.WriteRune(runeVal)
+			continue
+		}
+		if currentWidth+runeWidth > width {
+			break
+		}
+		builder.WriteRune(runeVal)
+		currentWidth += runeWidth
+	}
+	return builder.String()
+}
+
+func clampColumnWidths(colWidths []int, colCount, separatorWidth, maxWidth int) []int {
+	if maxWidth <= 0 || colCount == 0 {
+		return colWidths
+	}
+
+	sepTotal := (colCount - 1) * separatorWidth
+	if sepTotal >= maxWidth {
+		clamped := make([]int, len(colWidths))
+		return clamped
+	}
+
+	available := maxWidth - sepTotal
+	sum := 0
+	for _, width := range colWidths {
+		sum += width
+	}
+
+	if sum <= available {
+		return colWidths
+	}
+
+	clamped := make([]int, len(colWidths))
+	if sum == 0 {
+		for i := range clamped {
+			clamped[i] = minColumnWidth
+		}
+		return clamped
+	}
+
+	effectiveMin := minColumnWidth
+	if available < minColumnWidth*colCount {
+		effectiveMin = available / colCount
+	}
+
+	for i, width := range colWidths {
+		ratio := float64(width) / float64(sum)
+		alloc := int(math.Floor(ratio * float64(available)))
+		if alloc < effectiveMin {
+			alloc = effectiveMin
+		}
+		clamped[i] = alloc
+	}
+
+	currentTotal := 0
+	for _, width := range clamped {
+		currentTotal += width
+	}
+
+	remaining := available - currentTotal
+
+	type columnIndex struct {
+		originalWidth int
+		index         int
+	}
+
+	indices := make([]columnIndex, len(colWidths))
+	for i, width := range colWidths {
+		indices[i] = columnIndex{originalWidth: width, index: i}
+	}
+
+	sort.Slice(indices, func(i, j int) bool {
+		return indices[i].originalWidth > indices[j].originalWidth
+	})
+
+	if remaining > 0 {
+		for remaining > 0 {
+			for _, col := range indices {
+				if remaining == 0 {
+					break
+				}
+				clamped[col.index]++
+				remaining--
+			}
+		}
+	} else if remaining < 0 {
+		for _, col := range indices {
+			if remaining == 0 {
+				break
+			}
+			reduction := -remaining
+			if reduction > clamped[col.index] {
+				reduction = clamped[col.index]
+			}
+			clamped[col.index] -= reduction
+			remaining += reduction
+		}
+	}
+
+	return clamped
+}
+
+func detectedTableWidth() int {
+	if override := os.Getenv("BUILDKITE_TABLE_MAX_WIDTH"); override != "" {
+		if parsed, err := strconv.Atoi(strings.TrimSpace(override)); err == nil && parsed > 0 {
+			return parsed
+		}
+	}
+
+	fd := os.Stdout.Fd()
+	if !isatty.IsTerminal(fd) && !isatty.IsCygwinTerminal(fd) {
+		return defaultTableWidth
+	}
+
+	width, _, err := term.GetSize(int(fd))
+	if err != nil || width <= 0 {
+		return defaultTableWidth
+	}
+
+	return width
 }
