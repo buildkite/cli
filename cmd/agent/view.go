@@ -84,7 +84,6 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	metadata, queue := parseMetadata(agentData.Metadata)
-	metadata = strings.TrimSpace(strings.ReplaceAll(metadata, "\n", ", "))
 	if metadata == "" {
 		metadata = "~"
 	}
@@ -122,7 +121,8 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 }
 
 func parseMetadata(metadataList []string) (string, string) {
-	var metadata, queue string
+	var metadataTags []string
+	var queue string
 
 	if len(metadataList) == 1 {
 		if queueValue := parseQueue(metadataList[0]); queueValue != "" {
@@ -135,7 +135,7 @@ func parseMetadata(metadataList []string) (string, string) {
 		if queueValue := parseQueue(v); queueValue != "" {
 			queue = queueValue
 		} else {
-			metadata += v + "\n"
+			metadataTags = append(metadataTags, v)
 		}
 	}
 
@@ -143,6 +143,7 @@ func parseMetadata(metadataList []string) (string, string) {
 		queue = "default"
 	}
 
+	metadata := strings.Join(metadataTags, ", ")
 	return metadata, queue
 }
 
