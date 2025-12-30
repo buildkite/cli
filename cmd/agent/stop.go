@@ -145,18 +145,19 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			succeeded++
 		}
 
-		if !f.Quiet {
+		if !f.Quiet && isTTY {
 			line := bkIO.ProgressLine("Stopping agents", completed, total, succeeded, failed, 24)
-			if isTTY {
-				fmt.Fprintf(writer, "\r%s", line)
-			} else {
-				fmt.Fprintln(writer, line)
-			}
+			fmt.Fprintf(writer, "\r%s", line)
 		}
 	}
 
-	if !f.Quiet && isTTY {
-		fmt.Fprintln(writer)
+	if !f.Quiet {
+		line := bkIO.ProgressLine("Stopping agents", completed, total, succeeded, failed, 24)
+		if isTTY {
+			fmt.Fprintln(writer)
+		} else {
+			fmt.Fprintln(writer, line)
+		}
 	}
 
 	if len(errorDetails) > 0 {
