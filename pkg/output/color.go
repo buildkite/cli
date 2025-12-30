@@ -26,7 +26,7 @@ func ColorEnabled() bool {
 			return
 		}
 
-		if !(isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())) {
+		if !isatty.IsTerminal(os.Stdout.Fd()) && !isatty.IsCygwinTerminal(os.Stdout.Fd()) {
 			colorEnabled = false
 			return
 		}
