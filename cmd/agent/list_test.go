@@ -169,19 +169,20 @@ func TestAgentListPagination(t *testing.T) {
 
 			w.Header().Set("Content-Type", "application/json")
 
-			if page == "" || page == "1" {
+			switch page {
+			case "", "1":
 				agents := make([]buildkite.Agent, 30)
 				for i := range agents {
 					agents[i] = buildkite.Agent{ID: fmt.Sprintf("page1-agent-%d", i), Name: "agent"}
 				}
 				json.NewEncoder(w).Encode(agents)
-			} else if page == "2" {
+			case "2":
 				agents := make([]buildkite.Agent, 15)
 				for i := range agents {
 					agents[i] = buildkite.Agent{ID: fmt.Sprintf("page2-agent-%d", i), Name: "agent"}
 				}
 				json.NewEncoder(w).Encode(agents)
-			} else {
+			default:
 				json.NewEncoder(w).Encode([]buildkite.Agent{})
 			}
 		}))
@@ -318,9 +319,10 @@ func TestAgentListPagination(t *testing.T) {
 
 			agents := make([]buildkite.Agent, 30)
 			prefix := "a"
-			if page == "2" {
+			switch page {
+			case "2":
 				prefix = "b"
-			} else if page == "3" {
+			case "3":
 				prefix = "c"
 			}
 
