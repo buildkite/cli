@@ -15,7 +15,6 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/mattn/go-isatty"
-	"golang.org/x/sync/semaphore"
 )
 
 type StopCmd struct {
@@ -63,9 +62,7 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	ctx := context.Background()
 
-	// this semaphore is used to limit how many concurrent API requests can be sent
 	limit := max(c.Limit, 1)
-	sem := semaphore.NewWeighted(limit)
 
 	var agentIDs []string
 	// this command accepts either input from stdin or positional arguments (not both) in that order
@@ -119,7 +116,7 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 					updates <- stopResult{id: agentID, err: ctx.Err()}
 					continue
 				}
-				updates <- stopAgent(ctx, agentID, f, c.Force, sem)
+				updates <- stopAgent(ctx, agentID, f, c.Force)
 			}
 		}()
 	}
@@ -205,14 +202,8 @@ type stopResult struct {
 	err error
 }
 
-func stopAgent(ctx context.Context, id string, f *factory.Factory, force bool, sem *semaphore.Weighted) stopResult {
+func stopAgent(ctx context.Context, id string, f *factory.Factory, force bool) stopResult {
 	org, agentID := parseAgentArg(id, f.Config)
-
-	if err := sem.Acquire(ctx, 1); err != nil {
-		return stopResult{id: id, err: err}
-	}
-	defer sem.Release(1)
-
 	_, err := f.RestAPIClient.Agents.Stop(ctx, org, agentID, force)
 	return stopResult{id: id, err: err}
 }
