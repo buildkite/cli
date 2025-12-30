@@ -103,17 +103,17 @@ func (v *BuildView) Render() string {
 func buildSummary(b *buildkite.Build, organization, pipeline string) string {
 	var sb strings.Builder
 
-	fmt.Fprintf(&sb, "Build %s/%s #%d (%s)\n\n", valueOrDash(organization), valueOrDash(pipeline), b.Number, b.State)
+	fmt.Fprintf(&sb, "Build %s/%s #%d (%s)\n\n", output.ValueOrDash(organization), output.ValueOrDash(pipeline), b.Number, b.State)
 
 	summary := output.Table(
 		[]string{"Field", "Value"},
 		[][]string{
-			{"Message", valueOrDash(ui.TruncateText(b.Message, 140))},
-			{"Source", valueOrDash(b.Source)},
+			{"Message", output.ValueOrDash(ui.TruncateText(b.Message, 140))},
+			{"Source", output.ValueOrDash(b.Source)},
 			{"Creator", creatorName(b)},
-			{"Branch", valueOrDash(b.Branch)},
+			{"Branch", output.ValueOrDash(b.Branch)},
 			{"Commit", shortenCommit(b.Commit)},
-			{"URL", valueOrDash(b.WebURL)},
+			{"URL", output.ValueOrDash(b.WebURL)},
 		},
 		map[string]string{"field": "bold", "value": "dim"},
 	)
@@ -231,11 +231,4 @@ func shortenCommit(commit string) string {
 		return commit
 	}
 	return commit[:12]
-}
-
-func valueOrDash(s string) string {
-	if strings.TrimSpace(s) == "" {
-		return "-"
-	}
-	return s
 }
