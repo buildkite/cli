@@ -225,10 +225,11 @@ func formatJobDuration(job buildkite.Job) string {
 const ellipsis = "…"
 
 func truncateText(text string, maxLength int) string {
-	if len(text) <= maxLength {
-		return text
+	runes := []rune(text)
+	if len(runes) <= maxLength {
+		return string(runes)
 	}
-	return text[:maxLength] + ellipsis
+	return string(runes[:maxLength]) + ellipsis
 }
 
 func formatDuration(d time.Duration) string {

@@ -15,8 +15,9 @@ func AnnotationSummary(annotation *buildkite.Annotation) string {
 
 	body := StripTags(annotation.BodyHTML)
 	const maxBody = 160
-	if len(body) > maxBody {
-		body = body[:maxBody] + "..."
+	bodyRunes := []rune(body)
+	if len(bodyRunes) > maxBody {
+		body = string(bodyRunes[:maxBody]) + "..."
 	}
 
 	rows := [][]string{
