@@ -63,6 +63,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.SkipConfirm = globals.SkipConfirmation()
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
+	f.NoPager = f.NoPager || globals.DisablePager()
 
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
 		return err
@@ -99,7 +100,7 @@ func (c *ListCmd) runPipelineList(ctx context.Context, f *factory.Factory) error
 		return nil
 	}
 
-	return c.displayPipelines(pipelines)
+	return c.displayPipelines(pipelines, f)
 }
 
 func (c *ListCmd) pipelineListOptionsFromFlags() *buildkite.PipelineListOptions {
@@ -145,20 +146,30 @@ func (c *ListCmd) fetchPipelines(ctx context.Context, f *factory.Factory, org st
 	return allPipelines, nil
 }
 
-func (c *ListCmd) displayPipelines(pipelines []buildkite.Pipeline) error {
+func (c *ListCmd) displayPipelines(pipelines []buildkite.Pipeline, f *factory.Factory) error {
 	format := output.Format(c.Output)
 	if format != output.FormatText {
 		return output.Write(os.Stdout, pipelines, format)
 	}
 
+	rows := make([][]string, 0, len(pipelines))
 	for _, pipeline := range pipelines {
-		if pipeline.Name != "" {
-			name := strings.TrimSpace(pipeline.Name)
-			if name != "" {
-				fmt.Println(name)
-			}
-		}
+		rows = append(rows, []string{
+			output.ValueOrDash(strings.TrimSpace(pipeline.Name)),
+			output.ValueOrDash(strings.TrimSpace(pipeline.Repository)),
+		})
 	}
 
-	return nil
+	table := output.Table(
+		[]string{"Name", "Repository"},
+		rows,
+		map[string]string{"name": "bold", "repository": "italic"},
+	)
+
+	writer, cleanup := bkIO.Pager(f.NoPager)
+	defer func() { _ = cleanup() }()
+
+	_, err := fmt.Fprintf(writer, "Pipelines (%d)\n\n%s\n", len(pipelines), table)
+	return err
+
 }
