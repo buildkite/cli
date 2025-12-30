@@ -208,3 +208,26 @@ func TestStopProgressOutput(t *testing.T) {
 		}
 	})
 }
+
+func TestPluralize(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		count int
+		want  string
+	}{
+		{count: 1, want: "agent"},
+		{count: 0, want: "agents"},
+		{count: 2, want: "agents"},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(fmt.Sprintf("count_%d", tt.count), func(t *testing.T) {
+			t.Parallel()
+			if got := pluralize("agent", tt.count); got != tt.want {
+				t.Fatalf("pluralize() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

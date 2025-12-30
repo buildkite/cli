@@ -100,6 +100,10 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	isTTY := isatty.IsTerminal(writer.Fd())
 
 	total := len(agentIDs)
+	label := "Stopping agents"
+	if total == 1 {
+		label = "Stopping agent"
+	}
 
 	workerCount := int(min(limit, int64(total)))
 
@@ -144,7 +148,7 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	var errorDetails []string
 
 	if !f.Quiet {
-		line := bkIO.ProgressLine("Stopping agents", completed, total, succeeded, failed, 24)
+		line := bkIO.ProgressLine(label, completed, total, succeeded, failed, 24)
 		if isTTY {
 			fmt.Fprint(writer, line)
 		} else {
@@ -162,13 +166,13 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		}
 
 		if !f.Quiet && isTTY {
-			line := bkIO.ProgressLine("Stopping agents", completed, total, succeeded, failed, 24)
+			line := bkIO.ProgressLine(label, completed, total, succeeded, failed, 24)
 			fmt.Fprintf(writer, "\r%s", line)
 		}
 	}
 
 	if !f.Quiet {
-		line := bkIO.ProgressLine("Stopping agents", completed, total, succeeded, failed, 24)
+		line := bkIO.ProgressLine(label, completed, total, succeeded, failed, 24)
 		if isTTY {
 			fmt.Fprintln(writer)
 		} else {
@@ -183,15 +187,17 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	if !f.Quiet {
+		agentLabel := pluralize("agent", total)
+		failedLabel := pluralize("agent", failed)
 		if failed > 0 {
-			fmt.Fprintf(writer, "\nStopped %d of %d agents (%d failed)\n", succeeded, total, failed)
+			fmt.Fprintf(writer, "\nStopped %d of %d %s (%d %s failed)\n", succeeded, total, agentLabel, failed, failedLabel)
 		} else {
-			fmt.Fprintf(writer, "\nSuccessfully stopped %d of %d agents\n", succeeded, total)
+			fmt.Fprintf(writer, "\nSuccessfully stopped %d of %d %s\n", succeeded, total, agentLabel)
 		}
 	}
 
 	if failed > 0 {
-		return fmt.Errorf("failed to stop %d of %d agents (see above for details)", failed, total)
+		return fmt.Errorf("failed to stop %d of %d %s (see above for details)", failed, total, pluralize("agent", total))
 	}
 
 	return nil
@@ -200,6 +206,13 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 type stopResult struct {
 	id  string
 	err error
+}
+
+func pluralize(word string, count int) string {
+	if count == 1 {
+		return word
+	}
+	return word + "s"
 }
 
 func stopAgent(ctx context.Context, id string, f *factory.Factory, force bool) stopResult {

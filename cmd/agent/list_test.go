@@ -244,22 +244,22 @@ func TestDisplayState(t *testing.T) {
 	notPaused := false
 
 	tests := []struct {
-		name string
+		name  string
 		agent buildkite.Agent
 		want  string
 	}{
 		{
-			name: "running when job present",
+			name:  "running when job present",
 			agent: buildkite.Agent{Job: &buildkite.Job{ID: "job-1"}},
 			want:  stateRunning,
 		},
 		{
-			name: "paused when paused flag",
+			name:  "paused when paused flag",
 			agent: buildkite.Agent{Paused: &paused},
 			want:  statePaused,
 		},
 		{
-			name: "idle default",
+			name:  "idle default",
 			agent: buildkite.Agent{Paused: &notPaused},
 			want:  stateIdle,
 		},
