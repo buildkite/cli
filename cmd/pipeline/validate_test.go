@@ -174,6 +174,7 @@ func TestValidatePipeline(t *testing.T) {
 	}
 }
 
+//nolint:tparallel // they change dir, so let them run one at a time to avoid flakiness
 func TestFindPipelineFile(t *testing.T) {
 	t.Parallel()
 
