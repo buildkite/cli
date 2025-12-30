@@ -96,8 +96,9 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	agents := []buildkite.Agent{}
 	page := 1
 	hasMore := false
+	var previousFirstAgentID string
 
-	for len(agents) < c.Limit && page < 50 {
+	for len(agents) < c.Limit {
 		opts := buildkite.AgentListOptions{
 			Name:     c.Name,
 			Hostname: c.Hostname,
@@ -117,9 +118,15 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			break
 		}
 
+		if page > 1 && len(pageAgents) > 0 && pageAgents[0].ID == previousFirstAgentID {
+			return fmt.Errorf("API returned duplicate page content at page %d, stopping pagination to prevent infinite loop", page)
+		}
+		if len(pageAgents) > 0 {
+			previousFirstAgentID = pageAgents[0].ID
+		}
+
 		filtered := filterAgents(pageAgents, c.State, c.Tags)
 		agents = append(agents, filtered...)
-		page++
 
 		// If we have more than the limit, there are definitely more results, so we'll set hasMore to true, which will add a '+' to the total count display in the output
 		// this is just to make it clear to the user that there's more results available than what are shown, as otherwise if they set --limit to say 5
@@ -127,6 +134,12 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		if len(agents) >= c.Limit {
 			hasMore = true
 		}
+
+		if len(pageAgents) < c.PerPage {
+			break
+		}
+
+		page++
 	}
 
 	totalFetched := len(agents)
