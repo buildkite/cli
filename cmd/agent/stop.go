@@ -159,10 +159,9 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		fmt.Fprintln(writer)
 	}
 
-	// Will print error details after the progress bar is complete so we don't skew the bar display
-	if !f.Quiet && len(errorDetails) > 0 {
+	if len(errorDetails) > 0 {
 		for _, detail := range errorDetails {
-			fmt.Fprintln(writer, detail)
+			fmt.Fprintln(os.Stderr, detail)
 		}
 	}
 
