@@ -24,7 +24,7 @@ func TestParseMetadata(t *testing.T) {
 		{
 			name:     "multiple entries with queue",
 			input:    []string{"queue=deploy", "os=linux", "region=us"},
-			metadata: "os=linux\nregion=us\n",
+			metadata: "os=linux, region=us",
 			queue:    "deploy",
 		},
 		{
@@ -36,7 +36,7 @@ func TestParseMetadata(t *testing.T) {
 		{
 			name:     "multiple entries without queue",
 			input:    []string{"os=linux", "region=us"},
-			metadata: "os=linux\nregion=us\n",
+			metadata: "os=linux, region=us",
 			queue:    "default",
 		},
 	}

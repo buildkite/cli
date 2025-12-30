@@ -143,10 +143,7 @@ func parseMetadata(metadataList []string) (string, string) {
 		queue = "default"
 	}
 
-	metadata := strings.Join(metadataTags, "\n")
-	if metadata != "" {
-		metadata += "\n"
-	}
+	metadata := strings.Join(metadataTags, ", ")
 	return metadata, queue
 }
 
