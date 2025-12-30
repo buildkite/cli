@@ -201,9 +201,8 @@ func (h *Handler) HandleWithDetails(err error, operation string) {
 
 // PrintWarning prints a warning message
 func (h *Handler) PrintWarning(format string, args ...interface{}) {
-	prefix := warningStyle.Render("Warning:")
 	message := fmt.Sprintf(format, args...)
-	fmt.Fprintf(h.Writer, "%s %s\n", prefix, message)
+	fmt.Fprintf(h.Writer, "Warning: %s\n", message)
 }
 
 // MessageForError returns a formatted message for an error without exiting

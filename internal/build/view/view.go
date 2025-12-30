@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/buildkite/cli/v3/internal/artifact"
-	"github.com/buildkite/cli/v3/internal/ui"
 	"github.com/buildkite/cli/v3/internal/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
@@ -108,7 +107,7 @@ func buildSummary(b *buildkite.Build, organization, pipeline string) string {
 	summary := output.Table(
 		[]string{"Field", "Value"},
 		[][]string{
-			{"Message", output.ValueOrDash(ui.TruncateText(b.Message, 140))},
+			{"Message", output.ValueOrDash(truncateText(b.Message, 140))},
 			{"Source", output.ValueOrDash(b.Source)},
 			{"Creator", creatorName(b)},
 			{"Branch", output.ValueOrDash(b.Branch)},
@@ -145,7 +144,7 @@ func renderJobs(jobs []buildkite.Job) string {
 		if name == "" {
 			name = "-"
 		}
-		name = ui.TruncateText(name, 72)
+		name = truncateText(name, 72)
 
 		rows = append(rows, []string{
 			job.State,
@@ -218,9 +217,25 @@ func formatJobDuration(job buildkite.Job) string {
 	}
 	if job.FinishedAt != nil {
 		d := job.FinishedAt.Sub(job.StartedAt.Time)
-		return ui.FormatDuration(d)
+		return formatDuration(d)
 	}
-	return ui.FormatDuration(time.Since(job.StartedAt.Time)) + " (running)"
+	return formatDuration(time.Since(job.StartedAt.Time)) + " (running)"
+}
+
+const ellipsis = "…"
+
+func truncateText(text string, maxLength int) string {
+	if len(text) <= maxLength {
+		return text
+	}
+	return text[:maxLength] + ellipsis
+}
+
+func formatDuration(d time.Duration) string {
+	if d == 0 {
+		return ""
+	}
+	return d.String()
 }
 
 func shortenCommit(commit string) string {
