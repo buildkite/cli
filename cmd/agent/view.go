@@ -108,8 +108,8 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	table := output.Table(headers, rows, map[string]string{
-		"Property": "bold",
-		"Value":    "dim",
+		"property": "bold",
+		"value":    "dim",
 	})
 
 	writer, cleanup := bkIO.Pager(f.NoPager)
