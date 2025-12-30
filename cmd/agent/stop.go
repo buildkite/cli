@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
@@ -60,7 +62,15 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		cancel()
+	}()
 
 	limit := max(c.Limit, 1)
 
@@ -175,18 +185,19 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		}
 	}
 
-	if !f.Quiet {
-		line := bkIO.ProgressLine(label, completed, total, succeeded, failed, 24)
-		if isTTY {
-			fmt.Fprintln(writer)
-		} else {
-			fmt.Fprintln(writer, line)
-		}
+	if !f.Quiet && isTTY {
+		fmt.Fprintln(writer)
+	}
+
+	summaryWriter := writer
+	if failed > 0 {
+		summaryWriter = os.Stderr
 	}
 
 	if len(errorDetails) > 0 {
+		fmt.Fprintln(summaryWriter)
 		for _, detail := range errorDetails {
-			fmt.Fprintln(os.Stderr, detail)
+			fmt.Fprintln(summaryWriter, detail)
 		}
 	}
 
@@ -194,9 +205,9 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		agentLabel := pluralize("agent", total)
 		failedLabel := pluralize("agent", failed)
 		if failed > 0 {
-			fmt.Fprintf(writer, "\nStopped %d of %d %s (%d %s failed)\n", succeeded, total, agentLabel, failed, failedLabel)
+			fmt.Fprintf(summaryWriter, "\nStopped %d of %d %s (%d %s failed)\n", succeeded, total, agentLabel, failed, failedLabel)
 		} else {
-			fmt.Fprintf(writer, "\nSuccessfully stopped %d of %d %s\n", succeeded, total, agentLabel)
+			fmt.Fprintf(summaryWriter, "\nSuccessfully stopped %d of %d %s\n", succeeded, total, agentLabel)
 		}
 	}
 
