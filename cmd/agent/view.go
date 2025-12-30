@@ -125,7 +125,10 @@ func parseMetadata(metadataList []string) (string, string) {
 	var metadata, queue string
 
 	if len(metadataList) == 1 {
-		return "~", parseQueue(metadataList[0])
+		if queueValue := parseQueue(metadataList[0]); queueValue != "" {
+			return "~", queueValue
+		}
+		return metadataList[0], "default"
 	}
 
 	for _, v := range metadataList {
@@ -134,6 +137,10 @@ func parseMetadata(metadataList []string) (string, string) {
 		} else {
 			metadata += v + "\n"
 		}
+	}
+
+	if queue == "" {
+		queue = "default"
 	}
 
 	return metadata, queue
