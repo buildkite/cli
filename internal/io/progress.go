@@ -30,5 +30,5 @@ func ProgressLine(label string, completed, total, succeeded, failed, barWidth in
 	bar := ProgressBar(completed, total, barWidth)
 	percent := min(completed*100/total, 100)
 
-	return fmt.Sprintf("%s %s %3d%% %d/%d passed:%d failed:%d", label, bar, percent, completed, total, succeeded, failed)
+	return fmt.Sprintf("%s %s %3d%% %d/%d succeeded:%d failed:%d", label, bar, percent, completed, total, succeeded, failed)
 }

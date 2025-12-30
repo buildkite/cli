@@ -197,8 +197,8 @@ func TestStopProgressOutput(t *testing.T) {
 		if !strings.Contains(line, "5/10") {
 			t.Error("expected line to contain completed/total")
 		}
-		if !strings.Contains(line, "passed:3") {
-			t.Error("expected line to contain pass count")
+		if !strings.Contains(line, "succeeded:3") {
+			t.Error("expected line to contain success count")
 		}
 		if !strings.Contains(line, "failed:2") {
 			t.Error("expected line to contain fail count")

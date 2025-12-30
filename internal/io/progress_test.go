@@ -50,7 +50,7 @@ func TestProgressLine(t *testing.T) {
 		{
 			"partial progress",
 			"Work", 3, 10, 2, 1, 6,
-			"Work [█░░░░░]  30% 3/10 passed:2 failed:1",
+			"Work [█░░░░░]  30% 3/10 succeeded:2 failed:1",
 		},
 		{
 			"no items",
@@ -60,17 +60,17 @@ func TestProgressLine(t *testing.T) {
 		{
 			"complete",
 			"Task", 10, 10, 10, 0, 10,
-			"Task [██████████] 100% 10/10 passed:10 failed:0",
+			"Task [██████████] 100% 10/10 succeeded:10 failed:0",
 		},
 		{
 			"all failed",
 			"Ops", 5, 5, 0, 5, 5,
-			"Ops [█████] 100% 5/5 passed:0 failed:5",
+			"Ops [█████] 100% 5/5 succeeded:0 failed:5",
 		},
 		{
 			"mixed results at 50%",
 			"Deploy", 5, 10, 3, 2, 8,
-			"Deploy [████░░░░]  50% 5/10 passed:3 failed:2",
+			"Deploy [████░░░░]  50% 5/10 succeeded:3 failed:2",
 		},
 	}
 
