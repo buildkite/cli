@@ -141,15 +141,6 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	org := f.Config.OrganizationSlug()
 
 	format := output.Format(c.Output)
-	builds, err := c.fetchBuilds(ctx, f, org, listOpts)
-	if err != nil {
-		return fmt.Errorf("failed to list builds: %w", err)
-	}
-
-	if len(builds) == 0 {
-		fmt.Println("No builds found matching the specified criteria.")
-		return nil
-	}
 
 	if format == output.FormatText {
 		writer, cleanup := bkIO.Pager(f.NoPager)
@@ -160,11 +151,31 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			target = fmt.Sprintf("%s/%s", org, c.Pipeline)
 		}
 
-		fmt.Fprintf(writer, "Showing %d builds for %s\n\n", len(builds), target)
-		return displayBuilds(builds, format, true, writer)
+		fmt.Fprintf(writer, "Showing builds for %s\n\n", target)
+
+		builds, err := c.fetchBuilds(ctx, f, org, listOpts, format, writer)
+		if err != nil {
+			return fmt.Errorf("failed to list builds: %w", err)
+		}
+
+		if len(builds) == 0 {
+			fmt.Fprintln(writer, "No builds found matching the specified criteria.")
+		}
+
+		return nil
 	}
 
-	return displayBuilds(builds, format, false, os.Stdout)
+	builds, err := c.fetchBuilds(ctx, f, org, listOpts, format, nil)
+	if err != nil {
+		return fmt.Errorf("failed to list builds: %w", err)
+	}
+
+	if len(builds) == 0 {
+		fmt.Println("No builds found matching the specified criteria.")
+		return nil
+	}
+
+	return displayBuilds(builds, format, os.Stdout)
 }
 
 func (c *ListCmd) buildListOptions() (*buildkite.BuildsListOptions, error) {
@@ -211,7 +222,7 @@ func (c *ListCmd) buildListOptions() (*buildkite.BuildsListOptions, error) {
 	return listOpts, nil
 }
 
-func (c *ListCmd) fetchBuilds(ctx context.Context, f *factory.Factory, org string, listOpts *buildkite.BuildsListOptions) ([]buildkite.Build, error) {
+func (c *ListCmd) fetchBuilds(ctx context.Context, f *factory.Factory, org string, listOpts *buildkite.BuildsListOptions, format output.Format, writer io.Writer) ([]buildkite.Build, error) {
 	var allBuilds []buildkite.Build
 
 	// filtered builds added since last confirm (used when --no-limit)
@@ -222,7 +233,7 @@ func (c *ListCmd) fetchBuilds(ctx context.Context, f *factory.Factory, org strin
 	rawSinceConfirm := 0
 	previousPageFirstBuildNumber := 0
 
-	format := output.Format(c.Output)
+	printedAny := false
 
 	for page := 1; ; page++ {
 		if !c.NoLimit && len(allBuilds) >= c.Limit {
@@ -330,6 +341,15 @@ func (c *ListCmd) fetchBuilds(ctx context.Context, f *factory.Factory, org strin
 		} else {
 			buildsToAdd = builds
 			addedThisPage = len(builds)
+		}
+
+		// Stream only the builds we are about to add; header only once we actually print something
+		if format == output.FormatText && len(buildsToAdd) > 0 && writer != nil {
+			_ = displayBuilds(buildsToAdd, format, writer)
+			if !printedAny {
+				fmt.Fprintln(writer)
+			}
+			printedAny = true
 		}
 
 		allBuilds = append(allBuilds, buildsToAdd...)
@@ -467,7 +487,7 @@ func resolveCreatorEmailToUserID(ctx context.Context, f *factory.Factory, email 
 	return "", fmt.Errorf("unexpected user ID format")
 }
 
-func displayBuilds(builds []buildkite.Build, format output.Format, _ bool, writer io.Writer) error {
+func displayBuilds(builds []buildkite.Build, format output.Format, writer io.Writer) error {
 	if format != output.FormatText {
 		return output.Write(writer, builds, format)
 	}
@@ -478,7 +498,6 @@ func displayBuilds(builds []buildkite.Build, format output.Format, _ bool, write
 		timeFormat       = "2006-01-02T15:04:05Z"
 	)
 
-	headers := []string{"Number", "State", "Message", "Started (UTC)", "Finished (UTC)", "Duration", "URL"}
 	var rows [][]string
 
 	for _, build := range builds {
@@ -516,6 +535,7 @@ func displayBuilds(builds []buildkite.Build, format output.Format, _ bool, write
 		})
 	}
 
+	headers := []string{"Number", "State", "Message", "Started (UTC)", "Finished (UTC)", "Duration", "URL"}
 	table := output.Table(headers, rows, map[string]string{
 		"number":         "bold",
 		"state":          "bold",
@@ -525,7 +545,6 @@ func displayBuilds(builds []buildkite.Build, format output.Format, _ bool, write
 		"duration":       "bold",
 		"url":            "dim",
 	})
-
 	fmt.Fprint(writer, table)
 	return nil
 }
