@@ -109,4 +109,3 @@ func TestTableFitsWhenSeparatorsExceedMaxWidth(t *testing.T) {
 		t.Fatalf("table should render even when separators exceed width")
 	}
 }
-
