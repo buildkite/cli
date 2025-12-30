@@ -187,7 +187,7 @@ func TestStopProgressOutput(t *testing.T) {
 		t.Parallel()
 
 		line := bkIO.ProgressLine("Stopping agents", 5, 10, 3, 2, 6)
-		
+
 		if !strings.Contains(line, "Stopping agents") {
 			t.Error("expected line to contain 'Stopping agents'")
 		}

@@ -24,6 +24,7 @@ func TestProgressBar(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := ProgressBar(tt.completed, tt.total, tt.width)
 			if got != tt.expected {
 				t.Errorf("ProgressBar(%d, %d, %d) = %q, want %q",
@@ -75,6 +76,7 @@ func TestProgressLine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := ProgressLine(tt.label, tt.completed, tt.total, tt.succeeded, tt.failed, tt.barWidth)
 			if got != tt.expected {
 				t.Errorf("got %q, want %q", got, tt.expected)
