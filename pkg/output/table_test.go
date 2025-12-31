@@ -3,6 +3,7 @@ package output
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestTableTruncatesWhenWidthExceeded(t *testing.T) {
@@ -180,6 +181,238 @@ func TestTrimToWidthPreservesANSICodes(t *testing.T) {
 			actualWidth := displayWidth(result)
 			if actualWidth > tt.width {
 				t.Errorf("Result width %d exceeds requested width %d", actualWidth, tt.width)
+			}
+		})
+	}
+}
+
+func TestTableHandlesComplexUnicode(t *testing.T) {
+	tests := []struct {
+		name    string
+		headers []string
+		rows    [][]string
+		verify  func(*testing.T, string)
+	}{
+		{
+			name:    "Emoji with zero-width joiners",
+			headers: []string{"Family", "Description"},
+			rows: [][]string{
+				{"👨‍👩‍👧‍👦", "Family with kids"},
+				{"👩‍💻", "Woman technologist"},
+			},
+			verify: func(t *testing.T, result string) {
+				if !strings.Contains(result, "👨‍👩‍👧‍👦") {
+					t.Error("Family emoji with ZWJ missing from output")
+				}
+				if !strings.Contains(result, "👩‍💻") {
+					t.Error("Woman technologist emoji missing from output")
+				}
+			},
+		},
+		{
+			name:    "Right-to-left text (Hebrew)",
+			headers: []string{"Hebrew", "English"},
+			rows: [][]string{
+				{"שלום", "Hello"},
+				{"עברית", "Hebrew"},
+			},
+			verify: func(t *testing.T, result string) {
+				if !strings.Contains(result, "שלום") {
+					t.Error("Hebrew text missing from output")
+				}
+				if !strings.Contains(result, "עברית") {
+					t.Error("Hebrew word for 'Hebrew' missing from output")
+				}
+			},
+		},
+		{
+			name:    "Right-to-left text (Arabic)",
+			headers: []string{"Arabic", "English"},
+			rows: [][]string{
+				{"مرحبا", "Hello"},
+				{"العربية", "Arabic"},
+			},
+			verify: func(t *testing.T, result string) {
+				if !strings.Contains(result, "مرحبا") {
+					t.Error("Arabic text missing from output")
+				}
+				if !strings.Contains(result, "العربية") {
+					t.Error("Arabic word for 'Arabic' missing from output")
+				}
+			},
+		},
+		{
+			name:    "Combining diacritical marks",
+			headers: []string{"Text", "Type"},
+			rows: [][]string{
+				{"café", "Precomposed"},
+				{"café", "Combining marks"},
+				{"ñ vs ñ", "Different forms"},
+			},
+			verify: func(t *testing.T, result string) {
+				// Both forms of café should be present
+				cafeCount := strings.Count(result, "café")
+				if cafeCount < 1 {
+					t.Errorf("Expected at least one 'café', got %d occurrences", cafeCount)
+				}
+			},
+		},
+		{
+			name:    "Mixed emoji and text",
+			headers: []string{"Status", "Message"},
+			rows: [][]string{
+				{"✅", "Success"},
+				{"❌", "Failed"},
+				{"⚠️", "Warning"},
+			},
+			verify: func(t *testing.T, result string) {
+				if !strings.Contains(result, "✅") {
+					t.Error("Check mark emoji missing")
+				}
+				if !strings.Contains(result, "❌") {
+					t.Error("Cross mark emoji missing")
+				}
+				if !strings.Contains(result, "⚠") {
+					t.Error("Warning emoji missing")
+				}
+			},
+		},
+		{
+			name:    "Skin tone modifiers",
+			headers: []string{"Emoji", "Description"},
+			rows: [][]string{
+				{"👋", "Wave (default)"},
+				{"👋🏻", "Wave (light skin)"},
+				{"👋🏿", "Wave (dark skin)"},
+			},
+			verify: func(t *testing.T, result string) {
+				if !strings.Contains(result, "👋") {
+					t.Error("Wave emoji missing")
+				}
+			},
+		},
+		{
+			name:    "Regional indicator symbols (flags)",
+			headers: []string{"Flag", "Country"},
+			rows: [][]string{
+				{"🇺🇸", "United States"},
+				{"🇬🇧", "United Kingdom"},
+				{"🇯🇵", "Japan"},
+			},
+			verify: func(t *testing.T, result string) {
+				// Flags are made of regional indicator pairs
+				if !strings.Contains(result, "🇺🇸") {
+					t.Error("US flag emoji missing")
+				}
+			},
+		},
+		{
+			name:    "Variation selectors",
+			headers: []string{"Char", "Type"},
+			rows: [][]string{
+				{"♠", "Text style"},
+				{"♠️", "Emoji style"},
+			},
+			verify: func(t *testing.T, result string) {
+				if !strings.Contains(result, "♠") {
+					t.Error("Spade symbol missing")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := Table(tt.headers, tt.rows, nil)
+
+			// Verify the table was generated
+			if len(result) == 0 {
+				t.Fatal("Table output is empty")
+			}
+
+			// Verify headers are present
+			for _, header := range tt.headers {
+				upperHeader := strings.ToUpper(header)
+				if !strings.Contains(result, upperHeader) {
+					t.Errorf("Header %q not found in output", upperHeader)
+				}
+			}
+
+			// Run custom verification
+			tt.verify(t, result)
+
+			// Verify the output doesn't have broken formatting
+			lines := strings.Split(strings.TrimSuffix(result, "\n"), "\n")
+			if len(lines) != len(tt.rows)+1 {
+				t.Errorf("Expected %d lines (1 header + %d rows), got %d", len(tt.rows)+1, len(tt.rows), len(lines))
+			}
+		})
+	}
+}
+
+func TestTrimToWidthWithComplexUnicode(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		width    int
+		minWidth int // minimum acceptable width of result
+	}{
+		{
+			name:     "Emoji with ZWJ truncation",
+			input:    "Hello 👨‍👩‍👧‍👦 World",
+			width:    10,
+			minWidth: 0,
+		},
+		{
+			name:     "Arabic text truncation",
+			input:    "مرحبا بك في العالم",
+			width:    8,
+			minWidth: 0,
+		},
+		{
+			name:     "Hebrew text truncation",
+			input:    "שלום עולם מקסים",
+			width:    6,
+			minWidth: 0,
+		},
+		{
+			name:     "Combined diacritics truncation",
+			input:    "Café résumé naïve",
+			width:    8,
+			minWidth: 0,
+		},
+		{
+			name:     "Flag emoji truncation",
+			input:    "USA: 🇺🇸 UK: 🇬🇧 JP: 🇯🇵",
+			width:    12,
+			minWidth: 0,
+		},
+		{
+			name:     "Skin tone modifiers truncation",
+			input:    "👋 👋🏻 👋🏿",
+			width:    6,
+			minWidth: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := trimToWidth(tt.input, tt.width)
+
+			actualWidth := displayWidth(result)
+			if actualWidth > tt.width {
+				t.Errorf("Result width %d exceeds max width %d (input: %q, result: %q)",
+					actualWidth, tt.width, tt.input, result)
+			}
+
+			if actualWidth < tt.minWidth {
+				t.Errorf("Result width %d is less than min width %d (result: %q)",
+					actualWidth, tt.minWidth, result)
+			}
+
+			// Verify we didn't create invalid UTF-8
+			if !utf8.ValidString(result) {
+				t.Errorf("Result contains invalid UTF-8: %q", result)
 			}
 		})
 	}

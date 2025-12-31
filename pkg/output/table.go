@@ -83,6 +83,9 @@ func Table(headers []string, rows [][]string, columnStyles map[string]string) st
 		totalWidth += width + len(colSeparator)
 	}
 	estimatedSize := totalWidth * (len(rows) + 1)
+	if estimatedSize < 0 || estimatedSize > maxEstimatedSize {
+		estimatedSize = maxEstimatedSize
+	}
 	var builder strings.Builder
 	builder.Grow(estimatedSize)
 
