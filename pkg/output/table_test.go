@@ -109,3 +109,78 @@ func TestTableFitsWhenSeparatorsExceedMaxWidth(t *testing.T) {
 		t.Fatalf("table should render even when separators exceed width")
 	}
 }
+
+func TestTrimToWidthPreservesANSICodes(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		width       int
+		shouldMatch func(string) bool
+	}{
+		{
+			name:  "ANSI code at start",
+			input: "\x1b[31mHello World\x1b[0m",
+			width: 5,
+			shouldMatch: func(result string) bool {
+				return strings.HasPrefix(result, "\x1b[31m") && strings.Contains(result, "Hello")
+			},
+		},
+		{
+			name:  "ANSI code in middle - preserves codes before truncation",
+			input: "Hello \x1b[31mWorld\x1b[0m",
+			width: 8,
+			shouldMatch: func(result string) bool {
+				// Should contain "Hello " and the color code, with "Wo"
+				return strings.Contains(result, "Hello") && strings.Contains(result, "\x1b[31m") && strings.Contains(result, "Wo")
+			},
+		},
+		{
+			name:  "Multiple ANSI codes",
+			input: "\x1b[1m\x1b[31mBold Red\x1b[0m",
+			width: 4,
+			shouldMatch: func(result string) bool {
+				return strings.Contains(result, "\x1b[1m") && strings.Contains(result, "\x1b[31m") && strings.Contains(result, "Bold")
+			},
+		},
+		{
+			name:  "ANSI code after truncation point - not included",
+			input: "Hello\x1b[31m World\x1b[0m",
+			width: 5,
+			shouldMatch: func(result string) bool {
+				return result == "Hello" || result == "Hello\x1b[31m"
+			},
+		},
+		{
+			name:  "Wide characters with ANSI",
+			input: "\x1b[32m你好世界\x1b[0m",
+			width: 4,
+			shouldMatch: func(result string) bool {
+				return strings.HasPrefix(result, "\x1b[32m") && strings.Contains(result, "你好")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := trimToWidth(tt.input, tt.width)
+
+			if !tt.shouldMatch(result) {
+				t.Errorf("trimToWidth(%q, %d) = %q failed validation", tt.input, tt.width, result)
+			}
+
+			if strings.Contains(result, "\x1b") {
+				matches := ansiPattern.FindAllString(result, -1)
+
+				if strings.Count(result, "\x1b") != len(matches) {
+					t.Errorf("Result contains broken ANSI sequences: %q (found %d escape chars but %d complete sequences)",
+						result, strings.Count(result, "\x1b"), len(matches))
+				}
+			}
+
+			actualWidth := displayWidth(result)
+			if actualWidth > tt.width {
+				t.Errorf("Result width %d exceeds requested width %d", actualWidth, tt.width)
+			}
+		})
+	}
+}

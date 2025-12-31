@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/mattn/go-isatty"
 	"github.com/mattn/go-runewidth"
@@ -163,23 +164,48 @@ func trimToWidth(s string, width int) string {
 		return ""
 	}
 
-	var builder strings.Builder
-	builder.Grow(len(s))
-	currentWidth := 0
+	stripped := ansiPattern.ReplaceAllString(s, "")
+	if runewidth.StringWidth(stripped) <= width {
+		return s
+	}
 
-	for _, runeVal := range s {
-		runeWidth := runewidth.RuneWidth(runeVal)
-		if runeWidth == 0 {
-			builder.WriteRune(runeVal)
-			continue
+	var b strings.Builder
+	b.Grow(len(s))
+
+	currentWidth := 0
+	i := 0
+
+	for i < len(s) {
+		if s[i] == '\x1b' {
+			if loc := ansiPattern.FindStringIndex(s[i:]); loc != nil && loc[0] == 0 {
+				b.WriteString(s[i : i+loc[1]])
+				i += loc[1]
+				continue
+			}
 		}
-		if currentWidth+runeWidth > width {
+
+		r, size := utf8.DecodeRuneInString(s[i:])
+		if r == utf8.RuneError {
 			break
 		}
-		builder.WriteRune(runeVal)
-		currentWidth += runeWidth
+
+		rw := runewidth.RuneWidth(r)
+		if rw == 0 {
+			b.WriteString(s[i : i+size])
+			i += size
+			continue
+		}
+
+		if currentWidth+rw > width {
+			break
+		}
+
+		b.WriteString(s[i : i+size])
+		currentWidth += rw
+		i += size
 	}
-	return builder.String()
+
+	return b.String()
 }
 
 func clampColumnWidths(colWidths []int, colCount, separatorWidth, maxWidth int) []int {
