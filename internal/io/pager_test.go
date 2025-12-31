@@ -310,11 +310,3 @@ func TestPagerCleanupAfterFailedStart(t *testing.T) {
 		t.Errorf("second cleanup returned error: %v", err)
 	}
 }
-
-func withEnv(t *testing.T, key, value string, fn func()) {
-	t.Helper()
-	original := os.Getenv(key)
-	os.Setenv(key, value)
-	defer os.Setenv(key, original)
-	fn()
-}
