@@ -82,6 +82,7 @@ func Table(headers []string, rows [][]string, columnStyles map[string]string) st
 	for _, width := range colWidths {
 		totalWidth += width + len(colSeparator)
 	}
+	const maxEstimatedSize = 1 << 20
 	estimatedSize := totalWidth * (len(rows) + 1)
 	if estimatedSize < 0 || estimatedSize > maxEstimatedSize {
 		estimatedSize = maxEstimatedSize
