@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net/mail"
 	"os"
 	"strings"
@@ -18,7 +19,6 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
-	"github.com/charmbracelet/lipgloss"
 )
 
 const (
@@ -106,6 +106,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.SkipConfirm = globals.SkipConfirmation()
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
+	f.NoPager = f.NoPager || globals.DisablePager()
 
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
 		return err
@@ -138,7 +139,33 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	org := f.Config.OrganizationSlug()
-	builds, err := c.fetchBuilds(ctx, f, org, listOpts)
+
+	format := output.Format(c.Output)
+
+	if format == output.FormatText {
+		writer, cleanup := bkIO.Pager(f.NoPager)
+		defer func() { _ = cleanup() }()
+
+		target := org
+		if c.Pipeline != "" {
+			target = fmt.Sprintf("%s/%s", org, c.Pipeline)
+		}
+
+		fmt.Fprintf(writer, "Showing builds for %s\n\n", target)
+
+		builds, err := c.fetchBuilds(ctx, f, org, listOpts, format, writer)
+		if err != nil {
+			return fmt.Errorf("failed to list builds: %w", err)
+		}
+
+		if len(builds) == 0 {
+			fmt.Fprintln(writer, "No builds found matching the specified criteria.")
+		}
+
+		return nil
+	}
+
+	builds, err := c.fetchBuilds(ctx, f, org, listOpts, format, nil)
 	if err != nil {
 		return fmt.Errorf("failed to list builds: %w", err)
 	}
@@ -148,12 +175,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return nil
 	}
 
-	format := output.Format(c.Output)
-	if format == output.FormatText {
-		return nil
-	}
-
-	return displayBuilds(builds, format, false)
+	return displayBuilds(builds, format, os.Stdout)
 }
 
 func (c *ListCmd) buildListOptions() (*buildkite.BuildsListOptions, error) {
@@ -200,11 +222,8 @@ func (c *ListCmd) buildListOptions() (*buildkite.BuildsListOptions, error) {
 	return listOpts, nil
 }
 
-func (c *ListCmd) fetchBuilds(ctx context.Context, f *factory.Factory, org string, listOpts *buildkite.BuildsListOptions) ([]buildkite.Build, error) {
+func (c *ListCmd) fetchBuilds(ctx context.Context, f *factory.Factory, org string, listOpts *buildkite.BuildsListOptions, format output.Format, writer io.Writer) ([]buildkite.Build, error) {
 	var allBuilds []buildkite.Build
-
-	// Track whether we've displayed any builds yet (for header logic)
-	printedAny := false
 
 	// filtered builds added since last confirm (used when --no-limit)
 	filteredSinceConfirm := 0
@@ -214,7 +233,7 @@ func (c *ListCmd) fetchBuilds(ctx context.Context, f *factory.Factory, org strin
 	rawSinceConfirm := 0
 	previousPageFirstBuildNumber := 0
 
-	format := output.Format(c.Output)
+	printedAny := false
 
 	for page := 1; ; page++ {
 		if !c.NoLimit && len(allBuilds) >= c.Limit {
@@ -325,9 +344,11 @@ func (c *ListCmd) fetchBuilds(ctx context.Context, f *factory.Factory, org strin
 		}
 
 		// Stream only the builds we are about to add; header only once we actually print something
-		if format == output.FormatText && len(buildsToAdd) > 0 {
-			showHeader := !printedAny
-			_ = displayBuilds(buildsToAdd, format, showHeader)
+		if format == output.FormatText && len(buildsToAdd) > 0 && writer != nil {
+			_ = displayBuilds(buildsToAdd, format, writer)
+			if !printedAny {
+				fmt.Fprintln(writer)
+			}
 			printedAny = true
 		}
 
@@ -466,44 +487,18 @@ func resolveCreatorEmailToUserID(ctx context.Context, f *factory.Factory, email 
 	return "", fmt.Errorf("unexpected user ID format")
 }
 
-func displayBuilds(builds []buildkite.Build, format output.Format, withHeader bool) error {
+func displayBuilds(builds []buildkite.Build, format output.Format, writer io.Writer) error {
 	if format != output.FormatText {
-		return output.Write(os.Stdout, builds, format)
+		return output.Write(writer, builds, format)
 	}
 
 	const (
 		maxMessageLength = 22
 		truncatedLength  = 19
 		timeFormat       = "2006-01-02T15:04:05Z"
-		numberWidth      = 8
-		stateWidth       = 12
-		messageWidth     = 25
-		timeWidth        = 20
-		durationWidth    = 12
-		columnSpacing    = 6
 	)
 
-	var buf strings.Builder
-
-	if withHeader {
-		header := lipgloss.NewStyle().Bold(true).Underline(true).Render("Builds")
-		buf.WriteString(header)
-		buf.WriteString("\n\n")
-
-		headerRow := fmt.Sprintf("%-*s %-*s %-*s %-*s %-*s %-*s %s",
-			numberWidth, "Number",
-			stateWidth, "State",
-			messageWidth, "Message",
-			timeWidth, "Started (UTC)",
-			timeWidth, "Finished (UTC)",
-			durationWidth, "Duration",
-			"URL")
-		buf.WriteString(lipgloss.NewStyle().Bold(true).Render(headerRow))
-		buf.WriteString("\n")
-		totalWidth := numberWidth + stateWidth + messageWidth + timeWidth*2 + durationWidth + columnSpacing
-		buf.WriteString(strings.Repeat("-", totalWidth))
-		buf.WriteString("\n")
-	}
+	var rows [][]string
 
 	for _, build := range builds {
 		message := build.Message
@@ -529,22 +524,28 @@ func displayBuilds(builds []buildkite.Build, format output.Format, withHeader bo
 			duration = formatDuration(dur) + " (running)"
 		}
 
-		stateColor := getStateColor(build.State)
-		coloredState := stateColor.Render(build.State)
-
-		row := fmt.Sprintf("%-*d %-*s %-*s %-*s %-*s %-*s %s",
-			numberWidth, build.Number,
-			stateWidth, coloredState,
-			messageWidth, message,
-			timeWidth, startedAt,
-			timeWidth, finishedAt,
-			durationWidth, duration,
-			build.WebURL)
-		buf.WriteString(row)
-		buf.WriteString("\n")
+		rows = append(rows, []string{
+			fmt.Sprintf("%d", build.Number),
+			build.State,
+			message,
+			startedAt,
+			finishedAt,
+			duration,
+			build.WebURL,
+		})
 	}
 
-	fmt.Print(buf.String())
+	headers := []string{"Number", "State", "Message", "Started (UTC)", "Finished (UTC)", "Duration", "URL"}
+	table := output.Table(headers, rows, map[string]string{
+		"number":         "bold",
+		"state":          "bold",
+		"message":        "italic",
+		"started (utc)":  "dim",
+		"finished (utc)": "dim",
+		"duration":       "bold",
+		"url":            "dim",
+	})
+	fmt.Fprint(writer, table)
 	return nil
 }
 
@@ -560,21 +561,4 @@ func formatDuration(d time.Duration) string {
 	hours := d / time.Hour
 	minutes := (d % time.Hour) / time.Minute
 	return fmt.Sprintf("%dh%dm", hours, minutes)
-}
-
-func getStateColor(state string) lipgloss.Style {
-	switch state {
-	case "passed":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("2")) // Green
-	case "failed":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("1")) // Red
-	case "running":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("3")) // Yellow
-	case "canceled", "cancelled":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("8")) // Gray
-	case "scheduled":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("4")) // Blue
-	default:
-		return lipgloss.NewStyle()
-	}
 }

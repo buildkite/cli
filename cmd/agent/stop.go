@@ -4,19 +4,19 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/alecthomas/kong"
-	"github.com/buildkite/cli/v3/internal/agent"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mattn/go-isatty"
-	"golang.org/x/sync/semaphore"
 )
 
 type StopCmd struct {
@@ -62,14 +62,25 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	// use a wait group to ensure we exit the program after all agents have finished
-	var wg sync.WaitGroup
-	// this semaphore is used to limit how many concurrent API requests can be sent
-	sem := semaphore.NewWeighted(c.Limit)
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
 
-	var agents []agent.StoppableAgent
+	go func() {
+		select {
+		case <-sigCh:
+			cancel()
+		case <-ctx.Done():
+			return
+		}
+	}()
+
+	limit := max(c.Limit, 1)
+
+	var agentIDs []string
 	// this command accepts either input from stdin or positional arguments (not both) in that order
 	// so we need to check if stdin has data for us to read and read that, otherwise use positional args and if
 	// there are none, then we need to error
@@ -80,8 +91,7 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		for scanner.Scan() {
 			id := scanner.Text()
 			if strings.TrimSpace(id) != "" {
-				wg.Add(1)
-				agents = append(agents, agent.NewStoppableAgent(id, stopper(ctx, id, f, c.Force, sem, &wg), f.Quiet))
+				agentIDs = append(agentIDs, id)
 			}
 		}
 
@@ -91,75 +101,143 @@ func (c *StopCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	} else if len(c.Agents) > 0 {
 		for _, id := range c.Agents {
 			if strings.TrimSpace(id) != "" {
-				wg.Add(1)
-				agents = append(agents, agent.NewStoppableAgent(id, stopper(ctx, id, f, c.Force, sem, &wg), f.Quiet))
+				agentIDs = append(agentIDs, id)
 			}
 		}
 	} else {
 		return errors.New("must supply agents to stop")
 	}
 
-	bulkAgent := agent.BulkAgent{
-		Agents: agents,
+	if len(agentIDs) == 0 {
+		return errors.New("must supply agents to stop")
 	}
 
-	programOpts := []tea.ProgramOption{tea.WithOutput(os.Stdout)}
-	if !isatty.IsTerminal(os.Stdin.Fd()) {
-		programOpts = append(programOpts, tea.WithInput(nil))
-	}
-	p := tea.NewProgram(bulkAgent, programOpts...)
+	writer := os.Stdout
+	isTTY := isatty.IsTerminal(writer.Fd())
 
-	// send a quit message after all agents have stopped
+	total := len(agentIDs)
+	label := "Stopping agents"
+	if total == 1 {
+		label = "Stopping agent"
+	}
+
+	workerCount := int(min(limit, int64(total)))
+
+	work := make(chan string, workerCount)
+	updates := make(chan stopResult, workerCount)
+
+	var wg sync.WaitGroup
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for agentID := range work {
+				if ctx.Err() != nil {
+					updates <- stopResult{id: agentID, err: ctx.Err()}
+					continue
+				}
+				updates <- stopAgent(ctx, agentID, f, c.Force)
+			}
+		}()
+	}
+
 	go func() {
-		wg.Wait()
-		p.Send(tea.Quit())
+		for _, id := range agentIDs {
+			select {
+			case <-ctx.Done():
+				close(work)
+				return
+			case work <- id:
+			}
+		}
+		close(work)
 	}()
 
-	_, err = p.Run()
-	if err != nil {
-		return err
-	}
+	go func() {
+		wg.Wait()
+		close(updates)
+	}()
 
-	for _, agent := range agents {
-		if agent.Errored() {
-			return errors.New("at least one agent failed to stop")
+	succeeded := 0
+	failed := 0
+	completed := 0
+	var errorDetails []string
+
+	if !f.Quiet {
+		line := bkIO.ProgressLine(label, completed, total, succeeded, failed, 24)
+		if isTTY {
+			fmt.Fprint(writer, line)
+		} else {
+			fmt.Fprintln(writer, line)
 		}
 	}
+
+	for update := range updates {
+		completed++
+		if update.err != nil {
+			failed++
+			errorDetails = append(errorDetails, fmt.Sprintf("FAILED %s: %v", update.id, update.err))
+		} else {
+			succeeded++
+		}
+
+		if !f.Quiet {
+			line := bkIO.ProgressLine(label, completed, total, succeeded, failed, 24)
+			if isTTY {
+				fmt.Fprintf(writer, "\r%s", line)
+			} else {
+				fmt.Fprintln(writer, line)
+			}
+		}
+	}
+
+	if !f.Quiet && isTTY {
+		fmt.Fprintln(writer)
+	}
+
+	summaryWriter := writer
+	if failed > 0 {
+		summaryWriter = os.Stderr
+	}
+
+	if len(errorDetails) > 0 {
+		fmt.Fprintln(summaryWriter)
+		for _, detail := range errorDetails {
+			fmt.Fprintln(summaryWriter, detail)
+		}
+	}
+
+	if !f.Quiet {
+		agentLabel := pluralize("agent", total)
+		failedLabel := pluralize("agent", failed)
+		if failed > 0 {
+			fmt.Fprintf(summaryWriter, "\nStopped %d of %d %s (%d %s failed)\n", succeeded, total, agentLabel, failed, failedLabel)
+		} else {
+			fmt.Fprintf(summaryWriter, "\nSuccessfully stopped %d of %d %s\n", succeeded, total, agentLabel)
+		}
+	}
+
+	if failed > 0 {
+		return fmt.Errorf("failed to stop %d of %d %s (see above for details)", failed, total, pluralize("agent", total))
+	}
+
 	return nil
 }
 
-// here we want to allow each agent to transition through from a waiting state to stopping and ending at
-// success/failure. so we need to wrap up multiple tea.Cmds, the first one marking it as "stopping". after
-// that, another Cmd is started to make the API request to stop it. After that request we return a status to
-// indicate success/failure
-// the sync.WaitGroup also needs to be marked as done so we can stop the entire application after all agents
-// are stopped
-func stopper(ctx context.Context, id string, f *factory.Factory, force bool, sem *semaphore.Weighted, wg *sync.WaitGroup) agent.StopFn {
-	org, agentID := parseAgentArg(id, f.Config)
-	return func() agent.StatusUpdate {
-		// before attempting to stop the agent, acquire a semaphore lock to limit parallelisation
-		_ = sem.Acquire(context.Background(), 1)
+type stopResult struct {
+	id  string
+	err error
+}
 
-		return agent.StatusUpdate{
-			ID:     id,
-			Status: agent.Stopping,
-			// return an new command to actually stop the agent in the api and return the status of that
-			Cmd: func() tea.Msg {
-				// defer the semaphore and waitgroup release until the whole operation is completed
-				defer sem.Release(1)
-				defer wg.Done()
-				_, err := f.RestAPIClient.Agents.Stop(ctx, org, agentID, force)
-				if err != nil {
-					return agent.StatusUpdate{
-						ID:  id,
-						Err: err,
-					}
-				}
-				return agent.StatusUpdate{
-					ID:     id,
-					Status: agent.Succeeded,
-				}
-			},
-		}
+func pluralize(word string, count int) string {
+	if count == 1 {
+		return word
 	}
+	return word + "s"
+}
+
+func stopAgent(ctx context.Context, id string, f *factory.Factory, force bool) stopResult {
+	org, agentID := parseAgentArg(id, f.Config)
+	_, err := f.RestAPIClient.Agents.Stop(ctx, org, agentID, force)
+	return stopResult{id: id, err: err}
 }

@@ -21,7 +21,6 @@ build-logs-*
 *_test.go
 fixtures/
 internal/*/resolver/*_test.go
-internal/ui/ui_test.go
 
 # IDE and editor files
 .vscode/

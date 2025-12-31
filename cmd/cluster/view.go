@@ -1,11 +1,11 @@
 package cluster
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -17,56 +17,6 @@ import (
 	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
-
-func renderClusterText(c buildkite.Cluster) string {
-	var b bytes.Buffer
-
-	section := func(name string) {
-		fmt.Fprintf(&b, "\n%s\n", name)
-	}
-	field := func(name, value string) {
-		fmt.Fprintf(&b, "  %-16s %s\n", name+":", value)
-	}
-
-	// Basic Information
-	section("Cluster Details")
-	field("Name", c.Name)
-	if c.Emoji != "" {
-		field("Emoji", c.Emoji)
-	}
-	if c.Description != "" {
-		field("Description", c.Description)
-	}
-	if c.Color != "" {
-		field("Color", c.Color)
-	}
-
-	// IDs and URLs
-	section("Identifiers")
-	field("ID", c.ID)
-	field("GraphQL ID", c.GraphQLID)
-	field("Default Queue ID", c.DefaultQueueID)
-
-	// URLs
-	section("URLs")
-	field("Web URL", c.WebURL)
-	field("API URL", c.URL)
-	field("Queues URL", c.QueuesURL)
-	field("Queue URL", c.DefaultQueueURL)
-
-	// Creator Information
-	if c.CreatedBy.ID != "" {
-		section("Created By")
-		field("Name", c.CreatedBy.Name)
-		field("Email", c.CreatedBy.Email)
-		field("ID", c.CreatedBy.ID)
-		if c.CreatedAt != nil {
-			field("Created At", c.CreatedAt.Format(time.RFC3339))
-		}
-	}
-
-	return b.String()
-}
 
 type ViewCmd struct {
 	ClusterID string `arg:"" help:"Cluster ID to view"`
@@ -95,6 +45,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.SkipConfirm = globals.SkipConfirmation()
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
+	f.NoPager = f.NoPager || globals.DisablePager()
 
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
 		return err
@@ -124,5 +75,51 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		Render: renderClusterText,
 	}
 
-	return output.Write(os.Stdout, clusterView, format)
+	if format != output.FormatText {
+		return output.Write(os.Stdout, clusterView, format)
+	}
+
+	writer, cleanup := bkIO.Pager(f.NoPager)
+	defer func() { _ = cleanup() }()
+
+	return output.Write(writer, clusterView, format)
+}
+
+func renderClusterText(c buildkite.Cluster) string {
+	rows := [][]string{
+		{"Description", output.ValueOrDash(c.Description)},
+		{"Color", output.ValueOrDash(c.Color)},
+		{"Emoji", output.ValueOrDash(c.Emoji)},
+		{"ID", output.ValueOrDash(c.ID)},
+		{"GraphQL ID", output.ValueOrDash(c.GraphQLID)},
+		{"Default Queue ID", output.ValueOrDash(c.DefaultQueueID)},
+		{"Web URL", output.ValueOrDash(c.WebURL)},
+		{"API URL", output.ValueOrDash(c.URL)},
+		{"Queues URL", output.ValueOrDash(c.QueuesURL)},
+		{"Queue URL", output.ValueOrDash(c.DefaultQueueURL)},
+	}
+
+	if c.CreatedBy.ID != "" {
+		rows = append(rows,
+			[]string{"Created By Name", output.ValueOrDash(c.CreatedBy.Name)},
+			[]string{"Created By Email", output.ValueOrDash(c.CreatedBy.Email)},
+			[]string{"Created By ID", output.ValueOrDash(c.CreatedBy.ID)},
+		)
+	}
+
+	if c.CreatedAt != nil {
+		rows = append(rows, []string{"Created At", c.CreatedAt.Format(time.RFC3339)})
+	}
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Viewing %s\n\n", output.ValueOrDash(c.Name))
+
+	table := output.Table(
+		[]string{"Field", "Value"},
+		rows,
+		map[string]string{"field": "dim", "value": "italic"},
+	)
+
+	sb.WriteString(table)
+	return sb.String()
 }

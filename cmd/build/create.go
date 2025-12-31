@@ -16,7 +16,6 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	buildkite "github.com/buildkite/go-buildkite/v4"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type CreateCmd struct {
@@ -235,6 +234,5 @@ func createBuild(ctx context.Context, org string, pipeline string, f *factory.Fa
 }
 
 func renderResult(result string) string {
-	return lipgloss.JoinVertical(lipgloss.Top,
-		lipgloss.NewStyle().Padding(0, 0).Render(result))
+	return result
 }

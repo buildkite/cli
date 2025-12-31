@@ -42,7 +42,7 @@ func PickOneWithFactory(f *factory.Factory) PipelinePicker {
 		}
 
 		// Find which pipeline was chosen
-		index := slices.IndexFunc[[]pipeline.Pipeline](pipelines, func(p pipeline.Pipeline) bool {
+		index := slices.IndexFunc(pipelines, func(p pipeline.Pipeline) bool {
 			return p.Name == chosen
 		})
 
@@ -71,7 +71,7 @@ func CachedPicker(conf *config.Config, picker PipelinePicker, inGitRepo bool) Pi
 		// temporary variable to later return, as the value chosen points to is going to change when we rearrange the
 		// pipelines slice
 		tmp := *chosen
-		index := slices.IndexFunc[[]pipeline.Pipeline](pipelines, func(p pipeline.Pipeline) bool {
+		index := slices.IndexFunc(pipelines, func(p pipeline.Pipeline) bool {
 			return tmp.Name == p.Name
 		})
 		pipelines[0], pipelines[index] = tmp, pipelines[0]

@@ -3,6 +3,7 @@ package build
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/alecthomas/kong"
@@ -14,6 +15,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/validation"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	pkgValidation "github.com/buildkite/cli/v3/pkg/cmd/validation"
+	"github.com/mattn/go-isatty"
 )
 
 type WatchCmd struct {
@@ -55,6 +57,8 @@ func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	if err := pkgValidation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
 		return err
 	}
+
+	tty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
 
 	// Validate command options
 	v := validation.New()
@@ -112,8 +116,13 @@ func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 				return err
 			}
 
-			summary := shared.BuildSummaryWithJobs(&b)
-			fmt.Printf("\033[2J\033[H%s\n", summary) // Clear screen and move cursor to top-left
+			summary := shared.BuildSummaryWithJobs(&b, bld.Organization, bld.Pipeline)
+			if tty {
+				fmt.Print("\033[H\033[2J") // Clear terminal (keeps scrollback in terminal)
+				fmt.Printf("%s\n", summary)
+			} else {
+				fmt.Printf("[%s] %s\n", time.Now().Format(time.RFC3339), summary)
+			}
 
 			if b.FinishedAt != nil {
 				return nil

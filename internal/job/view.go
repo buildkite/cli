@@ -1,7 +1,7 @@
 package job
 
 import (
-	"github.com/buildkite/cli/v3/internal/ui"
+	"github.com/buildkite/cli/v3/internal/build/view"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
@@ -16,5 +16,5 @@ func JobSummary(job Job) string {
 func (j Job) Summarise() string {
 	// Convert the internal Job type back to buildkite.Job for rendering
 	bkJob := buildkite.Job(j)
-	return ui.RenderJobSummary(bkJob)
+	return view.RenderJobSummary(bkJob)
 }

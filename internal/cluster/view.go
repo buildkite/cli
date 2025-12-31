@@ -1,7 +1,11 @@
 package cluster
 
 import (
-	"github.com/buildkite/cli/v3/internal/ui"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
@@ -12,69 +16,60 @@ func ClusterViewTable(c ...buildkite.Cluster) string {
 	}
 
 	if len(c) == 1 {
-		// Render a detailed view for a single cluster
 		return renderSingleClusterDetail(c[0])
 	}
 
-	// Render a summary table for multiple clusters
-	var rows [][]string
+	rows := make([][]string, 0, len(c))
 	for _, cluster := range c {
 		rows = append(rows, []string{
-			cluster.Name,
-			cluster.ID,
-			cluster.DefaultQueueID,
+			output.ValueOrDash(cluster.Name),
+			output.ValueOrDash(cluster.ID),
+			output.ValueOrDash(cluster.DefaultQueueID),
 		})
 	}
 
-	return ui.Table([]string{"Name", "ID", "Default Queue ID"}, rows)
+	return output.Table(
+		[]string{"Name", "ID", "Default Queue ID"},
+		rows,
+		map[string]string{"name": "bold", "id": "dim", "default queue id": "dim"},
+	)
 }
 
-// renderSingleClusterDetail renders a detailed view of a single cluster
 func renderSingleClusterDetail(c buildkite.Cluster) string {
-	var sections []string
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Viewing %s\n\n", output.ValueOrDash(c.Name))
 
-	// Basic Information
-	basicInfo := []string{
-		ui.LabeledValue("Name", c.Name),
+	rows := [][]string{
+		{"Description", output.ValueOrDash(c.Description)},
+		{"Color", output.ValueOrDash(c.Color)},
+		{"Emoji", output.ValueOrDash(c.Emoji)},
+		{"ID", output.ValueOrDash(c.ID)},
+		{"GraphQL ID", output.ValueOrDash(c.GraphQLID)},
+		{"Default Queue ID", output.ValueOrDash(c.DefaultQueueID)},
+		{"Web URL", output.ValueOrDash(c.WebURL)},
+		{"API URL", output.ValueOrDash(c.URL)},
+		{"Queues URL", output.ValueOrDash(c.QueuesURL)},
+		{"Queue URL", output.ValueOrDash(c.DefaultQueueURL)},
 	}
-	if c.Emoji != "" {
-		basicInfo = append(basicInfo, ui.LabeledValue("Emoji", c.Emoji))
-	}
-	if c.Description != "" {
-		basicInfo = append(basicInfo, ui.LabeledValue("Description", c.Description))
-	}
-	if c.Color != "" {
-		basicInfo = append(basicInfo, ui.LabeledValue("Color", c.Color))
-	}
-	sections = append(sections, ui.Section("Cluster Details", ui.SpacedVertical(basicInfo...)))
 
-	// IDs and URLs
-	idInfo := []string{
-		ui.LabeledValue("ID", c.ID),
-		ui.LabeledValue("GraphQL ID", c.GraphQLID),
-		ui.LabeledValue("Default Queue ID", c.DefaultQueueID),
-	}
-	sections = append(sections, ui.Section("Identifiers", ui.SpacedVertical(idInfo...)))
-
-	// URLs
-	urlInfo := []string{
-		ui.LabeledValue("Web URL", c.WebURL),
-		ui.LabeledValue("API URL", c.URL),
-		ui.LabeledValue("Queues URL", c.QueuesURL),
-		ui.LabeledValue("Queue URL", c.DefaultQueueURL),
-	}
-	sections = append(sections, ui.Section("URLs", ui.SpacedVertical(urlInfo...)))
-
-	// Creator Information
 	if c.CreatedBy.ID != "" {
-		creatorInfo := []string{
-			ui.LabeledValue("Name", c.CreatedBy.Name),
-			ui.LabeledValue("Email", c.CreatedBy.Email),
-			ui.LabeledValue("ID", c.CreatedBy.ID),
-			ui.LabeledValue("Created At", ui.FormatDate(c.CreatedAt.Time)),
-		}
-		sections = append(sections, ui.Section("Created By", ui.SpacedVertical(creatorInfo...)))
+		rows = append(rows,
+			[]string{"Created By Name", output.ValueOrDash(c.CreatedBy.Name)},
+			[]string{"Created By Email", output.ValueOrDash(c.CreatedBy.Email)},
+			[]string{"Created By ID", output.ValueOrDash(c.CreatedBy.ID)},
+		)
 	}
 
-	return ui.SpacedVertical(sections...)
+	if c.CreatedAt != nil {
+		rows = append(rows, []string{"Created At", c.CreatedAt.Format(time.RFC3339)})
+	}
+
+	table := output.Table(
+		[]string{"Field", "Value"},
+		rows,
+		map[string]string{"field": "dim", "value": "italic"},
+	)
+
+	sb.WriteString(table)
+	return sb.String()
 }

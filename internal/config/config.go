@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	buildkite "github.com/buildkite/go-buildkite/v4"
@@ -155,6 +156,37 @@ func (conf *Config) RESTAPIEndpoint() string {
 	}
 
 	return buildkite.DefaultBaseURL
+}
+
+func (conf *Config) PagerDisabled() bool {
+	if v, ok := lookupBoolEnv("BUILDKITE_NO_PAGER"); ok {
+		return v
+	}
+	if v, ok := lookupBoolEnv("NO_PAGER"); ok {
+		return v
+	}
+
+	if v := conf.localConfig.Get("no_pager"); v != nil {
+		return conf.localConfig.GetBool("no_pager")
+	}
+
+	if v := conf.userConfig.Get("no_pager"); v != nil {
+		return conf.userConfig.GetBool("no_pager")
+	}
+
+	return false
+}
+
+func lookupBoolEnv(key string) (bool, bool) {
+	v := os.Getenv(key)
+	if v == "" {
+		return false, false
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return false, false
+	}
+	return b, true
 }
 
 func (conf *Config) HasConfiguredOrganization(slug string) bool {

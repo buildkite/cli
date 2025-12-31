@@ -1,15 +1,16 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/buildkite/cli/v3/internal/config"
+	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
-	"github.com/spf13/afero"
 )
 
 func testFilterAgents(agents []buildkite.Agent, state string, tags []string) []buildkite.Agent {
@@ -19,12 +20,29 @@ func testFilterAgents(agents []buildkite.Agent, state string, tags []string) []b
 func TestCmdAgentList(t *testing.T) {
 	t.Parallel()
 
-	t.Run("returns agents as JSON", func(t *testing.T) {
+	t.Run("fetches agents through API", func(t *testing.T) {
 		t.Parallel()
 
+		paused := false
 		agents := []buildkite.Agent{
-			{ID: "123", Name: "my-agent"},
-			{ID: "456", Name: "another-agent"},
+			{
+				ID:             "123",
+				Name:           "my-agent",
+				ConnectedState: "connected",
+				Version:        "3.50.0",
+				Hostname:       "host1",
+				Metadata:       []string{"queue=default"},
+				Paused:         &paused,
+			},
+			{
+				ID:             "456",
+				Name:           "another-agent",
+				ConnectedState: "idle",
+				Version:        "3.51.0",
+				Hostname:       "host2",
+				Metadata:       []string{"queue=deploy", "os=linux"},
+				Paused:         &paused,
+			},
 		}
 
 		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -39,21 +57,127 @@ func TestCmdAgentList(t *testing.T) {
 		}))
 		defer s.Close()
 
-		_, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+		client, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		conf := config.New(afero.NewMemMapFs(), nil)
-		conf.SelectOrganization("test", true)
+		ctx := context.Background()
+		fetchedAgents, _, err := client.Agents.List(ctx, "test-org", &buildkite.AgentListOptions{
+			ListOptions: buildkite.ListOptions{Page: 1, PerPage: 30},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		t.Skip("Kong command execution test - command works via CLI")
+		if len(fetchedAgents) != 2 {
+			t.Fatalf("expected 2 agents, got %d", len(fetchedAgents))
+		}
+
+		if fetchedAgents[0].Name != "my-agent" {
+			t.Errorf("expected first agent name 'my-agent', got %q", fetchedAgents[0].Name)
+		}
+
+		if fetchedAgents[1].Hostname != "host2" {
+			t.Errorf("expected second agent hostname 'host2', got %q", fetchedAgents[1].Hostname)
+		}
+
+		queue := extractQueue(fetchedAgents[0].Metadata)
+		if queue != "default" {
+			t.Errorf("expected queue 'default', got %q", queue)
+		}
+
+		deployQueue := extractQueue(fetchedAgents[1].Metadata)
+		if deployQueue != "deploy" {
+			t.Errorf("expected queue 'deploy', got %q", deployQueue)
+		}
+	})
+
+	t.Run("renders table output", func(t *testing.T) {
+		t.Parallel()
+
+		paused := false
+		agents := []buildkite.Agent{
+			{
+				ID:             "agent-1",
+				Name:           "test-agent",
+				ConnectedState: "connected",
+				Job:            &buildkite.Job{ID: "job-1"},
+				Version:        "3.50.0",
+				Hostname:       "test-host",
+				Metadata:       []string{"queue=default"},
+				Paused:         &paused,
+			},
+		}
+
+		headers := []string{"State", "Name", "Version", "Queue", "Hostname"}
+		rows := make([][]string, len(agents))
+		for i, agent := range agents {
+			queue := extractQueue(agent.Metadata)
+			state := displayState(agent)
+			rows[i] = []string{
+				state,
+				agent.Name,
+				agent.Version,
+				queue,
+				agent.Hostname,
+			}
+		}
+
+		columnStyles := map[string]string{
+			"state":    "bold",
+			"name":     "bold",
+			"hostname": "dim",
+			"version":  "italic",
+			"queue":    "italic",
+		}
+		table := output.Table(headers, rows, columnStyles)
+
+		if !strings.Contains(table, "STATE") {
+			t.Error("expected table to contain header 'STATE'")
+		}
+		if !strings.Contains(table, "test-agent") {
+			t.Error("expected table to contain agent name")
+		}
+		if !strings.Contains(table, "running") {
+			t.Error("expected table to contain semantic state 'running'")
+		}
+		if !strings.Contains(table, "3.50.0") {
+			t.Error("expected table to contain version")
+		}
+		if !strings.Contains(table, "default") {
+			t.Error("expected table to contain queue")
+		}
+		if !strings.Contains(table, "test-host") {
+			t.Error("expected table to contain hostname")
+		}
 	})
 
 	t.Run("empty result returns empty array", func(t *testing.T) {
 		t.Parallel()
-		// Kong command execution test - skip
-		t.Skip("Kong command execution test - command works via CLI")
+
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode([]buildkite.Agent{})
+		}))
+		defer s.Close()
+
+		client, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ctx := context.Background()
+		agents, _, err := client.Agents.List(ctx, "test-org", &buildkite.AgentListOptions{
+			ListOptions: buildkite.ListOptions{Page: 1, PerPage: 30},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(agents) != 0 {
+			t.Errorf("expected 0 agents, got %d", len(agents))
+		}
 	})
 }
 
@@ -113,6 +237,46 @@ func TestAgentListInvalidState(t *testing.T) {
 	}
 }
 
+func TestDisplayState(t *testing.T) {
+	t.Parallel()
+
+	paused := true
+	notPaused := false
+
+	tests := []struct {
+		name  string
+		agent buildkite.Agent
+		want  string
+	}{
+		{
+			name:  "running when job present",
+			agent: buildkite.Agent{Job: &buildkite.Job{ID: "job-1"}},
+			want:  stateRunning,
+		},
+		{
+			name:  "paused when paused flag",
+			agent: buildkite.Agent{Paused: &paused},
+			want:  statePaused,
+		},
+		{
+			name:  "idle default",
+			agent: buildkite.Agent{Paused: &notPaused},
+			want:  stateIdle,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := displayState(tt.agent)
+			if got != tt.want {
+				t.Fatalf("displayState() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestAgentListTagsFilter(t *testing.T) {
 	t.Parallel()
 
@@ -151,4 +315,243 @@ func TestAgentListTagsFilter(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAgentListPagination(t *testing.T) {
+	t.Parallel()
+
+	t.Run("stops on partial page", func(t *testing.T) {
+		t.Parallel()
+
+		// Mock server that returns 30 agents on page 1, 15 on page 2
+		callCount := 0
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			callCount++
+			page := r.URL.Query().Get("page")
+
+			w.Header().Set("Content-Type", "application/json")
+
+			switch page {
+			case "", "1":
+				agents := make([]buildkite.Agent, 30)
+				for i := range agents {
+					agents[i] = buildkite.Agent{ID: fmt.Sprintf("page1-agent-%d", i), Name: "agent"}
+				}
+				json.NewEncoder(w).Encode(agents)
+			case "2":
+				agents := make([]buildkite.Agent, 15)
+				for i := range agents {
+					agents[i] = buildkite.Agent{ID: fmt.Sprintf("page2-agent-%d", i), Name: "agent"}
+				}
+				json.NewEncoder(w).Encode(agents)
+			default:
+				json.NewEncoder(w).Encode([]buildkite.Agent{})
+			}
+		}))
+		defer s.Close()
+
+		client, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Simulate pagination loop
+		var agents []buildkite.Agent
+		page := 1
+		limit := 100
+		perPage := 30
+		var previousFirstAgentID string
+
+		for len(agents) < limit {
+			opts := &buildkite.AgentListOptions{
+				ListOptions: buildkite.ListOptions{
+					Page:    page,
+					PerPage: perPage,
+				},
+			}
+
+			pageAgents, _, err := client.Agents.List(context.Background(), "test-org", opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(pageAgents) == 0 {
+				break
+			}
+
+			if page > 1 && len(pageAgents) > 0 && pageAgents[0].ID == previousFirstAgentID {
+				t.Fatal("detected duplicate page")
+			}
+			if len(pageAgents) > 0 {
+				previousFirstAgentID = pageAgents[0].ID
+			}
+
+			agents = append(agents, pageAgents...)
+
+			// Natural pagination end
+			if len(pageAgents) < perPage {
+				break
+			}
+
+			page++
+		}
+
+		// Should have fetched 45 agents total (30 + 15)
+		if len(agents) != 45 {
+			t.Errorf("expected 45 agents, got %d", len(agents))
+		}
+
+		// Should have made exactly 2 API calls (page 1 and page 2)
+		if callCount != 2 {
+			t.Errorf("expected 2 API calls, got %d", callCount)
+		}
+	})
+
+	t.Run("detects duplicate pages", func(t *testing.T) {
+		t.Parallel()
+
+		// Mock server that returns same page twice
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Always return same agents regardless of page
+			agents := []buildkite.Agent{
+				{ID: "agent-1", Name: "test"},
+				{ID: "agent-2", Name: "test"},
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(agents)
+		}))
+		defer s.Close()
+
+		client, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Simulate pagination loop
+		var agents []buildkite.Agent
+		page := 1
+		limit := 100
+		perPage := 30
+		var previousFirstAgentID string
+		duplicateDetected := false
+
+		for len(agents) < limit && page < 5 {
+			opts := &buildkite.AgentListOptions{
+				ListOptions: buildkite.ListOptions{
+					Page:    page,
+					PerPage: perPage,
+				},
+			}
+
+			pageAgents, _, err := client.Agents.List(context.Background(), "test-org", opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(pageAgents) == 0 {
+				break
+			}
+
+			// Detect duplicate
+			if page > 1 && len(pageAgents) > 0 && pageAgents[0].ID == previousFirstAgentID {
+				duplicateDetected = true
+				break
+			}
+			if len(pageAgents) > 0 {
+				previousFirstAgentID = pageAgents[0].ID
+			}
+
+			agents = append(agents, pageAgents...)
+			page++
+		}
+
+		if !duplicateDetected {
+			t.Error("expected duplicate page detection to trigger")
+		}
+	})
+
+	t.Run("continues on full pages with different content", func(t *testing.T) {
+		t.Parallel()
+
+		// Mock server that returns different full pages
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			page := r.URL.Query().Get("page")
+
+			w.Header().Set("Content-Type", "application/json")
+
+			agents := make([]buildkite.Agent, 30)
+			prefix := "a"
+			switch page {
+			case "2":
+				prefix = "b"
+			case "3":
+				prefix = "c"
+			}
+
+			for i := range agents {
+				agents[i] = buildkite.Agent{
+					ID:   fmt.Sprintf("%s-agent-%d", prefix, i),
+					Name: "agent",
+				}
+			}
+
+			if page == "3" {
+				// Make page 3 partial to end pagination
+				agents = agents[:10]
+			}
+
+			json.NewEncoder(w).Encode(agents)
+		}))
+		defer s.Close()
+
+		client, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Simulate pagination loop
+		var agents []buildkite.Agent
+		page := 1
+		limit := 100
+		perPage := 30
+		var previousFirstAgentID string
+
+		for len(agents) < limit {
+			opts := &buildkite.AgentListOptions{
+				ListOptions: buildkite.ListOptions{
+					Page:    page,
+					PerPage: perPage,
+				},
+			}
+
+			pageAgents, _, err := client.Agents.List(context.Background(), "test-org", opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(pageAgents) == 0 {
+				break
+			}
+
+			if page > 1 && len(pageAgents) > 0 && pageAgents[0].ID == previousFirstAgentID {
+				t.Fatal("unexpected duplicate page")
+			}
+			if len(pageAgents) > 0 {
+				previousFirstAgentID = pageAgents[0].ID
+			}
+
+			agents = append(agents, pageAgents...)
+
+			if len(pageAgents) < perPage {
+				break
+			}
+
+			page++
+		}
+
+		// Should have fetched 70 agents (30 + 30 + 10)
+		if len(agents) != 70 {
+			t.Errorf("expected 70 agents, got %d", len(agents))
+		}
+	})
 }

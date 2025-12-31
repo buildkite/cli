@@ -2,6 +2,7 @@ package io
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -33,7 +34,7 @@ func Confirm(f *factory.Factory, prompt string) (bool, error) {
 		return false, fmt.Errorf("interactive input required but --no-input is set")
 	}
 
-	fmt.Printf("%s [Y/N]: ", prompt)
+	fmt.Fprintf(os.Stderr, "%s [Y/N]: ", prompt)
 
 	response, err := ReadLine()
 	if err != nil {
