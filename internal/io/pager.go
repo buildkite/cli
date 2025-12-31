@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -53,7 +54,7 @@ func Pager(noPager bool) (w io.Writer, cleanup func() error) {
 
 	if err := cmd.Start(); err != nil {
 		stdin.Close()
-		return os.Stdout, cleanup
+		return os.Stdout, func() error { return nil }
 	}
 
 	var once sync.Once
@@ -64,10 +65,10 @@ func Pager(noPager bool) (w io.Writer, cleanup func() error) {
 			closeErr := stdin.Close()
 			waitErr := cmd.Wait()
 
-			if waitErr != nil {
-				cleanupErr = waitErr
-			} else {
+			if closeErr != nil {
 				cleanupErr = closeErr
+			} else {
+				cleanupErr = waitErr
 			}
 		})
 		return cleanupErr
@@ -84,13 +85,7 @@ func isTTY() bool {
 }
 
 func isLessPager(path string) bool {
-	base := path
-	if idx := strings.LastIndex(path, "/"); idx != -1 {
-		base = path[idx+1:]
-	}
-	if idx := strings.LastIndex(path, "\\"); idx != -1 {
-		base = path[idx+1:]
-	}
+	base := filepath.Base(path)
 	return base == "less" || base == "less.exe"
 }
 
