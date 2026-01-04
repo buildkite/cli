@@ -245,13 +245,43 @@ func clampColumnWidths(colWidths []int, colCount, separatorWidth, maxWidth int) 
 	if available < minColumnWidth*colCount {
 		effectiveMin = available / colCount
 	}
+    // First pass: give narrow columns their full width, mark wide columns for proportional allocation
+    // A column is "narrow" if it fits within its fair share of space
+    fairShare := available / colCount
+    narrowThreshold := fairShare * 2
+    
+    fixed := make([]bool, len(colWidths))
+    remainingSpace := available
+    flexSum := 0
 
 	for i, width := range colWidths {
-		ratio := float64(width) / float64(sum)
-		alloc := int(math.Floor(ratio * float64(available)))
-		if alloc < effectiveMin {
-			alloc = effectiveMin
-		}
+	    if width <= narrowThreshold {                                                                                                                                    
+	      // This column is narrow enough to get its full width
+	      clamped[i] = width
+	      fixed[i] = true
+          remainingSpace -= width
+        } else {
+          // This column needs proportional allocation
+          flexSum += width
+        }
+    }
+
+    // Second pass: proportionally allocate remaining space to flexible columns
+    for i, width := range colWidths {
+        if fixed[i] {
+            continue
+        }
+    if flexSum == 0 {
+        clamped[i] = effectiveMin
+        continue
+    }
+    
+    ratio := float64(width) / float64(flexSum)
+    alloc := int(math.Floor(ratio * float64(remainingSpace)))
+
+    if alloc < effectiveMin {
+		alloc = effectiveMin
+	}
 		clamped[i] = alloc
 	}
 
