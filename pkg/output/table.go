@@ -275,21 +275,9 @@ func clampColumnWidths(colWidths []int, colCount, separatorWidth, maxWidth int) 
 			clamped[i] = effectiveMin
 			continue
 		}
-
 		ratio := float64(width) / float64(flexSum)
 		alloc := int(math.Floor(ratio * float64(remainingSpace)))
-
-		alloc = min(alloc, effectiveMin)
-
-		if width <= narrowThreshold {
-			// This column is narrow enough to get its full width
-			clamped[i] = width
-			fixed[i] = true
-			remainingSpace -= width
-		} else {
-			// This column needs proportional allocation
-			flexSum += width
-		}
+		clamped[i] = max(alloc, effectiveMin)
 	}
 
 	currentTotal := 0
