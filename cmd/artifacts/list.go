@@ -3,8 +3,8 @@ package artifacts
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
-	"sync"
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/artifact"
@@ -17,7 +17,6 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type ListCmd struct {
@@ -57,6 +56,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.SkipConfirm = globals.SkipConfirmation()
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
+	f.NoPager = f.NoPager || globals.DisablePager()
 
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
 		return err
@@ -102,29 +102,12 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	var buildArtifacts []buildkite.Artifact
 
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-
 	err = bkIO.SpinWhile(f, "Loading artifacts information", func() {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-			var apiErr error
-
-			if c.Job != "" { // list artifacts for a specific job
-				buildArtifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByJob(ctx, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), c.Job, nil)
-			} else {
-				buildArtifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByBuild(ctx, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), nil)
-			}
-			if apiErr != nil {
-				mu.Lock()
-				err = apiErr
-				mu.Unlock()
-			}
-		}()
-
-		wg.Wait()
+		if c.Job != "" {
+			buildArtifacts, _, err = f.RestAPIClient.Artifacts.ListByJob(ctx, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), c.Job, nil)
+		} else {
+			buildArtifacts, _, err = f.RestAPIClient.Artifacts.ListByBuild(ctx, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), nil)
+		}
 	})
 	if err != nil {
 		return err
@@ -134,16 +117,52 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return output.Write(os.Stdout, buildArtifacts, format)
 	}
 
-	var summary string
-	if len(buildArtifacts) > 0 {
-		summary += lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true).Render("Artifacts")
-		for _, a := range buildArtifacts {
-			summary += artifact.ArtifactSummary(&a)
-		}
-	} else {
-		summary += lipgloss.NewStyle().Padding(0, 1).Render("No artifacts found.")
+	writer, cleanup := bkIO.Pager(f.NoPager)
+	defer func() { _ = cleanup() }()
+
+	if len(buildArtifacts) == 0 {
+		fmt.Fprintln(writer, "No artifacts found.")
+		return nil
 	}
 
-	fmt.Printf("%s\n", summary)
+	buildURL := fmt.Sprintf("https://buildkite.com/organizations/%s/pipelines/%s/builds/%d", bld.Organization, bld.Pipeline, bld.BuildNumber)
+
+	if c.Job != "" {
+		jobURL := fmt.Sprintf("%s/jobs/%s", buildURL, c.Job)
+		fmt.Fprintf(writer, "Showing %d artifacts for %s/%s build #%d (job %s): %s\n\n", len(buildArtifacts), bld.Organization, bld.Pipeline, bld.BuildNumber, c.Job, jobURL)
+	} else {
+		fmt.Fprintf(writer, "Showing %d artifacts for %s/%s build #%d: %s\n\n", len(buildArtifacts), bld.Organization, bld.Pipeline, bld.BuildNumber, buildURL)
+	}
+
+	return displayArtifacts(buildArtifacts, writer, buildURL)
+}
+
+func displayArtifacts(artifacts []buildkite.Artifact, writer io.Writer, baseBuildURL string) error {
+	headers := []string{"ID", "Path", "Size", "URL"}
+	var rows [][]string
+
+	for _, a := range artifacts {
+		url := "-"
+		if a.JobID != "" {
+			url = fmt.Sprintf("%s/jobs/%s/artifacts/%s", baseBuildURL, a.JobID, a.ID)
+		} else if a.URL != "" {
+			url = a.URL
+		}
+		rows = append(rows, []string{
+			a.ID,
+			a.Path,
+			artifact.FormatBytes(a.FileSize),
+			url,
+		})
+	}
+
+	table := output.Table(headers, rows, map[string]string{
+		"id":   "dim",
+		"path": "bold",
+		"size": "dim",
+		"url":  "dim",
+	})
+
+	fmt.Fprint(writer, table)
 	return nil
 }

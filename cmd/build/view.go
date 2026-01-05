@@ -69,6 +69,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.SkipConfirm = globals.SkipConfirmation()
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
+	f.NoPager = f.NoPager || globals.DisablePager()
 
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
 		return err
@@ -215,9 +216,18 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			Annotations: annotations,
 		},
 		Render: func(b BuildOutput) string {
-			return view.NewBuildView(&b.Build, b.Artifacts, b.Annotations).Render()
+			return view.NewBuildView(&b.Build, b.Artifacts, b.Annotations, opts.Organization, opts.Pipeline).Render()
 		},
 	}
 
-	return output.Write(os.Stdout, buildOutput, output.Format(c.Output))
+	format := output.Format(c.Output)
+	if format == output.FormatText {
+		writer, cleanup := bkIO.Pager(f.NoPager)
+		defer func() { _ = cleanup() }()
+
+		_, err := fmt.Fprint(writer, buildOutput.TextOutput())
+		return err
+	}
+
+	return output.Write(os.Stdout, buildOutput, format)
 }

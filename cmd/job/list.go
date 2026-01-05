@@ -3,6 +3,7 @@ package job
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -19,7 +20,6 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
-	"github.com/charmbracelet/lipgloss"
 )
 
 const (
@@ -112,6 +112,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.SkipConfirm = globals.SkipConfirmation()
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
+	f.NoPager = f.NoPager || globals.DisablePager()
 
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
 		return err
@@ -179,7 +180,20 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return nil
 	}
 
-	return displayJobs(jobs, format)
+	if format == output.FormatText {
+		writer, cleanup := bkIO.Pager(f.NoPager)
+		defer func() { _ = cleanup() }()
+
+		target := org
+		if c.Pipeline != "" {
+			target = fmt.Sprintf("%s/%s", org, c.Pipeline)
+		}
+
+		fmt.Fprintf(writer, "Showing %d jobs for %s\n\n", len(jobs), target)
+		return displayJobs(jobs, format, writer)
+	}
+
+	return displayJobs(jobs, format, os.Stdout)
 }
 
 func fetchJobs(ctx context.Context, f *factory.Factory, org string, opts jobListOptions, listOpts *buildkite.BuildsListOptions) ([]buildkite.Job, error) {
@@ -741,40 +755,19 @@ func getJobDuration(job buildkite.Job) time.Duration {
 	return time.Since(job.StartedAt.Time)
 }
 
-func displayJobs(jobs []buildkite.Job, format output.Format) error {
+func displayJobs(jobs []buildkite.Job, format output.Format, writer io.Writer) error {
 	if format != output.FormatText {
-		return output.Write(os.Stdout, jobs, format)
+		return output.Write(writer, jobs, format)
 	}
 
 	const (
 		maxLabelLength  = 35
 		truncatedLength = 32
 		timeFormat      = "2006-01-02T15:04:05Z"
-		stateWidth      = 12
-		labelWidth      = 38
-		timeWidth       = 20
-		durationWidth   = 12
-		columnSpacing   = 6
 	)
 
-	var buf strings.Builder
-
-	header := lipgloss.NewStyle().Bold(true).Underline(true).Render("Jobs")
-	buf.WriteString(header)
-	buf.WriteString("\n\n")
-
-	headerRow := fmt.Sprintf("%-*s %-*s %-*s %-*s %-*s %s",
-		stateWidth, "State",
-		labelWidth, "Label",
-		timeWidth, "Started (UTC)",
-		timeWidth, "Finished (UTC)",
-		durationWidth, "Duration",
-		"URL")
-	buf.WriteString(lipgloss.NewStyle().Bold(true).Render(headerRow))
-	buf.WriteString("\n")
-	totalWidth := stateWidth + labelWidth + timeWidth*2 + durationWidth + columnSpacing
-	buf.WriteString(strings.Repeat("-", totalWidth))
-	buf.WriteString("\n")
+	headers := []string{"State", "Label", "Started (UTC)", "Finished (UTC)", "Duration", "URL"}
+	var rows [][]string
 
 	for _, job := range jobs {
 		label := job.Label
@@ -803,21 +796,26 @@ func displayJobs(jobs []buildkite.Job, format output.Format) error {
 			duration = formatDuration(dur) + " (running)"
 		}
 
-		stateColor := getJobStateColor(job.State)
-		coloredState := stateColor.Render(job.State)
-
-		row := fmt.Sprintf("%-*s %-*s %-*s %-*s %-*s %s",
-			stateWidth, coloredState,
-			labelWidth, label,
-			timeWidth, startedAt,
-			timeWidth, finishedAt,
-			durationWidth, duration,
-			job.WebURL)
-		buf.WriteString(row)
-		buf.WriteString("\n")
+		rows = append(rows, []string{
+			job.State,
+			label,
+			startedAt,
+			finishedAt,
+			duration,
+			job.WebURL,
+		})
 	}
 
-	fmt.Print(buf.String())
+	table := output.Table(headers, rows, map[string]string{
+		"state":          "bold",
+		"label":          "italic",
+		"started (utc)":  "dim",
+		"finished (utc)": "dim",
+		"duration":       "bold",
+		"url":            "dim",
+	})
+
+	fmt.Fprint(writer, table)
 	return nil
 }
 
@@ -833,25 +831,6 @@ func formatDuration(d time.Duration) string {
 	hours := d / time.Hour
 	minutes := (d % time.Hour) / time.Minute
 	return fmt.Sprintf("%dh%dm", hours, minutes)
-}
-
-func getJobStateColor(state string) lipgloss.Style {
-	switch strings.ToLower(state) {
-	case "passed":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("2")) // Green
-	case "failed":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("1")) // Red
-	case "running":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("3")) // Yellow
-	case "scheduled", "waiting":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("6")) // Cyan
-	case "canceled", "cancelled":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("8")) // Gray
-	case "blocked":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("5")) // Magenta
-	default:
-		return lipgloss.NewStyle()
-	}
 }
 
 func containsString(slice []string, item string) bool {

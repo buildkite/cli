@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strconv"
 
 	"github.com/buildkite/cli/v3/internal/cli"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/output"
 )
@@ -37,6 +39,8 @@ func (c *ListCmd) Run(globals cli.GlobalFlags) error {
 		return err
 	}
 
+	f.NoPager = f.NoPager || globals.DisablePager()
+
 	orgs := f.Config.ConfiguredOrganizations()
 	if len(orgs) == 0 {
 		fmt.Println("No organizations configured. Run `bk configure` to add one.")
@@ -63,13 +67,21 @@ func (c *ListCmd) Run(globals cli.GlobalFlags) error {
 		return output.Write(os.Stdout, organizations, format)
 	}
 
+	rows := make([][]string, 0, len(organizations))
 	for _, org := range organizations {
-		if org.Selected {
-			fmt.Fprintf(os.Stdout, "%s *\n", org.Slug)
-		} else {
-			fmt.Fprintln(os.Stdout, org.Slug)
-		}
+		rows = append(rows, []string{org.Slug, strconv.FormatBool(org.Selected)})
 	}
+
+	table := output.Table(
+		[]string{"Organization Slug", "Selected"},
+		rows,
+		map[string]string{"organization slug": "bold", "selected": "italic"},
+	)
+
+	writer, cleanup := bkIO.Pager(f.NoPager)
+	defer func() { _ = cleanup() }()
+
+	fmt.Fprintf(writer, "Showing configured organization(s)\n\n%s\n", table)
 
 	return nil
 }
