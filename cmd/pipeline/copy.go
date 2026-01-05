@@ -22,7 +22,7 @@ type CopyCmd struct {
 	Target   string `help:"Name for the new pipeline, or org/name to copy to a different organization" short:"t"`
 	Cluster  string `help:"Cluster name or ID for the new pipeline (required for cross-org copies if target org uses clusters)" short:"c"`
 	DryRun   bool   `help:"Show what would be copied without creating the pipeline"`
-	Output   string `help:"Output format: json, yaml, text" short:"o" default:"text" enum:"json,yaml,text"`
+	Output   string `help:"Output format: json, yaml, text" short:"o" default:"${output_default_format}" enum:"json,yaml,text"`
 }
 
 // we store the target organization and pipeline name for a future go-buildkite call

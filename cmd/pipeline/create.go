@@ -23,7 +23,7 @@ type CreateCmd struct {
 	Repository  string `help:"Repository URL" short:"r"`
 	ClusterID   string `help:"Cluster name or ID to assign the pipeline to" short:"c"`
 	DryRun      bool   `help:"Simulate pipeline creation without actually creating it"`
-	Output      string `help:"Outputs the created pipeline. One of: json, yaml, text" short:"o" default:"text" enum:"json,yaml,text"`
+	Output      string `help:"Outputs the created pipeline. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:"json,yaml,text"`
 }
 
 func (c *CreateCmd) Help() string {
