@@ -11,6 +11,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/artifacts"
 	"github.com/buildkite/cli/v3/cmd/build"
 	"github.com/buildkite/cli/v3/cmd/cluster"
+	"github.com/buildkite/cli/v3/cmd/configure"
 	bkInit "github.com/buildkite/cli/v3/cmd/init"
 	"github.com/buildkite/cli/v3/cmd/job"
 	"github.com/buildkite/cli/v3/cmd/organization"
@@ -109,55 +110,9 @@ type (
 		api.ApiCmd `cmd:"" help:"Interact with the Buildkite API"`
 	}
 	ConfigureCmd struct {
-		Args []string `arg:"" optional:"" passthrough:"all"`
+		configure.ConfigureCmd `cmd:"" help:"Configure Buildkite API token"`
 	}
 )
-
-// Delegation methods, we should delete when native Kong implementations ready
-func (c *ConfigureCmd) Run(cli *CLI) error { return cli.delegateToCobraSystem("configure", c.Args) }
-
-// delegateToCobraSystem delegates execution to the legacy Cobra command system.
-// This is a temporary bridge during the Kong migration that ensures backwards compatibility
-// by reconstructing global flags that Kong has already parsed.
-func (cli *CLI) delegateToCobraSystem(command string, args []string) error {
-	// Preserve and restore original args for safety
-	originalArgs := os.Args
-	defer func() { os.Args = originalArgs }()
-
-	// Reconstruct command args with global flags for Cobra compatibility
-	reconstructedArgs := cli.buildCobraArgs(command, args)
-	os.Args = reconstructedArgs
-
-	if code := runCobraSystem(); code != 0 {
-		os.Exit(code)
-	}
-	return nil
-}
-
-// buildCobraArgs constructs the argument slice for Cobra, including global flags.
-// Kong parses and consumes global flags before delegation, so we need to reconstruct
-// them to maintain backwards compatibility with Cobra commands.
-func (cli *CLI) buildCobraArgs(command string, passthroughArgs []string) []string {
-	args := []string{os.Args[0], command}
-
-	if cli.Yes {
-		args = append(args, "--yes")
-	}
-	if cli.NoInput {
-		args = append(args, "--no-input")
-	}
-	if cli.Quiet {
-		args = append(args, "--quiet")
-	}
-	// TODO: Add verbose flag reconstruction when implemented
-	// if cli.Verbose {
-	// 	args = append(args, "--verbose")
-	// }
-
-	args = append(args, passthroughArgs...)
-
-	return args
-}
 
 func runCobraSystem() int {
 	f, err := factory.New()
@@ -313,6 +268,9 @@ func isHelpRequest() bool {
 		return false
 	}
 	if len(os.Args) >= 2 && os.Args[1] == "user" {
+		return false
+	}
+	if len(os.Args) >= 2 && os.Args[1] == "configure" {
 		return false
 	}
 
