@@ -8,6 +8,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"os"
 	"path/filepath"
@@ -18,8 +19,8 @@ import (
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	git "github.com/go-git/go-git/v5"
+	"github.com/goccy/go-yaml"
 	"github.com/spf13/afero"
-	"github.com/spf13/viper"
 )
 
 const (
@@ -31,59 +32,50 @@ const (
 	xdgConfigHome       = "XDG_CONFIG_HOME"
 )
 
+type orgConfig struct {
+	APIToken string `yaml:"api_token"`
+}
+
+type fileConfig struct {
+	SelectedOrg   string               `yaml:"selected_org"`
+	Organizations map[string]orgConfig `yaml:"organizations,omitempty"`
+	Pipelines     []string             `yaml:"pipelines,omitempty"`
+	NoPager       bool                 `yaml:"no_pager,omitempty"`
+}
+
 // Config contains the configuration for the currently selected organization
 // to operate on with the CLI application
-//
-// config file format (yaml):
-//
-//	selected_org: buildkite
-//	organizations:
-//	  buildkite:
-//	    api_token: <token>
-//	  buildkite-oss:
-//	    api_token: <token>
-//	pipelines: # (only in local config)
-//	  - first-pipeline
-//	  - second-pipeline
 type Config struct {
-	// localConfig is the configuration stored in the current directory or any directory above that, stopping at the git
-	// root. This file should never contain the `organizations` property because that will include the API token and it
-	// could be committed to VCS.
-	localConfig *viper.Viper
-	// userConfig is the configuration stored in the users HOME directory.
-	userConfig *viper.Viper
+	fs        afero.Fs
+	userPath  string
+	localPath string
+
+	user  fileConfig
+	local fileConfig
 }
 
 func New(fs afero.Fs, repo *git.Repository) *Config {
-	userConfig := viper.New()
-	userConfig.SetConfigFile(configFile())
-	userConfig.SetConfigType("yaml")
-	userConfig.AutomaticEnv()
-	if fs != nil {
-		userConfig.SetFs(fs)
+	if fs == nil {
+		fs = afero.NewOsFs()
 	}
-	// attempt to read in config file but it might not exist
-	_ = userConfig.ReadInConfig()
 
-	localConfig := viper.New()
-	localConfig.SetConfigType("yaml")
-	// if a valid repository is provided, use that as the location for the local config file
-	localConfigFile := localConfigFilePath
+	userPath := configFile()
+	localPath := localConfigFilePath
 	if repo != nil {
-		wt, _ := repo.Worktree()
-		if wt != nil {
-			localConfigFile = filepath.Join(wt.Filesystem.Root(), localConfigFilePath)
+		if wt, _ := repo.Worktree(); wt != nil {
+			localPath = filepath.Join(wt.Filesystem.Root(), localConfigFilePath)
 		}
 	}
-	localConfig.SetConfigFile(localConfigFile)
-	if fs != nil {
-		localConfig.SetFs(fs)
-	}
-	_ = localConfig.ReadInConfig()
+
+	userCfg, _ := loadFileConfig(fs, userPath)
+	localCfg, _ := loadFileConfig(fs, localPath)
 
 	return &Config{
-		localConfig: localConfig,
-		userConfig:  userConfig,
+		fs:        fs,
+		userPath:  userPath,
+		localPath: localPath,
+		user:      userCfg,
+		local:     localCfg,
 	}
 }
 
@@ -92,49 +84,49 @@ func New(fs afero.Fs, repo *git.Repository) *Config {
 func (conf *Config) OrganizationSlug() string {
 	return firstNonEmpty(
 		os.Getenv("BUILDKITE_ORGANIZATION_SLUG"),
-		conf.localConfig.GetString("selected_org"),
-		conf.userConfig.GetString("selected_org"),
+		conf.local.SelectedOrg,
+		conf.user.SelectedOrg,
 	)
 }
 
 // SelectOrganization sets the selected organization in the configuration file
 func (conf *Config) SelectOrganization(org string, inGitRepo bool) error {
 	if !inGitRepo {
-		conf.userConfig.Set("selected_org", org)
-		return conf.userConfig.WriteConfig()
+		conf.user.SelectedOrg = org
+		return conf.writeUser()
 	}
 
-	conf.localConfig.Set("selected_org", org)
-	return conf.localConfig.WriteConfig()
+	conf.local.SelectedOrg = org
+	return conf.writeLocal()
 }
 
 // APIToken gets the API token configured for the currently selected organization
 func (conf *Config) APIToken() string {
 	slug := conf.OrganizationSlug()
-	key := fmt.Sprintf("organizations.%s.api_token", slug)
 	return firstNonEmpty(
 		os.Getenv("BUILDKITE_API_TOKEN"),
-		conf.userConfig.GetString(key),
+		conf.user.getToken(slug),
+		conf.local.getToken(slug),
 	)
 }
 
 // SetTokenForOrg sets the token for the given org in the user configuration file. Tokens are not stored in the local
 // configuration file to reduce the likelihood of tokens being committed to VCS
 func (conf *Config) SetTokenForOrg(org, token string) error {
-	key := fmt.Sprintf("organizations.%s.api_token", org)
-	conf.userConfig.Set(key, token)
-	return conf.userConfig.WriteConfig()
+	if conf.user.Organizations == nil {
+		conf.user.Organizations = make(map[string]orgConfig)
+	}
+	conf.user.Organizations[org] = orgConfig{APIToken: token}
+	return conf.writeUser()
 }
 
 // GetTokenForOrg gets the API token for a specific organization from the user configuration
 func (conf *Config) GetTokenForOrg(org string) string {
-	key := fmt.Sprintf("organizations.%s.api_token", org)
-	return conf.userConfig.GetString(key)
+	return conf.user.getToken(org)
 }
 
 func (conf *Config) ConfiguredOrganizations() []string {
-	m := conf.userConfig.GetStringMap("organizations")
-	orgs := slices.Collect(maps.Keys(m))
+	orgs := slices.Collect(maps.Keys(conf.user.Organizations))
 	if o := os.Getenv("BUILDKITE_ORGANIZATION_SLUG"); o != "" {
 		orgs = append(orgs, o)
 	}
@@ -166,15 +158,11 @@ func (conf *Config) PagerDisabled() bool {
 		return v
 	}
 
-	if v := conf.localConfig.Get("no_pager"); v != nil {
-		return conf.localConfig.GetBool("no_pager")
+	if conf.local.NoPager {
+		return true
 	}
 
-	if v := conf.userConfig.Get("no_pager"); v != nil {
-		return conf.userConfig.GetBool("no_pager")
-	}
-
-	return false
+	return conf.user.NoPager
 }
 
 func lookupBoolEnv(key string) (bool, bool) {
@@ -195,7 +183,7 @@ func (conf *Config) HasConfiguredOrganization(slug string) bool {
 
 // PreferredPipelines will retrieve the list of pipelines from local configuration
 func (conf *Config) PreferredPipelines() []pipeline.Pipeline {
-	names := conf.localConfig.GetStringSlice("pipelines")
+	names := conf.local.Pipelines
 
 	if len(names) == 0 {
 		return []pipeline.Pipeline{}
@@ -227,8 +215,8 @@ func (conf *Config) SetPreferredPipelines(pipelines []pipeline.Pipeline, inGitRe
 	for i, p := range pipelines {
 		names[i] = p.Name
 	}
-	conf.localConfig.Set("pipelines", names)
-	return conf.localConfig.WriteConfig()
+	conf.local.Pipelines = names
+	return conf.writeLocal()
 }
 
 func firstNonEmpty(s ...string) string {
@@ -275,4 +263,76 @@ func createIfNotExistsConfigDir() (string, error) {
 		return "", err
 	}
 	return configDir, nil
+}
+
+func loadFileConfig(fs afero.Fs, path string) (fileConfig, error) {
+	cfg := fileConfig{Organizations: make(map[string]orgConfig)}
+	if path == "" {
+		return cfg, nil
+	}
+
+	file, err := fs.Open(path)
+	if err != nil {
+		return cfg, nil
+	}
+	defer file.Close()
+
+	content, err := io.ReadAll(file)
+	if err != nil {
+		return cfg, err
+	}
+	if len(content) == 0 {
+		return cfg, nil
+	}
+
+	if err := yaml.Unmarshal(content, &cfg); err != nil {
+		return cfg, err
+	}
+	if cfg.Organizations == nil {
+		cfg.Organizations = make(map[string]orgConfig)
+	}
+	return cfg, nil
+}
+
+func writeFileConfig(fs afero.Fs, path string, cfg fileConfig) error {
+	if path == "" {
+		return nil
+	}
+
+	dir := filepath.Dir(path)
+	if err := fs.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+
+	if cfg.Organizations == nil {
+		cfg.Organizations = make(map[string]orgConfig)
+	}
+
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+
+	return afero.WriteFile(fs, path, data, 0o644)
+}
+
+func (cfg fileConfig) getToken(org string) string {
+	if org == "" {
+		return ""
+	}
+	if cfg.Organizations == nil {
+		return ""
+	}
+	if v, ok := cfg.Organizations[org]; ok {
+		return v.APIToken
+	}
+	return ""
+}
+
+func (conf *Config) writeUser() error {
+	return writeFileConfig(conf.fs, conf.userPath, conf.user)
+}
+
+func (conf *Config) writeLocal() error {
+	return writeFileConfig(conf.fs, conf.localPath, conf.local)
 }

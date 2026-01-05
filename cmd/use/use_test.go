@@ -1,6 +1,8 @@
 package use
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/buildkite/cli/v3/internal/config"
@@ -8,8 +10,6 @@ import (
 )
 
 func TestCmdUse(t *testing.T) {
-	t.Parallel()
-
 	t.Run("uses already selected org", func(t *testing.T) {
 		t.Parallel()
 		conf := config.New(afero.NewMemMapFs(), nil)
@@ -52,6 +52,34 @@ func TestCmdUse(t *testing.T) {
 		err := useRun(&selected, conf, true, false)
 		if err == nil {
 			t.Error("expected an error")
+		}
+	})
+
+	t.Run("reads organization from user config file", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		xdgConfig := filepath.Join(os.Getenv("HOME"), ".config")
+		t.Setenv("XDG_CONFIG_HOME", xdgConfig)
+		if err := os.MkdirAll(xdgConfig, 0o755); err != nil {
+			t.Fatalf("failed to create config dir: %v", err)
+		}
+
+		userConfigPath := filepath.Join(xdgConfig, "bk.yaml")
+		content := []byte("selected_org: testing\norganizations:\n  testing:\n    api_token: token-123\n")
+		if err := os.WriteFile(userConfigPath, content, 0o644); err != nil {
+			t.Fatalf("failed to write user config: %v", err)
+		}
+
+		conf := config.New(afero.NewOsFs(), nil)
+		if got := conf.OrganizationSlug(); got != "testing" {
+			t.Fatalf("expected organization from file, got %q", got)
+		}
+		if got := conf.APIToken(); got != "token-123" {
+			t.Fatalf("expected token from file, got %q", got)
+		}
+
+		selected := "testing"
+		if err := useRun(&selected, conf, false, true); err != nil {
+			t.Fatalf("expected useRun to succeed: %v", err)
 		}
 	})
 }

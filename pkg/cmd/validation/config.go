@@ -13,7 +13,7 @@ var CommandsNotRequiringToken = []string{
 	"pipeline migrate",  // The pipeline migrate command uses a public migration API
 }
 
-// CheckValidConfiguration checks that the viper configuration is valid to execute the command (Kong version)
+// ValidateConfiguration checks that the configuration is valid to execute the command (Kong version)
 func ValidateConfiguration(conf *config.Config, commandPath string) error {
 	missingToken := conf.APIToken() == ""
 	missingOrg := conf.OrganizationSlug() == ""

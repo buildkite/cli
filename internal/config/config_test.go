@@ -34,12 +34,10 @@ func prepareTestDirectory(fs afero.Fs, fixturePath, configPath string) error {
 }
 
 func TestConfig(t *testing.T) {
-	t.Parallel()
-
 	t.Run("read in local config", func(t *testing.T) {
-		t.Parallel()
-
 		fs := afero.NewMemMapFs()
+		t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
+		t.Setenv("BUILDKITE_API_TOKEN", "")
 		err := prepareTestDirectory(fs, "local.basic.yaml", localConfigFilePath)
 		if err != nil {
 			t.Fatal(err)
@@ -48,16 +46,14 @@ func TestConfig(t *testing.T) {
 		// try to load configuration
 		conf := New(fs, nil)
 
-		// confirm we get the expected values
-		if conf.localConfig.GetString("selected_org") != "buildkite-test" {
-			t.Errorf("OrganizationSlug() does not match: %s", conf.OrganizationSlug())
+		if got := conf.OrganizationSlug(); got != "buildkite-test" {
+			t.Errorf("OrganizationSlug() does not match: %s", got)
 		}
-		if conf.localConfig.GetString("organizations.buildkite-test.api_token") != "test-token-1234" {
-			t.Errorf("APIToken() does not match: %s", conf.APIToken())
+		if got := conf.APIToken(); got != "test-token-1234" {
+			t.Errorf("APIToken() does not match: %s", got)
 		}
-
-		if len(conf.PreferredPipelines()) != 2 {
-			t.Errorf("PreferredPipelines() does not match: %d", len(conf.PreferredPipelines()))
+		if got := conf.PreferredPipelines(); len(got) != 2 {
+			t.Errorf("PreferredPipelines() does not match: %d", len(got))
 		}
 	})
 
