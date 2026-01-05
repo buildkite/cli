@@ -4,144 +4,58 @@ import (
 	"testing"
 
 	"github.com/buildkite/cli/v3/internal/config"
-	"github.com/spf13/afero"
-	"github.com/spf13/cobra"
 )
 
-func TestGetCommandPath(t *testing.T) {
-	t.Parallel()
+func TestValidateConfiguration_ExemptCommands(t *testing.T) {
+	conf := newTestConfig(t)
 
-	t.Run("returns correct path for simple commands", func(t *testing.T) {
-		t.Parallel()
+	for _, path := range []string{"pipeline validate", "pipeline migrate"} {
+		if err := ValidateConfiguration(conf, path); err != nil {
+			t.Fatalf("expected no error for exempt command %q, got %v", path, err)
+		}
+	}
+}
 
-		// Create a command hierarchy
-		validateCmd := &cobra.Command{Use: "validate"}
-		pipelineCmd := &cobra.Command{Use: "pipeline"}
-		rootCmd := &cobra.Command{Use: "bk"}
-
-		// Set up command hierarchy properly using AddCommand
-		pipelineCmd.AddCommand(validateCmd)
-		rootCmd.AddCommand(pipelineCmd)
-
-		path := getCommandPath(validateCmd)
-		expected := "bk pipeline validate"
-
-		if path != expected {
-			t.Errorf("Expected path %q, got %q", expected, path)
+func TestValidateConfiguration_MissingValues(t *testing.T) {
+	t.Run("missing token and org", func(t *testing.T) {
+		t.Setenv("BUILDKITE_API_TOKEN", "")
+		t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
+		conf := newTestConfig(t)
+		if err := ValidateConfiguration(conf, "pipeline view"); err == nil {
+			t.Fatalf("expected error when token and org are missing")
 		}
 	})
 
-	t.Run("handles Use field with arguments", func(t *testing.T) {
-		t.Parallel()
+	t.Run("missing org", func(t *testing.T) {
+		t.Setenv("BUILDKITE_API_TOKEN", "token")
+		t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
+		conf := newTestConfig(t)
+		if err := ValidateConfiguration(conf, "pipeline view"); err == nil {
+			t.Fatalf("expected error when org is missing")
+		}
+	})
 
-		// Create a command with Use field containing arguments
-		cmd := &cobra.Command{Use: "validate [flags]"}
-		parentCmd := &cobra.Command{Use: "pipeline <command>"}
-		rootCmd := &cobra.Command{Use: "bk"}
+	t.Run("missing token", func(t *testing.T) {
+		t.Setenv("BUILDKITE_API_TOKEN", "")
+		t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "org")
+		conf := newTestConfig(t)
+		if err := ValidateConfiguration(conf, "pipeline view"); err == nil {
+			t.Fatalf("expected error when token is missing")
+		}
+	})
 
-		// Set up command hierarchy properly using AddCommand
-		parentCmd.AddCommand(cmd)
-		rootCmd.AddCommand(parentCmd)
-
-		path := getCommandPath(cmd)
-		expected := "bk pipeline validate"
-
-		if path != expected {
-			t.Errorf("Expected path %q, got %q", expected, path)
+	t.Run("token and org present", func(t *testing.T) {
+		t.Setenv("BUILDKITE_API_TOKEN", "token2")
+		t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "org2")
+		conf := newTestConfig(t)
+		if err := ValidateConfiguration(conf, "pipeline view"); err != nil {
+			t.Fatalf("expected no error when token and org are set, got %v", err)
 		}
 	})
 }
 
-func TestCheckValidConfigurationExemptions(t *testing.T) {
-	t.Parallel()
-
-	t.Run("exempted commands skip validation", func(t *testing.T) {
-		t.Parallel()
-
-		// Create a config with empty token (would normally fail)
-		conf := config.New(afero.NewMemMapFs(), nil)
-
-		// Create a validate command
-		validateCmd := &cobra.Command{
-			Use:   "validate",
-			Short: "validate command",
-		}
-
-		// Create a pipeline parent command
-		pipelineCmd := &cobra.Command{
-			Use:   "pipeline",
-			Short: "pipeline command",
-		}
-
-		// Root command
-		rootCmd := &cobra.Command{
-			Use:   "bk",
-			Short: "root command",
-		}
-
-		// Build command hierarchy properly
-		pipelineCmd.AddCommand(validateCmd)
-		rootCmd.AddCommand(pipelineCmd)
-
-		// Check configuration for the pipeline validate command
-		validator := CheckValidConfiguration(conf)
-		err := validator(validateCmd, nil)
-		// Should not error even with empty config
-		if err != nil {
-			t.Errorf("Expected no error for exempted command, got: %v", err)
-		}
-	})
-
-	t.Run("command name path is correctly built", func(t *testing.T) {
-		t.Parallel()
-
-		// Create a config with empty token (would normally fail)
-		conf := config.New(afero.NewMemMapFs(), nil)
-
-		// Create a command structure with complex Use fields
-		validateCmd := &cobra.Command{
-			Use: "validate [flags]", // Contains extra content
-		}
-
-		pipelineCmd := &cobra.Command{
-			Use: "pipeline <command>", // Contains extra content
-		}
-
-		rootCmd := &cobra.Command{
-			Use: "bk [command]", // Contains extra content
-		}
-
-		// Build hierarchy properly
-		pipelineCmd.AddCommand(validateCmd)
-		rootCmd.AddCommand(pipelineCmd)
-
-		// Check configuration for the pipeline validate command
-		validator := CheckValidConfiguration(conf)
-		err := validator(validateCmd, nil)
-		// Should not error - should recognize "pipeline validate" pattern
-		if err != nil {
-			t.Errorf("Expected no error for command with pattern matching 'pipeline validate', got: %v", err)
-		}
-	})
-
-	t.Run("non-exempted commands require validation", func(t *testing.T) {
-		t.Parallel()
-
-		// Create a config with empty token (should fail)
-		conf := config.New(afero.NewMemMapFs(), nil)
-
-		// Create a non-exempted command
-		otherCmd := &cobra.Command{
-			Use: "other",
-		}
-
-		// Check configuration for a non-exempt command
-		validator := CheckValidConfiguration(conf)
-		err := validator(otherCmd, nil)
-
-		// Should error with empty config
-		if err == nil {
-			t.Error("Expected error for non-exempted command, got nil")
-		}
-	})
+func newTestConfig(t *testing.T) *config.Config {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+	return config.New(nil, nil)
 }
