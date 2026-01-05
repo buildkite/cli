@@ -20,7 +20,7 @@ import (
 
 type ViewCmd struct {
 	ClusterID string `arg:"" help:"Cluster ID to view"`
-	Output    string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}"`
+	Output    string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:"json,yaml,text"`
 }
 
 func (c *ViewCmd) Help() string {

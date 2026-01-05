@@ -20,7 +20,7 @@ import (
 type ViewCmd struct {
 	Pipeline string `arg:"" help:"The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." optional:""`
 	Web      bool   `help:"Open the pipeline in a web browser." short:"w"`
-	Output   string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}"`
+	Output   string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:"json,yaml,text"`
 }
 
 func (c *ViewCmd) Help() string {

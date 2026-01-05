@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/spf13/pflag"
 	"gopkg.in/yaml.v3"
 )
 
@@ -62,24 +61,4 @@ func writeText(w io.Writer, v interface{}) error {
 	// Fallback to default string representation
 	_, err := fmt.Fprintln(w, v)
 	return err
-}
-
-// AddFlags adds format flag to the command flags
-func AddFlags(flags *pflag.FlagSet) {
-	flags.StringP("output", "o", string(DefaultFormat), "Output format. One of: json, yaml, text")
-}
-
-// GetFormat gets the format from command flags
-func GetFormat(flags *pflag.FlagSet) (Format, error) {
-	format, err := flags.GetString("output")
-	if err != nil {
-		return "", err
-	}
-
-	switch Format(format) {
-	case FormatJSON, FormatYAML, FormatText:
-		return Format(format), nil
-	default:
-		return "", fmt.Errorf("unsupported output format: %s", format)
-	}
 }
