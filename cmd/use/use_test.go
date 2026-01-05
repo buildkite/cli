@@ -80,6 +80,8 @@ func TestCmdUse(t *testing.T) {
 		setEnv(t, "HOME", home)
 		xdgConfig := filepath.Join(home, ".config")
 		setEnv(t, "XDG_CONFIG_HOME", xdgConfig)
+		setEnv(t, "BUILDKITE_API_TOKEN", "")
+		setEnv(t, "BUILDKITE_ORGANIZATION_SLUG", "")
 		if err := os.MkdirAll(xdgConfig, 0o755); err != nil {
 			t.Fatalf("failed to create config dir: %v", err)
 		}

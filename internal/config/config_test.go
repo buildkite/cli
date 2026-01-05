@@ -99,4 +99,25 @@ func TestConfig(t *testing.T) {
 			t.Errorf("expected empty token for nonexistent org, got %s", conf.GetTokenForOrg("nonexistent"))
 		}
 	})
+
+	t.Run("loadFileConfig returns error on invalid yaml", func(t *testing.T) {
+		fs := afero.NewMemMapFs()
+		path := filepath.Join(t.TempDir(), "bk.yaml")
+		if err := afero.WriteFile(fs, path, []byte("selected_org: [oops"), 0600); err != nil {
+			t.Fatalf("failed to write invalid yaml: %v", err)
+		}
+
+		_, err := loadFileConfig(fs, path)
+		if err == nil {
+			t.Fatalf("expected error for invalid yaml, got nil")
+		}
+	})
+
+	t.Run("loadFileConfig ignores missing file", func(t *testing.T) {
+		fs := afero.NewMemMapFs()
+		_, err := loadFileConfig(fs, "does-not-exist.yaml")
+		if err != nil {
+			t.Fatalf("expected no error for missing file, got %v", err)
+		}
+	})
 }

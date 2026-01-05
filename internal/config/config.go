@@ -67,8 +67,15 @@ func New(fs afero.Fs, repo *git.Repository) *Config {
 		}
 	}
 
-	userCfg, _ := loadFileConfig(fs, userPath)
-	localCfg, _ := loadFileConfig(fs, localPath)
+	userCfg, userErr := loadFileConfig(fs, userPath)
+	if userErr != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to read config %s: %v\n", userPath, userErr)
+	}
+
+	localCfg, localErr := loadFileConfig(fs, localPath)
+	if localErr != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to read config %s: %v\n", localPath, localErr)
+	}
 
 	return &Config{
 		fs:        fs,
@@ -273,7 +280,10 @@ func loadFileConfig(fs afero.Fs, path string) (fileConfig, error) {
 
 	file, err := fs.Open(path)
 	if err != nil {
-		return cfg, nil
+		if errors.Is(err, os.ErrNotExist) {
+			return cfg, nil
+		}
+		return cfg, err
 	}
 	defer file.Close()
 
@@ -300,7 +310,7 @@ func writeFileConfig(fs afero.Fs, path string, cfg fileConfig) error {
 	}
 
 	dir := filepath.Dir(path)
-	if err := fs.MkdirAll(dir, 0o755); err != nil {
+	if err := fs.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
 
@@ -313,7 +323,7 @@ func writeFileConfig(fs afero.Fs, path string, cfg fileConfig) error {
 		return err
 	}
 
-	return afero.WriteFile(fs, path, data, 0o644)
+	return afero.WriteFile(fs, path, data, 0600)
 }
 
 func (cfg fileConfig) getToken(org string) string {
