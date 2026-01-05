@@ -7,7 +7,7 @@ This package provides standardized error handling for the Buildkite CLI. It hand
 - **Categorized Errors**: Different error types (validation, API, not found, etc.) with specific handling
 - **Contextual Error Messages**: Errors include context about what operation failed
 - **Helpful Suggestions**: Error messages include suggestions on how to fix the issue
-- **Command Integration**: Easy integration with Cobra commands
+- **Command Integration**: Easy integration with Kong commands
 - **API Error Handling**: Specialized handling for API errors with status code interpretation
 - **Exit Codes**: Appropriate exit codes for different error types
 
@@ -37,8 +37,8 @@ notFoundErr := bkErrors.NewResourceNotFoundError(err, "Resource not found")
 
 ```go
 // Add suggestions to an existing error
-err = bkErrors.WithSuggestions(err, 
-    "Try this instead", 
+err = bkErrors.WithSuggestions(err,
+    "Try this instead",
     "Or try this other option"
 )
 
@@ -105,7 +105,7 @@ handler.PrintWarning("Something might be wrong: %s", details)
 // In main.go:
 func main() {
     rootCmd, _ := root.NewCmdRoot(f)
-    
+
     // Execute with error handling
     bkErrors.ExecuteWithErrorHandling(rootCmd, verbose)
 }
