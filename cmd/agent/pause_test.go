@@ -27,7 +27,6 @@ func TestPauseCmdValidation(t *testing.T) {
 			t.Parallel()
 
 			cmd := &PauseCmd{
-				AgentID:          "test-agent",
 				TimeoutInMinutes: tt.timeout,
 			}
 

@@ -8,6 +8,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/internal/graphql"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	view "github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -49,6 +50,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.SkipConfirm = globals.SkipConfirmation()
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
+	f.NoPager = f.NoPager || globals.DisablePager()
 
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
 		return err
@@ -92,6 +94,9 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return output.Write(kongCtx.Stdout, resp.Pipeline, format)
 	}
 
+	writer, cleanup := bkIO.Pager(f.NoPager)
+	defer func() { _ = cleanup() }()
+
 	var pipelineOutput strings.Builder
 
 	err = view.RenderPipeline(&pipelineOutput, *resp.Pipeline)
@@ -99,7 +104,6 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", pipelineOutput.String())
-
-	return nil
+	_, err = fmt.Fprintf(writer, "%s\n", pipelineOutput.String())
+	return err
 }

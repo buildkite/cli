@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/alecthomas/kong"
-	"github.com/buildkite/cli/v3/internal/agent"
 	"github.com/buildkite/cli/v3/internal/cli"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 const (
@@ -79,6 +79,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.SkipConfirm = globals.SkipConfirmation()
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
+	f.NoPager = f.NoPager || globals.DisablePager()
 
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
 		return err
@@ -92,77 +93,107 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	format := output.Format(c.Output)
 
-	// Skip TUI when using non-text format (JSON/YAML)
+	agents := []buildkite.Agent{}
+	page := 1
+	hasMore := false
+	var previousFirstAgentID string
+
+	for len(agents) < c.Limit {
+		opts := buildkite.AgentListOptions{
+			Name:     c.Name,
+			Hostname: c.Hostname,
+			Version:  c.Version,
+			ListOptions: buildkite.ListOptions{
+				Page:    page,
+				PerPage: c.PerPage,
+			},
+		}
+
+		pageAgents, _, err := f.RestAPIClient.Agents.List(ctx, f.Config.OrganizationSlug(), &opts)
+		if err != nil {
+			return err
+		}
+
+		if len(pageAgents) == 0 {
+			break
+		}
+
+		if page > 1 && len(pageAgents) > 0 && pageAgents[0].ID == previousFirstAgentID {
+			return fmt.Errorf("API returned duplicate page content at page %d, stopping pagination to prevent infinite loop", page)
+		}
+		if len(pageAgents) > 0 {
+			previousFirstAgentID = pageAgents[0].ID
+		}
+
+		filtered := filterAgents(pageAgents, c.State, c.Tags)
+		agents = append(agents, filtered...)
+
+		// If this was a full page, there might be more results
+		// We'll check after breaking from the loop if we hit the limit with a full page
+		if len(pageAgents) < c.PerPage {
+			break
+		}
+
+		// Check if we've hit the limit before fetching more
+		if len(agents) >= c.Limit {
+			// We hit the limit with a full page, so there are likely more results
+			hasMore = true
+			break
+		}
+
+		page++
+	}
+
+	totalFetched := len(agents)
+	if len(agents) > c.Limit {
+		agents = agents[:c.Limit]
+	}
+
 	if format != output.FormatText {
-		agents := []buildkite.Agent{}
-		page := 1
-
-		for len(agents) < c.Limit && page < 50 {
-			opts := buildkite.AgentListOptions{
-				Name:     c.Name,
-				Hostname: c.Hostname,
-				Version:  c.Version,
-				ListOptions: buildkite.ListOptions{
-					Page:    page,
-					PerPage: c.PerPage,
-				},
-			}
-
-			pageAgents, _, err := f.RestAPIClient.Agents.List(ctx, f.Config.OrganizationSlug(), &opts)
-			if err != nil {
-				return err
-			}
-
-			if len(pageAgents) == 0 {
-				break
-			}
-
-			filtered := filterAgents(pageAgents, c.State, c.Tags)
-			agents = append(agents, filtered...)
-			page++
-		}
-
-		if len(agents) > c.Limit {
-			agents = agents[:c.Limit]
-		}
-
 		return output.Write(os.Stdout, agents, format)
 	}
 
-	loader := func(page int) tea.Cmd {
-		return func() tea.Msg {
-			opts := buildkite.AgentListOptions{
-				Name:     c.Name,
-				Hostname: c.Hostname,
-				Version:  c.Version,
-				ListOptions: buildkite.ListOptions{
-					Page:    page,
-					PerPage: c.PerPage,
-				},
-			}
+	if len(agents) == 0 {
+		fmt.Println("No agents found")
+		return nil
+	}
 
-			agents, resp, err := f.RestAPIClient.Agents.List(ctx, f.Config.OrganizationSlug(), &opts)
-			if err != nil {
-				return err
-			}
-
-			filtered := filterAgents(agents, c.State, c.Tags)
-
-			items := make([]agent.AgentListItem, len(filtered))
-			for i, a := range filtered {
-				a := a
-				items[i] = agent.AgentListItem{Agent: a}
-			}
-
-			return agent.NewAgentItemsMsg(items, resp.LastPage)
+	headers := []string{"State", "Name", "Version", "Queue", "Hostname"}
+	rows := make([][]string, len(agents))
+	for i, agent := range agents {
+		queue := extractQueue(agent.Metadata)
+		state := displayState(agent)
+		rows[i] = []string{
+			state,
+			agent.Name,
+			agent.Version,
+			queue,
+			agent.Hostname,
 		}
 	}
 
-	model := agent.NewAgentList(loader, 1, c.PerPage, f.Quiet)
+	columnStyles := map[string]string{
+		"state":    "bold",
+		"name":     "bold",
+		"hostname": "dim",
+		"version":  "italic",
+		"queue":    "italic",
+	}
+	table := output.Table(headers, rows, columnStyles)
 
-	p := tea.NewProgram(model, tea.WithAltScreen())
-	_, err = p.Run()
-	return err
+	writer, cleanup := bkIO.Pager(f.NoPager)
+	defer func() {
+		_ = cleanup()
+	}()
+
+	totalDisplay := fmt.Sprintf("%d", totalFetched)
+	if hasMore {
+		totalDisplay = fmt.Sprintf("%d+", totalFetched)
+	}
+	fmt.Fprintf(writer, "Showing %d of %s agents in %s\n\n", len(agents), totalDisplay, f.Config.OrganizationSlug())
+	fmt.Fprint(writer, table)
+
+	return nil
 }
 
 func validateState(state string) error {
@@ -171,10 +202,8 @@ func validateState(state string) error {
 	}
 
 	normalized := strings.ToLower(state)
-	for _, valid := range validStates {
-		if normalized == valid {
-			return nil
-		}
+	if slices.Contains(validStates, normalized) {
+		return nil
 	}
 
 	return fmt.Errorf("invalid state %q: must be one of %s, %s, or %s", state, stateRunning, stateIdle, statePaused)
@@ -222,10 +251,26 @@ func matchesTags(a buildkite.Agent, tags []string) bool {
 }
 
 func hasTag(metadata []string, tag string) bool {
-	for _, meta := range metadata {
-		if meta == tag {
-			return true
+	return slices.Contains(metadata, tag)
+}
+
+func extractQueue(metadata []string) string {
+	for _, m := range metadata {
+		if after, ok := strings.CutPrefix(m, "queue="); ok {
+			return after
 		}
 	}
-	return false
+	return "default"
+}
+
+func displayState(a buildkite.Agent) string {
+	if a.Job != nil {
+		return stateRunning
+	}
+
+	if a.Paused != nil && *a.Paused {
+		return statePaused
+	}
+
+	return stateIdle
 }
