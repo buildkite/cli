@@ -9,7 +9,6 @@ import (
 	"github.com/buildkite/cli/v3/internal/config"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	git "github.com/go-git/go-git/v5"
-	"github.com/spf13/cobra"
 )
 
 var userAgent string
@@ -24,25 +23,6 @@ type Factory struct {
 	NoInput       bool
 	Quiet         bool
 	NoPager       bool
-}
-
-// SetGlobalFlags reads the global persistent flags and sets them on the factory.
-// This should be called in PreRunE of Cobra commands that need to use global flags.
-// It's safe to call multiple times and will only set flags if they're present.
-//
-// NOTE: This is only used by legacy Cobra commands. Kong commands receive global
-// flags via cli.GlobalFlags which are set at the root level and work in any position
-// (e.g., bk --yes job cancel <id>).
-func (f *Factory) SetGlobalFlags(cmd *cobra.Command) {
-	if yes, err := cmd.Flags().GetBool("yes"); err == nil && yes {
-		f.SkipConfirm = yes
-	}
-	if noInput, err := cmd.Flags().GetBool("no-input"); err == nil && noInput {
-		f.NoInput = noInput
-	}
-	if quiet, err := cmd.Flags().GetBool("quiet"); err == nil && quiet {
-		f.Quiet = quiet
-	}
 }
 
 type gqlHTTPClient struct {

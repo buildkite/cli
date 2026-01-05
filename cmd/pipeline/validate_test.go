@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ghodss/yaml"
+	"github.com/goccy/go-yaml"
 	"github.com/xeipuuv/gojsonschema"
 )
 

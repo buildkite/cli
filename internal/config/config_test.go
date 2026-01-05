@@ -8,6 +8,24 @@ import (
 	"github.com/spf13/afero"
 )
 
+func setEnv(t *testing.T, key, value string) {
+	original, had := os.LookupEnv(key)
+	if err := os.Setenv(key, value); err != nil {
+		t.Fatalf("failed to set env %s: %v", key, err)
+	}
+	t.Cleanup(func() {
+		var restoreErr error
+		if had {
+			restoreErr = os.Setenv(key, original)
+		} else {
+			restoreErr = os.Unsetenv(key)
+		}
+		if restoreErr != nil {
+			t.Fatalf("failed to restore env %s: %v", key, restoreErr)
+		}
+	})
+}
+
 func prepareTestDirectory(fs afero.Fs, fixturePath, configPath string) error {
 	// read the content of the fixture config file from the real filesystem
 	in, err := os.ReadFile(filepath.Join("../../fixtures/config", fixturePath))
@@ -37,9 +55,9 @@ func TestConfig(t *testing.T) {
 	t.Parallel()
 
 	t.Run("read in local config", func(t *testing.T) {
-		t.Parallel()
-
 		fs := afero.NewMemMapFs()
+		setEnv(t, "BUILDKITE_ORGANIZATION_SLUG", "")
+		setEnv(t, "BUILDKITE_API_TOKEN", "")
 		err := prepareTestDirectory(fs, "local.basic.yaml", localConfigFilePath)
 		if err != nil {
 			t.Fatal(err)
@@ -48,16 +66,14 @@ func TestConfig(t *testing.T) {
 		// try to load configuration
 		conf := New(fs, nil)
 
-		// confirm we get the expected values
-		if conf.localConfig.GetString("selected_org") != "buildkite-test" {
-			t.Errorf("OrganizationSlug() does not match: %s", conf.OrganizationSlug())
+		if got := conf.OrganizationSlug(); got != "buildkite-test" {
+			t.Errorf("OrganizationSlug() does not match: %s", got)
 		}
-		if conf.localConfig.GetString("organizations.buildkite-test.api_token") != "test-token-1234" {
-			t.Errorf("APIToken() does not match: %s", conf.APIToken())
+		if got := conf.APIToken(); got != "test-token-1234" {
+			t.Errorf("APIToken() does not match: %s", got)
 		}
-
-		if len(conf.PreferredPipelines()) != 2 {
-			t.Errorf("PreferredPipelines() does not match: %d", len(conf.PreferredPipelines()))
+		if got := conf.PreferredPipelines(); len(got) != 2 {
+			t.Errorf("PreferredPipelines() does not match: %d", len(got))
 		}
 	})
 
@@ -81,6 +97,27 @@ func TestConfig(t *testing.T) {
 		}
 		if conf.GetTokenForOrg("nonexistent") != "" {
 			t.Errorf("expected empty token for nonexistent org, got %s", conf.GetTokenForOrg("nonexistent"))
+		}
+	})
+
+	t.Run("loadFileConfig returns error on invalid yaml", func(t *testing.T) {
+		fs := afero.NewMemMapFs()
+		path := filepath.Join(t.TempDir(), "bk.yaml")
+		if err := afero.WriteFile(fs, path, []byte("selected_org: [oops"), 0600); err != nil {
+			t.Fatalf("failed to write invalid yaml: %v", err)
+		}
+
+		_, err := loadFileConfig(fs, path)
+		if err == nil {
+			t.Fatalf("expected error for invalid yaml, got nil")
+		}
+	})
+
+	t.Run("loadFileConfig ignores missing file", func(t *testing.T) {
+		fs := afero.NewMemMapFs()
+		_, err := loadFileConfig(fs, "does-not-exist.yaml")
+		if err != nil {
+			t.Fatalf("expected no error for missing file, got %v", err)
 		}
 	})
 }
