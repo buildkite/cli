@@ -110,7 +110,6 @@ type (
 	}
 	ConfigureCmd struct {
 		configure.ConfigureCmd `cmd:"" help:"Configure Buildkite API token"`
-		//Add                    add.AddCmd `cmd:"" optional:"" hidden:"" help:"Add configuration for a new organization"`
 	}
 )
 
