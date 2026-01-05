@@ -9,7 +9,27 @@ import (
 	"github.com/spf13/afero"
 )
 
+func setEnv(t *testing.T, key, value string) {
+	original, had := os.LookupEnv(key)
+	if err := os.Setenv(key, value); err != nil {
+		t.Fatalf("failed to set env %s: %v", key, err)
+	}
+	t.Cleanup(func() {
+		var restoreErr error
+		if had {
+			restoreErr = os.Setenv(key, original)
+		} else {
+			restoreErr = os.Unsetenv(key)
+		}
+		if restoreErr != nil {
+			t.Fatalf("failed to restore env %s: %v", key, restoreErr)
+		}
+	})
+}
+
 func TestCmdUse(t *testing.T) {
+	t.Parallel()
+
 	t.Run("uses already selected org", func(t *testing.T) {
 		t.Parallel()
 		conf := config.New(afero.NewMemMapFs(), nil)
@@ -56,9 +76,10 @@ func TestCmdUse(t *testing.T) {
 	})
 
 	t.Run("reads organization from user config file", func(t *testing.T) {
-		t.Setenv("HOME", t.TempDir())
-		xdgConfig := filepath.Join(os.Getenv("HOME"), ".config")
-		t.Setenv("XDG_CONFIG_HOME", xdgConfig)
+		home := t.TempDir()
+		setEnv(t, "HOME", home)
+		xdgConfig := filepath.Join(home, ".config")
+		setEnv(t, "XDG_CONFIG_HOME", xdgConfig)
 		if err := os.MkdirAll(xdgConfig, 0o755); err != nil {
 			t.Fatalf("failed to create config dir: %v", err)
 		}

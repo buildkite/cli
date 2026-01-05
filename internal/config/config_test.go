@@ -8,6 +8,24 @@ import (
 	"github.com/spf13/afero"
 )
 
+func setEnv(t *testing.T, key, value string) {
+	original, had := os.LookupEnv(key)
+	if err := os.Setenv(key, value); err != nil {
+		t.Fatalf("failed to set env %s: %v", key, err)
+	}
+	t.Cleanup(func() {
+		var restoreErr error
+		if had {
+			restoreErr = os.Setenv(key, original)
+		} else {
+			restoreErr = os.Unsetenv(key)
+		}
+		if restoreErr != nil {
+			t.Fatalf("failed to restore env %s: %v", key, restoreErr)
+		}
+	})
+}
+
 func prepareTestDirectory(fs afero.Fs, fixturePath, configPath string) error {
 	// read the content of the fixture config file from the real filesystem
 	in, err := os.ReadFile(filepath.Join("../../fixtures/config", fixturePath))
@@ -34,10 +52,12 @@ func prepareTestDirectory(fs afero.Fs, fixturePath, configPath string) error {
 }
 
 func TestConfig(t *testing.T) {
+	t.Parallel()
+
 	t.Run("read in local config", func(t *testing.T) {
 		fs := afero.NewMemMapFs()
-		t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
-		t.Setenv("BUILDKITE_API_TOKEN", "")
+		setEnv(t, "BUILDKITE_ORGANIZATION_SLUG", "")
+		setEnv(t, "BUILDKITE_API_TOKEN", "")
 		err := prepareTestDirectory(fs, "local.basic.yaml", localConfigFilePath)
 		if err != nil {
 			t.Fatal(err)
