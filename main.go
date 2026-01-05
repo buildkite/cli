@@ -51,7 +51,6 @@ type CLI struct {
 	Whoami       whoami.WhoAmICmd `cmd:"" help:"Print the current user and organization"`
 }
 
-// Hybrid delegation commands, we should delete from these when native Kong implementations ready
 type (
 	VersionCmd struct {
 		version.VersionCmd `cmd:"" help:"Print the version of the CLI being used"`
