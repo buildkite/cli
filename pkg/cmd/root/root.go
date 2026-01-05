@@ -5,7 +5,6 @@ import (
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	initCmd "github.com/buildkite/cli/v3/pkg/cmd/init"
 	promptCmd "github.com/buildkite/cli/v3/pkg/cmd/prompt"
 	"github.com/spf13/cobra"
 )
@@ -40,7 +39,6 @@ func NewCmdRoot(f *factory.Factory) (*cobra.Command, error) {
 		},
 	}
 
-	cmd.AddCommand(initCmd.NewCmdInit(f))
 	cmd.AddCommand(promptCmd.NewCmdPrompt(f))
 
 	cmd.Flags().BoolP("version", "v", false, "Print the version number")
