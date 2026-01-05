@@ -4,12 +4,14 @@ type GlobalFlags interface {
 	SkipConfirmation() bool
 	DisableInput() bool
 	IsQuiet() bool
+	DisablePager() bool
 }
 
 type Globals struct {
 	Yes     bool
 	NoInput bool
 	Quiet   bool
+	NoPager bool
 }
 
 func (g Globals) SkipConfirmation() bool {
@@ -22,4 +24,8 @@ func (g Globals) DisableInput() bool {
 
 func (g Globals) IsQuiet() bool {
 	return g.Quiet
+}
+
+func (g Globals) DisablePager() bool {
+	return g.NoPager
 }

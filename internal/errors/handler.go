@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-
-	"github.com/charmbracelet/lipgloss"
 )
 
 // Exit codes for different error types
@@ -21,13 +19,6 @@ const (
 	ExitCodeAuthError        = 7
 	ExitCodeInternalError    = 8
 	ExitCodeUserAbortedError = 130 // Same as Ctrl+C in bash
-)
-
-// Styling for error output
-var (
-	errorStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true) // Red
-	warningStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true) // Yellow
-	suggestionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))            // Cyan
 )
 
 // Handler processes errors from commands and formats them appropriately
@@ -114,7 +105,7 @@ func (h *Handler) getExitCode(err error) int {
 
 // formatError creates a formatted error message based on the error type
 func (h *Handler) formatError(err error) string {
-	prefix := errorStyle.Render("Error:")
+	prefix := "Error:"
 
 	if cliErr, ok := err.(*Error); ok {
 		// For CLI errors, use the formatted error message
@@ -132,8 +123,7 @@ func (h *Handler) formatError(err error) string {
 			// In non-verbose mode, include the main error message and the first suggestion
 			message = cliErr.Error()
 			if len(cliErr.Suggestions) > 0 {
-				message = fmt.Sprintf("%s\n%s", message,
-					suggestionStyle.Render(fmt.Sprintf("Tip: %s", cliErr.Suggestions[0])))
+				message = fmt.Sprintf("%s\nTip: %s", message, cliErr.Suggestions[0])
 			}
 		}
 
@@ -148,23 +138,23 @@ func (h *Handler) formatError(err error) string {
 func (h *Handler) getCategoryPrefix(category error) string {
 	switch category {
 	case ErrValidation:
-		return errorStyle.Render("Validation Error:")
+		return "Validation Error:"
 	case ErrAPI:
-		return errorStyle.Render("API Error:")
+		return "API Error:"
 	case ErrResourceNotFound:
-		return errorStyle.Render("Not Found:")
+		return "Not Found:"
 	case ErrPermissionDenied:
-		return errorStyle.Render("Permission Denied:")
+		return "Permission Denied:"
 	case ErrConfiguration:
-		return errorStyle.Render("Configuration Error:")
+		return "Configuration Error:"
 	case ErrAuthentication:
-		return errorStyle.Render("Authentication Error:")
+		return "Authentication Error:"
 	case ErrUserAborted:
-		return warningStyle.Render("Aborted:")
+		return "Aborted:"
 	case ErrInternal:
-		return errorStyle.Render("Internal Error:")
+		return "Internal Error:"
 	default:
-		return errorStyle.Render("Error:")
+		return "Error:"
 	}
 }
 
@@ -211,9 +201,8 @@ func (h *Handler) HandleWithDetails(err error, operation string) {
 
 // PrintWarning prints a warning message
 func (h *Handler) PrintWarning(format string, args ...interface{}) {
-	prefix := warningStyle.Render("Warning:")
 	message := fmt.Sprintf(format, args...)
-	fmt.Fprintf(h.Writer, "%s %s\n", prefix, message)
+	fmt.Fprintf(h.Writer, "Warning: %s\n", message)
 }
 
 // MessageForError returns a formatted message for an error without exiting
