@@ -9,7 +9,13 @@ import (
 func TestValidateConfiguration_ExemptCommands(t *testing.T) {
 	conf := newTestConfig(t)
 
-	for _, path := range []string{"pipeline validate", "pipeline migrate"} {
+	for _, path := range []string{
+		"pipeline validate",
+		"pipeline migrate",
+		"configure",
+		"configure default",
+		"configure add",
+	} {
 		if err := ValidateConfiguration(conf, path); err != nil {
 			t.Fatalf("expected no error for exempt command %q, got %v", path, err)
 		}
