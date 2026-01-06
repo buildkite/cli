@@ -7,6 +7,8 @@ import (
 )
 
 func TestValidateConfiguration_ExemptCommands(t *testing.T) {
+	t.Setenv("BUILDKITE_API_TOKEN", "")
+	t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
 	conf := newTestConfig(t)
 
 	for _, path := range []string{
