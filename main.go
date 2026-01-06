@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 
@@ -23,8 +22,6 @@ import (
 	"github.com/buildkite/cli/v3/cmd/whoami"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
-	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/cli/v3/pkg/cmd/root"
 	"github.com/buildkite/cli/v3/pkg/output"
 )
 
@@ -54,7 +51,6 @@ type CLI struct {
 	Whoami       whoami.WhoAmICmd `cmd:"" help:"Print the current user and organization"`
 }
 
-// Hybrid delegation commands, we should delete from these when native Kong implementations ready
 type (
 	VersionCmd struct {
 		version.VersionCmd `cmd:"" help:"Print the version of the CLI being used"`
@@ -114,29 +110,6 @@ type (
 	}
 )
 
-func runCobraSystem() int {
-	f, err := factory.New()
-	if err != nil {
-		handleError(bkErrors.NewInternalError(err, "failed to initialize CLI", "This is likely a bug", "Report to Buildkite"))
-		return bkErrors.ExitCodeInternalError
-	}
-
-	rootCmd, err := root.NewCmdRoot(f)
-	if err != nil {
-		handleError(bkErrors.NewInternalError(err, "failed to create commands", "This is likely a bug", "Report to Buildkite"))
-		return bkErrors.ExitCodeInternalError
-	}
-
-	rootCmd.SetContext(context.Background())
-	rootCmd.SilenceErrors = true
-
-	if err := rootCmd.Execute(); err != nil {
-		handleError(err)
-		return 1
-	}
-	return 0
-}
-
 func handleError(err error) {
 	bkErrors.NewHandler().Handle(err)
 }
@@ -171,11 +144,6 @@ func run() int {
 		return 0
 	}
 
-	// We can remove the isHelpRequest function when we have full Kong support for all commands
-	if isHelpRequest() {
-		return runCobraSystem()
-	}
-
 	cliInstance := &CLI{}
 
 	parser, err := newKongParser(cliInstance)
@@ -203,80 +171,4 @@ func run() int {
 		return 1
 	}
 	return 0
-}
-
-// We can rip this out when we have full Kong support for all commands
-func isHelpRequest() bool {
-	// Let Kong handle no-args case and global help
-	if len(os.Args) < 2 {
-		return false
-	}
-
-	// Global help, e.g. bk --help - let Kong handle this too
-	if len(os.Args) == 2 && (os.Args[1] == "-h" || os.Args[1] == "--help") {
-		return false
-	}
-
-	// Let Kong handle build subcommand help since build is fully migrated
-	if len(os.Args) >= 2 && os.Args[1] == "build" {
-		return false
-	}
-
-	if len(os.Args) >= 2 && os.Args[1] == "agent" {
-		return false
-	}
-
-	if len(os.Args) >= 2 && os.Args[1] == "job" {
-		return false
-	}
-
-	if len(os.Args) >= 2 && os.Args[1] == "cluster" {
-		return false
-	}
-
-	if len(os.Args) >= 2 && os.Args[1] == "artifacts" {
-		return false
-	}
-
-	if len(os.Args) >= 2 && os.Args[1] == "api" {
-		return false
-	}
-
-	if len(os.Args) >= 2 && os.Args[1] == "version" {
-		return false
-	}
-
-	if len(os.Args) >= 2 && os.Args[1] == "pipeline" {
-		return false
-	}
-
-	if len(os.Args) >= 2 && os.Args[1] == "whoami" {
-		return false
-	}
-
-	if len(os.Args) >= 2 && os.Args[1] == "init" {
-		return false
-	}
-
-	if len(os.Args) >= 2 && os.Args[1] == "organization" {
-		return false
-	}
-	if len(os.Args) >= 2 && os.Args[1] == "use" {
-		return false
-	}
-	if len(os.Args) >= 2 && os.Args[1] == "package" {
-		return false
-	}
-	if len(os.Args) >= 2 && os.Args[1] == "user" {
-		return false
-	}
-	if len(os.Args) >= 2 && os.Args[1] == "configure" {
-		return false
-	}
-
-	if len(os.Args) == 3 && (os.Args[2] == "-h" || os.Args[2] == "--help") {
-		return true
-	}
-
-	return false
 }

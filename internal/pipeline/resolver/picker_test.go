@@ -3,11 +3,38 @@ package resolver_test
 import (
 	"testing"
 
+	"os"
+
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
+	"github.com/goccy/go-yaml"
 	"github.com/spf13/afero"
 )
+
+type savedConfig struct {
+	SelectedOrg string   `yaml:"selected_org"`
+	Pipelines   []string `yaml:"pipelines"`
+}
+
+func readSavedConfig(t *testing.T, fs afero.Fs) savedConfig {
+	b, err := afero.ReadFile(fs, ".bk.yaml")
+	if err != nil {
+		if os.IsNotExist(err) {
+			return savedConfig{}
+		}
+		t.Fatalf("failed to read config: %v", err)
+	}
+
+	var cfg savedConfig
+	if len(b) == 0 {
+		return cfg
+	}
+	if err := yaml.Unmarshal(b, &cfg); err != nil {
+		t.Fatalf("failed to unmarshal config: %v", err)
+	}
+	return cfg
+}
 
 func TestPickers(t *testing.T) {
 	t.Parallel()
@@ -27,10 +54,9 @@ func TestPickers(t *testing.T) {
 			t.Fatal("Should not have received nil from picker")
 		}
 
-		b, _ := afero.ReadFile(fs, ".bk.yaml")
-		expected := "pipelines:\n    - pipeline\n"
-		if string(b) != expected {
-			t.Fatalf("Local config file does not match expected: %s", string(b))
+		saved := readSavedConfig(t, fs)
+		if len(saved.Pipelines) != 1 || saved.Pipelines[0] != "pipeline" {
+			t.Fatalf("Local config pipelines do not match expected: %#v", saved.Pipelines)
 		}
 	})
 
@@ -63,10 +89,15 @@ func TestPickers(t *testing.T) {
 		}
 		resolver.CachedPicker(conf, func(p []pipeline.Pipeline) *pipeline.Pipeline { return &p[1] }, true)(pipelines)
 
-		b, _ := afero.ReadFile(fs, ".bk.yaml")
-		expected := "pipelines:\n    - second\n    - first\n    - third\n"
-		if string(b) != expected {
-			t.Fatalf("Local config file does not match expected: %s", string(b))
+		saved := readSavedConfig(t, fs)
+		expected := []string{"second", "first", "third"}
+		if len(saved.Pipelines) != len(expected) {
+			t.Fatalf("Local config pipelines length mismatch: got %d want %d", len(saved.Pipelines), len(expected))
+		}
+		for i, name := range expected {
+			if saved.Pipelines[i] != name {
+				t.Fatalf("Local config pipelines mismatch at %d: got %q want %q", i, saved.Pipelines[i], name)
+			}
 		}
 	})
 }

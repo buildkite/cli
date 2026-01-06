@@ -22,37 +22,34 @@ type ConfigureCmd struct {
 	Add     ConfigureAddCmd     `cmd:"" optional:"" help:"Add configuration for a new organization"`
 }
 
-type ConfigureDefaultCmd struct {
-}
+type ConfigureDefaultCmd struct{}
 
-type ConfigureAddCmd struct {
-}
+type ConfigureAddCmd struct{}
 
 func (c *ConfigureAddCmd) Help() string {
-	return ` 
+	return `
 Examples:
-  # Prompt configuration to add for a new organization 
+  # Interactively configure a new organization
   $ bk configure add
 
-  # Add configure Buildkite API token
-  $ bk configure add --org my-org --token my-token  
+  # Configure a new organization non-interactively
+  $ bk configure add --org my-org --token my-token
 `
 }
 
 func (c *ConfigureCmd) Help() string {
-	return ` 
+	return `
 Examples:
   # Configure Buildkite API token
   $ bk configure --org my-org --token my-token
 
   # Force setting a new token
-  $ bk configure --force --org my-org --token my-token 
+  $ bk configure --force --org my-org --token my-token
 `
 }
 
 func (c *ConfigureCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f, err := factory.New()
-
 	if err != nil {
 		return err
 	}
@@ -69,7 +66,6 @@ func (c *ConfigureCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		if !c.Force && f.Config.APIToken() != "" {
 			return errors.New("API token already configured. You must use --force")
 		}
-
 	}
 
 	// If flags are provided, use them directly
@@ -96,7 +92,6 @@ func ConfigureRun(f *factory.Factory, org string) error {
 	if org == "" {
 		// Get organization slug
 		inputOrg, err := promptForInput("Organization slug: ", false)
-
 		if err != nil {
 			return err
 		}

@@ -10,7 +10,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/ghodss/yaml"
+	"github.com/goccy/go-yaml"
 	"github.com/xeipuuv/gojsonschema"
 )
 
