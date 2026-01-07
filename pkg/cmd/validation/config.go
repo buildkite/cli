@@ -18,6 +18,11 @@ func ValidateConfiguration(conf *config.Config, commandPath string) error {
 	missingToken := conf.APIToken() == ""
 	missingOrg := conf.OrganizationSlug() == ""
 
+	// Skip token check for all configure commands
+	if strings.HasPrefix(commandPath, "configure") {
+		return nil
+	}
+
 	// Skip token check for commands that don't need it
 	for _, exemptCmd := range CommandsNotRequiringToken {
 		// Check if the command path ends with the exempt command pattern

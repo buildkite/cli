@@ -61,6 +61,28 @@ Examples:
 `
 }
 
+// buildFullEndpoint constructs the full API endpoint path with organization prefix
+func buildFullEndpoint(endpoint, orgSlug string, isAnalytics bool) string {
+	// Default to root if empty
+	if endpoint == "" {
+		endpoint = "/"
+	}
+
+	// Ensure endpoint starts with a leading slash
+	if !strings.HasPrefix(endpoint, "/") {
+		endpoint = "/" + endpoint
+	}
+
+	var endpointPrefix string
+	if isAnalytics {
+		endpointPrefix = fmt.Sprintf("v2/analytics/organizations/%s", orgSlug)
+	} else {
+		endpointPrefix = fmt.Sprintf("v2/organizations/%s", orgSlug)
+	}
+
+	return endpointPrefix + endpoint
+}
+
 func (c *ApiCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f, err := factory.New()
 	if err != nil {
@@ -90,19 +112,7 @@ func (c *ApiCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return c.handleGraphQLQuery(context.Background(), f)
 	}
 
-	endpoint := c.Endpoint
-	if endpoint == "" {
-		endpoint = "/"
-	}
-
-	var endpointPrefix string
-	if c.Analytics {
-		endpointPrefix = fmt.Sprintf("v2/analytics/organizations/%s", f.Config.OrganizationSlug())
-	} else {
-		endpointPrefix = fmt.Sprintf("v2/organizations/%s", f.Config.OrganizationSlug())
-	}
-
-	fullEndpoint := endpointPrefix + endpoint
+	fullEndpoint := buildFullEndpoint(c.Endpoint, f.Config.OrganizationSlug(), c.Analytics)
 
 	// Create an HTTP client with appropriate configuration
 	client := httpClient.NewClient(
@@ -126,7 +136,7 @@ func (c *ApiCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		}
 	}
 
-	var requestData interface{}
+	var requestData any
 	if c.Data != "" {
 		// Try to parse as JSON first
 		if err := json.Unmarshal([]byte(c.Data), &requestData); err != nil {
@@ -135,7 +145,7 @@ func (c *ApiCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		}
 	}
 
-	var response interface{}
+	var response any
 
 	switch method {
 	case "GET":
