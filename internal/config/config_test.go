@@ -103,7 +103,7 @@ func TestConfig(t *testing.T) {
 	t.Run("loadFileConfig returns error on invalid yaml", func(t *testing.T) {
 		fs := afero.NewMemMapFs()
 		path := filepath.Join(t.TempDir(), "bk.yaml")
-		if err := afero.WriteFile(fs, path, []byte("selected_org: [oops"), 0600); err != nil {
+		if err := afero.WriteFile(fs, path, []byte("selected_org: [oops"), 0o600); err != nil {
 			t.Fatalf("failed to write invalid yaml: %v", err)
 		}
 
@@ -118,6 +118,71 @@ func TestConfig(t *testing.T) {
 		_, err := loadFileConfig(fs, "does-not-exist.yaml")
 		if err != nil {
 			t.Fatalf("expected no error for missing file, got %v", err)
+		}
+	})
+
+	t.Run("preserves organization name case", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name    string
+			orgName string
+			token   string
+		}{
+			{
+				name:    "mixed case organization name",
+				orgName: "gridX",
+				token:   "test-token-gridX",
+			},
+			{
+				name:    "uppercase organization name",
+				orgName: "ACME",
+				token:   "test-token-ACME",
+			},
+			{
+				name:    "lowercase organization name",
+				orgName: "buildkite",
+				token:   "test-token-buildkite",
+			},
+			{
+				name:    "camelCase organization name",
+				orgName: "myOrg",
+				token:   "test-token-myOrg",
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				fs := afero.NewMemMapFs()
+				conf := New(fs, nil)
+
+				// Set token for organization
+				if err := conf.SetTokenForOrg(tc.orgName, tc.token); err != nil {
+					t.Fatalf("SetTokenForOrg failed: %v", err)
+				}
+
+				// Select organization (simulate user config scenario)
+				if err := conf.SelectOrganization(tc.orgName, false); err != nil {
+					t.Fatalf("SelectOrganization failed: %v", err)
+				}
+
+				// Create a new config instance to simulate reading from file
+				conf2 := New(fs, nil)
+
+				// Verify organization name case is preserved
+				gotOrg := conf2.OrganizationSlug()
+				if gotOrg != tc.orgName {
+					t.Errorf("expected organization slug %q, got %q - case was not preserved", tc.orgName, gotOrg)
+				}
+
+				// Verify token can be retrieved with exact case
+				gotToken := conf2.GetTokenForOrg(tc.orgName)
+				if gotToken != tc.token {
+					t.Errorf("expected token %q, got %q", tc.token, gotToken)
+				}
+			})
 		}
 	})
 }

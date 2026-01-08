@@ -223,7 +223,6 @@ func TestHasFlag(t *testing.T) {
 }
 
 func TestPagerAddsRawFlagToLess(t *testing.T) {
-
 	tests := []struct {
 		name          string
 		pagerPath     string
@@ -291,7 +290,6 @@ func TestPagerWriteAndCleanup(t *testing.T) {
 }
 
 func TestPagerCleanupAfterFailedStart(t *testing.T) {
-
 	originalPager := os.Getenv("PAGER")
 	defer os.Setenv("PAGER", originalPager)
 

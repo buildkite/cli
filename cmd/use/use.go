@@ -26,7 +26,7 @@ Examples:
 }
 
 func (c *UseCmd) Run(globals cli.GlobalFlags) error {
-	f, err := factory.New()
+	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
 	if err != nil {
 		return err
 	}

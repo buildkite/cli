@@ -47,7 +47,7 @@ Examples:
 
 func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	// Initialize factory
-	f, err := factory.New()
+	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
 	if err != nil {
 		return bkErrors.NewInternalError(err, "failed to initialize CLI", "This is likely a bug", "Report to Buildkite")
 	}
