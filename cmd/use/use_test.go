@@ -105,4 +105,46 @@ func TestCmdUse(t *testing.T) {
 			t.Fatalf("expected useRun to succeed: %v", err)
 		}
 	})
+
+	t.Run("preserves organization name case", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name    string
+			orgName string
+		}{
+			{"mixed case", "gridX"},
+			{"uppercase", "ACME"},
+			{"lowercase", "buildkite"},
+			{"camelCase", "myOrg"},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				fs := afero.NewMemMapFs()
+				conf := config.New(fs, nil)
+
+				// Configure organization with specific case
+				if err := conf.SetTokenForOrg(tc.orgName, "test-token"); err != nil {
+					t.Fatalf("SetTokenForOrg failed: %v", err)
+				}
+				if err := conf.SelectOrganization(tc.orgName, false); err != nil {
+					t.Fatalf("SelectOrganization failed: %v", err)
+				}
+
+				// Use the organization
+				if err := useRun(&tc.orgName, conf, false, true); err != nil {
+					t.Fatalf("useRun failed: %v", err)
+				}
+
+				// Verify case is preserved
+				gotOrg := conf.OrganizationSlug()
+				if gotOrg != tc.orgName {
+					t.Errorf("expected organization %q, got %q - case was not preserved", tc.orgName, gotOrg)
+				}
+			})
+		}
+	})
 }
