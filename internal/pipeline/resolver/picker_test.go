@@ -1,9 +1,8 @@
 package resolver_test
 
 import (
-	"testing"
-
 	"os"
+	"testing"
 
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/internal/pipeline"
