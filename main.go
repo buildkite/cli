@@ -32,6 +32,7 @@ type CLI struct {
 	NoInput bool `help:"Disable all interactive prompts" name:"no-input"`
 	Quiet   bool `help:"Suppress progress output" short:"q"`
 	NoPager bool `help:"Disable pager for text output" name:"no-pager"`
+	Debug   bool `help:"Enable debug output for REST API calls"`
 	// Verbose bool `help:"Enable verbose error output" short:"V"` // TODO: Implement this, atm this is just a skeleton flag
 
 	Agent        AgentCmd         `cmd:"" help:"Manage agents"`
@@ -162,6 +163,7 @@ func run() int {
 		NoInput: cliInstance.NoInput,
 		Quiet:   cliInstance.Quiet,
 		NoPager: cliInstance.NoPager,
+		Debug:   cliInstance.Debug,
 	}
 
 	ctx.BindTo(cli.GlobalFlags(globals), (*cli.GlobalFlags)(nil))

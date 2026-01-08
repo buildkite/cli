@@ -3,6 +3,9 @@ package factory
 import (
 	"fmt"
 	"net/http"
+	"net/http/httputil"
+	"os"
+	"strings"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/buildkite/cli/v3/cmd/version"
@@ -23,6 +26,66 @@ type Factory struct {
 	NoInput       bool
 	Quiet         bool
 	NoPager       bool
+	Debug         bool
+}
+
+// FactoryOpt is a functional option for configuring the Factory
+type FactoryOpt func(*factoryConfig)
+
+type factoryConfig struct {
+	debug bool
+}
+
+// WithDebug enables debug output for REST API calls
+func WithDebug(debug bool) FactoryOpt {
+	return func(c *factoryConfig) {
+		c.debug = debug
+	}
+}
+
+// debugTransport wraps an http.RoundTripper and logs requests/responses with sensitive headers redacted
+type debugTransport struct {
+	transport http.RoundTripper
+}
+
+// sensitiveHeaders contains headers that should be redacted in debug output
+var sensitiveHeaders = []string{"Authorization"}
+
+func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Clone the request to avoid modifying the original headers
+	reqCopy := req.Clone(req.Context())
+	redactHeaders(reqCopy.Header)
+
+	if dump, err := httputil.DumpRequestOut(reqCopy, true); err == nil {
+		fmt.Fprintf(os.Stderr, "DEBUG request uri=%s\n%s\n", req.URL, dump)
+	}
+
+	resp, err := d.transport.RoundTrip(req)
+	if err != nil {
+		return resp, err
+	}
+
+	if dump, err := httputil.DumpResponse(resp, true); err == nil {
+		fmt.Fprintf(os.Stderr, "DEBUG response uri=%s\n%s\n", req.URL, dump)
+	}
+
+	return resp, nil
+}
+
+// redactHeaders replaces sensitive header values with [REDACTED]
+func redactHeaders(headers http.Header) {
+	for _, header := range sensitiveHeaders {
+		if values := headers.Values(header); len(values) > 0 {
+			for i, v := range values {
+				// Keep the auth type (Bearer, Basic, etc.) but redact the token
+				if parts := strings.SplitN(v, " ", 2); len(parts) == 2 {
+					headers[header][i] = parts[0] + " [REDACTED]"
+				} else {
+					headers[header][i] = "[REDACTED]"
+				}
+			}
+		}
+	}
 }
 
 type gqlHTTPClient struct {
@@ -40,7 +103,12 @@ func (a *gqlHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	return a.client.Do(req)
 }
 
-func New() (*Factory, error) {
+func New(opts ...FactoryOpt) (*Factory, error) {
+	cfg := &factoryConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
 	repo, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{DetectDotGit: true, EnableDotGitCommonDir: true})
 	if err != nil {
 		if err == git.ErrRepositoryNotExists {
@@ -49,11 +117,25 @@ func New() (*Factory, error) {
 	}
 
 	conf := config.New(nil, repo)
-	buildkiteClient, err := buildkite.NewOpts(
+
+	// Build client options
+	clientOpts := []buildkite.ClientOpt{
 		buildkite.WithBaseURL(conf.RESTAPIEndpoint()),
 		buildkite.WithTokenAuth(conf.APIToken()),
 		buildkite.WithUserAgent(userAgent),
-	)
+	}
+
+	// Use our own debug transport with redacted headers instead of go-buildkite's built-in debug
+	if cfg.debug {
+		httpClient := &http.Client{
+			Transport: &debugTransport{
+				transport: http.DefaultTransport,
+			},
+		}
+		clientOpts = append(clientOpts, buildkite.WithHTTPClient(httpClient))
+	}
+
+	buildkiteClient, err := buildkite.NewOpts(clientOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("creating buildkite client: %w", err)
 	}
@@ -67,5 +149,6 @@ func New() (*Factory, error) {
 		RestAPIClient: buildkiteClient,
 		Version:       version.Version,
 		NoPager:       conf.PagerDisabled(),
+		Debug:         cfg.debug,
 	}, nil
 }

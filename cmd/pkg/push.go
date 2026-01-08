@@ -54,7 +54,7 @@ Examples:
 }
 
 func (c *PushCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New()
+	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
 	if err != nil {
 		return err
 	}
@@ -120,7 +120,6 @@ func isStdinReadable() (bool, error) {
 }
 
 func (c *PushCmd) Validate() error {
-
 	// Validate the args such that either a file path is provided or stdin is being used
 
 	// check if c.FilePath and c.Stdin cannot be both set or both empty
@@ -148,11 +147,11 @@ func (c *PushCmd) Validate() error {
 
 		return nil
 	} else {
-		//Validate if an std-in arg is provided without stdin-file-name
+		// Validate if an std-in arg is provided without stdin-file-name
 		if c.StdInArg == "-" {
 			return fmt.Errorf("%w: when passing a package file via stdin, --stdin-file-name must be provided", ErrInvalidConfig)
 		}
-		//We have a file path, check it exists and is a regular file
+		// We have a file path, check it exists and is a regular file
 		fi, err := os.Stat(c.FilePath)
 		if err != nil {
 			return fmt.Errorf("%w: %w", ErrInvalidConfig, err)

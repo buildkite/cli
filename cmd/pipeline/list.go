@@ -55,7 +55,7 @@ Examples:
 }
 
 func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New()
+	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
 	if err != nil {
 		return err
 	}
@@ -171,5 +171,4 @@ func (c *ListCmd) displayPipelines(pipelines []buildkite.Pipeline, f *factory.Fa
 
 	_, err := fmt.Fprintf(writer, "Pipelines (%d)\n\n%s\n", len(pipelines), table)
 	return err
-
 }
