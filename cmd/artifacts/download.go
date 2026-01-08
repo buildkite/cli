@@ -10,6 +10,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
+	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	bkGraphQL "github.com/buildkite/cli/v3/internal/graphql"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -47,9 +48,12 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 	ctx := context.Background()
 	var downloadDir string
 
-	err = bkIO.SpinWhile(f, "Downloading artifact", func() {
+	spinErr := bkIO.SpinWhile(f, "Downloading artifact", func() {
 		downloadDir, err = download(ctx, f, c.ArtifactID)
 	})
+	if spinErr != nil {
+		return spinErr
+	}
 	if err != nil {
 		return err
 	}
@@ -65,7 +69,7 @@ func download(ctx context.Context, f *factory.Factory, artifactID string) (strin
 	}
 
 	if resp == nil || resp.Artifact == nil {
-		return "", fmt.Errorf("no artifact found with ID: %s", artifactID)
+		return "", bkErrors.NewResourceNotFoundError(nil, fmt.Sprintf("no artifact found with ID: %s", artifactID))
 	}
 
 	directory := fmt.Sprintf("artifact-%s", artifactID)
