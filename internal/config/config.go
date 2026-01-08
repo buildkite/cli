@@ -310,7 +310,7 @@ func writeFileConfig(fs afero.Fs, path string, cfg fileConfig) error {
 	}
 
 	dir := filepath.Dir(path)
-	if err := fs.MkdirAll(dir, 0755); err != nil {
+	if err := fs.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 
@@ -323,7 +323,7 @@ func writeFileConfig(fs afero.Fs, path string, cfg fileConfig) error {
 		return err
 	}
 
-	return afero.WriteFile(fs, path, data, 0600)
+	return afero.WriteFile(fs, path, data, 0o600)
 }
 
 func (cfg fileConfig) getToken(org string) string {

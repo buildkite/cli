@@ -103,7 +103,7 @@ func TestConfig(t *testing.T) {
 	t.Run("loadFileConfig returns error on invalid yaml", func(t *testing.T) {
 		fs := afero.NewMemMapFs()
 		path := filepath.Join(t.TempDir(), "bk.yaml")
-		if err := afero.WriteFile(fs, path, []byte("selected_org: [oops"), 0600); err != nil {
+		if err := afero.WriteFile(fs, path, []byte("selected_org: [oops"), 0o600); err != nil {
 			t.Fatalf("failed to write invalid yaml: %v", err)
 		}
 
