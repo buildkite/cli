@@ -266,21 +266,15 @@ func fetchJobs(ctx context.Context, f *factory.Factory, org string, opts jobList
 	return allJobs, nil
 }
 
-func fetchJobsWithQueueFilter(ctx context.Context, f *factory.Factory, org string, opts jobListOptions) ([]buildkite.Job, error) {
-	queueIDs, err := lookupQueueIDs(ctx, f, org, opts.queue)
-	if err != nil {
-		return nil, err
-	}
-	if len(queueIDs) == 0 {
-		return []buildkite.Job{}, nil
-	}
+type listJobsByQueue func(ctx context.Context, f *factory.Factory, org string, queueIDs []string, cursor *string) ([]buildkite.Job, *string, bool, error)
 
+func listJobsWithPagination(ctx context.Context, f *factory.Factory, org string, queueIDs []string, opts jobListOptions, listJobs listJobsByQueue) ([]buildkite.Job, error) {
 	var jobs []buildkite.Job
 	var cursor *string
 	noQueueOpts := opts.withoutQueue()
 
 	for len(jobs) < opts.limit {
-		jobBatch, nextCursor, hasNext, err := listJobsByQueue(ctx, f, org, queueIDs, cursor)
+		jobBatch, nextCursor, hasNext, err := listJobs(ctx, f, org, queueIDs, cursor)
 		if err != nil {
 			return nil, err
 		}
@@ -288,6 +282,7 @@ func fetchJobsWithQueueFilter(ctx context.Context, f *factory.Factory, org strin
 			break
 		}
 
+		// Apply client-side filters if needed
 		if len(noQueueOpts.state) > 0 || noQueueOpts.duration != "" {
 			jobBatch, err = applyClientSideFilters(jobBatch, noQueueOpts)
 			if err != nil {
@@ -309,6 +304,23 @@ func fetchJobsWithQueueFilter(ctx context.Context, f *factory.Factory, org strin
 	}
 
 	return jobs, nil
+
+}
+
+func fetchJobsWithQueueFilter(ctx context.Context, f *factory.Factory, org string, opts jobListOptions) ([]buildkite.Job, error) {
+	queueIDs, err := lookupQueueIDs(ctx, f, org, opts.queue)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(queueIDs) == 0 {
+		// Fallback to unclustered agent query rules
+		agentQueryRules := []string{"queue=" + strings.ToLower(opts.queue)}
+		return listJobsWithPagination(ctx, f, org, agentQueryRules, opts, listJobsByAgentQueryRules)
+	}
+
+	return listJobsWithPagination(ctx, f, org, queueIDs, opts, listJobsByClusterQueue)
+
 }
 
 const maxConcurrentRequests = 10 // Balance between performance and API rate limits
@@ -445,7 +457,7 @@ func fetchQueuesForCluster(ctx context.Context, client graphql.Client, clusterID
 	return matchingQueueIDs, nil
 }
 
-func listJobsByQueue(ctx context.Context, f *factory.Factory, org string, queueIDs []string, cursor *string) ([]buildkite.Job, *string, bool, error) {
+func listJobsByClusterQueue(ctx context.Context, f *factory.Factory, org string, queueIDs []string, cursor *string) ([]buildkite.Job, *string, bool, error) {
 	first := pageSize
 	resp, err := bkGraphQL.ListJobsByQueue(ctx, f.GraphQLClient, org, queueIDs, &first, cursor)
 	if err != nil {
@@ -497,6 +509,78 @@ func convertGraphQLJobToBuildkiteJob(jobNode *bkGraphQL.ListJobsByQueueOrganizat
 			CreatedAt:       createdAt,
 			Agent:           agent,
 			AgentQueryRules: []string{}, // Empty for GraphQL jobs
+		}
+	default:
+		// For non-command jobs, return a minimal job struct
+		return buildkite.Job{
+			ID:    "unknown",
+			Type:  "unknown",
+			State: "unknown",
+		}
+	}
+}
+
+func listJobsByAgentQueryRules(ctx context.Context, f *factory.Factory, org string, agentQueryRules []string, cursor *string) ([]buildkite.Job, *string, bool, error) {
+	first := pageSize
+
+	resp, err := bkGraphQL.ListJobsByAgentQueryRules(ctx, f.GraphQLClient, org, agentQueryRules, &first, cursor)
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("failed to list jobs: %w", err)
+	}
+
+	if resp.Organization == nil || resp.Organization.Jobs == nil {
+		return []buildkite.Job{}, nil, false, nil
+	}
+
+	var jobs []buildkite.Job
+	for _, edge := range resp.Organization.Jobs.Edges {
+		if edge.Node != nil {
+			jobs = append(jobs, convertGraphQLAgentQueryRulesJobToBuildkiteJob(edge.Node, agentQueryRules))
+		}
+	}
+
+	hasMore := resp.Organization.Jobs.PageInfo != nil && resp.Organization.Jobs.PageInfo.HasNextPage
+	nextCursor := (*string)(nil)
+	if hasMore && resp.Organization.Jobs.PageInfo.EndCursor != nil {
+		nextCursor = resp.Organization.Jobs.PageInfo.EndCursor
+	}
+	return jobs, nextCursor, hasMore, nil
+}
+
+func convertGraphQLAgentQueryRulesJobToBuildkiteJob(jobNode *bkGraphQL.ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob, agentQueryRules []string) buildkite.Job {
+	// Handle the union type - we only care about JobTypeCommand for now
+	var agent buildkite.Agent
+	switch job := (*jobNode).(type) {
+	case *bkGraphQL.ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand:
+		startedAt := convertTimestamp(job.StartedAt)
+		finishedAt := convertTimestamp(job.FinishedAt)
+		createdAt := convertTimestamp(job.CreatedAt)
+
+		if job.Agent != nil {
+			agent = buildkite.Agent{
+				ID:       job.Agent.Id,
+				Name:     job.Agent.Name,
+				Hostname: derefString(job.Agent.Hostname),
+				Metadata: job.Agent.MetaData,
+			}
+		}
+
+		// Build label (jobs don't have labels in GraphQL, so we use command or empty)
+		label := derefString(job.Command)
+
+		return buildkite.Job{
+			ID:              job.Id,
+			Type:            "script",
+			Name:            job.Uuid, // Use UUID as name
+			Label:           label,
+			Command:         derefString(job.Command),
+			State:           mapGraphQLState(string(job.State), derefString(job.ExitStatus)),
+			WebURL:          job.Url,
+			StartedAt:       startedAt,
+			FinishedAt:      finishedAt,
+			CreatedAt:       createdAt,
+			Agent:           agent,
+			AgentQueryRules: agentQueryRules,
 		}
 	default:
 		// For non-command jobs, return a minimal job struct
