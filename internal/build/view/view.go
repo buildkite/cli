@@ -60,9 +60,11 @@ func BuildSummaryWithJobs(b *buildkite.Build, organization, pipeline string) str
 	var sb strings.Builder
 	sb.WriteString(buildSummary(b, organization, pipeline))
 
-	if jobs := renderJobs(b.Jobs); jobs != "" {
-		sb.WriteString("\n\n")
-		sb.WriteString(jobs)
+	if b != nil {
+		if jobs := renderJobs(b.Jobs); jobs != "" {
+			sb.WriteString("\n\n")
+			sb.WriteString(jobs)
+		}
 	}
 
 	return sb.String()
@@ -78,6 +80,10 @@ func (v *BuildView) Render() string {
 	var sb strings.Builder
 
 	sb.WriteString(buildSummary(v.Build, v.Organization, v.Pipeline))
+
+	if v.Build == nil {
+		return sb.String()
+	}
 
 	if jobs := renderJobs(v.Build.Jobs); jobs != "" {
 		sb.WriteString("\n\n")
@@ -100,6 +106,10 @@ func (v *BuildView) Render() string {
 }
 
 func buildSummary(b *buildkite.Build, organization, pipeline string) string {
+	if b == nil {
+		return fmt.Sprintf("Build %s/%s (no data available)\n", output.ValueOrDash(organization), output.ValueOrDash(pipeline))
+	}
+
 	var sb strings.Builder
 
 	fmt.Fprintf(&sb, "Build %s/%s #%d (%s)\n\n", output.ValueOrDash(organization), output.ValueOrDash(pipeline), b.Number, b.State)
@@ -202,6 +212,9 @@ func filterScriptJobs(jobs []buildkite.Job) []buildkite.Job {
 }
 
 func creatorName(build *buildkite.Build) string {
+	if build == nil {
+		return "Unknown"
+	}
 	if build.Creator.ID != "" {
 		return build.Creator.Name
 	}
