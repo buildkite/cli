@@ -3,7 +3,6 @@ schema: schema.graphql
 operations:
   - internal/**/*.graphql
   - cmd/**/*.graphql
-  - pkg/**/*.graphql
 
 optional: pointer
 

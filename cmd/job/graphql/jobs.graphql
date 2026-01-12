@@ -116,3 +116,35 @@ query ListJobsByState($org: ID!, $state: [JobStates!], $first: Int, $after: Stri
     }
   }
 }
+
+query ListJobsByAgentQueryRules($org: ID!, $agentQueryRules: [String!], $first: Int, $after: String) {
+  organization(slug: $org) {
+    jobs(first: $first, after: $after, agentQueryRules: $agentQueryRules) {
+      edges {
+        node {
+          ... on JobTypeCommand {
+            id
+            uuid
+            command
+            state
+            exitStatus
+            url
+            startedAt
+            finishedAt
+            createdAt 
+            agent {
+              id
+              name
+              hostname
+              metaData
+            }
+          }
+        }
+      }
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
+    }
+  }
+}

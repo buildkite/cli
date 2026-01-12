@@ -2231,6 +2231,402 @@ var AllJobStates = []JobStates{
 	JobStatesExpired,
 }
 
+// ListJobsByAgentQueryRulesOrganization includes the requested fields of the GraphQL type Organization.
+// The GraphQL type's documentation follows.
+//
+// An organization
+type ListJobsByAgentQueryRulesOrganization struct {
+	Jobs *ListJobsByAgentQueryRulesOrganizationJobsJobConnection `json:"jobs"`
+}
+
+// GetJobs returns ListJobsByAgentQueryRulesOrganization.Jobs, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganization) GetJobs() *ListJobsByAgentQueryRulesOrganizationJobsJobConnection {
+	return v.Jobs
+}
+
+// ListJobsByAgentQueryRulesOrganizationJobsJobConnection includes the requested fields of the GraphQL type JobConnection.
+type ListJobsByAgentQueryRulesOrganizationJobsJobConnection struct {
+	Edges    []*ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdge `json:"edges"`
+	PageInfo *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionPageInfo       `json:"pageInfo"`
+}
+
+// GetEdges returns ListJobsByAgentQueryRulesOrganizationJobsJobConnection.Edges, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnection) GetEdges() []*ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdge {
+	return v.Edges
+}
+
+// GetPageInfo returns ListJobsByAgentQueryRulesOrganizationJobsJobConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnection) GetPageInfo() *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionPageInfo {
+	return v.PageInfo
+}
+
+// ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdge includes the requested fields of the GraphQL type JobEdge.
+type ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdge struct {
+	Node *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob `json:"-"`
+}
+
+// GetNode returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdge.Node, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdge) GetNode() *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob {
+	return v.Node
+}
+
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdge) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdge
+		Node json.RawMessage `json:"node"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdge = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Node
+		src := firstPass.Node
+		if len(src) != 0 && string(src) != "null" {
+			*dst = new(ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob)
+			err = __unmarshalListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob(
+				src, *dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdge.Node: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdge struct {
+	Node json.RawMessage `json:"node"`
+}
+
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdge) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdge) __premarshalJSON() (*__premarshalListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdge, error) {
+	var retval __premarshalListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdge
+
+	{
+
+		dst := &retval.Node
+		src := v.Node
+		if src != nil {
+			var err error
+			*dst, err = __marshalListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob(
+				src)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"unable to marshal ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdge.Node: %w", err)
+			}
+		}
+	}
+	return &retval, nil
+}
+
+// ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob includes the requested fields of the GraphQL interface Job.
+//
+// ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob is implemented by the following types:
+// ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeBlock
+// ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand
+// ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeTrigger
+// ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeWait
+// The GraphQL type's documentation follows.
+//
+// Kinds of jobs that can exist on a build
+type ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob interface {
+	implementsGraphQLInterfaceListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob()
+	// GetTypename returns the receiver's concrete GraphQL type-name (see interface doc for possible values).
+	GetTypename() *string
+}
+
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeBlock) implementsGraphQLInterfaceListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob() {
+}
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand) implementsGraphQLInterfaceListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob() {
+}
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeTrigger) implementsGraphQLInterfaceListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob() {
+}
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeWait) implementsGraphQLInterfaceListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob() {
+}
+
+func __unmarshalListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob(b []byte, v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob) error {
+	if string(b) == "null" {
+		return nil
+	}
+
+	var tn struct {
+		TypeName string `json:"__typename"`
+	}
+	err := json.Unmarshal(b, &tn)
+	if err != nil {
+		return err
+	}
+
+	switch tn.TypeName {
+	case "JobTypeBlock":
+		*v = new(ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeBlock)
+		return json.Unmarshal(b, *v)
+	case "JobTypeCommand":
+		*v = new(ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand)
+		return json.Unmarshal(b, *v)
+	case "JobTypeTrigger":
+		*v = new(ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeTrigger)
+		return json.Unmarshal(b, *v)
+	case "JobTypeWait":
+		*v = new(ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeWait)
+		return json.Unmarshal(b, *v)
+	case "":
+		return fmt.Errorf(
+			"response was missing Job.__typename")
+	default:
+		return fmt.Errorf(
+			`unexpected concrete type for ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob: "%v"`, tn.TypeName)
+	}
+}
+
+func __marshalListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob(v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob) ([]byte, error) {
+
+	var typename string
+	switch v := (*v).(type) {
+	case *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeBlock:
+		typename = "JobTypeBlock"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeBlock
+		}{typename, v}
+		return json.Marshal(result)
+	case *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand:
+		typename = "JobTypeCommand"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand
+		}{typename, v}
+		return json.Marshal(result)
+	case *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeTrigger:
+		typename = "JobTypeTrigger"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeTrigger
+		}{typename, v}
+		return json.Marshal(result)
+	case *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeWait:
+		typename = "JobTypeWait"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeWait
+		}{typename, v}
+		return json.Marshal(result)
+	case nil:
+		return []byte("null"), nil
+	default:
+		return nil, fmt.Errorf(
+			`unexpected concrete type for ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob: "%T"`, v)
+	}
+}
+
+// ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeBlock includes the requested fields of the GraphQL type JobTypeBlock.
+// The GraphQL type's documentation follows.
+//
+// A type of job that requires a user to unblock it before proceeding in a build pipeline
+type ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeBlock struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeBlock.Typename, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeBlock) GetTypename() *string {
+	return v.Typename
+}
+
+// ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand includes the requested fields of the GraphQL type JobTypeCommand.
+// The GraphQL type's documentation follows.
+//
+// A type of job that runs a command on an agent
+type ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand struct {
+	Typename *string `json:"__typename"`
+	Id       string  `json:"id"`
+	// The UUID for this job
+	Uuid string `json:"uuid"`
+	// The command the job will run
+	Command *string `json:"command"`
+	// The state of the job
+	State JobStates `json:"state"`
+	// The exit status returned by the command on the agent
+	ExitStatus *string `json:"exitStatus"`
+	// The URL for the job
+	Url string `json:"url"`
+	// The time when the job started running
+	StartedAt *time.Time `json:"startedAt"`
+	// The time when the job finished
+	FinishedAt *time.Time `json:"finishedAt"`
+	// The time when the job was created
+	CreatedAt *time.Time `json:"createdAt"`
+	// The agent that is running the job
+	Agent *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent `json:"agent"`
+}
+
+// GetTypename returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand.Typename, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand) GetTypename() *string {
+	return v.Typename
+}
+
+// GetId returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand.Id, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand) GetId() string {
+	return v.Id
+}
+
+// GetUuid returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand.Uuid, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand) GetUuid() string {
+	return v.Uuid
+}
+
+// GetCommand returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand.Command, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand) GetCommand() *string {
+	return v.Command
+}
+
+// GetState returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand.State, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand) GetState() JobStates {
+	return v.State
+}
+
+// GetExitStatus returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand.ExitStatus, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand) GetExitStatus() *string {
+	return v.ExitStatus
+}
+
+// GetUrl returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand.Url, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand) GetUrl() string {
+	return v.Url
+}
+
+// GetStartedAt returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand.StartedAt, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand) GetStartedAt() *time.Time {
+	return v.StartedAt
+}
+
+// GetFinishedAt returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand.FinishedAt, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand) GetFinishedAt() *time.Time {
+	return v.FinishedAt
+}
+
+// GetCreatedAt returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand.CreatedAt, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand) GetCreatedAt() *time.Time {
+	return v.CreatedAt
+}
+
+// GetAgent returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand.Agent, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand) GetAgent() *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent {
+	return v.Agent
+}
+
+// ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent includes the requested fields of the GraphQL type Agent.
+// The GraphQL type's documentation follows.
+//
+// An agent
+type ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent struct {
+	Id string `json:"id"`
+	// The name of the agent
+	Name string `json:"name"`
+	// The hostname of the machine running the agent
+	Hostname *string `json:"hostname"`
+	// The meta data this agent was stared with
+	MetaData []string `json:"metaData"`
+}
+
+// GetId returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent.Id, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent) GetId() string {
+	return v.Id
+}
+
+// GetName returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent.Name, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent) GetName() string {
+	return v.Name
+}
+
+// GetHostname returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent.Hostname, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent) GetHostname() *string {
+	return v.Hostname
+}
+
+// GetMetaData returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent.MetaData, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent) GetMetaData() []string {
+	return v.MetaData
+}
+
+// ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeTrigger includes the requested fields of the GraphQL type JobTypeTrigger.
+// The GraphQL type's documentation follows.
+//
+// A type of job that triggers another build on a pipeline
+type ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeTrigger struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeTrigger.Typename, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeTrigger) GetTypename() *string {
+	return v.Typename
+}
+
+// ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeWait includes the requested fields of the GraphQL type JobTypeWait.
+// The GraphQL type's documentation follows.
+//
+// A type of job that waits for all previous jobs to pass before proceeding the build pipeline
+type ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeWait struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeWait.Typename, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeWait) GetTypename() *string {
+	return v.Typename
+}
+
+// ListJobsByAgentQueryRulesOrganizationJobsJobConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+// The GraphQL type's documentation follows.
+//
+// Information about pagination in a connection.
+type ListJobsByAgentQueryRulesOrganizationJobsJobConnectionPageInfo struct {
+	// When paginating forwards, the cursor to continue.
+	EndCursor *string `json:"endCursor"`
+	// When paginating forwards, are there more items?
+	HasNextPage bool `json:"hasNextPage"`
+}
+
+// GetEndCursor returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionPageInfo) GetEndCursor() *string {
+	return v.EndCursor
+}
+
+// GetHasNextPage returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionPageInfo) GetHasNextPage() bool {
+	return v.HasNextPage
+}
+
+// ListJobsByAgentQueryRulesResponse is returned by ListJobsByAgentQueryRules on success.
+type ListJobsByAgentQueryRulesResponse struct {
+	// Find an organization
+	Organization *ListJobsByAgentQueryRulesOrganization `json:"organization"`
+}
+
+// GetOrganization returns ListJobsByAgentQueryRulesResponse.Organization, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesResponse) GetOrganization() *ListJobsByAgentQueryRulesOrganization {
+	return v.Organization
+}
+
 // ListJobsByQueueOrganization includes the requested fields of the GraphQL type Organization.
 // The GraphQL type's documentation follows.
 //
@@ -3351,6 +3747,26 @@ func (v *__InviteUserInput) GetOrganization() string { return v.Organization }
 // GetEmails returns __InviteUserInput.Emails, and is useful for accessing the field via an interface.
 func (v *__InviteUserInput) GetEmails() []string { return v.Emails }
 
+// __ListJobsByAgentQueryRulesInput is used internally by genqlient
+type __ListJobsByAgentQueryRulesInput struct {
+	Org             string   `json:"org"`
+	AgentQueryRules []string `json:"agentQueryRules"`
+	First           *int     `json:"first"`
+	After           *string  `json:"after"`
+}
+
+// GetOrg returns __ListJobsByAgentQueryRulesInput.Org, and is useful for accessing the field via an interface.
+func (v *__ListJobsByAgentQueryRulesInput) GetOrg() string { return v.Org }
+
+// GetAgentQueryRules returns __ListJobsByAgentQueryRulesInput.AgentQueryRules, and is useful for accessing the field via an interface.
+func (v *__ListJobsByAgentQueryRulesInput) GetAgentQueryRules() []string { return v.AgentQueryRules }
+
+// GetFirst returns __ListJobsByAgentQueryRulesInput.First, and is useful for accessing the field via an interface.
+func (v *__ListJobsByAgentQueryRulesInput) GetFirst() *int { return v.First }
+
+// GetAfter returns __ListJobsByAgentQueryRulesInput.After, and is useful for accessing the field via an interface.
+func (v *__ListJobsByAgentQueryRulesInput) GetAfter() *string { return v.After }
+
 // __ListJobsByQueueInput is used internally by genqlient
 type __ListJobsByQueueInput struct {
 	Org          string   `json:"org"`
@@ -3848,6 +4264,73 @@ func InviteUser(
 	}
 
 	data_ = &InviteUserResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by ListJobsByAgentQueryRules.
+const ListJobsByAgentQueryRules_Operation = `
+query ListJobsByAgentQueryRules ($org: ID!, $agentQueryRules: [String!], $first: Int, $after: String) {
+	organization(slug: $org) {
+		jobs(first: $first, after: $after, agentQueryRules: $agentQueryRules) {
+			edges {
+				node {
+					__typename
+					... on JobTypeCommand {
+						id
+						uuid
+						command
+						state
+						exitStatus
+						url
+						startedAt
+						finishedAt
+						createdAt
+						agent {
+							id
+							name
+							hostname
+							metaData
+						}
+					}
+				}
+			}
+			pageInfo {
+				endCursor
+				hasNextPage
+			}
+		}
+	}
+}
+`
+
+func ListJobsByAgentQueryRules(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	org string,
+	agentQueryRules []string,
+	first *int,
+	after *string,
+) (data_ *ListJobsByAgentQueryRulesResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "ListJobsByAgentQueryRules",
+		Query:  ListJobsByAgentQueryRules_Operation,
+		Variables: &__ListJobsByAgentQueryRulesInput{
+			Org:             org,
+			AgentQueryRules: agentQueryRules,
+			First:           first,
+			After:           after,
+		},
+	}
+
+	data_ = &ListJobsByAgentQueryRulesResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
