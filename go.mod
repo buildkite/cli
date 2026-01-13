@@ -10,7 +10,7 @@ require (
 	github.com/buildkite/go-buildkite/v4 v4.13.1
 	github.com/buildkite/roko v1.4.0
 	github.com/go-git/go-git/v5 v5.16.4
-	github.com/goccy/go-yaml v1.19.1
+	github.com/goccy/go-yaml v1.19.2
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/vektah/gqlparser/v2 v2.5.31
 	github.com/xeipuuv/gojsonschema v1.2.0
