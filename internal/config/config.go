@@ -176,9 +176,8 @@ func (conf *Config) PagerDisabled() bool {
 	return conf.user.NoPager
 }
 
-// SetNoPager sets whether the pager is disabled
-func (conf *Config) SetNoPager(v bool, inGitRepo bool) error {
-	if !inGitRepo {
+func (conf *Config) SetNoPager(v bool, saveLocal bool) error {
+	if !saveLocal {
 		conf.user.NoPager = v
 		return conf.writeUser()
 	}
@@ -197,9 +196,8 @@ func (conf *Config) OutputFormat() string {
 	)
 }
 
-// SetOutputFormat sets the default output format
-func (conf *Config) SetOutputFormat(v string, inGitRepo bool) error {
-	if !inGitRepo {
+func (conf *Config) SetOutputFormat(v string, saveLocal bool) error {
+	if !saveLocal {
 		conf.user.OutputFormat = v
 		return conf.writeUser()
 	}
@@ -221,9 +219,8 @@ func (conf *Config) Quiet() bool {
 	return conf.user.Quiet
 }
 
-// SetQuiet sets whether quiet mode is enabled
-func (conf *Config) SetQuiet(v bool, inGitRepo bool) error {
-	if !inGitRepo {
+func (conf *Config) SetQuiet(v bool, saveLocal bool) error {
+	if !saveLocal {
 		conf.user.Quiet = v
 		return conf.writeUser()
 	}
