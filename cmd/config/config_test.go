@@ -59,6 +59,7 @@ func TestConfigKeyIsBool(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(string(tt.key), func(t *testing.T) {
+			t.Parallel()
 			if got := tt.key.IsBool(); got != tt.isBool {
 				t.Errorf("%s.IsBool() = %v, want %v", tt.key, got, tt.isBool)
 			}
@@ -83,6 +84,7 @@ func TestConfigKeyIsUserOnly(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(string(tt.key), func(t *testing.T) {
+			t.Parallel()
 			if got := tt.key.IsUserOnly(); got != tt.isUserOnly {
 				t.Errorf("%s.IsUserOnly() = %v, want %v", tt.key, got, tt.isUserOnly)
 			}
