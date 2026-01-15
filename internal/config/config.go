@@ -41,6 +41,10 @@ type fileConfig struct {
 	Organizations map[string]orgConfig `yaml:"organizations,omitempty"`
 	Pipelines     []string             `yaml:"pipelines,omitempty"`
 	NoPager       bool                 `yaml:"no_pager,omitempty"`
+	OutputFormat  string               `yaml:"output_format,omitempty"`
+	Quiet         bool                 `yaml:"quiet,omitempty"`
+	NoInput       bool                 `yaml:"no_input,omitempty"`
+	Pager         string               `yaml:"pager,omitempty"`
 }
 
 // Config contains the configuration for the currently selected organization
@@ -170,6 +174,93 @@ func (conf *Config) PagerDisabled() bool {
 	}
 
 	return conf.user.NoPager
+}
+
+// SetNoPager sets whether the pager is disabled
+func (conf *Config) SetNoPager(v bool, inGitRepo bool) error {
+	if !inGitRepo {
+		conf.user.NoPager = v
+		return conf.writeUser()
+	}
+	conf.local.NoPager = v
+	return conf.writeLocal()
+}
+
+// OutputFormat returns the configured output format (json, yaml, text).
+// Precedence: env > local > user > default (json)
+func (conf *Config) OutputFormat() string {
+	return firstNonEmpty(
+		os.Getenv("BUILDKITE_OUTPUT_FORMAT"),
+		conf.local.OutputFormat,
+		conf.user.OutputFormat,
+		"json",
+	)
+}
+
+// SetOutputFormat sets the default output format
+func (conf *Config) SetOutputFormat(v string, inGitRepo bool) error {
+	if !inGitRepo {
+		conf.user.OutputFormat = v
+		return conf.writeUser()
+	}
+	conf.local.OutputFormat = v
+	return conf.writeLocal()
+}
+
+// Quiet returns whether quiet mode is enabled.
+// Precedence: env > local > user
+func (conf *Config) Quiet() bool {
+	if v, ok := lookupBoolEnv("BUILDKITE_QUIET"); ok {
+		return v
+	}
+
+	if conf.local.Quiet {
+		return true
+	}
+
+	return conf.user.Quiet
+}
+
+// SetQuiet sets whether quiet mode is enabled
+func (conf *Config) SetQuiet(v bool, inGitRepo bool) error {
+	if !inGitRepo {
+		conf.user.Quiet = v
+		return conf.writeUser()
+	}
+	conf.local.Quiet = v
+	return conf.writeLocal()
+}
+
+// NoInput returns whether interactive input is disabled.
+// Precedence: env > user (not stored in local config)
+func (conf *Config) NoInput() bool {
+	if v, ok := lookupBoolEnv("BUILDKITE_NO_INPUT"); ok {
+		return v
+	}
+
+	return conf.user.NoInput
+}
+
+// SetNoInput sets whether interactive input is disabled (user config only)
+func (conf *Config) SetNoInput(v bool) error {
+	conf.user.NoInput = v
+	return conf.writeUser()
+}
+
+// Pager returns the configured pager command.
+// Precedence: PAGER env > user config > default (less -R)
+func (conf *Config) Pager() string {
+	return firstNonEmpty(
+		os.Getenv("PAGER"),
+		conf.user.Pager,
+		"less -R",
+	)
+}
+
+// SetPager sets the pager command (user config only)
+func (conf *Config) SetPager(v string) error {
+	conf.user.Pager = v
+	return conf.writeUser()
 }
 
 func lookupBoolEnv(key string) (bool, bool) {
