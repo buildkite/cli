@@ -141,5 +141,4 @@ func SetConfigValue(conf *config.Config, key ConfigKey, value string, local bool
 	}
 
 	return nil
-
 }

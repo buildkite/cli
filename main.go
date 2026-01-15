@@ -35,22 +35,22 @@ type CLI struct {
 	Debug   bool `help:"Enable debug output for REST API calls"`
 	// Verbose bool `help:"Enable verbose error output" short:"V"` // TODO: Implement this, atm this is just a skeleton flag
 
-	Agent        AgentCmd         `cmd:"" help:"Manage agents"`
-	Api          ApiCmd           `cmd:"" help:"Interact with the Buildkite API"`
-	Artifacts    ArtifactsCmd     `cmd:"" help:"Manage pipeline build artifacts"`
-	Build        BuildCmd         `cmd:"" help:"Manage pipeline builds"`
-	Cluster      ClusterCmd       `cmd:"" help:"Manage organization clusters"`
+	Agent        AgentCmd           `cmd:"" help:"Manage agents"`
+	Api          ApiCmd             `cmd:"" help:"Interact with the Buildkite API"`
+	Artifacts    ArtifactsCmd       `cmd:"" help:"Manage pipeline build artifacts"`
+	Build        BuildCmd           `cmd:"" help:"Manage pipeline builds"`
+	Cluster      ClusterCmd         `cmd:"" help:"Manage organization clusters"`
 	Config       bkConfig.ConfigCmd `cmd:"" help:"Manage CLI configuration"`
-	Configure    ConfigureCmd     `cmd:"" help:"Configure Buildkite API token" aliases:"auth"`
-	Init         bkInit.InitCmd   `cmd:"" help:"Initialize a pipeline.yaml file"`
-	Job          JobCmd           `cmd:"" help:"Manage jobs within a build"`
-	Organization OrganizationCmd  `cmd:"" help:"Manage organizations" aliases:"org"`
-	Pipeline     PipelineCmd      `cmd:"" help:"Manage pipelines"`
-	Package      PackageCmd       `cmd:"" help:"Manage packages"`
-	Use          use.UseCmd       `cmd:"" help:"Select an organization"`
-	User         UserCmd          `cmd:"" help:"Invite users to the organization"`
-	Version      VersionCmd       `cmd:"" help:"Print the version of the CLI being used"`
-	Whoami       whoami.WhoAmICmd `cmd:"" help:"Print the current user and organization"`
+	Configure    ConfigureCmd       `cmd:"" help:"Configure Buildkite API token" aliases:"auth"`
+	Init         bkInit.InitCmd     `cmd:"" help:"Initialize a pipeline.yaml file"`
+	Job          JobCmd             `cmd:"" help:"Manage jobs within a build"`
+	Organization OrganizationCmd    `cmd:"" help:"Manage organizations" aliases:"org"`
+	Pipeline     PipelineCmd        `cmd:"" help:"Manage pipelines"`
+	Package      PackageCmd         `cmd:"" help:"Manage packages"`
+	Use          use.UseCmd         `cmd:"" help:"Select an organization"`
+	User         UserCmd            `cmd:"" help:"Invite users to the organization"`
+	Version      VersionCmd         `cmd:"" help:"Print the version of the CLI being used"`
+	Whoami       whoami.WhoAmICmd   `cmd:"" help:"Print the current user and organization"`
 }
 
 type (
