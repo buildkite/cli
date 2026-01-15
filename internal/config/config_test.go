@@ -185,4 +185,140 @@ func TestConfig(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("OutputFormat returns correct precedence", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("defaults to json", func(t *testing.T) {
+			t.Parallel()
+			setEnv(t, "BUILDKITE_OUTPUT_FORMAT", "")
+
+			fs := afero.NewMemMapFs()
+			conf := New(fs, nil)
+
+			if got := conf.OutputFormat(); got != "json" {
+				t.Errorf("OutputFormat() = %q, want %q", got, "json")
+			}
+		})
+
+		t.Run("env overrides config", func(t *testing.T) {
+			setEnv(t, "BUILDKITE_OUTPUT_FORMAT", "yaml")
+
+			fs := afero.NewMemMapFs()
+			conf := New(fs, nil)
+			conf.SetOutputFormat("text", false)
+
+			if got := conf.OutputFormat(); got != "yaml" {
+				t.Errorf("OutputFormat() = %q, want %q (env should override)", got, "yaml")
+			}
+		})
+
+		t.Run("config value is used", func(t *testing.T) {
+			t.Parallel()
+			setEnv(t, "BUILDKITE_OUTPUT_FORMAT", "")
+
+			fs := afero.NewMemMapFs()
+			conf := New(fs, nil)
+			conf.SetOutputFormat("yaml", false)
+
+			if got := conf.OutputFormat(); got != "yaml" {
+				t.Errorf("OutputFormat() = %q, want %q", got, "yaml")
+			}
+		})
+	})
+
+	t.Run("Quiet returns correct precedence", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("defaults to false", func(t *testing.T) {
+			t.Parallel()
+			setEnv(t, "BUILDKITE_QUIET", "")
+
+			fs := afero.NewMemMapFs()
+			conf := New(fs, nil)
+
+			if conf.Quiet() {
+				t.Error("Quiet() = true, want false")
+			}
+		})
+
+		t.Run("env overrides config", func(t *testing.T) {
+			setEnv(t, "BUILDKITE_QUIET", "true")
+
+			fs := afero.NewMemMapFs()
+			conf := New(fs, nil)
+
+			if !conf.Quiet() {
+				t.Error("Quiet() = false, want true (env should override)")
+			}
+		})
+	})
+
+	t.Run("NoInput returns correct precedence", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("defaults to false", func(t *testing.T) {
+			t.Parallel()
+			setEnv(t, "BUILDKITE_NO_INPUT", "")
+
+			fs := afero.NewMemMapFs()
+			conf := New(fs, nil)
+
+			if conf.NoInput() {
+				t.Error("NoInput() = true, want false")
+			}
+		})
+
+		t.Run("env overrides config", func(t *testing.T) {
+			setEnv(t, "BUILDKITE_NO_INPUT", "true")
+
+			fs := afero.NewMemMapFs()
+			conf := New(fs, nil)
+
+			if !conf.NoInput() {
+				t.Error("NoInput() = false, want true (env should override)")
+			}
+		})
+	})
+
+	t.Run("Pager returns correct precedence", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("defaults to less -R", func(t *testing.T) {
+			t.Parallel()
+			setEnv(t, "PAGER", "")
+
+			fs := afero.NewMemMapFs()
+			conf := New(fs, nil)
+
+			if got := conf.Pager(); got != "less -R" {
+				t.Errorf("Pager() = %q, want %q", got, "less -R")
+			}
+		})
+
+		t.Run("env overrides config", func(t *testing.T) {
+			setEnv(t, "PAGER", "more")
+
+			fs := afero.NewMemMapFs()
+			conf := New(fs, nil)
+			conf.SetPager("vim")
+
+			if got := conf.Pager(); got != "more" {
+				t.Errorf("Pager() = %q, want %q (env should override)", got, "more")
+			}
+		})
+
+		t.Run("config value is used", func(t *testing.T) {
+			t.Parallel()
+			setEnv(t, "PAGER", "")
+
+			fs := afero.NewMemMapFs()
+			conf := New(fs, nil)
+			conf.SetPager("vim")
+
+			if got := conf.Pager(); got != "vim" {
+				t.Errorf("Pager() = %q, want %q", got, "vim")
+			}
+		})
+	})
 }
