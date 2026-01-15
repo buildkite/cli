@@ -14,14 +14,21 @@ import (
 
 // Pager returns a writer hooked up to a pager (default: less -R) when stdout is a TTY.
 // Falls back to stdout when paging is disabled or the pager cannot run.
-func Pager(noPager bool) (w io.Writer, cleanup func() error) {
+// If pagerCmd is provided, it takes precedence over the PAGER environment variable.
+func Pager(noPager bool, pagerCmd ...string) (w io.Writer, cleanup func() error) {
 	cleanup = func() error { return nil }
 
 	if noPager || !isTTY() {
 		return os.Stdout, cleanup
 	}
 
-	pagerEnv := os.Getenv("PAGER")
+	// Determine pager command: explicit arg > PAGER env > default
+	var pagerEnv string
+	if len(pagerCmd) > 0 && pagerCmd[0] != "" {
+		pagerEnv = pagerCmd[0]
+	} else {
+		pagerEnv = os.Getenv("PAGER")
+	}
 	if pagerEnv == "" {
 		pagerEnv = "less -R"
 	}
@@ -31,10 +38,10 @@ func Pager(noPager bool) (w io.Writer, cleanup func() error) {
 		return os.Stdout, cleanup
 	}
 
-	pagerCmd := parts[0]
+	pagerBin := parts[0]
 	pagerArgs := parts[1:]
 
-	pagerPath, err := exec.LookPath(pagerCmd)
+	pagerPath, err := exec.LookPath(pagerBin)
 	if err != nil {
 		return os.Stdout, cleanup
 	}
