@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"slices"
-	"strconv"
 
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
@@ -47,23 +46,5 @@ func (c *SetCmd) Run() error {
 	// Determine where to save (default to user config unless --local)
 	saveLocal := c.Local && inGitRepo
 
-	switch key {
-	case KeySelectedOrg:
-		return conf.SelectOrganization(c.Value, saveLocal)
-	case KeyOutputFormat:
-		return conf.SetOutputFormat(c.Value, saveLocal)
-	case KeyNoPager:
-		v, _ := strconv.ParseBool(c.Value)
-		return conf.SetNoPager(v, saveLocal)
-	case KeyQuiet:
-		v, _ := strconv.ParseBool(c.Value)
-		return conf.SetQuiet(v, saveLocal)
-	case KeyNoInput:
-		v, _ := strconv.ParseBool(c.Value)
-		return conf.SetNoInput(v)
-	case KeyPager:
-		return conf.SetPager(c.Value)
-	}
-
-	return nil
+	return SetConfigValue(conf, key, c.Value, saveLocal)
 }

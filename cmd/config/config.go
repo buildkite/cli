@@ -4,6 +4,9 @@ package config
 import (
 	"fmt"
 	"slices"
+	"strconv"
+
+	"github.com/buildkite/cli/v3/internal/config"
 )
 
 // ConfigKey represents a valid configuration key
@@ -74,4 +77,44 @@ func (k ConfigKey) ValidValues() []string {
 	default:
 		return nil
 	}
+}
+
+// parseBoolOrDefault parses a boolean string, returning the default for empty strings
+func parseBoolOrDefault(value string, defaultVal bool) (bool, error) {
+	if value == "" {
+		return defaultVal, nil
+	}
+	return strconv.ParseBool(value)
+}
+
+func SetConfigValue(conf *config.Config, key ConfigKey, value string, local bool) error {
+	switch key {
+	case KeySelectedOrg:
+		return conf.SelectOrganization(value, local)
+	case KeyOutputFormat:
+		return conf.SetOutputFormat(value, local)
+	case KeyNoPager:
+		v, err := parseBoolOrDefault(value, false)
+		if err != nil {
+			return fmt.Errorf("invalid boolean value %q: %w", value, err)
+		}
+		return conf.SetNoPager(v, local)
+	case KeyQuiet:
+		v, err := parseBoolOrDefault(value, false)
+		if err != nil {
+			return fmt.Errorf("invalid boolean value %q: %w", value, err)
+		}
+		return conf.SetQuiet(v, local)
+	case KeyNoInput:
+		v, err := parseBoolOrDefault(value, false)
+		if err != nil {
+			return fmt.Errorf("invalid boolean value %q: %w", value, err)
+		}
+		return conf.SetNoInput(v)
+	case KeyPager:
+		return conf.SetPager(value)
+	}
+
+	return nil
+
 }

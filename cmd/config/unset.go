@@ -37,20 +37,5 @@ func (c *UnsetCmd) Run() error {
 	// Determine where to unset (default to user config unless --local)
 	unsetLocal := c.Local && inGitRepo
 
-	switch key {
-	case KeySelectedOrg:
-		return conf.SelectOrganization("", unsetLocal)
-	case KeyOutputFormat:
-		return conf.SetOutputFormat("", unsetLocal)
-	case KeyNoPager:
-		return conf.SetNoPager(false, unsetLocal)
-	case KeyQuiet:
-		return conf.SetQuiet(false, unsetLocal)
-	case KeyNoInput:
-		return conf.SetNoInput(false)
-	case KeyPager:
-		return conf.SetPager("")
-	}
-
-	return nil
+	return SetConfigValue(conf, key, "", unsetLocal)
 }
