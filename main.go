@@ -83,6 +83,7 @@ type (
 	JobCmd struct {
 		Cancel  job.CancelCmd  `cmd:"" help:"Cancel a job."`
 		List    job.ListCmd    `cmd:"" help:"List jobs." aliases:"ls"`
+		Log     job.LogCmd     `cmd:"" help:"Get logs for a job."`
 		Retry   job.RetryCmd   `cmd:"" help:"Retry a job."`
 		Unblock job.UnblockCmd `cmd:"" help:"Unblock a job."`
 	}
