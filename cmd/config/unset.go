@@ -11,6 +11,20 @@ type UnsetCmd struct {
 	Local bool   `help:"Unset from local (.bk.yaml) instead of user config"`
 }
 
+func (c *UnsetCmd) Help() string {
+	return `Remove a configuration value, reverting to default.
+
+Examples:
+  # Reset output format to default (json)
+  $ bk config unset output_format
+
+  # Remove repo-specific setting
+  $ bk config unset output_format --local
+
+  # Reset pager to default (less -R)
+  $ bk config unset pager`
+}
+
 func (c *UnsetCmd) Run() error {
 	key, err := ValidateKey(c.Key)
 	if err != nil {

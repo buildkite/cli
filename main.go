@@ -40,7 +40,7 @@ type CLI struct {
 	Artifacts    ArtifactsCmd     `cmd:"" help:"Manage pipeline build artifacts"`
 	Build        BuildCmd         `cmd:"" help:"Manage pipeline builds"`
 	Cluster      ClusterCmd       `cmd:"" help:"Manage organization clusters"`
-	Config       ConfigCmd        `cmd:"" help:"Manage CLI configuration"`
+	Config       bkConfig.ConfigCmd `cmd:"" help:"Manage CLI configuration"`
 	Configure    ConfigureCmd     `cmd:"" help:"Configure Buildkite API token" aliases:"auth"`
 	Init         bkInit.InitCmd   `cmd:"" help:"Initialize a pipeline.yaml file"`
 	Job          JobCmd           `cmd:"" help:"Manage jobs within a build"`
@@ -56,12 +56,6 @@ type CLI struct {
 type (
 	VersionCmd struct {
 		version.VersionCmd `cmd:"" help:"Print the version of the CLI being used"`
-	}
-	ConfigCmd struct {
-		List  bkConfig.ListCmd  `cmd:"" help:"List configuration values." aliases:"ls"`
-		Get   bkConfig.GetCmd   `cmd:"" help:"Get a configuration value."`
-		Set   bkConfig.SetCmd   `cmd:"" help:"Set a configuration value."`
-		Unset bkConfig.UnsetCmd `cmd:"" help:"Remove a configuration value."`
 	}
 	AgentCmd struct {
 		Pause  agent.PauseCmd  `cmd:"" help:"Pause a Buildkite agent."`

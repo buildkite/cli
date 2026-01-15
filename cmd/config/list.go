@@ -12,6 +12,17 @@ type ListCmd struct {
 	Global bool `help:"Only show global (user) configuration" xor:"scope"`
 }
 
+func (c *ListCmd) Help() string {
+	return `List all configuration values.
+
+Shows the effective configuration after applying precedence rules.
+
+Examples:
+  $ bk config list
+  $ bk config list --local
+  $ bk config list --global`
+}
+
 func (c *ListCmd) Run() error {
 	f, err := factory.New()
 	if err != nil {

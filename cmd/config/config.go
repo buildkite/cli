@@ -9,6 +9,31 @@ import (
 	"github.com/buildkite/cli/v3/internal/config"
 )
 
+// ConfigCmd is the root command for managing CLI configuration
+type ConfigCmd struct {
+	List  ListCmd  `cmd:"" help:"List configuration values." aliases:"ls"`
+	Get   GetCmd   `cmd:"" help:"Get a configuration value."`
+	Set   SetCmd   `cmd:"" help:"Set a configuration value."`
+	Unset UnsetCmd `cmd:"" help:"Remove a configuration value."`
+}
+
+func (c ConfigCmd) Help() string {
+	return `Manage CLI configuration settings.
+
+Configuration is stored in two locations:
+  User config:   ~/.config/bk.yaml (global defaults)
+  Local config:  .bk.yaml (repo-specific overrides)
+
+Precedence: Environment variable > Local config > User config > Default
+
+Examples:
+  $ bk config list                       # Show all config values
+  $ bk config get output_format          # Get a specific value
+  $ bk config set output_format yaml     # Set default output to YAML
+  $ bk config set no_pager true --local  # Disable pager for this repo
+  $ bk config unset pager                # Reset pager to default`
+}
+
 // ConfigKey represents a valid configuration key
 type ConfigKey string
 
