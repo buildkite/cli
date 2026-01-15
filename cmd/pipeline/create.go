@@ -23,7 +23,7 @@ type CreateCmd struct {
 	Repository  string `help:"Repository URL" short:"r"`
 	ClusterID   string `help:"Cluster name or ID to assign the pipeline to" short:"c"`
 	DryRun      bool   `help:"Simulate pipeline creation without actually creating it"`
-	Output      string `help:"Outputs the created pipeline. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:"json,yaml,text"`
+	Output      string `help:"Outputs the created pipeline. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
 }
 
 func (c *CreateCmd) Help() string {
@@ -75,7 +75,7 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 func (c *CreateCmd) runPipelineCreateDryRun(kongCtx *kong.Context, f *factory.Factory) error {
 	ctx := context.Background()
-	format := output.Format(c.Output)
+	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 
 	pipeline, err := c.createPipelineDryRun(ctx, f)
 	if err != nil {
@@ -90,7 +90,7 @@ func (c *CreateCmd) runPipelineCreateDryRun(kongCtx *kong.Context, f *factory.Fa
 
 func (c *CreateCmd) runPipelineCreate(kongCtx *kong.Context, f *factory.Factory) error {
 	ctx := context.Background()
-	format := output.Format(c.Output)
+	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 
 	pipeline, err := c.createPipeline(ctx, f)
 	if err != nil {

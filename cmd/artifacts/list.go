@@ -23,7 +23,7 @@ type ListCmd struct {
 	BuildNumber string `arg:"" optional:"" help:"Build number to list artifacts for"`
 	Pipeline    string `help:"The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}. If omitted, it will be resolved using the current directory." short:"p"`
 	Job         string `help:"List artifacts for a specific job on the given build." short:"j"`
-	Output      string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:"json,yaml,text"`
+	Output      string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
 }
 
 func (c *ListCmd) Help() string {
@@ -62,10 +62,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
-	format := output.Format(c.Output)
-	if format != output.FormatJSON && format != output.FormatYAML && format != output.FormatText {
-		return fmt.Errorf("invalid output format: %s", c.Output)
-	}
+	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 
 	var args []string
 	if c.BuildNumber != "" {
@@ -117,7 +114,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return output.Write(os.Stdout, buildArtifacts, format)
 	}
 
-	writer, cleanup := bkIO.Pager(f.NoPager)
+	writer, cleanup := bkIO.Pager(f.NoPager, f.Config.Pager())
 	defer func() { _ = cleanup() }()
 
 	if len(buildArtifacts) == 0 {

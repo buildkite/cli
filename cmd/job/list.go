@@ -37,7 +37,7 @@ type ListCmd struct {
 	OrderBy  string   `help:"Order results by field (start_time, duration)" name:"order-by"`
 	Limit    int      `help:"Maximum number of jobs to return" default:"100"`
 	NoLimit  bool     `help:"Fetch all jobs (overrides --limit)" name:"no-limit"`
-	Output   string   `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:"json,yaml,text"`
+	Output   string   `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
 }
 
 func (c *ListCmd) Help() string {
@@ -118,10 +118,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
-	format := output.Format(c.Output)
-	if format != output.FormatJSON && format != output.FormatYAML && format != output.FormatText {
-		return fmt.Errorf("invalid output format: %s", c.Output)
-	}
+	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 
 	if !c.NoLimit && c.Limit > maxJobLimit {
 		return fmt.Errorf("limit cannot exceed %d jobs (requested: %d); if you need more, use --no-limit", maxJobLimit, c.Limit)
@@ -181,7 +178,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	if format == output.FormatText {
-		writer, cleanup := bkIO.Pager(f.NoPager)
+		writer, cleanup := bkIO.Pager(f.NoPager, f.Config.Pager())
 		defer func() { _ = cleanup() }()
 
 		target := org
@@ -304,7 +301,6 @@ func listJobsWithPagination(ctx context.Context, f *factory.Factory, org string,
 	}
 
 	return jobs, nil
-
 }
 
 func fetchJobsWithQueueFilter(ctx context.Context, f *factory.Factory, org string, opts jobListOptions) ([]buildkite.Job, error) {
@@ -320,7 +316,6 @@ func fetchJobsWithQueueFilter(ctx context.Context, f *factory.Factory, org strin
 	}
 
 	return listJobsWithPagination(ctx, f, org, queueIDs, opts, listJobsByClusterQueue)
-
 }
 
 const maxConcurrentRequests = 10 // Balance between performance and API rate limits

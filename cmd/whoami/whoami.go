@@ -37,7 +37,7 @@ func (w WhoAmIOutput) TextOutput() string {
 }
 
 type WhoAmICmd struct {
-	Output string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:"json,yaml,text"`
+	Output string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
 }
 
 func (c *WhoAmICmd) Help() string {
@@ -63,10 +63,7 @@ func (c *WhoAmICmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
-	format := output.Format(c.Output)
-	if format != output.FormatJSON && format != output.FormatYAML && format != output.FormatText {
-		return fmt.Errorf("invalid output format: %s", c.Output)
-	}
+	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
