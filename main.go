@@ -10,6 +10,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/artifacts"
 	"github.com/buildkite/cli/v3/cmd/build"
 	"github.com/buildkite/cli/v3/cmd/cluster"
+	bkConfig "github.com/buildkite/cli/v3/cmd/config"
 	"github.com/buildkite/cli/v3/cmd/configure"
 	bkInit "github.com/buildkite/cli/v3/cmd/init"
 	"github.com/buildkite/cli/v3/cmd/job"
@@ -22,7 +23,6 @@ import (
 	"github.com/buildkite/cli/v3/cmd/whoami"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
-	"github.com/buildkite/cli/v3/pkg/output"
 )
 
 // Kong CLI structure, with base commands defined as additional commands are defined in their respective files
@@ -40,6 +40,7 @@ type CLI struct {
 	Artifacts    ArtifactsCmd     `cmd:"" help:"Manage pipeline build artifacts"`
 	Build        BuildCmd         `cmd:"" help:"Manage pipeline builds"`
 	Cluster      ClusterCmd       `cmd:"" help:"Manage organization clusters"`
+	Config       ConfigCmd        `cmd:"" help:"Manage CLI configuration"`
 	Configure    ConfigureCmd     `cmd:"" help:"Configure Buildkite API token"`
 	Init         bkInit.InitCmd   `cmd:"" help:"Initialize a pipeline.yaml file"`
 	Job          JobCmd           `cmd:"" help:"Manage jobs within a build"`
@@ -55,6 +56,12 @@ type CLI struct {
 type (
 	VersionCmd struct {
 		version.VersionCmd `cmd:"" help:"Print the version of the CLI being used"`
+	}
+	ConfigCmd struct {
+		List  bkConfig.ListCmd  `cmd:"" help:"List configuration values." aliases:"ls"`
+		Get   bkConfig.GetCmd   `cmd:"" help:"Get a configuration value."`
+		Set   bkConfig.SetCmd   `cmd:"" help:"Set a configuration value."`
+		Unset bkConfig.UnsetCmd `cmd:"" help:"Remove a configuration value."`
 	}
 	AgentCmd struct {
 		Pause  agent.PauseCmd  `cmd:"" help:"Pause a Buildkite agent."`
@@ -122,7 +129,8 @@ func newKongParser(cli *CLI) (*kong.Kong, error) {
 		kong.Description("Work with Buildkite from the command line."),
 		kong.UsageOnError(),
 		kong.Vars{
-			"output_default_format": string(output.DefaultFormat),
+			// Empty default allows commands to fall back to config value
+			"output_default_format": "",
 		},
 	)
 }
