@@ -304,7 +304,6 @@ func listJobsWithPagination(ctx context.Context, f *factory.Factory, org string,
 	}
 
 	return jobs, nil
-
 }
 
 func fetchJobsWithQueueFilter(ctx context.Context, f *factory.Factory, org string, opts jobListOptions) ([]buildkite.Job, error) {
@@ -320,7 +319,6 @@ func fetchJobsWithQueueFilter(ctx context.Context, f *factory.Factory, org strin
 	}
 
 	return listJobsWithPagination(ctx, f, org, queueIDs, opts, listJobsByClusterQueue)
-
 }
 
 const maxConcurrentRequests = 10 // Balance between performance and API rate limits
