@@ -6,12 +6,13 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 )
 
-func TestMigrationAPIEndpoint(t *testing.T) {
+func TestConversionAPIEndpoint(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -27,16 +28,16 @@ jobs:
       - run: echo "Hello World"
 `
 
-	// Submit a migration job
-	req := migrationRequest{
+	// Submit a Conversion job
+	req := conversionRequest{
 		Vendor: "github",
 		Code:   testWorkflow,
 		AI:     false,
 	}
 
-	jobResp, err := submitMigrationJob(req)
+	jobResp, err := submitConversionJob(req)
 	if err != nil {
-		t.Fatalf("Migration API endpoint is not accessible or broken. This will break the CLI for users. Error: %v", err)
+		t.Fatalf("Conversion API endpoint is not accessible or broken. This will break the CLI for users. Error: %v", err)
 	}
 
 	if jobResp.JobID == "" {
@@ -54,7 +55,7 @@ jobs:
 	}
 
 	if result.Status == "failed" {
-		t.Errorf("Migration failed: %s", result.Error)
+		t.Errorf("Conversion failed: %s", result.Error)
 	}
 
 	if result.Status != "completed" {
@@ -188,7 +189,7 @@ func TestContains(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := contains(tt.slice, tt.str)
+			got := slices.Contains(tt.slice, tt.str)
 			if got != tt.want {
 				t.Errorf("Expected %v, got %v", tt.want, got)
 			}
@@ -196,7 +197,7 @@ func TestContains(t *testing.T) {
 	}
 }
 
-func TestSubmitMigrationJob(t *testing.T) {
+func TestSubmitConversionJob(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -208,7 +209,7 @@ func TestSubmitMigrationJob(t *testing.T) {
 			t.Errorf("Expected Content-Type: application/json, got %s", r.Header.Get("Content-Type"))
 		}
 
-		var req migrationRequest
+		var req conversionRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Errorf("Failed to decode request body: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
@@ -221,10 +222,10 @@ func TestSubmitMigrationJob(t *testing.T) {
 			return
 		}
 
-		resp := migrationResponse{
+		resp := conversionResponse{
 			JobID:     "test-job-123",
 			Status:    "processing",
-			Message:   "Migration job queued for processing",
+			Message:   "Conversion job queued for processing",
 			StatusURL: "https://example.com/migrate/test-job-123/status",
 		}
 
@@ -234,19 +235,19 @@ func TestSubmitMigrationJob(t *testing.T) {
 	}))
 	defer server.Close()
 
-	originalEndpoint := MigrationEndpoint
-	MigrationEndpoint = server.URL
-	defer func() { MigrationEndpoint = originalEndpoint }()
+	originalEndpoint := convertEndpoint
+	convertEndpoint = server.URL
+	defer func() { convertEndpoint = originalEndpoint }()
 
-	req := migrationRequest{
+	req := conversionRequest{
 		Vendor: "github",
 		Code:   "name: Test\non: [push]",
 		AI:     false,
 	}
 
-	resp, err := submitMigrationJob(req)
+	resp, err := submitConversionJob(req)
 	if err != nil {
-		t.Fatalf("Failed to submit migration job: %v", err)
+		t.Fatalf("Failed to submit Conversion job: %v", err)
 	}
 
 	if resp.JobID != "test-job-123" {
@@ -291,9 +292,9 @@ func TestPollJobStatus(t *testing.T) {
 	}))
 	defer server.Close()
 
-	originalEndpoint := MigrationEndpoint
-	MigrationEndpoint = server.URL
-	defer func() { MigrationEndpoint = originalEndpoint }()
+	originalEndpoint := convertEndpoint
+	convertEndpoint = server.URL
+	defer func() { convertEndpoint = originalEndpoint }()
 
 	result, err := pollJobStatus("test-job-123", 30)
 	if err != nil {
@@ -326,9 +327,9 @@ func TestPollJobStatusTimeout(t *testing.T) {
 	}))
 	defer server.Close()
 
-	originalEndpoint := MigrationEndpoint
-	MigrationEndpoint = server.URL
-	defer func() { MigrationEndpoint = originalEndpoint }()
+	originalEndpoint := convertEndpoint
+	convertEndpoint = server.URL
+	defer func() { convertEndpoint = originalEndpoint }()
 
 	_, err := pollJobStatus("test-job-123", 5)
 	if err == nil {
@@ -343,7 +344,7 @@ func TestPollJobStatusTimeout(t *testing.T) {
 func TestMigrateCommandCreation(t *testing.T) {
 	t.Parallel()
 
-	cmd := &MigrateCmd{
+	cmd := &ConvertCmd{
 		File:    "test.yml",
 		Vendor:  "github",
 		Timeout: 300,
