@@ -20,7 +20,7 @@ import (
 type ViewCmd struct {
 	Pipeline string `arg:"" help:"The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." optional:""`
 	Web      bool   `help:"Open the pipeline in a web browser." short:"w"`
-	Output   string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:"json,yaml,text"`
+	Output   string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
 }
 
 func (c *ViewCmd) Help() string {
@@ -89,12 +89,12 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return nil
 	}
 
-	format := output.Format(c.Output)
+	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 	if format != output.FormatText {
 		return output.Write(kongCtx.Stdout, resp.Pipeline, format)
 	}
 
-	writer, cleanup := bkIO.Pager(f.NoPager)
+	writer, cleanup := bkIO.Pager(f.NoPager, f.Config.Pager())
 	defer func() { _ = cleanup() }()
 
 	var pipelineOutput strings.Builder

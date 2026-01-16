@@ -32,7 +32,7 @@ type ListCmd struct {
 	Tags     []string `help:"Filter agents by tags"`
 	PerPage  int      `help:"Number of agents per page" default:"30"`
 	Limit    int      `help:"Maximum number of agents to return" default:"100"`
-	Output   string   `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:"json,yaml,text"`
+	Output   string   `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
 }
 
 func (c *ListCmd) Help() string {
@@ -91,7 +91,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
-	format := output.Format(c.Output)
+	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 
 	agents := []buildkite.Agent{}
 	page := 1
@@ -181,7 +181,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 	table := output.Table(headers, rows, columnStyles)
 
-	writer, cleanup := bkIO.Pager(f.NoPager)
+	writer, cleanup := bkIO.Pager(f.NoPager, f.Config.Pager())
 	defer func() {
 		_ = cleanup()
 	}()

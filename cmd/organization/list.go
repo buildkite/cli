@@ -13,7 +13,7 @@ import (
 )
 
 type ListCmd struct {
-	Output string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:"json,yaml,text"`
+	Output string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
 }
 
 type Organization struct {
@@ -58,10 +58,7 @@ func (c *ListCmd) Run(globals cli.GlobalFlags) error {
 		}
 	}
 
-	format := output.Format(c.Output)
-	if format != output.FormatJSON && format != output.FormatYAML && format != output.FormatText {
-		return fmt.Errorf("invalid output format: %s", c.Output)
-	}
+	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 
 	if format != output.FormatText {
 		return output.Write(os.Stdout, organizations, format)
@@ -78,7 +75,7 @@ func (c *ListCmd) Run(globals cli.GlobalFlags) error {
 		map[string]string{"organization slug": "bold", "selected": "italic"},
 	)
 
-	writer, cleanup := bkIO.Pager(f.NoPager)
+	writer, cleanup := bkIO.Pager(f.NoPager, f.Config.Pager())
 	defer func() { _ = cleanup() }()
 
 	fmt.Fprintf(writer, "Showing configured organization(s)\n\n%s\n", table)

@@ -10,6 +10,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/artifacts"
 	"github.com/buildkite/cli/v3/cmd/build"
 	"github.com/buildkite/cli/v3/cmd/cluster"
+	bkConfig "github.com/buildkite/cli/v3/cmd/config"
 	"github.com/buildkite/cli/v3/cmd/configure"
 	bkInit "github.com/buildkite/cli/v3/cmd/init"
 	"github.com/buildkite/cli/v3/cmd/job"
@@ -22,7 +23,6 @@ import (
 	"github.com/buildkite/cli/v3/cmd/whoami"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
-	"github.com/buildkite/cli/v3/pkg/output"
 )
 
 // Kong CLI structure, with base commands defined as additional commands are defined in their respective files
@@ -35,21 +35,22 @@ type CLI struct {
 	Debug   bool `help:"Enable debug output for REST API calls"`
 	// Verbose bool `help:"Enable verbose error output" short:"V"` // TODO: Implement this, atm this is just a skeleton flag
 
-	Agent        AgentCmd         `cmd:"" help:"Manage agents"`
-	Api          ApiCmd           `cmd:"" help:"Interact with the Buildkite API"`
-	Artifacts    ArtifactsCmd     `cmd:"" help:"Manage pipeline build artifacts"`
-	Build        BuildCmd         `cmd:"" help:"Manage pipeline builds"`
-	Cluster      ClusterCmd       `cmd:"" help:"Manage organization clusters"`
-	Configure    ConfigureCmd     `cmd:"" help:"Configure Buildkite API token"`
-	Init         bkInit.InitCmd   `cmd:"" help:"Initialize a pipeline.yaml file"`
-	Job          JobCmd           `cmd:"" help:"Manage jobs within a build"`
-	Organization OrganizationCmd  `cmd:"" help:"Manage organizations" aliases:"org"`
-	Pipeline     PipelineCmd      `cmd:"" help:"Manage pipelines"`
-	Package      PackageCmd       `cmd:"" help:"Manage packages"`
-	Use          use.UseCmd       `cmd:"" help:"Select an organization"`
-	User         UserCmd          `cmd:"" help:"Invite users to the organization"`
-	Version      VersionCmd       `cmd:"" help:"Print the version of the CLI being used"`
-	Whoami       whoami.WhoAmICmd `cmd:"" help:"Print the current user and organization"`
+	Agent        AgentCmd           `cmd:"" help:"Manage agents"`
+	Api          ApiCmd             `cmd:"" help:"Interact with the Buildkite API"`
+	Artifacts    ArtifactsCmd       `cmd:"" help:"Manage pipeline build artifacts"`
+	Build        BuildCmd           `cmd:"" help:"Manage pipeline builds"`
+	Cluster      ClusterCmd         `cmd:"" help:"Manage organization clusters"`
+	Config       bkConfig.ConfigCmd `cmd:"" help:"Manage CLI configuration"`
+	Configure    ConfigureCmd       `cmd:"" help:"Configure Buildkite API token" aliases:"auth"`
+	Init         bkInit.InitCmd     `cmd:"" help:"Initialize a pipeline.yaml file"`
+	Job          JobCmd             `cmd:"" help:"Manage jobs within a build"`
+	Organization OrganizationCmd    `cmd:"" help:"Manage organizations" aliases:"org"`
+	Pipeline     PipelineCmd        `cmd:"" help:"Manage pipelines"`
+	Package      PackageCmd         `cmd:"" help:"Manage packages"`
+	Use          use.UseCmd         `cmd:"" help:"Select an organization"`
+	User         UserCmd            `cmd:"" help:"Invite users to the organization"`
+	Version      VersionCmd         `cmd:"" help:"Print the version of the CLI being used"`
+	Whoami       whoami.WhoAmICmd   `cmd:"" help:"Print the current user and organization"`
 }
 
 type (
@@ -123,7 +124,8 @@ func newKongParser(cli *CLI) (*kong.Kong, error) {
 		kong.Description("Work with Buildkite from the command line."),
 		kong.UsageOnError(),
 		kong.Vars{
-			"output_default_format": string(output.DefaultFormat),
+			// Empty default allows commands to fall back to config value
+			"output_default_format": "",
 		},
 	)
 }

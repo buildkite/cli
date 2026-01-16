@@ -24,7 +24,7 @@ type ListCmd struct {
 	Name       string `help:"Filter pipelines by name (supports partial matches, case insensitive)" short:"n"`
 	Repository string `help:"Filter pipelines by repository URL (supports partial matches, case insensitive)" short:"r"`
 	Limit      int    `help:"Maximum number of pipelines to return (max: 3000)" short:"l" default:"100"`
-	Output     string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:"json,yaml,text"`
+	Output     string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
 }
 
 func (c *ListCmd) Help() string {
@@ -147,7 +147,7 @@ func (c *ListCmd) fetchPipelines(ctx context.Context, f *factory.Factory, org st
 }
 
 func (c *ListCmd) displayPipelines(pipelines []buildkite.Pipeline, f *factory.Factory) error {
-	format := output.Format(c.Output)
+	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 	if format != output.FormatText {
 		return output.Write(os.Stdout, pipelines, format)
 	}
@@ -166,7 +166,7 @@ func (c *ListCmd) displayPipelines(pipelines []buildkite.Pipeline, f *factory.Fa
 		map[string]string{"name": "bold", "repository": "italic"},
 	)
 
-	writer, cleanup := bkIO.Pager(f.NoPager)
+	writer, cleanup := bkIO.Pager(f.NoPager, f.Config.Pager())
 	defer func() { _ = cleanup() }()
 
 	_, err := fmt.Fprintf(writer, "Pipelines (%d)\n\n%s\n", len(pipelines), table)

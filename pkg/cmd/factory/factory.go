@@ -149,6 +149,8 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 		RestAPIClient: buildkiteClient,
 		Version:       version.Version,
 		NoPager:       conf.PagerDisabled(),
+		Quiet:         conf.Quiet(),
+		NoInput:       conf.NoInput(),
 		Debug:         cfg.debug,
 	}, nil
 }

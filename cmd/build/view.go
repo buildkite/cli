@@ -27,7 +27,7 @@ type ViewCmd struct {
 	User        string `help:"Filter builds to this user. You can use name or email." short:"u" xor:"userfilter"`
 	Mine        bool   `help:"Filter builds to only my user." xor:"userfilter"`
 	Web         bool   `help:"Open the build in a web browser." short:"w"`
-	Output      string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:"json,yaml,text"`
+	Output      string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
 }
 
 func (c *ViewCmd) Help() string {
@@ -220,9 +220,9 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		},
 	}
 
-	format := output.Format(c.Output)
+	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 	if format == output.FormatText {
-		writer, cleanup := bkIO.Pager(f.NoPager)
+		writer, cleanup := bkIO.Pager(f.NoPager, f.Config.Pager())
 		defer func() { _ = cleanup() }()
 
 		_, err := fmt.Fprint(writer, buildOutput.TextOutput())

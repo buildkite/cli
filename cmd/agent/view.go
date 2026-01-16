@@ -20,7 +20,7 @@ import (
 type ViewCmd struct {
 	Agent  string `arg:"" help:"Agent ID to view"`
 	Web    bool   `help:"Open agent in a browser" short:"w"`
-	Output string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:"json,yaml,text"`
+	Output string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
 }
 
 func (c *ViewCmd) Help() string {
@@ -58,7 +58,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	ctx := context.Background()
 
-	format := output.Format(c.Output)
+	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 
 	org, id := parseAgentArg(c.Agent, f.Config)
 
@@ -111,7 +111,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		"value":    "dim",
 	})
 
-	writer, cleanup := bkIO.Pager(f.NoPager)
+	writer, cleanup := bkIO.Pager(f.NoPager, f.Config.Pager())
 	defer func() { _ = cleanup() }()
 
 	fmt.Fprintf(writer, "Agent %s (%s)\n\n", agentData.Name, agentData.ID)

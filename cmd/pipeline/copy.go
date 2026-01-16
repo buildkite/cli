@@ -22,7 +22,7 @@ type CopyCmd struct {
 	Target   string `help:"Name for the new pipeline, or org/name to copy to a different organization" short:"t"`
 	Cluster  string `help:"Cluster name or ID for the new pipeline (required for cross-org copies if target org uses clusters)" short:"c"`
 	DryRun   bool   `help:"Show what would be copied without creating the pipeline"`
-	Output   string `help:"Output format: json, yaml, text" short:"o" default:"${output_default_format}" enum:"json,yaml,text"`
+	Output   string `help:"Output format: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
 }
 
 // we store the target organization and pipeline name for a future go-buildkite call
@@ -116,7 +116,7 @@ func (c *CopyCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	if c.DryRun {
-		return c.runDryRun(kongCtx, source, target, isCrossOrg, clusterID)
+		return c.runDryRun(kongCtx, f, source, target, isCrossOrg, clusterID)
 	}
 
 	return c.runCopy(kongCtx, f, source, target, isCrossOrg, clusterID)
@@ -211,8 +211,8 @@ func (c *CopyCmd) fetchSourcePipeline(ctx context.Context, f *factory.Factory, o
 }
 
 // runDryRun allows a user to validate what their changes will do, based on the current `--dry-run` flag in Create
-func (c *CopyCmd) runDryRun(kongCtx *kong.Context, source *buildkite.Pipeline, target *copyTarget, isCrossOrg bool, clusterID string) error {
-	format := output.Format(c.Output)
+func (c *CopyCmd) runDryRun(kongCtx *kong.Context, f *factory.Factory, source *buildkite.Pipeline, target *copyTarget, isCrossOrg bool, clusterID string) error {
+	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 
 	createReq := c.buildCreatePipeline(source, target.Name, isCrossOrg, clusterID)
 
@@ -226,7 +226,7 @@ func (c *CopyCmd) runDryRun(kongCtx *kong.Context, source *buildkite.Pipeline, t
 
 func (c *CopyCmd) runCopy(kongCtx *kong.Context, f *factory.Factory, source *buildkite.Pipeline, target *copyTarget, isCrossOrg bool, clusterID string) error {
 	ctx := context.Background()
-	format := output.Format(c.Output)
+	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 
 	// For cross-org copies, we need a client authenticated for the target org
 	targetClient := f.RestAPIClient

@@ -21,6 +21,18 @@ const (
 	DefaultFormat Format = FormatJSON
 )
 
+// ResolveFormat determines the output format to use.
+// Priority: flagValue (if set) > configValue > DefaultFormat
+func ResolveFormat(flagValue, configValue string) Format {
+	if flagValue != "" {
+		return Format(flagValue)
+	}
+	if configValue != "" {
+		return Format(configValue)
+	}
+	return DefaultFormat
+}
+
 // Formatter is an interface that types must implement to support formatted output
 type Formatter interface {
 	// TextOutput returns the plain text representation
