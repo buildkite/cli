@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -18,15 +19,15 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
 
-var MigrationEndpoint = "https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate"
+var convertEndpoint = "https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate"
 
-type migrationRequest struct {
+type conversionRequest struct {
 	Vendor string `json:"vendor"`
 	Code   string `json:"code"`
 	AI     bool   `json:"ai,omitempty"`
 }
 
-type migrationResponse struct {
+type conversionResponse struct {
 	JobID     string `json:"jobId"`
 	Status    string `json:"status"`
 	Message   string `json:"message"`
@@ -43,16 +44,16 @@ type statusResponse struct {
 	Error       string `json:"error,omitempty"`
 }
 
-type MigrateCmd struct {
-	File    string `help:"Path to the pipeline file to migrate (required)" short:"F" required:""`
+type ConvertCmd struct {
+	File    string `help:"Path to the pipeline file to convert (required)" short:"F" required:""`
 	Vendor  string `help:"CI/CD vendor (auto-detected if not specified)" short:"v"`
-	AI      bool   `help:"Use AI-powered migration (recommended for Jenkins)"`
-	Output  string `help:"Custom path to save the migrated pipeline (default: .buildkite/pipeline.<vendor>.yml)" short:"o"`
-	Timeout int    `help:"Timeout in seconds (use 600+ for AI migrations)" default:"300"`
+	AI      bool   `help:"Use AI-powered conversion (recommended for Jenkins)"`
+	Output  string `help:"Custom path to save the converted pipeline (default: .buildkite/pipeline.<vendor>.yml)" short:"o"`
+	Timeout int    `help:"Timeout in seconds (use 600+ for AI conversions)" default:"300"`
 }
 
-func (c *MigrateCmd) Help() string {
-	return `Migrate a CI/CD pipeline configuration from various vendors to Buildkite format.
+func (c *ConvertCmd) Help() string {
+	return `Convert a CI/CD pipeline configuration from various vendors to Buildkite format.
 
 Supported vendors:
   - github (GitHub Actions)
@@ -62,27 +63,27 @@ Supported vendors:
 
 The command will automatically detect the vendor based on the file name if not specified.
 
-By default, the migrated pipeline is saved to .buildkite/pipeline.<vendor>.yml.
+By default, the converted pipeline is saved to .buildkite/pipeline.<vendor>.yml.
 Use the --output flag to specify a custom output path.
 
-Note: This command does not require an API token since it uses a public migration API.
+Note: This command does not require an API token since it uses a public conversion API.
 
 Examples:
-  # Migrate a GitHub Actions workflow
-  $ bk pipeline migrate -F .github/workflows/ci.yml
+  # Convert a GitHub Actions workflow
+  $ bk pipeline convert -F .github/workflows/ci.yml
 
-  # Migrate with explicit vendor specification
-  $ bk pipeline migrate -F pipeline.yml --vendor circleci
+  # Convert with explicit vendor specification
+  $ bk pipeline convert -F pipeline.yml --vendor circleci
 
-  # Migrate Jenkins pipeline with AI support
-  $ bk pipeline migrate -F Jenkinsfile --ai
+  # Convert Jenkins pipeline with AI support
+  $ bk pipeline convert -F Jenkinsfile --ai
 
   # Save output to a file
-  $ bk pipeline migrate -F .github/workflows/ci.yml -o .buildkite/pipeline.yml
+  $ bk pipeline convert -F .github/workflows/ci.yml -o .buildkite/pipeline.yml
 `
 }
 
-func (c *MigrateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+func (c *ConvertCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
 	if err != nil {
 		return err
@@ -106,31 +107,31 @@ func (c *MigrateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	supportedVendors := []string{"github", "bitbucket", "circleci", "jenkins"}
-	if !contains(supportedVendors, c.Vendor) {
+	if !slices.Contains(supportedVendors, c.Vendor) {
 		return fmt.Errorf("unsupported vendor: %s (supported: %s)", c.Vendor, strings.Join(supportedVendors, ", "))
 	}
 
-	req := migrationRequest{
+	req := conversionRequest{
 		Vendor: c.Vendor,
 		Code:   string(content),
 		AI:     c.AI,
 	}
 
-	fmt.Println("Submitting migration job...")
+	fmt.Println("Submitting conversion job...")
 
-	jobResp, err := submitMigrationJob(req)
+	jobResp, err := submitConversionJob(req)
 	if err != nil {
-		return fmt.Errorf("error submitting migration job: %w", err)
+		return fmt.Errorf("error submitting conversion job: %w", err)
 	}
 
 	if c.AI {
 		fmt.Println("Job submitted. Processing with AI (this may take several minutes)...")
 	} else {
-		fmt.Println("Job submitted. Processing migration...")
+		fmt.Println("Job submitted. Processing conversion...")
 	}
 
 	var result *statusResponse
-	err = bkIO.SpinWhile(f, "Processing migration...", func() {
+	err = bkIO.SpinWhile(f, "Processing conversion...", func() {
 		result, err = pollJobStatus(jobResp.JobID, c.Timeout)
 	})
 	if err != nil {
@@ -138,14 +139,14 @@ func (c *MigrateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	if result.Status == "failed" {
-		return fmt.Errorf("migration failed: %s", result.Error)
+		return fmt.Errorf("conversion failed: %s", result.Error)
 	}
 
 	if c.Output != "" {
 		if err := os.WriteFile(c.Output, []byte(result.Result), 0o644); err != nil {
 			return fmt.Errorf("error writing output file: %w", err)
 		}
-		fmt.Printf("\n✅ Migration completed successfully!\n")
+		fmt.Printf("\n✅ conversion completed successfully!\n")
 		fmt.Printf("Output saved to: %s\n", c.Output)
 	} else {
 		buildkiteDir := ".buildkite"
@@ -160,7 +161,7 @@ func (c *MigrateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			return fmt.Errorf("error writing output file: %w", err)
 		}
 
-		fmt.Printf("\n✅ Migration completed successfully!\n")
+		fmt.Printf("\n✅ conversion completed successfully!\n")
 		fmt.Printf("Output saved to: %s\n", defaultOutputPath)
 	}
 
@@ -189,22 +190,13 @@ func detectVendor(filePath string) (string, error) {
 	return "", fmt.Errorf("could not detect vendor from file path. Please specify vendor explicitly with --vendor")
 }
 
-func contains(slice []string, str string) bool {
-	for _, s := range slice {
-		if s == str {
-			return true
-		}
-	}
-	return false
-}
-
-func submitMigrationJob(req migrationRequest) (*migrationResponse, error) {
+func submitConversionJob(req conversionRequest) (*conversionResponse, error) {
 	reqBody, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(context.Background(), "POST", MigrationEndpoint, bytes.NewReader(reqBody))
+	httpReq, err := http.NewRequestWithContext(context.Background(), "POST", convertEndpoint, bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
 	}
@@ -227,7 +219,7 @@ func submitMigrationJob(req migrationRequest) (*migrationResponse, error) {
 		return nil, fmt.Errorf("API request failed (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	var jobResp migrationResponse
+	var jobResp conversionResponse
 	if err := json.Unmarshal(body, &jobResp); err != nil {
 		return nil, fmt.Errorf("error parsing response: %w", err)
 	}
@@ -236,7 +228,7 @@ func submitMigrationJob(req migrationRequest) (*migrationResponse, error) {
 }
 
 func pollJobStatus(jobID string, timeoutSeconds int) (*statusResponse, error) {
-	statusURL := fmt.Sprintf("%s/%s/status", MigrationEndpoint, jobID)
+	statusURL := fmt.Sprintf("%s/%s/status", convertEndpoint, jobID)
 	client := &http.Client{Timeout: 30 * time.Second}
 
 	maxAttempts := timeoutSeconds / 5
@@ -281,5 +273,5 @@ func pollJobStatus(jobID string, timeoutSeconds int) (*statusResponse, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("migration timed out after %d seconds", timeoutSeconds)
+	return nil, fmt.Errorf("conversion timed out after %d seconds", timeoutSeconds)
 }
