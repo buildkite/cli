@@ -98,7 +98,7 @@ type (
 		Copy     pipeline.CopyCmd     `cmd:"" help:"Copy an existing pipeline." aliases:"cp"`
 		Create   pipeline.CreateCmd   `cmd:"" help:"Create a new pipeline."`
 		List     pipeline.ListCmd     `cmd:"" help:"List pipelines." aliases:"ls"`
-		Migrate  pipeline.MigrateCmd  `cmd:"" help:"Migrate a CI/CD pipeline configuration to Buildkite format."`
+		Convert  pipeline.ConvertCmd  `cmd:"" help:"Convert a CI/CD pipeline configuration to Buildkite format." aliases:"migrate"`
 		Validate pipeline.ValidateCmd `cmd:"" help:"Validate a pipeline YAML file."`
 		View     pipeline.ViewCmd     `cmd:"" help:"View a pipeline."`
 	}
