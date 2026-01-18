@@ -50,16 +50,25 @@ steps:
           shell: false
           tty: true
 
-  - block: ":package: Create a release?"
-    prompt: "Fill out the tag to create for this release"
+  - input: ":package: Create a release?"
+    prompt: "Select the release type"
     branches:
       - main
-    blocked_state: passed
+    allowed_teams:
+      - "support"
+      - "deploy"
+    blocked_state: "passed"
     fields:
-      - key: release-tag
-        text: Tag
+      - key: release-type
+        select: "Release Type"
         required: true
-        hint: "Eg: v3.0.0-beta.rev2"
+        options:
+          - label: "Patch (v3.x.X)"
+            value: "patch"
+          - label: "Minor (v3.X.0)"
+            value: "minor"
+          - label: "Major (vX.0.0) - Manual only"
+            value: "major"
 
   # this tags the commit with the input from the previous block step and pushes it to github
   # that will trigger the buildkite-cli-release pipeline off the tag which will create a release in github
