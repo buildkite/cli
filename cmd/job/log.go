@@ -17,9 +17,9 @@ import (
 
 type LogCmd struct {
 	JobID        string `arg:"" help:"Job UUID to get logs for"`
-	Pipeline     string `help:"The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
-	BuildNumber  string `help:"The build number." short:"b"`
-	NoTimestamps bool   `help:"Strip timestamp prefixes from log output." name:"no-timestamps"`
+	Pipeline     string `help:"The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}" short:"p"`
+	BuildNumber  string `help:"The build number" short:"b"`
+	NoTimestamps bool   `help:"Strip timestamp prefixes from log output" name:"no-timestamps"`
 }
 
 func (c *LogCmd) Help() string {
