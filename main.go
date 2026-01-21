@@ -8,6 +8,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/agent"
 	"github.com/buildkite/cli/v3/cmd/api"
 	"github.com/buildkite/cli/v3/cmd/artifacts"
+	"github.com/buildkite/cli/v3/cmd/auth"
 	"github.com/buildkite/cli/v3/cmd/build"
 	"github.com/buildkite/cli/v3/cmd/cluster"
 	bkConfig "github.com/buildkite/cli/v3/cmd/config"
@@ -40,10 +41,11 @@ type CLI struct {
 	Agent        AgentCmd           `cmd:"" help:"Manage agents"`
 	Api          ApiCmd             `cmd:"" help:"Interact with the Buildkite API"`
 	Artifacts    ArtifactsCmd       `cmd:"" help:"Manage pipeline build artifacts"`
+	Auth         AuthCmd            `cmd:"" help:"Authenticate with Buildkite"`
 	Build        BuildCmd           `cmd:"" help:"Manage pipeline builds"`
 	Cluster      ClusterCmd         `cmd:"" help:"Manage organization clusters"`
 	Config       bkConfig.ConfigCmd `cmd:"" help:"Manage CLI configuration"`
-	Configure    ConfigureCmd       `cmd:"" help:"Configure Buildkite API token" aliases:"auth"`
+	Configure    ConfigureCmd       `cmd:"" help:"Configure Buildkite API token"`
 	Init         bkInit.InitCmd     `cmd:"" help:"Initialize a pipeline.yaml file"`
 	Job          JobCmd             `cmd:"" help:"Manage jobs within a build"`
 	Organization OrganizationCmd    `cmd:"" help:"Manage organizations" aliases:"org"`
@@ -58,6 +60,10 @@ type CLI struct {
 type (
 	VersionCmd struct {
 		version.VersionCmd `cmd:"" help:"Print the version of the CLI being used"`
+	}
+	AuthCmd struct {
+		Login  auth.LoginCmd  `cmd:"" help:"Login to Buildkite using OAuth"`
+		Logout auth.LogoutCmd `cmd:"" help:"Logout and remove stored credentials"`
 	}
 	AgentCmd struct {
 		Pause  agent.PauseCmd  `cmd:"" help:"Pause a Buildkite agent."`
