@@ -22,7 +22,9 @@ import (
 	"github.com/buildkite/cli/v3/cmd/version"
 	"github.com/buildkite/cli/v3/cmd/whoami"
 	"github.com/buildkite/cli/v3/internal/cli"
+	"github.com/buildkite/cli/v3/internal/config"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
+	"github.com/buildkite/cli/v3/pkg/analytics"
 )
 
 // Kong CLI structure, with base commands defined as additional commands are defined in their respective files
@@ -150,6 +152,12 @@ func run() int {
 
 	cliInstance := &CLI{}
 
+	conf := config.New(nil, nil)
+
+	tracker := analytics.Init("dev", conf.TelemetryEnabled())
+	defer tracker.Close()
+	tracker.SetOrg(conf.OrganizationSlug())
+
 	parser, err := newKongParser(cliInstance)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -157,9 +165,12 @@ func run() int {
 	}
 	ctx, err := parser.Parse(os.Args[1:])
 	if err != nil {
+		tracker.TrackCommand("unknown command", os.Args[1:], nil)
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
 	}
+
+	tracker.TrackCommand(analytics.ParseSubcommand(ctx.Command()), os.Args[1:], nil)
 
 	globals := cli.Globals{
 		Yes:     cliInstance.Yes,

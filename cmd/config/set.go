@@ -23,6 +23,7 @@ Valid keys:
   quiet          Suppress progress output (true, false)
   no_input       Disable interactive prompts (true, false) [user config only]
   pager          Custom pager command [user config only]
+  telemetry      Enable anonymous usage telemetry (true, false) [user config only]
 
 Examples:
   # Set default output format to YAML
