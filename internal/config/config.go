@@ -45,6 +45,7 @@ type fileConfig struct {
 	Quiet         bool                 `yaml:"quiet,omitempty"`
 	NoInput       bool                 `yaml:"no_input,omitempty"`
 	Pager         string               `yaml:"pager,omitempty"`
+	Telemetry     *bool                `yaml:"telemetry,omitempty"`
 }
 
 // Config contains the configuration for the currently selected organization
@@ -257,6 +258,27 @@ func (conf *Config) Pager() string {
 // SetPager sets the pager command (user config only)
 func (conf *Config) SetPager(v string) error {
 	conf.user.Pager = v
+	return conf.writeUser()
+}
+
+// TelemetryEnabled returns whether telemetry is enabled.
+// Defaults to true if not explicitly set.
+// Precedence: env > user config
+func (conf *Config) TelemetryEnabled() bool {
+	if v, ok := lookupBoolEnv("BK_TELEMETRY"); ok {
+		return v
+	}
+
+	if conf.user.Telemetry != nil {
+		return *conf.user.Telemetry
+	}
+
+	return true
+}
+
+// SetTelemetry sets whether telemetry is enabled (user config only)
+func (conf *Config) SetTelemetry(v bool) error {
+	conf.user.Telemetry = &v
 	return conf.writeUser()
 }
 

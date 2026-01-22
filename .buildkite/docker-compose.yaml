@@ -13,6 +13,7 @@ services:
     environment:
       - BUILDKITE_AGENT_JOB_API_SOCKET
       - BUILDKITE_AGENT_JOB_API_TOKEN
+      - POSTHOG_API_KEY
     working_dir: /go/src/github.com/buildkite/cli
     volumes:
       - ..:/go/src/github.com/buildkite/cli
