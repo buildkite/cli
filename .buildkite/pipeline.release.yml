@@ -9,6 +9,8 @@ steps:
           - "windows"
     artifact_paths:
       - dist/**/*
+    secrets:
+      POSTHOG_API_KEY
     plugins:
       - docker-compose#v5.2.0:
           command:
