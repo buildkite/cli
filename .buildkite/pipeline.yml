@@ -54,6 +54,7 @@ steps:
 
   - input: ":package: Create a release?"
     prompt: "Select the release type"
+    key: release_unblock
     branches:
       - main
     allowed_teams:
@@ -76,6 +77,7 @@ steps:
   # that will trigger the buildkite-cli-release pipeline off the tag which will create a release in github
   - label: ":rocket: Pushing a tag to release"
     command: ".buildkite/tag.sh"
+    depends_on: release_unblock
     branches:
       - main
     env:
