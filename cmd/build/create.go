@@ -25,8 +25,8 @@ type CreateCmd struct {
 	Author              string   `help:"Author of the build. Supports: \"Name <email>\", \"email@domain.com\", \"Full Name\", or \"username\"" short:"a"`
 	Web                 bool     `help:"Open the build in a web browser after it has been created." short:"w"`
 	Pipeline            string   `help:"The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
-	Env                 []string `help:"Set environment variables for the build (KEY=VALUE)" short:"e"`
-	Metadata            []string `help:"Set metadata for the build (KEY=VALUE)" short:"M"`
+	Env                 []string `help:"Set environment variables for the build (KEY=VALUE)" short:"e" sep:"none"`
+	Metadata            []string `help:"Set metadata for the build (KEY=VALUE)" short:"M" sep:"none"`
 	IgnoreBranchFilters bool     `help:"Ignore branch filters for the pipeline" short:"i"`
 	EnvFile             string   `help:"Set the environment variables for the build via an environment file" short:"f"`
 }
