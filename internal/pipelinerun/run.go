@@ -113,51 +113,14 @@ func Run(ctx context.Context, config *RunConfig) (*RunResult, error) {
 		return dryRun(config.Output, graph, config.JSON)
 	}
 
-	// Find agent binary
-	agentBinary := config.AgentBinary
-	if agentBinary == "" {
-		agentBinary, err = FindAgentBinary()
+	// Determine working directory
+	workDir := config.BuildPath
+	if workDir == "" {
+		workDir, err = os.Getwd()
 		if err != nil {
-			return nil, fmt.Errorf("finding buildkite-agent: %w", err)
+			return nil, fmt.Errorf("getting working directory: %w", err)
 		}
 	}
-	fmt.Fprintf(config.Output, "Using agent: %s\n", agentBinary)
-
-	// Create scheduler
-	scheduler := NewScheduler(graph, spawn)
-
-	// Create mock server
-	server := NewServer(scheduler, graph, config.Port)
-	server.SetDebug(config.Debug)
-	server.SetPipelineUploadHandler(func(jobID string, p *Pipeline) error {
-		return scheduler.HandlePipelineUpload(jobID, p)
-	})
-
-	if err := server.Start(); err != nil {
-		return nil, fmt.Errorf("starting server: %w", err)
-	}
-	defer func() { _ = server.Stop() }()
-
-	fmt.Fprintf(config.Output, "Mock server started on %s\n", server.URL())
-
-	// Create and start agent
-	buildPath := config.BuildPath
-	if buildPath == "" {
-		buildPath, err = os.MkdirTemp("", "bk-local-*")
-		if err != nil {
-			return nil, fmt.Errorf("creating build directory: %w", err)
-		}
-		defer os.RemoveAll(buildPath)
-	}
-
-	agent := NewAgent(&AgentConfig{
-		BinaryPath: agentBinary,
-		Spawn:      spawn,
-		Endpoint:   server.URL(),
-		Token:      "local-token",
-		BuildPath:  buildPath,
-		Debug:      config.Debug,
-	})
 
 	// Set up signal handling
 	ctx, cancel := context.WithCancel(ctx)
@@ -170,40 +133,40 @@ func Run(ctx context.Context, config *RunConfig) (*RunResult, error) {
 		case <-sigChan:
 			fmt.Fprintf(config.Output, "\nReceived interrupt, shutting down...\n")
 			cancel()
-			scheduler.Stop()
-			_ = agent.Stop()
 		case <-ctx.Done():
 		}
 	}()
 
-	// Start the scheduler
-	scheduler.Start()
+	// Create and run executor
+	executor := NewExecutor(graph, spawn, workDir)
+	executor.SetEnv(config.Env)
+	executor.SetOutput(config.Output)
+	executor.SetDebug(config.Debug)
 
-	// Start the agent
-	fmt.Fprintf(config.Output, "Starting agent with %d workers...\n", spawn)
-	if err := agent.Start(ctx); err != nil {
-		return nil, fmt.Errorf("starting agent: %w", err)
-	}
+	fmt.Fprintf(config.Output, "\nRunning %d jobs with %d workers...\n\n", len(graph.Jobs), spawn)
 
 	startTime := time.Now()
 
-	// Monitor progress
-	go monitorProgress(ctx, config.Output, scheduler, config.Debug)
-
-	// Wait for completion
-	select {
-	case <-scheduler.Done():
-		fmt.Fprintf(config.Output, "\nPipeline execution complete\n")
-	case <-ctx.Done():
-		fmt.Fprintf(config.Output, "\nPipeline execution cancelled\n")
+	if err := executor.Run(ctx); err != nil && err != context.Canceled {
+		return nil, fmt.Errorf("executing pipeline: %w", err)
 	}
-
-	// Stop agent
-	_ = agent.Stop()
 
 	// Gather results
 	duration := time.Since(startTime)
-	stats := scheduler.GetStats()
+
+	var passed, failed, skipped, broken int
+	for _, job := range graph.Jobs {
+		switch job.State {
+		case JobStatePassed:
+			passed++
+		case JobStateFailed:
+			failed++
+		case JobStateSkipped:
+			skipped++
+		case JobStateBroken:
+			broken++
+		}
+	}
 
 	var failedJobIDs []string
 	for _, job := range graph.Jobs {
@@ -213,11 +176,11 @@ func Run(ctx context.Context, config *RunConfig) (*RunResult, error) {
 	}
 
 	result := &RunResult{
-		Success:      !scheduler.HasFailures(),
-		TotalJobs:    stats.TotalJobs,
-		PassedJobs:   stats.PassedJobs,
-		FailedJobs:   stats.FailedJobs + stats.BrokenJobs,
-		SkippedJobs:  stats.SkippedJobs,
+		Success:      failed == 0 && broken == 0,
+		TotalJobs:    len(graph.Jobs),
+		PassedJobs:   passed,
+		FailedJobs:   failed + broken,
+		SkippedJobs:  skipped,
 		Duration:     duration,
 		FailedJobIDs: failedJobIDs,
 	}
