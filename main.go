@@ -101,6 +101,7 @@ type (
 		Create   pipeline.CreateCmd   `cmd:"" help:"Create a new pipeline."`
 		List     pipeline.ListCmd     `cmd:"" help:"List pipelines." aliases:"ls"`
 		Convert  pipeline.ConvertCmd  `cmd:"" help:"Convert a CI/CD pipeline configuration to Buildkite format." aliases:"migrate"`
+		Run      pipeline.RunCmd      `cmd:"" help:"Run a pipeline locally using buildkite-agent."`
 		Validate pipeline.ValidateCmd `cmd:"" help:"Validate a pipeline YAML file."`
 		View     pipeline.ViewCmd     `cmd:"" help:"View a pipeline."`
 	}
