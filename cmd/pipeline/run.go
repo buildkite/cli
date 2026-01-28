@@ -16,6 +16,7 @@ type RunCmd struct {
 	Spawn    int               `help:"Number of agent workers to spawn (0=auto)" default:"0"`
 	Env      map[string]string `help:"Environment variables to set" short:"e"`
 	DryRun   bool              `help:"Plan the pipeline without executing" name:"dry-run"`
+	Text     bool              `help:"Output as text instead of JSON (for --dry-run)" name:"text"`
 	AgentBin string            `help:"Path to buildkite-agent binary" name:"agent-bin" type:"path"`
 	Port     int               `help:"Port for mock server (0=auto)" default:"0"`
 	BuildDir string            `help:"Directory for build artifacts" name:"build-dir" type:"path"`
@@ -76,6 +77,7 @@ func (cmd *RunCmd) Run() error {
 		AgentBinary:  cmd.AgentBin,
 		BuildPath:    cmd.BuildDir,
 		DryRun:       cmd.DryRun,
+		JSON:         !cmd.Text, // Default to JSON, use --text for text output
 		Debug:        cmd.Verbose,
 		Output:       os.Stdout,
 	}

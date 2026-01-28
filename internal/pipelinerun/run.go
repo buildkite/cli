@@ -2,6 +2,7 @@ package pipelinerun
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -32,6 +33,9 @@ type RunConfig struct {
 
 	// Dry run mode - just plan, don't execute
 	DryRun bool
+
+	// JSON output mode
+	JSON bool
 
 	// Debug mode
 	Debug bool
@@ -94,7 +98,7 @@ func Run(ctx context.Context, config *RunConfig) (*RunResult, error) {
 
 	// Dry run mode
 	if config.DryRun {
-		return dryRun(config.Output, graph)
+		return dryRun(config.Output, graph, config.JSON)
 	}
 
 	// Find agent binary
@@ -211,33 +215,110 @@ func Run(ctx context.Context, config *RunConfig) (*RunResult, error) {
 	return result, nil
 }
 
-func dryRun(w io.Writer, graph *JobGraph) (*RunResult, error) {
-	fmt.Fprintf(w, "\n=== Dry Run ===\n\n")
+// DryRunJob represents a job in dry run output
+type DryRunJob struct {
+	ID               string            `json:"id"`
+	Name             string            `json:"name"`
+	Type             string            `json:"type"`
+	Key              string            `json:"key,omitempty"`
+	Command          string            `json:"command,omitempty"`
+	Commands         []string          `json:"commands,omitempty"`
+	ParallelJob      int               `json:"parallel_job,omitempty"`
+	ParallelJobCount int               `json:"parallel_job_count,omitempty"`
+	Matrix           map[string]string `json:"matrix,omitempty"`
+	DependsOn        []string          `json:"depends_on,omitempty"`
+}
 
-	for i, job := range graph.GetOrderedJobs() {
-		fmt.Fprintf(w, "%d. [%s] %s\n", i+1, job.Type, job.Name)
+// DryRunOutput represents the full dry run output
+type DryRunOutput struct {
+	Jobs           []DryRunJob `json:"jobs"`
+	TotalJobs      int         `json:"total_jobs"`
+	MaxConcurrency int         `json:"max_concurrency"`
+}
 
-		if job.Command != "" {
-			fmt.Fprintf(w, "   Command: %s\n", job.Command)
+func dryRun(w io.Writer, graph *JobGraph, jsonOutput bool) (*RunResult, error) {
+	jobs := graph.GetOrderedJobs()
+	maxConcurrency := CalculateMaxConcurrency(graph)
+
+	// Build job ID to name map for dependency resolution
+	jobNames := make(map[string]string)
+	for _, job := range jobs {
+		name := job.Name
+		if name == "" {
+			name = string(job.Type)
 		}
-		if len(job.Commands) > 0 {
-			fmt.Fprintf(w, "   Commands:\n")
-			for _, cmd := range job.Commands {
-				fmt.Fprintf(w, "     - %s\n", cmd)
+		jobNames[job.ID] = name
+	}
+
+	if jsonOutput {
+		output := DryRunOutput{
+			Jobs:           make([]DryRunJob, 0, len(jobs)),
+			TotalJobs:      len(jobs),
+			MaxConcurrency: maxConcurrency,
+		}
+
+		for _, job := range jobs {
+			deps := graph.GetDependencies(job.ID)
+			depNames := make([]string, 0, len(deps))
+			for _, depID := range deps {
+				if name, ok := jobNames[depID]; ok {
+					depNames = append(depNames, name)
+				}
 			}
+
+			dryJob := DryRunJob{
+				ID:               job.ID,
+				Name:             job.Name,
+				Type:             string(job.Type),
+				Key:              job.Key,
+				Command:          job.Command,
+				Commands:         job.Commands,
+				ParallelJob:      job.ParallelJob,
+				ParallelJobCount: job.ParallelJobCount,
+				Matrix:           job.MatrixValues,
+				DependsOn:        depNames,
+			}
+			output.Jobs = append(output.Jobs, dryJob)
 		}
 
-		if job.ParallelJobCount > 0 {
-			fmt.Fprintf(w, "   Parallel: %d of %d\n", job.ParallelJob+1, job.ParallelJobCount)
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(output); err != nil {
+			return nil, fmt.Errorf("encoding JSON: %w", err)
 		}
+	} else {
+		fmt.Fprintf(w, "\n=== Dry Run ===\n\n")
 
-		if len(job.MatrixValues) > 0 {
-			fmt.Fprintf(w, "   Matrix: %v\n", job.MatrixValues)
-		}
+		for i, job := range jobs {
+			fmt.Fprintf(w, "%d. [%s] %s\n", i+1, job.Type, job.Name)
 
-		deps := graph.GetDependencies(job.ID)
-		if len(deps) > 0 {
-			fmt.Fprintf(w, "   Depends on: %d jobs\n", len(deps))
+			if job.Command != "" {
+				fmt.Fprintf(w, "   Command: %s\n", job.Command)
+			}
+			if len(job.Commands) > 0 {
+				fmt.Fprintf(w, "   Commands:\n")
+				for _, cmd := range job.Commands {
+					fmt.Fprintf(w, "     - %s\n", cmd)
+				}
+			}
+
+			if job.ParallelJobCount > 0 {
+				fmt.Fprintf(w, "   Parallel: %d of %d\n", job.ParallelJob+1, job.ParallelJobCount)
+			}
+
+			if len(job.MatrixValues) > 0 {
+				fmt.Fprintf(w, "   Matrix: %v\n", job.MatrixValues)
+			}
+
+			deps := graph.GetDependencies(job.ID)
+			if len(deps) > 0 {
+				fmt.Fprintf(w, "   Depends on:\n")
+				for _, depID := range deps {
+					if name, ok := jobNames[depID]; ok {
+						fmt.Fprintf(w, "     - %s\n", name)
+					}
+				}
+			}
 		}
 	}
 
