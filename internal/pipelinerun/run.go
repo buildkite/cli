@@ -25,6 +25,9 @@ type RunConfig struct {
 	// Port for the mock server (0 = auto)
 	Port int
 
+	// Use buildkite-agent for execution (enables plugins)
+	UseAgent bool
+
 	// Path to buildkite-agent binary
 	AgentBinary string
 
@@ -113,42 +116,24 @@ func Run(ctx context.Context, config *RunConfig) (*RunResult, error) {
 		return dryRun(config.Output, graph, config.JSON)
 	}
 
-	// Determine working directory
-	workDir := config.BuildPath
-	if workDir == "" {
-		workDir, err = os.Getwd()
-		if err != nil {
-			return nil, fmt.Errorf("getting working directory: %w", err)
-		}
-	}
-
 	// Set up signal handling
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		select {
-		case <-sigChan:
-			fmt.Fprintf(config.Output, "\nReceived interrupt, shutting down...\n")
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
-
-	// Create and run executor
-	executor := NewExecutor(graph, spawn, workDir)
-	executor.SetEnv(config.Env)
-	executor.SetOutput(config.Output)
-	executor.SetDebug(config.Debug)
-
-	fmt.Fprintf(config.Output, "\nRunning %d jobs with %d workers...\n\n", len(graph.Jobs), spawn)
 
 	startTime := time.Now()
 
-	if err := executor.Run(ctx); err != nil && err != context.Canceled {
-		return nil, fmt.Errorf("executing pipeline: %w", err)
+	// Choose execution mode
+	if config.UseAgent {
+		err = runWithAgent(ctx, config, graph, spawn, sigChan, cancel)
+	} else {
+		err = runDirect(ctx, config, graph, spawn, sigChan, cancel)
+	}
+
+	if err != nil && err != context.Canceled {
+		return nil, err
 	}
 
 	// Gather results
@@ -188,6 +173,112 @@ func Run(ctx context.Context, config *RunConfig) (*RunResult, error) {
 	printSummary(config.Output, result, graph)
 
 	return result, nil
+}
+
+// runDirect executes jobs directly via bash subprocesses
+func runDirect(ctx context.Context, config *RunConfig, graph *JobGraph, spawn int, sigChan chan os.Signal, cancel context.CancelFunc) error {
+	// Determine working directory
+	workDir := config.BuildPath
+	if workDir == "" {
+		var err error
+		workDir, err = os.Getwd()
+		if err != nil {
+			return fmt.Errorf("getting working directory: %w", err)
+		}
+	}
+
+	go func() {
+		select {
+		case <-sigChan:
+			fmt.Fprintf(config.Output, "\nReceived interrupt, shutting down...\n")
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
+	// Create and run executor
+	executor := NewExecutor(graph, spawn, workDir)
+	executor.SetEnv(config.Env)
+	executor.SetOutput(config.Output)
+	executor.SetDebug(config.Debug)
+
+	fmt.Fprintf(config.Output, "\nRunning %d jobs with %d workers...\n\n", len(graph.Jobs), spawn)
+
+	return executor.Run(ctx)
+}
+
+// runWithAgent executes jobs using buildkite-agent (supports plugins)
+func runWithAgent(ctx context.Context, config *RunConfig, graph *JobGraph, spawn int, sigChan chan os.Signal, cancel context.CancelFunc) error {
+	// Find agent binary
+	agentBinary := config.AgentBinary
+	if agentBinary == "" {
+		var err error
+		agentBinary, err = FindAgentBinary()
+		if err != nil {
+			return fmt.Errorf("finding buildkite-agent: %w", err)
+		}
+	}
+	fmt.Fprintf(config.Output, "Using agent: %s\n", agentBinary)
+
+	// Create scheduler
+	scheduler := NewScheduler(graph, spawn)
+
+	// Create mock server
+	server := NewServer(scheduler, graph, config.Port)
+	server.SetDebug(config.Debug)
+	server.SetPipelineUploadHandler(func(jobID string, p *Pipeline) error {
+		return scheduler.HandlePipelineUpload(jobID, p)
+	})
+
+	if err := server.Start(); err != nil {
+		return fmt.Errorf("starting server: %w", err)
+	}
+	defer func() { _ = server.Stop() }()
+
+	fmt.Fprintf(config.Output, "Mock server started on %s\n", server.URL())
+
+	// Create agent
+	agent := NewAgent(&AgentConfig{
+		BinaryPath: agentBinary,
+		Spawn:      spawn,
+		Endpoint:   server.URL(),
+		Token:      "local-token",
+		BuildPath:  config.BuildPath,
+		Debug:      config.Debug,
+	})
+
+	go func() {
+		select {
+		case <-sigChan:
+			fmt.Fprintf(config.Output, "\nReceived interrupt, shutting down...\n")
+			cancel()
+			scheduler.Stop()
+			_ = agent.Stop()
+		case <-ctx.Done():
+		}
+	}()
+
+	// Start the scheduler
+	scheduler.Start()
+
+	// Start the agent
+	fmt.Fprintf(config.Output, "\nStarting agent with %d workers...\n\n", spawn)
+	if err := agent.Start(ctx); err != nil {
+		return fmt.Errorf("starting agent: %w", err)
+	}
+
+	// Wait for completion
+	select {
+	case <-scheduler.Done():
+		fmt.Fprintf(config.Output, "\nPipeline execution complete\n")
+	case <-ctx.Done():
+		fmt.Fprintf(config.Output, "\nPipeline execution cancelled\n")
+	}
+
+	// Stop agent
+	_ = agent.Stop()
+
+	return nil
 }
 
 // DryRunJob represents a job in dry run output

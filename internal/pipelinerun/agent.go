@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"syscall"
+	"text/template"
 )
 
 // AgentConfig holds configuration for the local agent
@@ -45,9 +46,11 @@ type AgentConfig struct {
 
 // Agent wraps the buildkite-agent process
 type Agent struct {
-	config *AgentConfig
-	cmd    *exec.Cmd
-	cancel context.CancelFunc
+	config        *AgentConfig
+	cmd           *exec.Cmd
+	cancel        context.CancelFunc
+	tempDir       string
+	bootstrapPath string
 }
 
 // NewAgent creates a new agent wrapper
@@ -99,6 +102,35 @@ func FindAgentBinary() (string, error) {
 func (a *Agent) Start(ctx context.Context) error {
 	ctx, a.cancel = context.WithCancel(ctx)
 
+	// Create temp directory for bootstrap script and other files
+	var err error
+	a.tempDir, err = os.MkdirTemp("", "bk-agent-*")
+	if err != nil {
+		return fmt.Errorf("creating temp dir: %w", err)
+	}
+
+	// Create bootstrap script
+	if err := a.createBootstrapScript(); err != nil {
+		return fmt.Errorf("creating bootstrap script: %w", err)
+	}
+
+	// Set up build and plugins paths
+	buildPath := a.config.BuildPath
+	if buildPath == "" {
+		buildPath = filepath.Join(a.tempDir, "builds")
+		if err := os.MkdirAll(buildPath, 0755); err != nil {
+			return fmt.Errorf("creating build path: %w", err)
+		}
+	}
+
+	pluginsPath := a.config.PluginsPath
+	if pluginsPath == "" {
+		pluginsPath = filepath.Join(a.tempDir, "plugins")
+		if err := os.MkdirAll(pluginsPath, 0755); err != nil {
+			return fmt.Errorf("creating plugins path: %w", err)
+		}
+	}
+
 	// Build command arguments
 	args := []string{"start"}
 
@@ -107,51 +139,11 @@ func (a *Agent) Start(ctx context.Context) error {
 		args = append(args, fmt.Sprintf("--spawn=%d", a.config.Spawn))
 	}
 
-	// Set endpoint
-	if a.config.Endpoint != "" {
-		args = append(args, fmt.Sprintf("--endpoint=%s", a.config.Endpoint))
-	}
+	// Disconnect after idle (exit when no jobs)
+	args = append(args, "--disconnect-after-idle-timeout=10")
 
-	// Set token
-	token := a.config.Token
-	if token == "" {
-		token = "local-token"
-	}
-	args = append(args, fmt.Sprintf("--token=%s", token))
-
-	// Set build path
-	if a.config.BuildPath != "" {
-		args = append(args, fmt.Sprintf("--build-path=%s", a.config.BuildPath))
-	}
-
-	// Set hooks path
-	if a.config.HooksPath != "" {
-		args = append(args, fmt.Sprintf("--hooks-path=%s", a.config.HooksPath))
-	}
-
-	// Set plugins path
-	if a.config.PluginsPath != "" {
-		args = append(args, fmt.Sprintf("--plugins-path=%s", a.config.PluginsPath))
-	}
-
-	// Add tags
-	for _, tag := range a.config.Tags {
-		args = append(args, fmt.Sprintf("--tags=%s", tag))
-	}
-
-	// Add experiments
-	for _, exp := range a.config.Experiments {
-		args = append(args, fmt.Sprintf("--experiment=%s", exp))
-	}
-
-	// Disable git mirrors for local runs
-	args = append(args, "--no-git-mirrors")
-
-	// Disable automatic ssh fingerprint verification
-	args = append(args, "--no-ssh-keyscan")
-
-	// Don't verify the server certificate (we're using a local mock)
-	args = append(args, "--no-http2")
+	// No color in output
+	args = append(args, "--no-color")
 
 	if a.config.Debug {
 		args = append(args, "--debug")
@@ -159,12 +151,27 @@ func (a *Agent) Start(ctx context.Context) error {
 
 	a.cmd = exec.CommandContext(ctx, a.config.BinaryPath, args...)
 
-	// Set up environment
+	// Set token
+	token := a.config.Token
+	if token == "" {
+		token = "local-token"
+	}
+
+	// Set up environment - this is how the agent finds our mock server
 	a.cmd.Env = append(os.Environ(),
 		"BUILDKITE_AGENT_ENDPOINT="+a.config.Endpoint,
-		"BUILDKITE_AGENT_ACCESS_TOKEN="+token,
-		"BUILDKITE_AGENT_DEBUG=true",
+		"BUILDKITE_AGENT_TOKEN="+token,
+		"BUILDKITE_BUILD_PATH="+buildPath,
+		"BUILDKITE_PLUGINS_PATH="+pluginsPath,
+		"BUILDKITE_BOOTSTRAP_SCRIPT_PATH="+a.bootstrapPath,
+		"BUILDKITE_SHELL=/bin/bash -e -c",
+		"BUILDKITE_NO_LOCAL_HOOKS=false",
+		"BUILDKITE_AGENT_NAME=local-agent",
 	)
+
+	if a.config.Debug {
+		a.cmd.Env = append(a.cmd.Env, "BUILDKITE_AGENT_DEBUG=true")
+	}
 
 	// Connect stdout/stderr
 	a.cmd.Stdout = os.Stdout
@@ -177,6 +184,44 @@ func (a *Agent) Start(ctx context.Context) error {
 
 	if err := a.cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start agent: %w", err)
+	}
+
+	return nil
+}
+
+// bootstrapTemplate is the script that runs jobs
+const bootstrapTemplate = `#!/bin/bash
+set -e
+
+# Run the buildkite-agent bootstrap with plugin and command phases only
+# We skip checkout since we're running locally
+exec "{{.AgentBinary}}" bootstrap \
+    --phases "plugin,command" \
+    "$@"
+`
+
+func (a *Agent) createBootstrapScript() error {
+	a.bootstrapPath = filepath.Join(a.tempDir, "bootstrap.sh")
+
+	tmpl, err := template.New("bootstrap").Parse(bootstrapTemplate)
+	if err != nil {
+		return fmt.Errorf("parsing template: %w", err)
+	}
+
+	f, err := os.OpenFile(a.bootstrapPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		return fmt.Errorf("creating bootstrap script: %w", err)
+	}
+	defer f.Close()
+
+	data := struct {
+		AgentBinary string
+	}{
+		AgentBinary: a.config.BinaryPath,
+	}
+
+	if err := tmpl.Execute(f, data); err != nil {
+		return fmt.Errorf("executing template: %w", err)
 	}
 
 	return nil
@@ -196,14 +241,17 @@ func (a *Agent) Stop() error {
 		a.cancel()
 	}
 
-	if a.cmd == nil || a.cmd.Process == nil {
-		return nil
+	if a.cmd != nil && a.cmd.Process != nil {
+		// Send SIGTERM to process group
+		pgid, err := syscall.Getpgid(a.cmd.Process.Pid)
+		if err == nil {
+			_ = syscall.Kill(-pgid, syscall.SIGTERM)
+		}
 	}
 
-	// Send SIGTERM to process group
-	pgid, err := syscall.Getpgid(a.cmd.Process.Pid)
-	if err == nil {
-		_ = syscall.Kill(-pgid, syscall.SIGTERM)
+	// Clean up temp directory
+	if a.tempDir != "" {
+		_ = os.RemoveAll(a.tempDir)
 	}
 
 	return nil

@@ -1,0 +1,14 @@
+steps:
+  - command: echo "Step 1"
+    label: "First Step"
+    key: step1
+
+  - command: echo "Step 2"
+    label: "Second Step"
+    key: step2
+
+  - wait
+
+  - command: echo "Step 3 after wait"
+    label: "Third Step"
+    key: step3
