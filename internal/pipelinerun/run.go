@@ -34,6 +34,9 @@ type RunConfig struct {
 	// Dry run mode - just plan, don't execute
 	DryRun bool
 
+	// Steps to run (by ID or key) - empty means all
+	Steps []string
+
 	// JSON output mode
 	JSON bool
 
@@ -83,6 +86,15 @@ func Run(ctx context.Context, config *RunConfig) (*RunResult, error) {
 	}
 
 	fmt.Fprintf(config.Output, "Planned %d jobs\n", len(graph.Jobs))
+
+	// Filter to specific steps if requested
+	if len(config.Steps) > 0 {
+		graph, err = filterGraphToSteps(graph, config.Steps)
+		if err != nil {
+			return nil, fmt.Errorf("filtering steps: %w", err)
+		}
+		fmt.Fprintf(config.Output, "Filtered to %d jobs\n", len(graph.Jobs))
+	}
 
 	// Calculate concurrency
 	maxConcurrency := CalculateMaxConcurrency(graph)
@@ -399,4 +411,45 @@ func printSummary(w io.Writer, result *RunResult, graph *JobGraph) {
 	} else {
 		fmt.Fprintf(w, "\n✗ Pipeline failed\n")
 	}
+}
+
+// filterGraphToSteps creates a new graph containing only the specified steps
+// and their dependencies
+func filterGraphToSteps(graph *JobGraph, stepFilters []string) (*JobGraph, error) {
+	// Build a set of matching job IDs
+	matchingJobs := make(map[string]bool)
+
+	for _, filter := range stepFilters {
+		found := false
+		for _, job := range graph.Jobs {
+			// Match by ID, key, or name
+			if job.ID == filter || job.Key == filter || job.Name == filter {
+				matchingJobs[job.ID] = true
+				found = true
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("step not found: %s", filter)
+		}
+	}
+
+	// If no matches, return error
+	if len(matchingJobs) == 0 {
+		return nil, fmt.Errorf("no matching steps found")
+	}
+
+	// Create new graph with only matching jobs
+	// Dependencies are removed since we're running specific steps
+	newGraph := NewJobGraph()
+
+	for id := range matchingJobs {
+		if job, ok := graph.GetJob(id); ok {
+			// Clone the job without dependencies
+			newJob := *job
+			newJob.DependsOn = nil
+			newGraph.AddJob(&newJob)
+		}
+	}
+
+	return newGraph, nil
 }

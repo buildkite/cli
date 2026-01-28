@@ -13,6 +13,7 @@ import (
 // RunCmd is the command for running a pipeline locally
 type RunCmd struct {
 	File     string            `help:"Path to the pipeline file" short:"f" type:"path"`
+	Step     []string          `help:"Run only specific steps (by ID or key, can repeat)" short:"s"`
 	Spawn    int               `help:"Number of agent workers to spawn (0=auto)" default:"0"`
 	Env      map[string]string `help:"Environment variables to set" short:"e"`
 	DryRun   bool              `help:"Plan the pipeline without executing" name:"dry-run"`
@@ -77,6 +78,7 @@ func (cmd *RunCmd) Run() error {
 		AgentBinary:  cmd.AgentBin,
 		BuildPath:    cmd.BuildDir,
 		DryRun:       cmd.DryRun,
+		Steps:        cmd.Step,
 		JSON:         !cmd.Text, // Default to JSON, use --text for text output
 		Debug:        cmd.Verbose,
 		Output:       os.Stdout,

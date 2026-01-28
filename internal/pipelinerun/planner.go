@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-
-	"github.com/google/uuid"
 )
 
 // Planner converts a Pipeline into a JobGraph
@@ -120,7 +118,7 @@ func (p *Planner) expandStep(step *Step, index int, env map[string]string, defau
 
 func (p *Planner) expandWaitStep(step *Step, index int) ([]*Job, error) {
 	job := &Job{
-		ID:           generateJobID(),
+		ID:           generateJobID(index, step.Key, StepTypeWait, nil, 0, 0),
 		Type:         StepTypeWait,
 		State:        JobStatePending,
 		StepIndex:    index,
@@ -139,7 +137,7 @@ func (p *Planner) expandBlockStep(step *Step, index int, env map[string]string) 
 	}
 
 	job := &Job{
-		ID:           generateJobID(),
+		ID:           generateJobID(index, step.Key, step.Type, nil, 0, 0),
 		Name:         ExpandEnvVars(label, env),
 		Type:         step.Type,
 		Key:          step.Key,
@@ -156,7 +154,7 @@ func (p *Planner) expandBlockStep(step *Step, index int, env map[string]string) 
 
 func (p *Planner) expandTriggerStep(step *Step, index int, env map[string]string) ([]*Job, error) {
 	job := &Job{
-		ID:              generateJobID(),
+		ID:              generateJobID(index, step.Key, StepTypeTrigger, nil, 0, 0),
 		Name:            fmt.Sprintf("Trigger: %s", step.Trigger),
 		Type:            StepTypeTrigger,
 		Key:             step.Key,
@@ -225,7 +223,7 @@ func (p *Planner) expandCommandStep(step *Step, index int, env map[string]string
 		// For each parallel job
 		for pj := 0; pj < parallelism; pj++ {
 			job := &Job{
-				ID:               generateJobID(),
+				ID:               generateJobID(index, step.Key, StepTypeCommand, matrixValues, pj, parallelism),
 				Name:             label,
 				Type:             StepTypeCommand,
 				Key:              step.Key,
@@ -347,8 +345,70 @@ func matchesAdjustment(combo map[string]string, with map[string]string) bool {
 	return true
 }
 
-func generateJobID() string {
-	return uuid.New().String()
+// generateJobID creates a deterministic job ID based on step properties
+func generateJobID(stepIndex int, stepKey string, stepType StepType, matrixValues map[string]string, parallelJob int, parallelCount int) string {
+	// Use step key if available
+	if stepKey != "" {
+		base := stepKey
+		if len(matrixValues) > 0 {
+			base += "-" + formatMatrixSuffix(matrixValues)
+		}
+		if parallelCount > 1 {
+			base += fmt.Sprintf("-p%d", parallelJob)
+		}
+		return base
+	}
+
+	// Build ID from step index and type
+	id := fmt.Sprintf("step-%d", stepIndex)
+
+	// Add type for non-command steps
+	if stepType != StepTypeCommand {
+		id = fmt.Sprintf("%s-%d", string(stepType), stepIndex)
+	}
+
+	// Add matrix suffix
+	if len(matrixValues) > 0 {
+		id += "-" + formatMatrixSuffix(matrixValues)
+	}
+
+	// Add parallel suffix
+	if parallelCount > 1 {
+		id += fmt.Sprintf("-p%d", parallelJob)
+	}
+
+	return id
+}
+
+// formatMatrixSuffix creates a deterministic suffix from matrix values
+func formatMatrixSuffix(matrixValues map[string]string) string {
+	if len(matrixValues) == 0 {
+		return ""
+	}
+
+	// Sort keys for deterministic output
+	keys := make([]string, 0, len(matrixValues))
+	for k := range matrixValues {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	// Build suffix
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		v := matrixValues[k]
+		// Sanitize value for use in ID
+		v = strings.ReplaceAll(v, " ", "-")
+		v = strings.ReplaceAll(v, "/", "-")
+		if k == "matrix" {
+			// Simple matrix, just use value
+			parts = append(parts, v)
+		} else {
+			parts = append(parts, v)
+		}
+	}
+
+	return strings.Join(parts, "-")
 }
 
 // CalculateMaxConcurrency analyzes the job graph and returns the maximum
