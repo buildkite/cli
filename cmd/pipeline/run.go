@@ -18,8 +18,8 @@ type RunCmd struct {
 	Env      map[string]string `help:"Environment variables to set" short:"e"`
 	DryRun   bool              `help:"Plan the pipeline without executing" name:"dry-run"`
 	Text     bool              `help:"Output as text instead of JSON (for --dry-run)" name:"text"`
-	UseAgent bool              `help:"Use buildkite-agent for execution (enables plugins)" name:"use-agent"`
-	AgentBin string            `help:"Path to buildkite-agent binary (implies --use-agent)" name:"agent-bin" type:"path"`
+	NoAgent  bool              `help:"Run commands directly without buildkite-agent (disables plugins)" name:"no-agent"`
+	AgentBin string            `help:"Path to buildkite-agent binary" name:"agent-bin" type:"path"`
 	Port     int               `help:"Port for mock server (0=auto)" default:"0"`
 	BuildDir string            `help:"Directory for build artifacts" name:"build-dir" type:"path"`
 	Verbose  bool              `help:"Enable verbose output" short:"v"`
@@ -71,8 +71,8 @@ func (cmd *RunCmd) Run() error {
 		env["BUILDKITE_COMMIT"] = getCurrentCommit()
 	}
 
-	// Use agent mode if explicitly requested or if agent binary is specified
-	useAgent := cmd.UseAgent || cmd.AgentBin != ""
+	// Use agent mode by default (supports plugins), unless --no-agent is specified
+	useAgent := !cmd.NoAgent
 
 	config := &pipelinerun.RunConfig{
 		PipelineFile: pipelineFile,
