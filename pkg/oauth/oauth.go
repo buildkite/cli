@@ -18,14 +18,14 @@ import (
 )
 
 const (
-	// DefaultHost is the default Buildkite host
 	DefaultHost = "buildkite.com"
 	// DefaultScopes are the default OAuth scopes to request
 	DefaultScopes = "read_user read_organizations read_pipelines read_builds write_builds read_agents read_artifacts read_clusters read_teams"
 )
 
 var (
-	// DefaultClientID is the OAuth client ID for the Buildkite CLI (set via ldflags)
+	// DefaultClientID is the OAuth client ID for the Buildkite CLI
+	// This is blank so we can use ldflags
 	DefaultClientID = ""
 )
 
@@ -157,6 +157,9 @@ func (f *Flow) WaitForCallback(ctx context.Context) (*CallbackResult, error) {
 		// Send response to browser
 		w.Header().Set("Content-Type", "text/html")
 		if result.Error == "" && result.Code != "" {
+		// This is the page which lets folks know if they have been auth'd etc
+		// then that they can close the window, I tried adding an emoji in here
+		// but it renders weird
 			fmt.Fprint(w, `<!DOCTYPE html>
 <html>
 <head><title>Authentication Successful</title></head>
