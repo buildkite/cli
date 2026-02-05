@@ -22,6 +22,8 @@ steps:
           entrypoint: /bin/sh
           env:
             - GOOS={{matrix}}
+            - POSTHOG_API_KEY
+            - OAUTH_CLIENT_ID
           mount-buildkite-agent: true
           run: goreleaser
           shell: false
