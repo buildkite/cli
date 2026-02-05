@@ -45,6 +45,7 @@ func Init(version string, enabled bool) *Client {
 		var err error
 		client, err = posthog.NewWithConfig(key, posthog.Config{
 			Endpoint: apiHost,
+			Logger:   noopLogger{},
 		})
 		if err != nil {
 			client = nil
