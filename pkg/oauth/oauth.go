@@ -94,11 +94,11 @@ func NewFlow(cfg *Config) (*Flow, error) {
 	// Only start local callback server if no custom redirect URI provided
 	if cfg.CallbackURL == "" {
 		var err error
-		listener, err = net.Listen("tcp", "localhost:0")
+		listener, err = net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
 			return nil, fmt.Errorf("failed to start callback server: %w", err)
 		}
-		cfg.CallbackURL = fmt.Sprintf("http://localhost:%d/callback", listener.Addr().(*net.TCPAddr).Port)
+		cfg.CallbackURL = fmt.Sprintf("http://127.0.0.1:%d/callback", listener.Addr().(*net.TCPAddr).Port)
 	}
 
 	return &Flow{
