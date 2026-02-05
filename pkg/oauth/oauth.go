@@ -132,6 +132,10 @@ func (f *Flow) AuthorizationURL() string {
 
 // WaitForCallback waits for the OAuth callback and returns the authorization code
 func (f *Flow) WaitForCallback(ctx context.Context) (*CallbackResult, error) {
+	if f.listener == nil {
+		return nil, fmt.Errorf("callback listener not available as a custom CallbackURL was provided")
+	}
+
 	resultCh := make(chan *CallbackResult, 1)
 	errCh := make(chan error, 1)
 
