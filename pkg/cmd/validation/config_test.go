@@ -64,6 +64,9 @@ func TestValidateConfiguration_MissingValues(t *testing.T) {
 
 func newTestConfig(t *testing.T) *config.Config {
 	t.Helper()
-	t.Setenv("HOME", t.TempDir())
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("CI", "true") // disable keyring access in tests
 	return config.New(nil, nil)
 }
