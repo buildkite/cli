@@ -51,7 +51,7 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	// Create OAuth flow
 	cfg := &oauth.Config{
-		Host:     oauth.DefaultHost,
+		// Host default handled via NewFlow, omitted to allow usage of BUILDKITE_HOST
 		ClientID: oauth.DefaultClientID,
 		OrgSlug:  c.Org,
 		Scopes:   c.Scopes,
