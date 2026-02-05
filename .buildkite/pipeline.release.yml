@@ -10,7 +10,8 @@ steps:
     artifact_paths:
       - dist/**/*
     secrets:
-      POSTHOG_API_KEY
+      - POSTHOG_API_KEY
+      - OAUTH_CLIENT_ID
     plugins:
       - docker-compose#v5.2.0:
           command:
