@@ -331,9 +331,14 @@ func TestPollJobStatusTimeout(t *testing.T) {
 	convertEndpoint = server.URL
 	defer func() { convertEndpoint = originalEndpoint }()
 
-	_, err := pollJobStatus("test-job-123", 5)
+	result, err := pollJobStatus("test-job-123", 5)
 	if err == nil {
 		t.Error("Expected timeout error but got none")
+		return
+	}
+
+	if result != nil {
+		t.Error("Expected nil result on timeout")
 	}
 
 	if !strings.Contains(err.Error(), "timed out") {

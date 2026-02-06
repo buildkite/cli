@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/buildkite/cli/v3/internal/config"
+	bkKeyring "github.com/buildkite/cli/v3/pkg/keyring"
 )
 
 func TestValidateConfiguration_ExemptCommands(t *testing.T) {
@@ -65,5 +66,7 @@ func TestValidateConfiguration_MissingValues(t *testing.T) {
 func newTestConfig(t *testing.T) *config.Config {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", "")
+	bkKeyring.MockForTesting()
 	return config.New(nil, nil)
 }

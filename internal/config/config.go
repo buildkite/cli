@@ -17,6 +17,7 @@ import (
 	"strconv"
 
 	"github.com/buildkite/cli/v3/internal/pipeline"
+	"github.com/buildkite/cli/v3/pkg/keyring"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	git "github.com/go-git/go-git/v5"
 	"github.com/goccy/go-yaml"
@@ -112,11 +113,24 @@ func (conf *Config) SelectOrganization(org string, inGitRepo bool) error {
 	return conf.writeLocal()
 }
 
-// APIToken gets the API token configured for the currently selected organization
+// APIToken gets the API token configured for the currently selected organization.
+// Precedence: environment variable > keyring > user config > local config
 func (conf *Config) APIToken() string {
+	if token := os.Getenv("BUILDKITE_API_TOKEN"); token != "" {
+		return token
+	}
+
 	slug := conf.OrganizationSlug()
+
+	// Try keyring first
+	kr := keyring.New()
+	if kr.IsAvailable() {
+		if token, err := kr.Get(slug); err == nil && token != "" {
+			return token
+		}
+	}
+
 	return firstNonEmpty(
-		os.Getenv("BUILDKITE_API_TOKEN"),
 		conf.user.getToken(slug),
 		conf.local.getToken(slug),
 	)
