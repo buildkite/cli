@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/buildkite/cli/v3/internal/config"
+	bkKeyring "github.com/buildkite/cli/v3/pkg/keyring"
 )
 
 func TestValidateConfiguration_ExemptCommands(t *testing.T) {
@@ -64,9 +65,8 @@ func TestValidateConfiguration_MissingValues(t *testing.T) {
 
 func newTestConfig(t *testing.T) *config.Config {
 	t.Helper()
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", "")
-	t.Setenv("CI", "true") // disable keyring access in tests
+	bkKeyring.MockForTesting()
 	return config.New(nil, nil)
 }

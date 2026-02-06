@@ -3,13 +3,21 @@
 package keyring
 
 import (
+	"crypto/rand"
+	"fmt"
 	"os"
+	"sync"
 
 	"github.com/zalando/go-keyring"
 )
 
 const (
 	serviceName = "buildkite-cli"
+)
+
+var (
+	keyringAvailableOnce sync.Once
+	keyringAvailable     bool
 )
 
 // Keyring provides secure credential storage with fallback support
@@ -54,19 +62,36 @@ func (k *Keyring) IsAvailable() bool {
 	return k.useKeyring
 }
 
+// MockForTesting replaces the keyring backend with an in-memory store
+// and resets the availability cache so subsequent New() calls reflect
+// the mock. 
+func MockForTesting() {
+	keyring.MockInit()
+	keyringAvailableOnce = sync.Once{}
+	keyringAvailable = false
+}
+
 // isKeyringAvailable checks if the system keyring can be used
 func isKeyringAvailable() bool {
-	// Disable keyring in CI environments
-	if os.Getenv("CI") != "" || os.Getenv("BUILDKITE") != "" {
-		return false
-	}
+	keyringAvailableOnce.Do(func() {
+		// Disable keyring in CI environments
+		if os.Getenv("CI") != "" || os.Getenv("BUILDKITE") != "" {
+			keyringAvailable = false
+			return
+		}
 
-	// Test if keyring is functional by attempting a dummy operation
-	testKey := "buildkite-cli-keyring-test"
-	err := keyring.Set(serviceName, testKey, "test")
-	if err != nil {
-		return false
-	}
-	_ = keyring.Delete(serviceName, testKey)
-	return true
+		// Test if keyring is functional by attempting a dummy operation.
+		// Use a random suffix so a failed delete won't leave a colliding entry.
+		var buf [4]byte
+		_, _ = rand.Read(buf[:])
+		testKey := fmt.Sprintf("buildkite-cli-keyring-test-%x", buf)
+		err := keyring.Set(serviceName, testKey, "test")
+		if err != nil {
+			keyringAvailable = false
+			return
+		}
+		_ = keyring.Delete(serviceName, testKey)
+		keyringAvailable = true
+	})
+	return keyringAvailable
 }
