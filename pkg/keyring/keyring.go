@@ -64,7 +64,7 @@ func (k *Keyring) IsAvailable() bool {
 
 // MockForTesting replaces the keyring backend with an in-memory store
 // and resets the availability cache so subsequent New() calls reflect
-// the mock. 
+// the mock.
 func MockForTesting() {
 	keyring.MockInit()
 	keyringAvailableOnce = sync.Once{}
