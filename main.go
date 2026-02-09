@@ -92,8 +92,9 @@ type (
 		View cluster.ViewCmd `cmd:"" help:"View cluster information."`
 	}
 	SecretCmd struct {
-		List secret.ListCmd `cmd:"" help:"List secrets for a cluster." aliases:"ls"`
-		Get  secret.GetCmd  `cmd:"" help:"View a cluster secret."`
+		List   secret.ListCmd   `cmd:"" help:"List secrets for a cluster." aliases:"ls"`
+		Get    secret.GetCmd    `cmd:"" help:"View a cluster secret."`
+		Create secret.CreateCmd `cmd:"" help:"Create a new cluster secret."`
 	}
 	JobCmd struct {
 		Cancel  job.CancelCmd  `cmd:"" help:"Cancel a job."`
