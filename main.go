@@ -99,11 +99,12 @@ type (
 		Delete secret.DeleteCmd `cmd:"" help:"Delete a cluster secret." aliases:"rm"`
 	}
 	JobCmd struct {
-		Cancel  job.CancelCmd  `cmd:"" help:"Cancel a job."`
-		List    job.ListCmd    `cmd:"" help:"List jobs." aliases:"ls"`
-		Log     job.LogCmd     `cmd:"" help:"Get logs for a job."`
-		Retry   job.RetryCmd   `cmd:"" help:"Retry a job."`
-		Unblock job.UnblockCmd `cmd:"" help:"Unblock a job."`
+		Cancel       job.CancelCmd       `cmd:"" help:"Cancel a job."`
+		List         job.ListCmd         `cmd:"" help:"List jobs." aliases:"ls"`
+		Log          job.LogCmd          `cmd:"" help:"Get logs for a job."`
+		Reprioritize job.ReprioritizeCmd `cmd:"" help:"Reprioritize a job." aliases:"priority"`
+		Retry        job.RetryCmd        `cmd:"" help:"Retry a job."`
+		Unblock      job.UnblockCmd      `cmd:"" help:"Unblock a job."`
 	}
 	OrganizationCmd struct {
 		List organization.ListCmd `cmd:"" help:"List configured organizations." aliases:"ls"`
