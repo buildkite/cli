@@ -1,13 +1,11 @@
 module github.com/buildkite/cli/v3
 
-go 1.24.0
-
-toolchain go1.24.3
+go 1.25
 
 require (
 	github.com/alecthomas/kong v1.14.0
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be
-	github.com/buildkite/go-buildkite/v4 v4.13.1
+	github.com/buildkite/go-buildkite/v4 v4.14.1
 	github.com/buildkite/roko v1.4.0
 	github.com/go-git/go-git/v5 v5.16.4
 	github.com/goccy/go-yaml v1.19.2

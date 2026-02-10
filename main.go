@@ -18,6 +18,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/organization"
 	"github.com/buildkite/cli/v3/cmd/pipeline"
 	"github.com/buildkite/cli/v3/cmd/pkg"
+	"github.com/buildkite/cli/v3/cmd/secret"
 	"github.com/buildkite/cli/v3/cmd/use"
 	"github.com/buildkite/cli/v3/cmd/user"
 	"github.com/buildkite/cli/v3/cmd/version"
@@ -44,6 +45,7 @@ type CLI struct {
 	Auth         AuthCmd            `cmd:"" help:"Authenticate with Buildkite"`
 	Build        BuildCmd           `cmd:"" help:"Manage pipeline builds"`
 	Cluster      ClusterCmd         `cmd:"" help:"Manage organization clusters"`
+	Secret       SecretCmd          `cmd:"" help:"Manage cluster secrets"`
 	Config       bkConfig.ConfigCmd `cmd:"" help:"Manage CLI configuration"`
 	Configure    ConfigureCmd       `cmd:"" help:"Configure Buildkite API token"`
 	Init         bkInit.InitCmd     `cmd:"" help:"Initialize a pipeline.yaml file"`
@@ -88,6 +90,13 @@ type (
 	ClusterCmd struct {
 		List cluster.ListCmd `cmd:"" help:"List clusters." aliases:"ls"`
 		View cluster.ViewCmd `cmd:"" help:"View cluster information."`
+	}
+	SecretCmd struct {
+		List   secret.ListCmd   `cmd:"" help:"List secrets for a cluster." aliases:"ls"`
+		Get    secret.GetCmd    `cmd:"" help:"View a cluster secret."`
+		Create secret.CreateCmd `cmd:"" help:"Create a new cluster secret."`
+		Update secret.UpdateCmd `cmd:"" help:"Update a cluster secret."`
+		Delete secret.DeleteCmd `cmd:"" help:"Delete a cluster secret." aliases:"rm"`
 	}
 	JobCmd struct {
 		Cancel  job.CancelCmd  `cmd:"" help:"Cancel a job."`
