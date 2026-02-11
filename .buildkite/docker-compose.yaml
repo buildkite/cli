@@ -14,6 +14,8 @@ services:
       - BUILDKITE_AGENT_JOB_API_SOCKET
       - BUILDKITE_AGENT_JOB_API_TOKEN
       - POSTHOG_API_KEY
+      - DOCKERHUB_USER
+      - DOCKERHUB_PASSWORD
     working_dir: /go/src/github.com/buildkite/cli
     volumes:
       - ..:/go/src/github.com/buildkite/cli
