@@ -84,11 +84,6 @@ func ConfigureWithCredentials(f *factory.Factory, org, token string) error {
 }
 
 func ConfigureRun(f *factory.Factory, org string) error {
-	// Check if we're in a Git repository
-	if f.GitRepository == nil {
-		return errors.New("not in a Git repository - bk should be configured at the root of a Git repository")
-	}
-
 	if org == "" {
 		// Get organization slug
 		inputOrg, err := promptForInput("Organization slug: ", false)

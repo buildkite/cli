@@ -41,15 +41,5 @@ func (c *UnsetCmd) Run() error {
 		return err
 	}
 
-	conf := f.Config
-	inGitRepo := f.GitRepository != nil
-
-	if c.Local && !inGitRepo {
-		return fmt.Errorf("--local requires being in a git repository")
-	}
-
-	// Determine where to unset (default to user config unless --local)
-	unsetLocal := c.Local && inGitRepo
-
-	return SetConfigValue(conf, key, "", unsetLocal)
+	return SetConfigValue(f.Config, key, "", c.Local)
 }
