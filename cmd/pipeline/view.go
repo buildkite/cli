@@ -66,7 +66,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	pipelineRes := resolver.NewAggregateResolver(
 		resolver.ResolveFromPositionalArgument(args, 0, f.Config),
 		resolver.ResolveFromConfig(f.Config, resolver.PickOneWithFactory(f)),
-		resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOneWithFactory(f), f.GitRepository != nil)),
+		resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOneWithFactory(f))),
 	)
 
 	pipeline, err := pipelineRes.Resolve(ctx)

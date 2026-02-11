@@ -332,14 +332,10 @@ func (conf *Config) PreferredPipelines() []pipeline.Pipeline {
 }
 
 // SetPreferredPipelines will write the provided list of pipelines to local configuration
-func (conf *Config) SetPreferredPipelines(pipelines []pipeline.Pipeline, inGitRepo bool) error {
+func (conf *Config) SetPreferredPipelines(pipelines []pipeline.Pipeline) error {
 	// only save pipelines if they are present
 	if len(pipelines) == 0 {
 		return nil
-	}
-
-	if !inGitRepo {
-		return fmt.Errorf("cannot save preferred pipelines: not in a git repository")
 	}
 
 	names := make([]string, len(pipelines))

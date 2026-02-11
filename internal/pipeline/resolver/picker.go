@@ -57,7 +57,7 @@ func PickOneWithFactory(f *factory.Factory) PipelinePicker {
 
 // CachedPicker returns a PipelinePicker that saves the given pipelines to local config as well as running the provider
 // picker.
-func CachedPicker(conf *config.Config, picker PipelinePicker, inGitRepo bool) PipelinePicker {
+func CachedPicker(conf *config.Config, picker PipelinePicker) PipelinePicker {
 	return func(pipelines []pipeline.Pipeline) *pipeline.Pipeline {
 		// run the picker first because we want to put the chosen on at the top of the saved list
 		chosen := picker(pipelines)
@@ -76,11 +76,8 @@ func CachedPicker(conf *config.Config, picker PipelinePicker, inGitRepo bool) Pi
 		})
 		pipelines[0], pipelines[index] = tmp, pipelines[0]
 
-		// save the pipelines to local config before passing to the picker
-		err := conf.SetPreferredPipelines(pipelines, inGitRepo)
-		if err != nil {
-			return nil
-		}
+		// best-effort: cache the selection if possible
+		_ = conf.SetPreferredPipelines(pipelines)
 
 		return &tmp
 	}

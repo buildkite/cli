@@ -62,15 +62,5 @@ func (c *SetCmd) Run() error {
 		return err
 	}
 
-	conf := f.Config
-	inGitRepo := f.GitRepository != nil
-
-	if c.Local && !inGitRepo {
-		return fmt.Errorf("--local requires being in a git repository")
-	}
-
-	// Determine where to save (default to user config unless --local)
-	saveLocal := c.Local && inGitRepo
-
-	return SetConfigValue(conf, key, c.Value, saveLocal)
+	return SetConfigValue(f.Config, key, c.Value, c.Local)
 }

@@ -32,7 +32,7 @@ func TestResolvePipelineFromConfig(t *testing.T) {
 
 		pipelines := []pipeline.Pipeline{{Name: "pipeline1"}}
 		conf := config.New(afero.NewMemMapFs(), nil)
-		conf.SetPreferredPipelines(pipelines, true)
+		conf.SetPreferredPipelines(pipelines)
 		resolve := ResolveFromConfig(conf, PassthruPicker)
 		selected, err := resolve(context.Background())
 		if err != nil {
@@ -53,7 +53,7 @@ func TestResolvePipelineFromConfig(t *testing.T) {
 
 		pipelines := []pipeline.Pipeline{{Name: "pipeline1"}, {Name: "pipeline2"}, {Name: "pipeline3"}}
 		conf := config.New(afero.NewMemMapFs(), nil)
-		conf.SetPreferredPipelines(pipelines, true)
+		conf.SetPreferredPipelines(pipelines)
 		resolve := ResolveFromConfig(conf, PassthruPicker)
 		selected, err := resolve(context.Background())
 		if err != nil {
