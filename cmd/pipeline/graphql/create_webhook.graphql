@@ -1,0 +1,6 @@
+mutation PipelineCreateWebhook($id: ID!) {
+  pipelineCreateWebhook(input: { id: $id }) {
+    clientMutationId
+    pipelineID
+  }
+}
