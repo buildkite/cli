@@ -42,7 +42,7 @@ type CLI struct {
 	Agent        AgentCmd           `cmd:"" help:"Manage agents"`
 	Api          ApiCmd             `cmd:"" help:"Interact with the Buildkite API"`
 	Artifacts    ArtifactsCmd       `cmd:"" help:"Manage pipeline build artifacts"`
-	Auth         AuthCmd            `cmd:"" help:"Authenticate with Buildkite"`
+	Auth         AuthCmd            `cmd:"" help:"Authenticate with Buildkite" hidden:""`
 	Build        BuildCmd           `cmd:"" help:"Manage pipeline builds"`
 	Cluster      ClusterCmd         `cmd:"" help:"Manage organization clusters"`
 	Secret       SecretCmd          `cmd:"" help:"Manage cluster secrets"`
