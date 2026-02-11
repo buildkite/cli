@@ -153,9 +153,9 @@ func main() {
 }
 
 func run() int {
-	// Handle no-args case by showing help instead of error
+	// Handle no-args and "help" cases by showing help instead of error
 	// This addresses the Kong limitation described in https://github.com/alecthomas/kong/issues/33
-	if len(os.Args) <= 1 {
+	if len(os.Args) <= 1 || (len(os.Args) == 2 && os.Args[1] == "help") {
 		cli := &CLI{}
 		parser, err := newKongParser(cli)
 		if err != nil {
