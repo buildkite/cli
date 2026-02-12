@@ -39,7 +39,7 @@ builds:
 
   - id: linux
     goos: [linux]
-    goarch: ["386", arm, amd64, arm64]
+    goarch: [amd64, arm64]
     env:
       - CGO_ENABLED=0
     binary: bk
@@ -49,11 +49,35 @@ builds:
 
   - id: windows
     goos: [windows]
-    goarch: ["386", amd64, arm64]
+    goarch: [amd64, arm64]
     binary: bk
     main: .
     ldflags:
       - -s -w -X github.com/buildkite/cli/v3/cmd/version.Version={{.Version}} -X github.com/buildkite/cli/v3/pkg/cmd/pipeline.MigrationEndpoint=https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate -X github.com/buildkite/cli/v3/pkg/analytics.apiKey={{.Env.POSTHOG_API_KEY}} -X github.com/buildkite/cli/v3/pkg/oauth.DefaultClientID={{.Env.OAUTH_CLIENT_ID}}
+
+kos:
+  - repositories:
+      - docker.io/buildkite/cli
+    build: linux
+    main: .
+    creation_time: "{{.CommitTimestamp}}"
+    base_image: 'cgr.dev/chainguard/static:latest'
+    tags:
+      - '{{.Version}}'
+      - latest
+    labels:
+      org.opencontainers.image.authors: Buildkite Inc. https://buildkite.com
+      org.opencontainers.image.source: https://github.com/buildkite/cli
+      org.opencontainers.image.created: "{{.Date}}"
+      org.opencontainers.image.title: "{{.ProjectName}}"
+      org.opencontainers.image.revision: "{{.FullCommit}}"
+      org.opencontainers.image.version: "{{.Version}}"
+    bare: true
+    preserve_import_paths: false
+    disable: '{{ and (isEnvSet "GOOS") (ne .Env.GOOS "linux") }}'
+    platforms:
+      - linux/amd64
+      - linux/arm64
 
 archives:
   - id: macos-archive

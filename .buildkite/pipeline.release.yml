@@ -66,6 +66,8 @@ steps:
       - aws-ssm#v1.0.0:
           parameters:
             GITHUB_TOKEN: /pipelines/buildkite/buildkite-cli-release/github-token
+            DOCKERHUB_USER: /pipelines/buildkite/buildkite-cli-release/dockerhub-user
+            DOCKERHUB_PASSWORD: /pipelines/buildkite/buildkite-cli-release/dockerhub-password
       - artifacts#v1.9.3:
           download:
             - dist/**/*
@@ -78,6 +80,8 @@ steps:
           entrypoint: /bin/sh
           env:
             - GITHUB_TOKEN
+            - DOCKERHUB_USER
+            - DOCKERHUB_PASSWORD
           mount-buildkite-agent: true
           run: goreleaser
           shell: false
