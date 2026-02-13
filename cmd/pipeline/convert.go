@@ -24,7 +24,6 @@ var convertEndpoint = "https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/pr
 type conversionRequest struct {
 	Vendor string `json:"vendor"`
 	Code   string `json:"code"`
-	AI     bool   `json:"ai,omitempty"`
 }
 
 type conversionResponse struct {
@@ -47,9 +46,8 @@ type statusResponse struct {
 type ConvertCmd struct {
 	File    string `help:"Path to the pipeline file to convert (required)" short:"F" required:""`
 	Vendor  string `help:"CI/CD vendor (auto-detected if not specified)" short:"v"`
-	AI      bool   `help:"Use AI-powered conversion (recommended for Jenkins)"`
 	Output  string `help:"Custom path to save the converted pipeline (default: .buildkite/pipeline.<vendor>.yml)" short:"o"`
-	Timeout int    `help:"Timeout in seconds (use 600+ for AI conversions)" default:"300"`
+	Timeout int    `help:"Timeout in seconds for conversion" default:"300"`
 }
 
 func (c *ConvertCmd) Help() string {
@@ -60,6 +58,9 @@ Supported vendors:
   - bitbucket (Bitbucket Pipelines)
   - circleci (CircleCI)
   - jenkins (Jenkins)
+  - gitlab (GitLab CI) (beta)
+  - harness (Harness CI) (beta)
+  - bitrise (Bitrise) (beta)
 
 The command will automatically detect the vendor based on the file name if not specified.
 
@@ -74,9 +75,6 @@ Examples:
 
   # Convert with explicit vendor specification
   $ bk pipeline convert -F pipeline.yml --vendor circleci
-
-  # Convert Jenkins pipeline with AI support
-  $ bk pipeline convert -F Jenkinsfile --ai
 
   # Save output to a file
   $ bk pipeline convert -F .github/workflows/ci.yml -o .buildkite/pipeline.yml
@@ -106,7 +104,7 @@ func (c *ConvertCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		fmt.Printf("Detected vendor: %s\n", c.Vendor)
 	}
 
-	supportedVendors := []string{"github", "bitbucket", "circleci", "jenkins"}
+	supportedVendors := []string{"github", "bitbucket", "circleci", "jenkins", "gitlab", "harness", "bitrise"}
 	if !slices.Contains(supportedVendors, c.Vendor) {
 		return fmt.Errorf("unsupported vendor: %s (supported: %s)", c.Vendor, strings.Join(supportedVendors, ", "))
 	}
@@ -114,7 +112,6 @@ func (c *ConvertCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	req := conversionRequest{
 		Vendor: c.Vendor,
 		Code:   string(content),
-		AI:     c.AI,
 	}
 
 	fmt.Println("Submitting conversion job...")
@@ -124,11 +121,7 @@ func (c *ConvertCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return fmt.Errorf("error submitting conversion job: %w", err)
 	}
 
-	if c.AI {
-		fmt.Println("Job submitted. Processing with AI (this may take several minutes)...")
-	} else {
-		fmt.Println("Job submitted. Processing conversion...")
-	}
+	fmt.Println("Job submitted. Processing with AI (this may take several minutes)...")
 
 	var result *statusResponse
 	err = bkIO.SpinWhile(f, "Processing conversion...", func() {
