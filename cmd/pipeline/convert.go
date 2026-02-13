@@ -51,8 +51,7 @@ type ConvertCmd struct {
 }
 
 func (c *ConvertCmd) Help() string {
-	return `Convert a CI/CD pipeline configuration from various vendors to Buildkite format.
-
+	return `
 Supported vendors:
   - github (GitHub Actions)
   - bitbucket (Bitbucket Pipelines)
