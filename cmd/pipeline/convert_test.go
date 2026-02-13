@@ -32,7 +32,6 @@ jobs:
 	req := conversionRequest{
 		Vendor: "github",
 		Code:   testWorkflow,
-		AI:     false,
 	}
 
 	jobResp, err := submitConversionJob(req)
@@ -242,7 +241,6 @@ func TestSubmitConversionJob(t *testing.T) {
 	req := conversionRequest{
 		Vendor: "github",
 		Code:   "name: Test\non: [push]",
-		AI:     false,
 	}
 
 	resp, err := submitConversionJob(req)
