@@ -10,6 +10,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
+	"github.com/buildkite/cli/v3/internal/graphql"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
@@ -18,12 +19,13 @@ import (
 )
 
 type CreateCmd struct {
-	Name        string `arg:"" help:"Name of the pipeline" required:""`
-	Description string `help:"Description of the pipeline" short:"d"`
-	Repository  string `help:"Repository URL" short:"r"`
-	ClusterID   string `help:"Cluster name or ID to assign the pipeline to" short:"c"`
-	DryRun      bool   `help:"Simulate pipeline creation without actually creating it"`
-	Output      string `help:"Outputs the created pipeline. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
+	Name          string `arg:"" help:"Name of the pipeline" required:""`
+	Description   string `help:"Description of the pipeline" short:"d"`
+	Repository    string `help:"Repository URL" short:"r"`
+	ClusterID     string `help:"Cluster name or ID to assign the pipeline to" short:"c"`
+	CreateWebhook bool   `help:"Create an SCM webhook for the pipeline (GitHub and GitHub Enterprise only)" short:"W"`
+	DryRun        bool   `help:"Simulate pipeline creation without actually creating it"`
+	Output        string `help:"Outputs the created pipeline. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
 }
 
 func (c *CreateCmd) Help() string {
@@ -47,6 +49,9 @@ Examples:
 
   # Create a pipeline with a cluster (by ID)
   $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" -c "cluster-id-123"
+
+  # Create a pipeline and set up a GitHub webhook
+  $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" --create-webhook
 
   # Simulate creating a pipeline and view the output in yaml format
   $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" --dry-run --output yaml
@@ -96,6 +101,20 @@ func (c *CreateCmd) runPipelineCreate(kongCtx *kong.Context, f *factory.Factory)
 	if err != nil {
 		return err
 	}
+
+	if c.CreateWebhook {
+		repoURL := getRepositoryURL(f, c.Repository)
+		if repoURL == "" {
+			fmt.Fprintln(kongCtx.Stderr, "Warning: could not determine repository URL, skipping webhook creation")
+		} else if !isGitHubURL(repoURL) {
+			fmt.Fprintln(kongCtx.Stderr, "Warning: webhook creation is only supported for GitHub repositories, skipping")
+		} else {
+			if err := createWebhook(ctx, f, pipeline.GraphQLID); err != nil {
+				return fmt.Errorf("pipeline created but webhook creation failed: %w", err)
+			}
+		}
+	}
+
 	if format != output.FormatText {
 		return output.Write(kongCtx.Stdout, pipeline, format)
 	}
@@ -110,13 +129,15 @@ func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) (*bu
 		return nil, err
 	}
 
+	repoURL := getRepositoryURL(f, c.Repository)
+
 	var pipeline buildkite.Pipeline
 	var resp *buildkite.Response
 
 	spinErr := bkIO.SpinWhile(f, fmt.Sprintf("Creating pipeline %s", c.Name), func() {
 		createPipeline := buildkite.CreatePipeline{
 			Name:          c.Name,
-			Repository:    c.Repository,
+			Repository:    repoURL,
 			Description:   c.Description,
 			ClusterID:     clusterID,
 			Configuration: "steps:\n  - label: \":pipeline:\"\n    command: buildkite-agent pipeline upload",
@@ -430,4 +451,46 @@ func getCreatedByDetails(ctx context.Context, f *factory.Factory) *buildkite.Use
 		return nil
 	}
 	return &user
+}
+
+// isGitHubURL checks if a repository URL points to a GitHub-hosted repository.
+func isGitHubURL(repoURL string) bool {
+	return strings.HasPrefix(repoURL, "git@github.com:") ||
+		strings.Contains(repoURL, "://github.com/") ||
+		strings.HasPrefix(repoURL, "git@github.") ||
+		strings.Contains(repoURL, "://github.")
+}
+
+// getRepositoryURL determines the repository URL from the flag or the git remote.
+func getRepositoryURL(f *factory.Factory, repoFlag string) string {
+	if repoFlag != "" {
+		return repoFlag
+	}
+
+	if f == nil || f.GitRepository == nil {
+		return ""
+	}
+
+	c, err := f.GitRepository.Config()
+	if err != nil {
+		return ""
+	}
+
+	origin, ok := c.Remotes["origin"]
+	if !ok || len(origin.URLs) == 0 {
+		return ""
+	}
+
+	return origin.URLs[0]
+}
+
+func createWebhook(ctx context.Context, f *factory.Factory, pipelineGraphQLID string) error {
+	var err error
+	spinErr := bkIO.SpinWhile(f, "Creating webhook", func() {
+		_, err = graphql.PipelineCreateWebhook(ctx, f.GraphQLClient, pipelineGraphQLID)
+	})
+	if spinErr != nil {
+		return spinErr
+	}
+	return err
 }
