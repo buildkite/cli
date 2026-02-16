@@ -45,9 +45,9 @@ type statusResponse struct {
 
 type ConvertCmd struct {
 	File    string `help:"Path to the pipeline file to convert (required)" short:"F" required:""`
-	Vendor  string `help:"CI/CD vendor (auto-detected if not specified)" short:"v"`
+	Vendor  string `help:"CI/CD vendor (auto-detected if the file name matches vendor - otherwise, needs to be specified)" short:"v"`
 	Output  string `help:"Custom path to save the converted pipeline (default: .buildkite/pipeline.<vendor>.yml)" short:"o"`
-	Timeout int    `help:"Timeout in seconds for conversion" default:"300"`
+	Timeout int    `help:"Timeout in seconds for conversion (increase for large pipelines, decrease to fail conversion on timeout)" default:"300"`
 }
 
 func (c *ConvertCmd) Help() string {
