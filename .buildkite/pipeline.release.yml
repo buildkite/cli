@@ -56,6 +56,9 @@ steps:
       - dist/**/*
     env:
       AWS_REGION: us-east-1
+    secrets:
+      - POSTHOG_API_KEY
+      - OAUTH_CLIENT_ID
     plugins:
       - aws-assume-role-with-web-identity#v1.4.0:
           role-arn: arn:aws:iam::445615400570:role/pipeline-buildkite-buildkite-cli-release
@@ -82,6 +85,8 @@ steps:
             - GITHUB_TOKEN
             - DOCKERHUB_USER
             - DOCKERHUB_PASSWORD
+            - POSTHOG_API_KEY
+            - OAUTH_CLIENT_ID
           mount-buildkite-agent: true
           run: goreleaser
           shell: false
