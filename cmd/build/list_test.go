@@ -1,9 +1,12 @@
 package build
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
@@ -56,6 +59,32 @@ func TestBuildListOptions_EmptyMetaData(t *testing.T) {
 
 	if len(opts.MetaData.MetaData) != 0 {
 		t.Errorf("Expected empty meta-data, got %d entries", len(opts.MetaData.MetaData))
+	}
+}
+
+func TestDisplayBuilds_EmptyJSON(t *testing.T) {
+	var buf bytes.Buffer
+	err := displayBuilds([]buildkite.Build{}, output.FormatJSON, &buf)
+	if err != nil {
+		t.Fatalf("displayBuilds failed: %v", err)
+	}
+
+	got := strings.TrimSpace(buf.String())
+	if got != "[]" {
+		t.Errorf("Expected empty JSON array '[]', got %q", got)
+	}
+}
+
+func TestDisplayBuilds_EmptyYAML(t *testing.T) {
+	var buf bytes.Buffer
+	err := displayBuilds([]buildkite.Build{}, output.FormatYAML, &buf)
+	if err != nil {
+		t.Fatalf("displayBuilds failed: %v", err)
+	}
+
+	got := strings.TrimSpace(buf.String())
+	if got != "[]" {
+		t.Errorf("Expected empty YAML array '[]', got %q", got)
 	}
 }
 

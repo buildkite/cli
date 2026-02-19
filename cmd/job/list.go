@@ -173,6 +173,9 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	if len(jobs) == 0 {
+		if format != output.FormatText {
+			return output.Write(os.Stdout, []buildkite.Job{}, format)
+		}
 		fmt.Println("No jobs found matching the specified criteria.")
 		return nil
 	}
