@@ -45,9 +45,9 @@ type statusResponse struct {
 }
 
 type ConvertCmd struct {
-	File    string `help:"Path to the pipeline file to convert (required)" short:"F" required:""`
-	Vendor  string `help:"CI/CD vendor (auto-detected if not specified)" short:"v"`
-	Output  string `help:"Custom path to save the converted pipeline (default: .buildkite/pipeline.<vendor>.yml)" short:"o"`
+	File    string `help:"Path to the pipeline file to convert (reads from stdin if not specified)" short:"F"`
+	Vendor  string `help:"CI/CD vendor (auto-detected from file path, required when reading from stdin)" short:"v"`
+	Output  string `help:"Custom path to save the converted pipeline (default: stdout for stdin input, .buildkite/pipeline.<vendor>.yml for file input)" short:"o"`
 	Timeout int    `help:"Timeout in seconds for conversion" default:"300"`
 }
 
@@ -63,9 +63,11 @@ Supported vendors:
   - bitrise (Bitrise) (beta)
 
 The command will automatically detect the vendor based on the file name if not specified.
+When reading from stdin, the --vendor flag is required.
 
-By default, the converted pipeline is saved to .buildkite/pipeline.<vendor>.yml.
-Use the --output flag to specify a custom output path.
+When using --file, the converted pipeline is saved to .buildkite/pipeline.<vendor>.yml by default.
+When reading from stdin, output goes to stdout by default.
+Use the --output flag to specify a custom output path in either case.
 
 Note: This command does not require an API token since it uses a public conversion API.
 
@@ -78,6 +80,10 @@ Examples:
 
   # Save output to a file
   $ bk pipeline convert -F .github/workflows/ci.yml -o .buildkite/pipeline.yml
+
+  # Read from stdin
+  $ cat .github/workflows/ci.yml | bk pipeline convert --vendor github
+  $ bk pipeline convert --vendor github < .github/workflows/ci.yml
 `
 }
 
@@ -91,9 +97,25 @@ func (c *ConvertCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
 
-	content, err := os.ReadFile(c.File)
-	if err != nil {
-		return fmt.Errorf("error reading file: %w", err)
+	fromStdin := c.File == ""
+
+	var content []byte
+	if fromStdin {
+		if !bkIO.HasDataAvailable(os.Stdin) {
+			return errors.New("no input: provide a file with --file or pipe content via stdin")
+		}
+		if c.Vendor == "" {
+			return errors.New("--vendor is required when reading from stdin")
+		}
+		content, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			return fmt.Errorf("error reading stdin: %w", err)
+		}
+	} else {
+		content, err = os.ReadFile(c.File)
+		if err != nil {
+			return fmt.Errorf("error reading file: %w", err)
+		}
 	}
 
 	if c.Vendor == "" {
@@ -149,6 +171,8 @@ func (c *ConvertCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		}
 		fmt.Printf("\n✅ conversion completed successfully!\n")
 		fmt.Printf("Output saved to: %s\n", c.Output)
+	} else if fromStdin {
+		fmt.Print(result.Result)
 	} else {
 		buildkiteDir := ".buildkite"
 		if err := os.MkdirAll(buildkiteDir, 0o755); err != nil {
