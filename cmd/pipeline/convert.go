@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -108,6 +109,10 @@ func (c *ConvertCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return fmt.Errorf("unsupported vendor: %s (supported: %s)", c.Vendor, strings.Join(supportedVendors, ", "))
 	}
 
+	if c.Timeout < 1 {
+		return errors.New("a timeout cannot be less than 1 second")
+	}
+
 	req := conversionRequest{
 		Vendor: c.Vendor,
 		Code:   string(content),
@@ -123,11 +128,15 @@ func (c *ConvertCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	fmt.Println("Job submitted. Processing with AI (this may take several minutes)...")
 
 	var result *statusResponse
+	var pollErr error
 	err = bkIO.SpinWhile(f, "Processing conversion...", func() {
-		result, err = pollJobStatus(jobResp.JobID, c.Timeout)
+		result, pollErr = pollJobStatus(jobResp.JobID, c.Timeout)
 	})
 	if err != nil {
 		return fmt.Errorf("error polling job status: %w", err)
+	}
+	if pollErr != nil {
+		return fmt.Errorf("error polling job status: %w", pollErr)
 	}
 
 	if result.Status == "failed" {
