@@ -171,8 +171,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	if len(builds) == 0 {
-		fmt.Println("No builds found matching the specified criteria.")
-		return nil
+		return output.Write(os.Stdout, []buildkite.Build{}, format)
 	}
 
 	return displayBuilds(builds, format, os.Stdout)
