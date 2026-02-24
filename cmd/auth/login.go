@@ -101,19 +101,12 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return fmt.Errorf("no organizations found for this token")
 	}
 
-	orgSlug := orgs[0].Slug
-	if len(orgs) > 1 {
-		fmt.Println("Token is authorized for multiple organizations:")
-		for _, org := range orgs {
-			fmt.Printf("  - %s\n", org.Slug)
-		}
-		fmt.Printf("Using %q\n", orgSlug)
-	}
+	org := orgs[0]
 
 	// Store token in keyring
 	kr := keyring.New()
 	if kr.IsAvailable() {
-		if err := kr.Set(orgSlug, tokenResp.AccessToken); err != nil {
+		if err := kr.Set(org.Slug, tokenResp.AccessToken); err != nil {
 			fmt.Printf("Warning: could not store token in keychain: %v\n", err)
 			fmt.Println("Falling back to config file storage.")
 		} else {
@@ -122,16 +115,16 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	// Also store in config for fallback/compatibility
-	if err := f.Config.SetTokenForOrg(orgSlug, tokenResp.AccessToken); err != nil {
+	if err := f.Config.SetTokenForOrg(org.Slug, tokenResp.AccessToken); err != nil {
 		return fmt.Errorf("failed to save token to config: %w", err)
 	}
 
 	// Select the organization
-	if err := f.Config.SelectOrganization(orgSlug, f.GitRepository != nil); err != nil {
+	if err := f.Config.SelectOrganization(org.Slug, f.GitRepository != nil); err != nil {
 		return fmt.Errorf("failed to select organization: %w", err)
 	}
 
-	fmt.Printf("\n✅ Successfully authenticated with organization %q\n", orgSlug)
+	fmt.Printf("\n✅ Successfully authenticated with organization %q\n", org.Slug)
 	fmt.Printf("  Scopes: %s\n", tokenResp.Scope)
 
 	return nil
