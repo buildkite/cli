@@ -1,10 +1,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/buildkite/cli/v3/cmd/agent"
 	"github.com/buildkite/cli/v3/cmd/api"
 	"github.com/buildkite/cli/v3/cmd/artifacts"
@@ -140,7 +143,6 @@ func newKongParser(cli *CLI) (*kong.Kong, error) {
 		cli,
 		kong.Name("bk"),
 		kong.Description("Work with Buildkite from the command line."),
-		kong.UsageOnError(),
 		kong.Vars{
 			// Empty default allows commands to fall back to config value
 			"output_default_format": "",
@@ -182,6 +184,13 @@ func run() int {
 	ctx, err := parser.Parse(os.Args[1:])
 	if err != nil {
 		tracker.TrackCommand("unknown command", os.Args[1:], nil)
+
+		var parseErr *kong.ParseError
+		if errors.As(err, &parseErr) && !strings.Contains(err.Error(), "did you mean") {
+			_ = parseErr.Context.PrintUsage(false)
+			fmt.Fprintln(os.Stderr)
+		}
+
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
 	}
