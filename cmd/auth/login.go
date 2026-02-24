@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
+	buildkite "github.com/buildkite/go-buildkite/v4"
+
 	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/keyring"
@@ -14,7 +16,6 @@ import (
 )
 
 type LoginCmd struct {
-	Org    string `help:"Organization slug" required:""`
 	Scopes string `help:"OAuth scopes to request" default:""`
 }
 
@@ -22,17 +23,18 @@ func (c *LoginCmd) Help() string {
 	return `
 Authenticate with Buildkite using OAuth instead of manually creating an API token.
 
-This command opens your browser to authenticate with Buildkite, then securely stores
-the resulting token in your system keychain (macOS Keychain, Windows Credential Manager,
-or Linux Secret Service).
+This command opens your browser to authenticate with Buildkite. After you select an
+organization in the browser, the CLI automatically detects which organization was
+authorized and stores the token securely in your system keychain (macOS Keychain,
+Windows Credential Manager, or Linux Secret Service).
 
 Examples:
 
-  # Login for a specific organization
-  $ bk auth login --org my-org
+  # Login (select organization in browser)
+  $ bk auth login
 
   # Login with custom scopes (e.g., for cluster management)
-  $ bk auth login --org my-org --scopes "read_user read_organizations read_clusters write_clusters"
+  $ bk auth login --scopes "read_user read_organizations read_clusters write_clusters"
 `
 }
 
@@ -42,18 +44,10 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
-	// Check if already configured
-	existingToken := f.Config.GetTokenForOrg(c.Org)
-	if existingToken != "" && !globals.SkipConfirmation() {
-		fmt.Printf("Organization %q is already configured. Use 'bk configure --force' to override.\n", c.Org)
-		return nil
-	}
-
 	// Create OAuth flow
 	cfg := &oauth.Config{
 		// Host default handled via NewFlow, omitted to allow usage of BUILDKITE_HOST
 		ClientID: oauth.DefaultClientID,
-		OrgSlug:  c.Org,
 		Scopes:   c.Scopes,
 	}
 
@@ -93,10 +87,33 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return fmt.Errorf("token exchange failed: %w", err)
 	}
 
+	// Resolve org from the API using the new token
+	client, err := buildkite.NewOpts(buildkite.WithTokenAuth(tokenResp.AccessToken))
+	if err != nil {
+		return fmt.Errorf("failed to create API client: %w", err)
+	}
+
+	orgs, _, err := client.Organizations.List(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to list organizations: %w", err)
+	}
+	if len(orgs) == 0 {
+		return fmt.Errorf("no organizations found for this token")
+	}
+
+	orgSlug := orgs[0].Slug
+	if len(orgs) > 1 {
+		fmt.Println("Token is authorized for multiple organizations:")
+		for _, org := range orgs {
+			fmt.Printf("  - %s\n", org.Slug)
+		}
+		fmt.Printf("Using %q\n", orgSlug)
+	}
+
 	// Store token in keyring
 	kr := keyring.New()
 	if kr.IsAvailable() {
-		if err := kr.Set(c.Org, tokenResp.AccessToken); err != nil {
+		if err := kr.Set(orgSlug, tokenResp.AccessToken); err != nil {
 			fmt.Printf("Warning: could not store token in keychain: %v\n", err)
 			fmt.Println("Falling back to config file storage.")
 		} else {
@@ -105,16 +122,16 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	// Also store in config for fallback/compatibility
-	if err := f.Config.SetTokenForOrg(c.Org, tokenResp.AccessToken); err != nil {
+	if err := f.Config.SetTokenForOrg(orgSlug, tokenResp.AccessToken); err != nil {
 		return fmt.Errorf("failed to save token to config: %w", err)
 	}
 
 	// Select the organization
-	if err := f.Config.SelectOrganization(c.Org, f.GitRepository != nil); err != nil {
+	if err := f.Config.SelectOrganization(orgSlug, f.GitRepository != nil); err != nil {
 		return fmt.Errorf("failed to select organization: %w", err)
 	}
 
-	fmt.Printf("\n✅ Successfully authenticated with organization %q\n", c.Org)
+	fmt.Printf("\n✅ Successfully authenticated with organization %q\n", orgSlug)
 	fmt.Printf("  Scopes: %s\n", tokenResp.Scope)
 
 	return nil
