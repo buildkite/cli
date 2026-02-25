@@ -308,6 +308,14 @@ func lookupBoolEnv(key string) (bool, bool) {
 	return b, true
 }
 
+// ClearAllOrganizations removes all organization entries and the selected
+// organization from the user configuration file.
+func (conf *Config) ClearAllOrganizations() error {
+	conf.user.Organizations = make(map[string]orgConfig)
+	conf.user.SelectedOrg = ""
+	return conf.writeUser()
+}
+
 func (conf *Config) HasConfiguredOrganization(slug string) bool {
 	return slices.Contains(conf.ConfiguredOrganizations(), slug)
 }
