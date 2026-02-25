@@ -2,6 +2,7 @@ package validation
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/buildkite/cli/v3/internal/config"
@@ -33,11 +34,13 @@ func ValidateConfiguration(conf *config.Config, commandPath string) error {
 
 	switch {
 	case missingToken && missingOrg:
-		return errors.New("you must set a valid API token and organization slug. Run `bk configure` or `bk use`, or set the environment variables `BUILDKITE_API_TOKEN` and `BUILDKITE_ORGANIZATION_SLUG`")
+		return errors.New("you are not authenticated. Run bk auth login to authenticate, or run bk use to select a configured organization")
 	case missingToken:
-		return errors.New("you must set a valid API token. Run `bk configure`, or set the environment variable `BUILDKITE_API_TOKEN`")
+		return errors.New("you are not authenticated. Run bk auth login to authenticate")
+	// an organization may not be present if the user is only viewing public resources
 	case missingOrg:
-		return errors.New("you must set a valid organization slug. Run `bk use`, or set the environment variable `BUILDKITE_ORGANIZATION_SLUG`")
+		fmt.Println("Warning: no organization set, only public pipelines will be visible. Run bk auth login, or bk use, to set an organization")
+		return nil
 	}
 
 	return nil
