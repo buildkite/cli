@@ -24,7 +24,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/secret"
 	"github.com/buildkite/cli/v3/cmd/use"
 	"github.com/buildkite/cli/v3/cmd/user"
-	"github.com/buildkite/cli/v3/cmd/version"
+	versionPkg "github.com/buildkite/cli/v3/cmd/version"
 	"github.com/buildkite/cli/v3/cmd/whoami"
 	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/internal/config"
@@ -35,13 +35,11 @@ import (
 // Kong CLI structure, with base commands defined as additional commands are defined in their respective files
 type CLI struct {
 	// Global flags
-	Yes     bool `help:"Skip all confirmation prompts" short:"y"`
-	NoInput bool `help:"Disable all interactive prompts" name:"no-input"`
-	Quiet   bool `help:"Suppress progress output" short:"q"`
-	NoPager bool `help:"Disable pager for text output" name:"no-pager"`
-	Debug   bool `help:"Enable debug output for REST API calls"`
-	// Verbose bool `help:"Enable verbose error output" short:"V"` // TODO: Implement this, atm this is just a skeleton flag
-
+	Yes          bool               `help:"Skip all confirmation prompts" short:"y"`
+	NoInput      bool               `help:"Disable all interactive prompts" name:"no-input"`
+	Quiet        bool               `help:"Suppress progress output" short:"q"`
+	NoPager      bool               `help:"Disable pager for text output" name:"no-pager"`
+	Debug        bool               `help:"Enable debug output for REST API calls"`
 	Agent        AgentCmd           `cmd:"" help:"Manage agents"`
 	Api          ApiCmd             `cmd:"" help:"Interact with the Buildkite API"`
 	Artifacts    ArtifactsCmd       `cmd:"" help:"Manage pipeline build artifacts"`
@@ -64,7 +62,7 @@ type CLI struct {
 
 type (
 	VersionCmd struct {
-		version.VersionCmd `cmd:"" help:"Print the version of the CLI being used"`
+		versionPkg.VersionCmd `cmd:"" help:"Print the version of the CLI being used"`
 	}
 	AuthCmd struct {
 		Login  auth.LoginCmd  `cmd:"" help:"Login to Buildkite using OAuth"`
@@ -165,6 +163,12 @@ func run() int {
 			return 1
 		}
 		_, _ = parser.Parse([]string{"--help"})
+		return 0
+	}
+
+	// Handle --version and -V flags at the top level
+	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-V") {
+		fmt.Print(versionPkg.Format(versionPkg.Version))
 		return 0
 	}
 
