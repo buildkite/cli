@@ -22,7 +22,7 @@ type UpdateCmd struct {
 	Description string `help:"Update the description of the secret" optional:""`
 	Policy      string `help:"Update the access policy for the secret (YAML format)" optional:""`
 	UpdateValue bool   `help:"Prompt to update the secret value" optional:"" name:"update-value"`
-	Output      string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
+	output.OutputFlags
 }
 
 func (c *UpdateCmd) Help() string {

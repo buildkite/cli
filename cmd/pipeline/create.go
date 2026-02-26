@@ -25,7 +25,7 @@ type CreateCmd struct {
 	ClusterID     string `help:"Cluster name or ID to assign the pipeline to" short:"c"`
 	CreateWebhook bool   `help:"Create an SCM webhook for the pipeline (GitHub and GitHub Enterprise only)" short:"W"`
 	DryRun        bool   `help:"Simulate pipeline creation without actually creating it"`
-	Output        string `help:"Outputs the created pipeline. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
+	output.OutputFlags
 }
 
 func (c *CreateCmd) Help() string {

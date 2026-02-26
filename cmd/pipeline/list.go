@@ -24,7 +24,7 @@ type ListCmd struct {
 	Name       string `help:"Filter pipelines by name (supports partial matches, case insensitive)" short:"n"`
 	Repository string `help:"Filter pipelines by repository URL (supports partial matches, case insensitive)" short:"r"`
 	Limit      int    `help:"Maximum number of pipelines to return (max: 3000)" short:"l" default:"100"`
-	Output     string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
+	output.OutputFlags
 }
 
 func (c *ListCmd) Help() string {

@@ -20,7 +20,7 @@ import (
 
 type ListCmd struct {
 	ClusterID string `help:"The ID of the cluster to list secrets for" required:"" name:"cluster-id"`
-	Output    string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
+	output.OutputFlags
 }
 
 func (c *ListCmd) Help() string {
