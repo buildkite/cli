@@ -43,3 +43,21 @@ func NewAggregateResolver(resolvers ...PipelineResolverFn) AggregateResolver {
 func errorResolver(context.Context) (*pipeline.Pipeline, error) {
 	return nil, errors.New("failed to resolve a pipeline")
 }
+
+// WithOrg wraps a resolver and forces any resolved pipeline to use the
+// provided organization.
+func WithOrg(org string, resolve PipelineResolverFn) PipelineResolverFn {
+	if org == "" {
+		return resolve
+	}
+
+	return func(ctx context.Context) (*pipeline.Pipeline, error) {
+		p, err := resolve(ctx)
+		if err != nil || p == nil {
+			return p, err
+		}
+
+		p.Org = org
+		return p, nil
+	}
+}

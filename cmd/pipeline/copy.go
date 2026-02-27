@@ -19,6 +19,7 @@ import (
 
 type CopyCmd struct {
 	Pipeline string `arg:"" help:"Source pipeline to copy (slug or org/slug). Uses current pipeline if not specified." optional:""`
+	Org      string `help:"Organization slug." name:"org"`
 	Target   string `help:"Name for the new pipeline, or org/name to copy to a different organization" short:"t"`
 	Cluster  string `help:"Cluster name or ID for the new pipeline (required for cross-org copies if target org uses clusters)" short:"c"`
 	DryRun   bool   `help:"Show what would be copied without creating the pipeline"`
@@ -29,6 +30,14 @@ type CopyCmd struct {
 type copyTarget struct {
 	Org  string
 	Name string
+}
+
+func (c *CopyCmd) orgSlug(f *factory.Factory) string {
+	if c.Org != "" {
+		return c.Org
+	}
+
+	return f.Config.OrganizationSlug()
 }
 
 func (c *CopyCmd) Help() string {
@@ -72,7 +81,7 @@ Examples:
 }
 
 func (c *CopyCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
+	f, err := factory.New(factory.WithDebug(globals.EnableDebug()), factory.WithOrgOverride(c.Org))
 	if err != nil {
 		return err
 	}
@@ -81,7 +90,7 @@ func (c *CopyCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
 
-	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
+	if err := validation.ValidateConfigurationForOrg(f.Config, kongCtx.Command(), c.Org); err != nil {
 		return err
 	}
 
@@ -128,10 +137,17 @@ func (c *CopyCmd) resolveSourcePipeline(ctx context.Context, f *factory.Factory)
 		args = []string{c.Pipeline}
 	}
 
+	picker := resolver.PickOneWithFactory(f)
+	cachedPicker := resolver.CachedPicker(f.Config, picker)
+	repositoryResolver := resolver.ResolveFromRepository(f, cachedPicker)
+	if c.Org != "" {
+		repositoryResolver = resolver.ResolveFromRepositoryInOrg(f, cachedPicker, c.Org)
+	}
+
 	pipelineRes := resolver.NewAggregateResolver(
-		resolver.ResolveFromPositionalArgument(args, 0, f.Config),
-		resolver.ResolveFromConfig(f.Config, resolver.PickOneWithFactory(f)),
-		resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOneWithFactory(f))),
+		resolver.WithOrg(c.Org, resolver.ResolveFromPositionalArgument(args, 0, f.Config)),
+		resolver.WithOrg(c.Org, resolver.ResolveFromConfig(f.Config, picker)),
+		repositoryResolver,
 	)
 
 	p, err := pipelineRes.Resolve(ctx)
@@ -156,7 +172,7 @@ func (c *CopyCmd) resolveTarget(f *factory.Factory, sourceName string) (*copyTar
 
 	// Parse target - could be "name" or "org/name"
 	// we check to see if `/` is present for org name, if not we use the existing org selected
-	return parseTarget(targetStr, f.Config.OrganizationSlug()), nil
+	return parseTarget(targetStr, c.orgSlug(f)), nil
 }
 
 // parseTarget parses a target string into org and name components.
@@ -272,7 +288,7 @@ func (c *CopyCmd) runCopy(kongCtx *kong.Context, f *factory.Factory, source *bui
 
 // getClientForOrg creates a Buildkite client authenticated for the specified organization
 func (c *CopyCmd) getClientForOrg(f *factory.Factory, org string) (*buildkite.Client, error) {
-	token := f.Config.GetTokenForOrg(org)
+	token := f.Config.APITokenForOrg(org)
 	if token == "" {
 		return nil, fmt.Errorf("no API token configured for organization %q. Run 'bk configure' to add it", org)
 	}

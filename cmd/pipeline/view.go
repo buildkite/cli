@@ -20,8 +20,11 @@ import (
 )
 
 type ViewCmd struct {
-	Pipeline string `arg:"" help:"The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." optional:""`
-	Web      bool   `help:"Open the pipeline in a web browser." short:"w"`
+	// Pipeline is the positional arg; PipelineFlag (--pipeline/-p) takes priority when both are provided.
+	Pipeline     string `arg:"" help:"The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." optional:""`
+	PipelineFlag string `help:"The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p" name:"pipeline"`
+	Org          string `help:"Organization slug." name:"org"`
+	Web          bool   `help:"Open the pipeline in a web browser." short:"w"`
 	output.OutputFlags
 }
 
@@ -31,6 +34,9 @@ func (c *ViewCmd) Help() string {
 Examples:
   # View a pipeline
   $ bk pipeline view my-pipeline
+
+  # View a pipeline using flags
+  $ bk pipeline view --org my-org --pipeline my-pipeline
 
   # View a pipeline in a specific organization
   $ bk pipeline view my-org/my-pipeline
@@ -44,7 +50,7 @@ Examples:
 }
 
 func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
+	f, err := factory.New(factory.WithDebug(globals.EnableDebug()), factory.WithOrgOverride(c.Org))
 	if err != nil {
 		return err
 	}
@@ -54,22 +60,34 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.Quiet = globals.IsQuiet()
 	f.NoPager = f.NoPager || globals.DisablePager()
 
-	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
+	if err := validation.ValidateConfigurationForOrg(f.Config, kongCtx.Command(), c.Org); err != nil {
 		return err
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	pipelineArg := c.PipelineFlag
+	if pipelineArg == "" {
+		pipelineArg = c.Pipeline
+	}
+
 	var args []string
-	if c.Pipeline != "" {
-		args = []string{c.Pipeline}
+	if pipelineArg != "" {
+		args = []string{pipelineArg}
+	}
+
+	picker := resolver.PickOneWithFactory(f)
+	cachedPicker := resolver.CachedPicker(f.Config, picker)
+	repositoryResolver := resolver.ResolveFromRepository(f, cachedPicker)
+	if c.Org != "" {
+		repositoryResolver = resolver.ResolveFromRepositoryInOrg(f, cachedPicker, c.Org)
 	}
 
 	pipelineRes := resolver.NewAggregateResolver(
-		resolver.ResolveFromPositionalArgument(args, 0, f.Config),
-		resolver.ResolveFromConfig(f.Config, resolver.PickOneWithFactory(f)),
-		resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOneWithFactory(f))),
+		resolver.WithOrg(c.Org, resolver.ResolveFromPositionalArgument(args, 0, f.Config)),
+		resolver.WithOrg(c.Org, resolver.ResolveFromConfig(f.Config, picker)),
+		repositoryResolver,
 	)
 
 	pipeline, err := pipelineRes.Resolve(ctx)
