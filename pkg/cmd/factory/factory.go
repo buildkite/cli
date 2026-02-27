@@ -33,13 +33,23 @@ type Factory struct {
 type FactoryOpt func(*factoryConfig)
 
 type factoryConfig struct {
-	debug bool
+	debug       bool
+	orgOverride string
 }
 
 // WithDebug enables debug output for REST API calls
 func WithDebug(debug bool) FactoryOpt {
 	return func(c *factoryConfig) {
 		c.debug = debug
+	}
+}
+
+// WithOrgOverride overrides the configured organization slug for API token
+// resolution. When set, the factory will use the token for this org instead
+// of the currently selected org.
+func WithOrgOverride(org string) FactoryOpt {
+	return func(c *factoryConfig) {
+		c.orgOverride = org
 	}
 }
 
@@ -118,10 +128,17 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 
 	conf := config.New(nil, repo)
 
+	token := conf.APIToken()
+	if cfg.orgOverride != "" {
+		if t := conf.APITokenForOrg(cfg.orgOverride); t != "" {
+			token = t
+		}
+	}
+
 	// Build client options
 	clientOpts := []buildkite.ClientOpt{
 		buildkite.WithBaseURL(conf.RESTAPIEndpoint()),
-		buildkite.WithTokenAuth(conf.APIToken()),
+		buildkite.WithTokenAuth(token),
 		buildkite.WithUserAgent(userAgent),
 	}
 
@@ -140,7 +157,7 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 		return nil, fmt.Errorf("creating buildkite client: %w", err)
 	}
 
-	graphqlHTTPClient := &gqlHTTPClient{client: http.DefaultClient, token: conf.APIToken()}
+	graphqlHTTPClient := &gqlHTTPClient{client: http.DefaultClient, token: token}
 
 	return &Factory{
 		Config:        conf,
