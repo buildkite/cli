@@ -125,7 +125,7 @@ func (conf *Config) APITokenForOrg(org string) string {
 	if token := os.Getenv("BUILDKITE_API_TOKEN"); token != "" {
 		return token
 	}
-	
+
 	// Try keyring first
 	kr := keyring.New()
 	if kr.IsAvailable() {
