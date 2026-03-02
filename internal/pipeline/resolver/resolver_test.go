@@ -41,3 +41,39 @@ func TestAggregateResolver(t *testing.T) {
 		}
 	})
 }
+
+func TestWithOrg(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns original resolver when org is empty", func(t *testing.T) {
+		t.Parallel()
+
+		resolve := resolver.WithOrg("", func(context.Context) (*pipeline.Pipeline, error) {
+			return &pipeline.Pipeline{Org: "config-org", Name: "pipeline"}, nil
+		})
+
+		p, err := resolve(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if p.Org != "config-org" {
+			t.Fatalf("expected org config-org, got %s", p.Org)
+		}
+	})
+
+	t.Run("overrides resolved organization", func(t *testing.T) {
+		t.Parallel()
+
+		resolve := resolver.WithOrg("override-org", func(context.Context) (*pipeline.Pipeline, error) {
+			return &pipeline.Pipeline{Org: "config-org", Name: "pipeline"}, nil
+		})
+
+		p, err := resolve(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if p.Org != "override-org" {
+			t.Fatalf("expected org override-org, got %s", p.Org)
+		}
+	})
+}

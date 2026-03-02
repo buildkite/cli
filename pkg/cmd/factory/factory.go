@@ -1,7 +1,9 @@
 package factory
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"os"
@@ -33,13 +35,23 @@ type Factory struct {
 type FactoryOpt func(*factoryConfig)
 
 type factoryConfig struct {
-	debug bool
+	debug       bool
+	orgOverride string
 }
 
 // WithDebug enables debug output for REST API calls
 func WithDebug(debug bool) FactoryOpt {
 	return func(c *factoryConfig) {
 		c.debug = debug
+	}
+}
+
+// WithOrgOverride overrides the configured organization slug for API token
+// resolution. When set, the factory will use the token for this org instead
+// of the currently selected org.
+func WithOrgOverride(org string) FactoryOpt {
+	return func(c *factoryConfig) {
+		c.orgOverride = org
 	}
 }
 
@@ -52,9 +64,28 @@ type debugTransport struct {
 var sensitiveHeaders = []string{"Authorization"}
 
 func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Clone the request to avoid modifying the original headers
+	// Save and restore the request body so that dumping it does not consume
+	// the body before the real transport sends it. req.Clone() shares the
+	// underlying Body reader, so DumpRequestOut on a clone drains the
+	// original — leading to an empty/malformed request reaching the server.
+	var bodyBytes []byte
+	if req.Body != nil {
+		var err error
+		bodyBytes, err = io.ReadAll(req.Body)
+		req.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("debug transport: reading request body: %w", err)
+		}
+		// Restore the body for the actual request
+		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	}
+
+	// Build a clone with its own copy of the body for dumping
 	reqCopy := req.Clone(req.Context())
 	redactHeaders(reqCopy.Header)
+	if bodyBytes != nil {
+		reqCopy.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	}
 
 	if dump, err := httputil.DumpRequestOut(reqCopy, true); err == nil {
 		fmt.Fprintf(os.Stderr, "DEBUG request uri=%s\n%s\n", req.URL, dump)
@@ -118,10 +149,17 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 
 	conf := config.New(nil, repo)
 
+	token := conf.APIToken()
+	if cfg.orgOverride != "" {
+		if t := conf.APITokenForOrg(cfg.orgOverride); t != "" {
+			token = t
+		}
+	}
+
 	// Build client options
 	clientOpts := []buildkite.ClientOpt{
 		buildkite.WithBaseURL(conf.RESTAPIEndpoint()),
-		buildkite.WithTokenAuth(conf.APIToken()),
+		buildkite.WithTokenAuth(token),
 		buildkite.WithUserAgent(userAgent),
 	}
 
@@ -140,7 +178,7 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 		return nil, fmt.Errorf("creating buildkite client: %w", err)
 	}
 
-	graphqlHTTPClient := &gqlHTTPClient{client: http.DefaultClient, token: conf.APIToken()}
+	graphqlHTTPClient := &gqlHTTPClient{client: http.DefaultClient, token: token}
 
 	return &Factory{
 		Config:        conf,
