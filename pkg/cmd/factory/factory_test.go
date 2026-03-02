@@ -78,12 +78,17 @@ func TestRedactHeadersMultipleValues(t *testing.T) {
 func TestDebugTransportPreservesRequestBody(t *testing.T) {
 	expectedBody := `{"name":"test-pipeline","cluster_id":"","repository":"git@github.com:test/repo.git"}`
 
-	// Create a test server that checks the request body
+	// Create a test server that checks the request body.
+	// Note: the handler runs in a separate goroutine, so we capture errors
+	// in a variable rather than calling t.Fatalf (which would hang the test).
 	var receivedBody string
+	var handlerErr error
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			t.Fatalf("failed to read request body: %v", err)
+			handlerErr = err
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 		receivedBody = string(body)
 		w.WriteHeader(http.StatusOK)
@@ -108,6 +113,10 @@ func TestDebugTransportPreservesRequestBody(t *testing.T) {
 		t.Fatalf("RoundTrip failed: %v", err)
 	}
 	defer resp.Body.Close()
+
+	if handlerErr != nil {
+		t.Fatalf("handler failed to read request body: %v", handlerErr)
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected status 200, got %d", resp.StatusCode)

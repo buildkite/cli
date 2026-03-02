@@ -60,8 +60,12 @@ func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// original — leading to an empty/malformed request reaching the server.
 	var bodyBytes []byte
 	if req.Body != nil {
-		bodyBytes, _ = io.ReadAll(req.Body)
+		var err error
+		bodyBytes, err = io.ReadAll(req.Body)
 		req.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("debug transport: reading request body: %w", err)
+		}
 		// Restore the body for the actual request
 		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	}
