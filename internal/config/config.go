@@ -140,6 +140,26 @@ func (conf *Config) APITokenForOrg(org string) string {
 	)
 }
 
+// HasStoredTokenForOrg reports whether a token is stored for org in keyring
+// or config files, excluding environment variable overrides.
+func (conf *Config) HasStoredTokenForOrg(org string) bool {
+	if org == "" {
+		return false
+	}
+
+	kr := keyring.New()
+	if kr.IsAvailable() {
+		if token, err := kr.Get(org); err == nil && token != "" {
+			return true
+		}
+	}
+
+	return firstNonEmpty(
+		conf.user.getToken(org),
+		conf.local.getToken(org),
+	) != ""
+}
+
 // SetTokenForOrg sets the token for the given org in the user configuration file. Tokens are not stored in the local
 // configuration file to reduce the likelihood of tokens being committed to VCS
 func (conf *Config) SetTokenForOrg(org, token string) error {
@@ -147,6 +167,23 @@ func (conf *Config) SetTokenForOrg(org, token string) error {
 		conf.user.Organizations = make(map[string]orgConfig)
 	}
 	conf.user.Organizations[org] = orgConfig{APIToken: token}
+	return conf.writeUser()
+}
+
+// EnsureOrganization records an organization in user config without requiring
+// a token value. This keeps org switching/listing functional for keychain-only
+// token storage.
+func (conf *Config) EnsureOrganization(org string) error {
+	if org == "" {
+		return nil
+	}
+	if conf.user.Organizations == nil {
+		conf.user.Organizations = make(map[string]orgConfig)
+	}
+	if _, exists := conf.user.Organizations[org]; exists {
+		return nil
+	}
+	conf.user.Organizations[org] = orgConfig{}
 	return conf.writeUser()
 }
 
