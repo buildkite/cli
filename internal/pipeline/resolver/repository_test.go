@@ -16,6 +16,7 @@ import (
 func TestResolvePipelinesFromPath(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
+	const testOrg = "testOrg"
 
 	t.Run("no pipelines found", func(t *testing.T) {
 		t.Parallel()
@@ -23,8 +24,8 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		s := mockHTTPServer(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/test.git"}]`)
 		t.Cleanup(s.Close)
 
-		f := testFactory(t, s.URL, "testOrg", testRepository())
-		pipelines, err := resolveFromRepository(ctx, f)
+		f := testFactory(t, s.URL, testOrg, testRepository())
+		pipelines, err := resolveFromRepository(ctx, f, testOrg)
 		if err != nil {
 			t.Errorf("Error: %s", err)
 		}
@@ -39,8 +40,8 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		s := mockHTTPServer(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/cli.git"}]`)
 		t.Cleanup(s.Close)
 
-		f := testFactory(t, s.URL, "testOrg", testRepository())
-		pipelines, err := resolveFromRepository(ctx, f)
+		f := testFactory(t, s.URL, testOrg, testRepository())
+		pipelines, err := resolveFromRepository(ctx, f, testOrg)
 		if err != nil {
 			t.Errorf("Error: %s", err)
 		}
@@ -55,8 +56,8 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		s := mockHTTPServer(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/cli.git"}, {"slug": "my-pipeline-2", "repository": "git@github.com:buildkite/cli.git"}]`)
 		t.Cleanup(s.Close)
 
-		f := testFactory(t, s.URL, "testOrg", testRepository())
-		pipelines, err := resolveFromRepository(ctx, f)
+		f := testFactory(t, s.URL, testOrg, testRepository())
+		pipelines, err := resolveFromRepository(ctx, f, testOrg)
 		if err != nil {
 			t.Errorf("Error: %s", err)
 		}
@@ -69,8 +70,8 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		s := mockHTTPServer(`[{"slug": "", "repository": ""}]`)
 		t.Cleanup(s.Close)
 
-		f := testFactory(t, s.URL, "testOrg", nil)
-		pipelines, err := resolveFromRepository(ctx, f)
+		f := testFactory(t, s.URL, testOrg, nil)
+		pipelines, err := resolveFromRepository(ctx, f, testOrg)
 		if pipelines != nil {
 			t.Errorf("Expected nil, got %v", pipelines)
 		}
@@ -83,8 +84,8 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		s := mockHTTPServer(`[{"slug": "", "repository": ""}]`)
 		t.Cleanup(s.Close)
 
-		f := testFactory(t, s.URL, "testOrg", testRepository())
-		pipelines, err := resolveFromRepository(ctx, f)
+		f := testFactory(t, s.URL, testOrg, testRepository())
+		pipelines, err := resolveFromRepository(ctx, f, testOrg)
 		if pipelines != nil {
 			t.Errorf("Expected nil, got %v", pipelines)
 		}

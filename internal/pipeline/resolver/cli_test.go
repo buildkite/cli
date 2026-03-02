@@ -53,6 +53,24 @@ func TestParsePipelineArg(t *testing.T) {
 		})
 	}
 
+	t.Run("pipeline slug uses configured org", func(t *testing.T) {
+		t.Parallel()
+
+		conf := config.New(afero.NewMemMapFs(), nil)
+		conf.SelectOrganization("testing", true)
+		f := resolver.ResolveFromPositionalArgument([]string{"my-pipeline"}, 0, conf)
+		pipeline, err := f(context.Background())
+		if err != nil {
+			t.Error(err)
+		}
+		if pipeline.Org != "testing" {
+			t.Errorf("expected org to be 'testing', got '%s'", pipeline.Org)
+		}
+		if pipeline.Name != "my-pipeline" {
+			t.Errorf("expected pipeline to be 'my-pipeline', got '%s'", pipeline.Name)
+		}
+	})
+
 	t.Run("Returns error if failed parsing", func(t *testing.T) {
 		t.Parallel()
 
