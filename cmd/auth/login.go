@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,6 +18,8 @@ import (
 
 type LoginCmd struct {
 	Scopes string `help:"OAuth scopes to request" default:""`
+	Org    string `help:"Organization slug (required with --token)" optional:""`
+	Token  string `help:"API token to store (non-OAuth login)" optional:""`
 }
 
 func (c *LoginCmd) Help() string {
@@ -33,15 +36,67 @@ Examples:
   # Login (select organization in browser)
   $ bk auth login
 
+  # Login non-interactively with an API token
+  $ bk auth login --org my-org --token my-token
+
   # Login with custom scopes (e.g., for cluster management)
   $ bk auth login --scopes "read_user read_organizations read_clusters write_clusters"
 `
+}
+
+// LoginWithToken stores a token for an organization.
+// Keychain is preferred. Config file is used when keychain is unavailable
+// or not writable.
+func LoginWithToken(f *factory.Factory, org, token string) error {
+	if org == "" {
+		return errors.New("--org is required when --token is provided")
+	}
+	if token == "" {
+		return errors.New("--token cannot be empty")
+	}
+
+	kr := keyring.New()
+	wroteToKeychain := false
+	if kr.IsAvailable() {
+		if err := kr.Set(org, token); err != nil {
+			fmt.Printf("Warning: could not store token in keychain: %v\n", err)
+			fmt.Println("Falling back to config file storage.")
+		} else {
+			wroteToKeychain = true
+			fmt.Println("Token stored securely in system keychain.")
+		}
+	}
+
+	if !wroteToKeychain {
+		if err := f.Config.SetTokenForOrg(org, token); err != nil {
+			return fmt.Errorf("failed to save token to config: %w", err)
+		}
+	}
+
+	if err := f.Config.SelectOrganization(org, f.GitRepository != nil); err != nil {
+		return fmt.Errorf("failed to select organization: %w", err)
+	}
+
+	return nil
 }
 
 func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
 	if err != nil {
 		return err
+	}
+
+	if c.Token != "" {
+		if err := LoginWithToken(f, c.Org, c.Token); err != nil {
+			return err
+		}
+
+		fmt.Printf("\nSuccessfully authenticated with organization %q\n", c.Org)
+		return nil
+	}
+
+	if c.Org != "" {
+		return errors.New("--org requires --token. Use `bk auth login` for OAuth or `bk auth login --org <org> --token <token>` for token login")
 	}
 
 	// Create OAuth flow
@@ -103,25 +158,8 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	org := orgs[0]
 
-	// Store token in keyring
-	kr := keyring.New()
-	if kr.IsAvailable() {
-		if err := kr.Set(org.Slug, tokenResp.AccessToken); err != nil {
-			fmt.Printf("Warning: could not store token in keychain: %v\n", err)
-			fmt.Println("Falling back to config file storage.")
-		} else {
-			fmt.Println("Token stored securely in system keychain.")
-		}
-	}
-
-	// Also store in config for fallback/compatibility
-	if err := f.Config.SetTokenForOrg(org.Slug, tokenResp.AccessToken); err != nil {
-		return fmt.Errorf("failed to save token to config: %w", err)
-	}
-
-	// Select the organization
-	if err := f.Config.SelectOrganization(org.Slug, f.GitRepository != nil); err != nil {
-		return fmt.Errorf("failed to select organization: %w", err)
+	if err := LoginWithToken(f, org.Slug, tokenResp.AccessToken); err != nil {
+		return err
 	}
 
 	fmt.Printf("\n✅ Successfully authenticated with organization %q\n", org.Slug)

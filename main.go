@@ -65,7 +65,7 @@ type (
 		versionPkg.VersionCmd `cmd:"" help:"Print the version of the CLI being used"`
 	}
 	AuthCmd struct {
-		Login  auth.LoginCmd  `cmd:"" help:"Login to Buildkite using OAuth"`
+		Login  auth.LoginCmd  `cmd:"" help:"Login to Buildkite using OAuth or an API token"`
 		Logout auth.LogoutCmd `cmd:"" help:"Logout and remove stored credentials"`
 		Status auth.StatusCmd `cmd:"" help:"Print the current user auth status"`
 	}

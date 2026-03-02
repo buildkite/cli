@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
+	bkAuth "github.com/buildkite/cli/v3/cmd/auth"
 	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -77,10 +78,7 @@ func (c *ConfigureCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 }
 
 func ConfigureWithCredentials(f *factory.Factory, org, token string) error {
-	if err := f.Config.SelectOrganization(org, f.GitRepository != nil); err != nil {
-		return err
-	}
-	return f.Config.SetTokenForOrg(org, token)
+	return bkAuth.LoginWithToken(f, org, token)
 }
 
 func ConfigureRun(f *factory.Factory, org string) error {
