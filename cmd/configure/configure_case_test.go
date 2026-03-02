@@ -60,7 +60,7 @@ func TestConfigurePreservesOrganizationCase(t *testing.T) {
 			}
 
 			// Verify the token can be retrieved using the original case
-			gotToken := conf.GetTokenForOrg(tc.orgInput)
+			gotToken := conf.APITokenForOrg(tc.orgInput)
 			if gotToken != token {
 				t.Errorf("expected token to be %q, got %q", token, gotToken)
 			}

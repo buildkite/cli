@@ -1,12 +1,18 @@
 package configure
 
 import (
+	"os"
 	"testing"
 
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/spf13/afero"
 )
+
+func TestMain(m *testing.M) {
+	_ = os.Setenv("BUILDKITE", "1")
+	os.Exit(m.Run())
+}
 
 func TestGetTokenForOrg(t *testing.T) {
 	t.Parallel()
@@ -69,7 +75,7 @@ func TestConfigureWithCredentials(t *testing.T) {
 		conf := config.New(fs, nil)
 		f := &factory.Factory{Config: conf}
 
-		org := "test-org"
+		org := "test-org-configure-with-credentials"
 		token := "bk_test_token_12345"
 
 		err := ConfigureWithCredentials(f, org, token)
@@ -81,8 +87,20 @@ func TestConfigureWithCredentials(t *testing.T) {
 			t.Errorf("expected organization to be %s, got %s", org, conf.OrganizationSlug())
 		}
 
-		if conf.GetTokenForOrg(org) != token {
-			t.Errorf("expected token to be %s, got %s", token, conf.GetTokenForOrg(org))
+		if conf.APITokenForOrg(org) != token {
+			t.Errorf("expected token to be %s, got %s", token, conf.APITokenForOrg(org))
+		}
+	})
+
+	t.Run("returns error when org is empty", func(t *testing.T) {
+		t.Parallel()
+		fs := afero.NewMemMapFs()
+		conf := config.New(fs, nil)
+		f := &factory.Factory{Config: conf}
+
+		err := ConfigureWithCredentials(f, "", "bk_test_token_12345")
+		if err == nil {
+			t.Fatalf("expected error when org is empty")
 		}
 	})
 }
@@ -96,7 +114,7 @@ func TestConfigureTokenReuse(t *testing.T) {
 		conf := config.New(fs, nil)
 		f := &factory.Factory{Config: conf}
 
-		org := "test-org"
+		org := "test-org-token-reuse"
 		existingToken := "bk_existing_token_12345"
 
 		// Pre-configure a token for the organization
@@ -119,8 +137,8 @@ func TestConfigureTokenReuse(t *testing.T) {
 			t.Errorf("expected organization to be %s, got %s", org, conf.OrganizationSlug())
 		}
 
-		if conf.GetTokenForOrg(org) != existingToken {
-			t.Errorf("expected token to be %s, got %s", existingToken, conf.GetTokenForOrg(org))
+		if conf.APITokenForOrg(org) != existingToken {
+			t.Errorf("expected token to be %s, got %s", existingToken, conf.APITokenForOrg(org))
 		}
 	})
 }

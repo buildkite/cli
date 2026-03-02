@@ -100,6 +100,42 @@ func TestConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("EnsureOrganization registers org without token", func(t *testing.T) {
+		t.Parallel()
+
+		fs := afero.NewMemMapFs()
+		conf := New(fs, nil)
+
+		if err := conf.EnsureOrganization("keychain-org"); err != nil {
+			t.Fatalf("EnsureOrganization failed: %v", err)
+		}
+
+		if !conf.HasConfiguredOrganization("keychain-org") {
+			t.Fatalf("expected keychain-org to be configured")
+		}
+
+		if token := conf.GetTokenForOrg("keychain-org"); token != "" {
+			t.Fatalf("expected empty token, got %q", token)
+		}
+
+		if err := conf.SetTokenForOrg("keychain-org", "token-123"); err != nil {
+			t.Fatalf("SetTokenForOrg failed: %v", err)
+		}
+		if err := conf.EnsureOrganization("keychain-org"); err != nil {
+			t.Fatalf("EnsureOrganization failed: %v", err)
+		}
+		if token := conf.GetTokenForOrg("keychain-org"); token != "token-123" {
+			t.Fatalf("expected token to be preserved, got %q", token)
+		}
+
+		if !conf.HasStoredTokenForOrg("keychain-org") {
+			t.Fatalf("expected HasStoredTokenForOrg to return true")
+		}
+		if conf.HasStoredTokenForOrg("missing-org") {
+			t.Fatalf("expected HasStoredTokenForOrg to return false for missing org")
+		}
+	})
+
 	t.Run("loadFileConfig returns error on invalid yaml", func(t *testing.T) {
 		fs := afero.NewMemMapFs()
 		path := filepath.Join(t.TempDir(), "bk.yaml")

@@ -65,6 +65,24 @@ func TestCmdUse(t *testing.T) {
 		}
 	})
 
+	t.Run("uses keychain-only configured org marker", func(t *testing.T) {
+		t.Parallel()
+
+		fs := afero.NewMemMapFs()
+		conf := config.New(fs, nil)
+		if err := conf.EnsureOrganization("buildkite"); err != nil {
+			t.Fatalf("EnsureOrganization failed: %v", err)
+		}
+
+		selected := "buildkite"
+		if err := useRun(&selected, conf, true, false); err != nil {
+			t.Fatalf("expected no error: %v", err)
+		}
+		if conf.OrganizationSlug() != "buildkite" {
+			t.Errorf("expected selected org to be buildkite, got %s", conf.OrganizationSlug())
+		}
+	})
+
 	t.Run("errors if missing org", func(t *testing.T) {
 		t.Parallel()
 		selected := "testing"
