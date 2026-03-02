@@ -64,6 +64,10 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
+	if c.Pipeline != "" && c.PipelineFlag != "" && c.Pipeline != c.PipelineFlag {
+		return fmt.Errorf("pipeline provided as both positional argument (%q) and --pipeline flag (%q); use only one", c.Pipeline, c.PipelineFlag)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
