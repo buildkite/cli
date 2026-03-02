@@ -10,6 +10,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
+	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/internal/graphql"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -20,12 +21,20 @@ import (
 
 type CreateCmd struct {
 	Name          string `arg:"" help:"Name of the pipeline" required:""`
+	Org           string `help:"Organization slug." name:"org"`
 	Description   string `help:"Description of the pipeline" short:"d"`
 	Repository    string `help:"Repository URL" short:"r"`
 	ClusterID     string `help:"Cluster name or ID to assign the pipeline to" short:"c"`
 	CreateWebhook bool   `help:"Create an SCM webhook for the pipeline (GitHub and GitHub Enterprise only)" short:"W"`
 	DryRun        bool   `help:"Simulate pipeline creation without actually creating it"`
 	output.OutputFlags
+}
+
+func (c *CreateCmd) orgSlug(conf *config.Config) string {
+	if c.Org != "" {
+		return c.Org
+	}
+	return conf.OrganizationSlug()
 }
 
 func (c *CreateCmd) Help() string {
@@ -59,7 +68,7 @@ Examples:
 }
 
 func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
+	f, err := factory.New(factory.WithDebug(globals.EnableDebug()), factory.WithOrgOverride(c.Org))
 	if err != nil {
 		return err
 	}
@@ -68,7 +77,7 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
 
-	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
+	if err := validation.ValidateConfigurationForOrg(f.Config, kongCtx.Command(), c.Org); err != nil {
 		return err
 	}
 
@@ -124,7 +133,7 @@ func (c *CreateCmd) runPipelineCreate(kongCtx *kong.Context, f *factory.Factory)
 
 func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) (*buildkite.Pipeline, error) {
 	// Resolve cluster name to ID if provided
-	clusterID, err := resolveClusterID(ctx, f, c.ClusterID)
+	clusterID, err := resolveClusterID(ctx, f, c.orgSlug(f.Config), c.ClusterID)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +152,7 @@ func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) (*bu
 			Configuration: "steps:\n  - label: \":pipeline:\"\n    command: buildkite-agent pipeline upload",
 		}
 
-		pipeline, resp, err = f.RestAPIClient.Pipelines.Create(ctx, f.Config.OrganizationSlug(), createPipeline)
+		pipeline, resp, err = f.RestAPIClient.Pipelines.Create(ctx, c.orgSlug(f.Config), createPipeline)
 	})
 
 	if spinErr != nil {
@@ -171,7 +180,7 @@ func (c *CreateCmd) findPipelineByName(ctx context.Context, f *factory.Factory) 
 		},
 	}
 
-	pipelines, _, err := f.RestAPIClient.Pipelines.List(ctx, f.Config.OrganizationSlug(), &opts)
+	pipelines, _, err := f.RestAPIClient.Pipelines.List(ctx, c.orgSlug(f.Config), &opts)
 	if err != nil {
 		return nil
 	}
@@ -238,12 +247,12 @@ func initialisePipelineDryRun() PipelineDryRun {
 func (c *CreateCmd) createPipelineDryRun(ctx context.Context, f *factory.Factory) (*PipelineDryRun, error) {
 	pipelineSlug := generateSlug(c.Name)
 
-	pipelineSlug, err := getAvailablePipelineSlug(ctx, f, pipelineSlug, c.Name)
+	pipelineSlug, err := getAvailablePipelineSlug(ctx, f, c.orgSlug(f.Config), pipelineSlug, c.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	orgSlug := f.Config.OrganizationSlug()
+	orgSlug := c.orgSlug(f.Config)
 	pipeline := initialisePipelineDryRun()
 
 	pipeline.ID = "00000000-0000-0000-0000-000000000000"
@@ -322,8 +331,8 @@ func extractRepoPath(repoURL string) string {
 	return repoURL
 }
 
-func getAvailablePipelineSlug(ctx context.Context, f *factory.Factory, pipelineSlug, pipelineName string) (string, error) {
-	pipeline, resp, err := f.RestAPIClient.Pipelines.Get(ctx, f.Config.OrganizationSlug(), pipelineSlug)
+func getAvailablePipelineSlug(ctx context.Context, f *factory.Factory, org, pipelineSlug, pipelineName string) (string, error) {
+	pipeline, resp, err := f.RestAPIClient.Pipelines.Get(ctx, org, pipelineSlug)
 	if err != nil {
 		if resp != nil && resp.StatusCode == 404 {
 			return pipelineSlug, nil
@@ -338,7 +347,7 @@ func getAvailablePipelineSlug(ctx context.Context, f *factory.Factory, pipelineS
 	counter := 1
 	for {
 		newSlug := fmt.Sprintf("%s-%d", pipelineSlug, counter)
-		pipeline, resp, err := f.RestAPIClient.Pipelines.Get(ctx, f.Config.OrganizationSlug(), newSlug)
+		pipeline, resp, err := f.RestAPIClient.Pipelines.Get(ctx, org, newSlug)
 		if err != nil {
 			if resp != nil && resp.StatusCode == 404 {
 				return newSlug, nil
@@ -364,7 +373,7 @@ func getClusterUrl(orgSlug, clusterID string) string {
 	return fmt.Sprintf("https://api.buildkite.com/v2/organizations/%s/clusters/%s", orgSlug, clusterID)
 }
 
-func getClusters(ctx context.Context, f *factory.Factory) (map[string]string, error) {
+func getClusters(ctx context.Context, f *factory.Factory, org string) (map[string]string, error) {
 	clusterMap := make(map[string]string)
 	page := 1
 	per_page := 30
@@ -376,7 +385,7 @@ func getClusters(ctx context.Context, f *factory.Factory) (map[string]string, er
 				PerPage: per_page,
 			},
 		}
-		clusters, resp, err := f.RestAPIClient.Clusters.List(ctx, f.Config.OrganizationSlug(), &opts)
+		clusters, resp, err := f.RestAPIClient.Clusters.List(ctx, org, &opts)
 		if err != nil {
 			return map[string]string{}, err
 		}
@@ -398,8 +407,8 @@ func getClusters(ctx context.Context, f *factory.Factory) (map[string]string, er
 	return clusterMap, nil
 }
 
-func listClusterNames(ctx context.Context, f *factory.Factory) ([]string, error) {
-	clusterMap, err := getClusters(ctx, f)
+func listClusterNames(ctx context.Context, f *factory.Factory, org string) ([]string, error) {
+	clusterMap, err := getClusters(ctx, f, org)
 	if err != nil {
 		return nil, err
 	}
@@ -413,13 +422,13 @@ func listClusterNames(ctx context.Context, f *factory.Factory) ([]string, error)
 	return clusterNames, nil
 }
 
-func resolveClusterID(ctx context.Context, f *factory.Factory, clusterNameOrID string) (string, error) {
+func resolveClusterID(ctx context.Context, f *factory.Factory, org, clusterNameOrID string) (string, error) {
 	if clusterNameOrID == "" {
 		return "", nil
 	}
 
 	// First, try to get clusters map
-	clusterMap, err := getClusters(ctx, f)
+	clusterMap, err := getClusters(ctx, f, org)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch clusters: %w", err)
 	}
@@ -437,7 +446,7 @@ func resolveClusterID(ctx context.Context, f *factory.Factory, clusterNameOrID s
 	}
 
 	// Not found - provide helpful error with available clusters
-	clusterNames, _ := listClusterNames(ctx, f)
+	clusterNames, _ := listClusterNames(ctx, f, org)
 	if len(clusterNames) > 0 {
 		return "", fmt.Errorf("cluster '%s' not found. Available clusters: %s", clusterNameOrID, strings.Join(clusterNames, ", "))
 	}
