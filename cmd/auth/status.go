@@ -58,7 +58,7 @@ func (c *StatusCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	if validationErr := validation.ValidateConfiguration(f.Config, kongCtx.Command()); validationErr != nil {
-		return err
+		return validationErr
 	}
 
 	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
