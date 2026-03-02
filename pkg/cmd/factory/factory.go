@@ -1,7 +1,9 @@
 package factory
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"os"
@@ -62,9 +64,28 @@ type debugTransport struct {
 var sensitiveHeaders = []string{"Authorization"}
 
 func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Clone the request to avoid modifying the original headers
+	// Save and restore the request body so that dumping it does not consume
+	// the body before the real transport sends it. req.Clone() shares the
+	// underlying Body reader, so DumpRequestOut on a clone drains the
+	// original — leading to an empty/malformed request reaching the server.
+	var bodyBytes []byte
+	if req.Body != nil {
+		var err error
+		bodyBytes, err = io.ReadAll(req.Body)
+		req.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("debug transport: reading request body: %w", err)
+		}
+		// Restore the body for the actual request
+		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	}
+
+	// Build a clone with its own copy of the body for dumping
 	reqCopy := req.Clone(req.Context())
 	redactHeaders(reqCopy.Header)
+	if bodyBytes != nil {
+		reqCopy.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	}
 
 	if dump, err := httputil.DumpRequestOut(reqCopy, true); err == nil {
 		fmt.Fprintf(os.Stderr, "DEBUG request uri=%s\n%s\n", req.URL, dump)
