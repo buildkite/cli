@@ -19,7 +19,7 @@ import (
 
 type CopyCmd struct {
 	Pipeline string `arg:"" help:"Source pipeline to copy (slug or org/slug). Uses current pipeline if not specified." optional:""`
-	Org      string `help:"Organization slug." name:"org"`
+	Org      string `help:"Organization slug" name:"org"`
 	Target   string `help:"Name for the new pipeline, or org/name to copy to a different organization" short:"t"`
 	Cluster  string `help:"Cluster name or ID for the new pipeline (required for cross-org copies if target org uses clusters)" short:"c"`
 	DryRun   bool   `help:"Show what would be copied without creating the pipeline"`
