@@ -57,7 +57,7 @@ type CLI struct {
 	Use          use.UseCmd         `cmd:"" help:"Select an organization"`
 	User         UserCmd            `cmd:"" help:"Invite users to the organization"`
 	Version      VersionCmd         `cmd:"" help:"Print the version of the CLI being used"`
-	Whoami       whoami.WhoAmICmd   `cmd:"" help:"Print the current user and organization"`
+	Whoami       whoami.WhoAmICmd   `cmd:"" help:"Print the current user and organization" hidden:""`
 }
 
 type (
@@ -67,6 +67,7 @@ type (
 	AuthCmd struct {
 		Login  auth.LoginCmd  `cmd:"" help:"Login to Buildkite using OAuth"`
 		Logout auth.LogoutCmd `cmd:"" help:"Logout and remove stored credentials"`
+		Status auth.StatusCmd `cmd:"" help:"Print the current user auth status"`
 	}
 	AgentCmd struct {
 		Pause  agent.PauseCmd  `cmd:"" help:"Pause a Buildkite agent."`
