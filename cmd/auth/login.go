@@ -73,6 +73,10 @@ func LoginWithToken(f *factory.Factory, org, token string) error {
 		}
 	}
 
+	if err := f.Config.EnsureOrganization(org); err != nil {
+		return fmt.Errorf("failed to register organization in config: %w", err)
+	}
+
 	if err := f.Config.SelectOrganization(org, f.GitRepository != nil); err != nil {
 		return fmt.Errorf("failed to select organization: %w", err)
 	}
