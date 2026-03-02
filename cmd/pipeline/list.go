@@ -21,6 +21,7 @@ const (
 )
 
 type ListCmd struct {
+	Org        string `help:"Organization slug." name:"org"`
 	Name       string `help:"Filter pipelines by name (supports partial matches, case insensitive)" short:"n"`
 	Repository string `help:"Filter pipelines by repository URL (supports partial matches, case insensitive)" short:"r"`
 	Limit      int    `help:"Maximum number of pipelines to return (max: 3000)" short:"l" default:"100"`
@@ -55,7 +56,7 @@ Examples:
 }
 
 func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
+	f, err := factory.New(factory.WithDebug(globals.EnableDebug()), factory.WithOrgOverride(c.Org))
 	if err != nil {
 		return err
 	}
@@ -65,7 +66,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.Quiet = globals.IsQuiet()
 	f.NoPager = f.NoPager || globals.DisablePager()
 
-	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
+	if err := validation.ValidateConfigurationForOrg(f.Config, kongCtx.Command(), c.Org); err != nil {
 		return err
 	}
 
@@ -78,7 +79,10 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 }
 
 func (c *ListCmd) runPipelineList(ctx context.Context, f *factory.Factory) error {
-	org := f.Config.OrganizationSlug()
+	org := c.Org
+	if org == "" {
+		org = f.Config.OrganizationSlug()
+	}
 	if org == "" {
 		return fmt.Errorf("no organization configured. Use 'bk configure' to set up your organization")
 	}

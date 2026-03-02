@@ -16,11 +16,21 @@ import (
 // It queries the API for all pipelines in the organization that match the repository's URL.
 // It delegates picking one from the list of matches to the `picker`.
 func ResolveFromRepository(f *factory.Factory, picker PipelinePicker) PipelineResolverFn {
+	return resolveFromRepositoryWithOrg(f, picker, f.Config.OrganizationSlug())
+}
+
+// ResolveFromRepositoryInOrg finds pipelines in a specific organization based
+// on the current repository.
+func ResolveFromRepositoryInOrg(f *factory.Factory, picker PipelinePicker, org string) PipelineResolverFn {
+	return resolveFromRepositoryWithOrg(f, picker, org)
+}
+
+func resolveFromRepositoryWithOrg(f *factory.Factory, picker PipelinePicker, org string) PipelineResolverFn {
 	return func(ctx context.Context) (*pipeline.Pipeline, error) {
 		var err error
 		var pipelines []pipeline.Pipeline
 		spinErr := bkIO.SpinWhile(f, "Resolving pipeline", func() {
-			pipelines, err = resolveFromRepository(ctx, f)
+			pipelines, err = resolveFromRepository(ctx, f, org)
 		})
 		if spinErr != nil {
 			return nil, spinErr
@@ -40,12 +50,12 @@ func ResolveFromRepository(f *factory.Factory, picker PipelinePicker) PipelineRe
 	}
 }
 
-func resolveFromRepository(ctx context.Context, f *factory.Factory) ([]pipeline.Pipeline, error) {
+func resolveFromRepository(ctx context.Context, f *factory.Factory, org string) ([]pipeline.Pipeline, error) {
 	repos, err := getRepoURLs(f.GitRepository)
 	if err != nil {
 		return nil, err
 	}
-	return filterPipelines(ctx, repos, f.Config.OrganizationSlug(), f.RestAPIClient)
+	return filterPipelines(ctx, repos, org, f.RestAPIClient)
 }
 
 func filterPipelines(ctx context.Context, repoURLs []string, org string, client *buildkite.Client) ([]pipeline.Pipeline, error) {
