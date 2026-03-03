@@ -43,7 +43,7 @@ type CLI struct {
 	Agent        AgentCmd           `cmd:"" help:"Manage agents"`
 	Api          ApiCmd             `cmd:"" help:"Interact with the Buildkite API"`
 	Artifacts    ArtifactsCmd       `cmd:"" help:"Manage pipeline build artifacts"`
-	Auth         AuthCmd            `cmd:"" help:"Authenticate with Buildkite" hidden:""`
+	Auth         AuthCmd            `cmd:"" help:"Authenticate with Buildkite"`
 	Build        BuildCmd           `cmd:"" help:"Manage pipeline builds"`
 	Cluster      ClusterCmd         `cmd:"" help:"Manage organization clusters"`
 	Secret       SecretCmd          `cmd:"" help:"Manage cluster secrets"`
@@ -54,7 +54,7 @@ type CLI struct {
 	Organization OrganizationCmd    `cmd:"" help:"Manage organizations" aliases:"org"`
 	Pipeline     PipelineCmd        `cmd:"" help:"Manage pipelines"`
 	Package      PackageCmd         `cmd:"" help:"Manage packages"`
-	Use          use.UseCmd         `cmd:"" help:"Select an organization"`
+	Use          use.UseCmd         `cmd:"" help:"Select an organization" hidden:""`
 	User         UserCmd            `cmd:"" help:"Invite users to the organization"`
 	Version      VersionCmd         `cmd:"" help:"Print the version of the CLI being used"`
 	Whoami       whoami.WhoAmICmd   `cmd:"" help:"Print the current user and organization" hidden:""`
@@ -68,6 +68,7 @@ type (
 		Login  auth.LoginCmd  `cmd:"" help:"Login to Buildkite using OAuth or an API token"`
 		Logout auth.LogoutCmd `cmd:"" help:"Logout and remove stored credentials"`
 		Status auth.StatusCmd `cmd:"" help:"Print the current user auth status"`
+		Switch auth.SwitchCmd `cmd:"" help:"Switch to a different organization" aliases:"use"`
 	}
 	AgentCmd struct {
 		Pause  agent.PauseCmd  `cmd:"" help:"Pause a Buildkite agent."`
