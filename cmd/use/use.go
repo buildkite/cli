@@ -67,6 +67,16 @@ func useRun(org *string, conf *config.Config, inGitRepo bool, noInput bool) erro
 		return conf.SelectOrganization(selected, inGitRepo)
 	}
 
+	// If token exists in keychain or config but org marker is missing (selected_org in .bk.yaml), register it
+	// so org switching/listing works going forward.
+	if conf.HasStoredTokenForOrg(selected) {
+		if err := conf.EnsureOrganization(selected); err != nil {
+			return fmt.Errorf("failed to register configuration for `%s`: %w", selected, err)
+		}
+		fmt.Printf("Using configuration for `%s`\n", selected)
+		return conf.SelectOrganization(selected, inGitRepo)
+	}
+
 	// if the selected org doesnt exist, recommend configuring it and error out
 	return fmt.Errorf("no configuration found for `%s`. run `bk configure` to add it", selected)
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
+	bkAuth "github.com/buildkite/cli/v3/cmd/auth"
 	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -63,8 +64,12 @@ func (c *ConfigureCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	}
 
 	if kongCtx.Command() == "configure default" {
-		if !c.Force && f.Config.APIToken() != "" {
-			return errors.New("API token already configured. You must use --force")
+		targetOrg := c.Org
+		if targetOrg == "" {
+			targetOrg = f.Config.OrganizationSlug()
+		}
+		if !c.Force && targetOrg != "" && f.Config.APITokenForOrg(targetOrg) != "" {
+			return fmt.Errorf("API token already configured for organization %q. Use --force to overwrite", targetOrg)
 		}
 	}
 
@@ -77,10 +82,7 @@ func (c *ConfigureCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 }
 
 func ConfigureWithCredentials(f *factory.Factory, org, token string) error {
-	if err := f.Config.SelectOrganization(org, f.GitRepository != nil); err != nil {
-		return err
-	}
-	return f.Config.SetTokenForOrg(org, token)
+	return bkAuth.LoginWithToken(f, org, token)
 }
 
 func ConfigureRun(f *factory.Factory, org string) error {
@@ -95,7 +97,8 @@ func ConfigureRun(f *factory.Factory, org string) error {
 		}
 		org = inputOrg
 	}
-	// Check if token already exists for this organization
+	// Check if token already exists for this organization.
+	// Use resolved token lookup so keychain-backed entries are detected.
 	existingToken := getTokenForOrg(f, org)
 	if existingToken != "" {
 		fmt.Printf("Using existing API token for organization: %s\n", org)
@@ -115,9 +118,9 @@ func ConfigureRun(f *factory.Factory, org string) error {
 	return ConfigureWithCredentials(f, org, token)
 }
 
-// getTokenForOrg retrieves the token for a specific organization from the user config
+// getTokenForOrg retrieves the resolved token for a specific organization.
 func getTokenForOrg(f *factory.Factory, org string) string {
-	return f.Config.GetTokenForOrg(org)
+	return f.Config.APITokenForOrg(org)
 }
 
 // promptForInput handles terminal input with optional password masking
