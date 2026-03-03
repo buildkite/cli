@@ -39,7 +39,7 @@ type ListCmd struct {
 	MetaData map[string]string `help:"Filter by build meta-data (key=value format, can be specified multiple times)"`
 	Limit    int               `help:"Maximum number of builds to return" default:"50"`
 	NoLimit  bool              `help:"Fetch all builds (overrides --limit)"`
-	Output   string            `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
+	output.OutputFlags
 }
 
 func (c *ListCmd) Help() string {
@@ -171,8 +171,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	if len(builds) == 0 {
-		fmt.Println("No builds found matching the specified criteria.")
-		return nil
+		return output.Write(os.Stdout, []buildkite.Build{}, format)
 	}
 
 	return displayBuilds(builds, format, os.Stdout)

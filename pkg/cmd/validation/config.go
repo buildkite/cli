@@ -2,6 +2,7 @@ package validation
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/buildkite/cli/v3/internal/config"
@@ -15,8 +16,27 @@ var CommandsNotRequiringToken = []string{
 
 // ValidateConfiguration checks that the configuration is valid to execute the command (Kong version)
 func ValidateConfiguration(conf *config.Config, commandPath string) error {
-	missingToken := conf.APIToken() == ""
-	missingOrg := conf.OrganizationSlug() == ""
+	return validateConfiguration(conf, commandPath, "")
+}
+
+// ValidateConfigurationForOrg checks configuration for a specific organization
+// context when a command supports --org.
+func ValidateConfigurationForOrg(conf *config.Config, commandPath, org string) error {
+	return validateConfiguration(conf, commandPath, org)
+}
+
+func validateConfiguration(conf *config.Config, commandPath, orgOverride string) error {
+	org := conf.OrganizationSlug()
+	token := conf.APIToken()
+	if orgOverride != "" {
+		org = orgOverride
+		if t := conf.APITokenForOrg(org); t != "" {
+			token = t
+		}
+	}
+
+	missingToken := token == ""
+	missingOrg := org == ""
 
 	// Skip token check for all configure commands
 	if strings.HasPrefix(commandPath, "configure") {
@@ -33,11 +53,13 @@ func ValidateConfiguration(conf *config.Config, commandPath string) error {
 
 	switch {
 	case missingToken && missingOrg:
-		return errors.New("you must set a valid API token and organization slug. Run `bk configure` or `bk use`, or set the environment variables `BUILDKITE_API_TOKEN` and `BUILDKITE_ORGANIZATION_SLUG`")
+		return errors.New("you are not authenticated. Run bk auth login to authenticate, or run bk use to select a configured organization")
 	case missingToken:
-		return errors.New("you must set a valid API token. Run `bk configure`, or set the environment variable `BUILDKITE_API_TOKEN`")
+		return errors.New("you are not authenticated. Run bk auth login to authenticate")
+	// an organization may not be present if the user is only viewing public resources
 	case missingOrg:
-		return errors.New("you must set a valid organization slug. Run `bk use`, or set the environment variable `BUILDKITE_ORGANIZATION_SLUG`")
+		fmt.Println("Warning: no organization set, only public pipelines will be visible. Run bk auth login, or bk use, to set an organization")
+		return nil
 	}
 
 	return nil

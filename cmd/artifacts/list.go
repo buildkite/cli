@@ -23,7 +23,7 @@ type ListCmd struct {
 	BuildNumber string `arg:"" optional:"" help:"Build number to list artifacts for"`
 	Pipeline    string `help:"The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}. If omitted, it will be resolved using the current directory." short:"p"`
 	Job         string `help:"List artifacts for a specific job on the given build." short:"j"`
-	Output      string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
+	output.OutputFlags
 }
 
 func (c *ListCmd) Help() string {

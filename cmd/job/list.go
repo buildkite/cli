@@ -37,7 +37,7 @@ type ListCmd struct {
 	OrderBy  string   `help:"Order results by field (start_time, duration)" name:"order-by"`
 	Limit    int      `help:"Maximum number of jobs to return" default:"100"`
 	NoLimit  bool     `help:"Fetch all jobs (overrides --limit)" name:"no-limit"`
-	Output   string   `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
+	output.OutputFlags
 }
 
 func (c *ListCmd) Help() string {
@@ -173,6 +173,9 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	if len(jobs) == 0 {
+		if format != output.FormatText {
+			return output.Write(os.Stdout, []buildkite.Job{}, format)
+		}
 		fmt.Println("No jobs found matching the specified criteria.")
 		return nil
 	}

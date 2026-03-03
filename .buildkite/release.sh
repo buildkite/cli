@@ -1,4 +1,4 @@
-#!/bin/env bash
+#!/usr/bin/env bash
 
 #
 # This script is used to build a release of the CLI and publish it to multiple registries on Buildkite

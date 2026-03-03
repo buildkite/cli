@@ -22,7 +22,7 @@ type CreateCmd struct {
 	Value       string `help:"The secret value. If not provided, you will be prompted to enter it." optional:""`
 	Description string `help:"A description of the secret" optional:""`
 	Policy      string `help:"The access policy for the secret (YAML format)" optional:""`
-	Output      string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
+	output.OutputFlags
 }
 
 func (c *CreateCmd) Help() string {

@@ -1,4 +1,5 @@
-package whoami
+// Package auth handles commands related to authentication via the CLI
+package auth
 
 import (
 	"context"
@@ -16,12 +17,12 @@ import (
 	"github.com/buildkite/go-buildkite/v4"
 )
 
-type WhoAmIOutput struct {
+type StatusOutput struct {
 	OrganizationSlug string                `json:"organization_slug"`
 	Token            buildkite.AccessToken `json:"token"`
 }
 
-func (w WhoAmIOutput) TextOutput() string {
+func (w StatusOutput) TextOutput() string {
 	b := strings.Builder{}
 
 	b.WriteString(fmt.Sprintf("Current organization: %s\n", w.OrganizationSlug))
@@ -36,31 +37,28 @@ func (w WhoAmIOutput) TextOutput() string {
 	return b.String()
 }
 
-type WhoAmICmd struct {
+type StatusCmd struct {
 	output.OutputFlags
 }
 
-func (c *WhoAmICmd) Help() string {
+func (c *StatusCmd) Help() string {
 	return `
 It returns information on the current session.
 
 Examples:
 	# List the current token session
-	$ bk whoami
-
-	# List the current token session in JSON format
-	$ bk whoami -o json
+	$ bk auth status
 `
 }
 
-func (c *WhoAmICmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+func (c *StatusCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
 	if err != nil {
 		return err
 	}
 
-	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
-		return err
+	if validationErr := validation.ValidateConfiguration(f.Config, kongCtx.Command()); validationErr != nil {
+		return validationErr
 	}
 
 	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
@@ -79,7 +77,7 @@ func (c *WhoAmICmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return fmt.Errorf("failed to get access token: %w", err)
 	}
 
-	w := WhoAmIOutput{
+	w := StatusOutput{
 		OrganizationSlug: orgSlug,
 		Token:            token,
 	}

@@ -1,11 +1,40 @@
 package job
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
+
+func TestDisplayJobs_EmptyJSON(t *testing.T) {
+	var buf bytes.Buffer
+	err := displayJobs([]buildkite.Job{}, output.FormatJSON, &buf)
+	if err != nil {
+		t.Fatalf("displayJobs failed: %v", err)
+	}
+
+	got := strings.TrimSpace(buf.String())
+	if got != "[]" {
+		t.Errorf("Expected empty JSON array '[]', got %q", got)
+	}
+}
+
+func TestDisplayJobs_EmptyYAML(t *testing.T) {
+	var buf bytes.Buffer
+	err := displayJobs([]buildkite.Job{}, output.FormatYAML, &buf)
+	if err != nil {
+		t.Fatalf("displayJobs failed: %v", err)
+	}
+
+	got := strings.TrimSpace(buf.String())
+	if got != "[]" {
+		t.Errorf("Expected empty YAML array '[]', got %q", got)
+	}
+}
 
 func TestFilterJobs(t *testing.T) {
 	now := time.Now()

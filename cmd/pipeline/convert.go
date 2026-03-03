@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -63,8 +64,9 @@ Supported vendors:
 
 The command will automatically detect the vendor based on the file path and name if not specified.
 
-By default, the converted pipeline is saved to .buildkite/pipeline.<vendor>.yml.
-Use the --output flag to specify a custom output path.
+When using --file, the converted pipeline is saved to .buildkite/pipeline.<vendor>.yml by default.
+When reading from stdin, output goes to stdout by default.
+Use the --output flag to specify a custom output path in either case.
 
 Note: This command does not require an API token since it uses a public conversion API.
 
@@ -77,6 +79,10 @@ Examples:
 
   # Save output to a file
   $ bk pipeline convert -F .github/workflows/ci.yml -o .buildkite/pipeline.yml
+
+  # Read from stdin
+  $ cat .github/workflows/ci.yml | bk pipeline convert --vendor github
+  $ bk pipeline convert --vendor github < .github/workflows/ci.yml
 `
 }
 
@@ -90,9 +96,25 @@ func (c *ConvertCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
 
-	content, err := os.ReadFile(c.File)
-	if err != nil {
-		return fmt.Errorf("error reading file: %w", err)
+	fromStdin := c.File == ""
+
+	var content []byte
+	if fromStdin {
+		if !bkIO.HasDataAvailable(os.Stdin) {
+			return errors.New("no input: provide a file with --file or pipe content via stdin")
+		}
+		if c.Vendor == "" {
+			return errors.New("--vendor is required when reading from stdin")
+		}
+		content, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			return fmt.Errorf("error reading stdin: %w", err)
+		}
+	} else {
+		content, err = os.ReadFile(c.File)
+		if err != nil {
+			return fmt.Errorf("error reading file: %w", err)
+		}
 	}
 
 	if c.Vendor == "" {
@@ -106,6 +128,10 @@ func (c *ConvertCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	supportedVendors := []string{"github", "bitbucket", "circleci", "jenkins", "gitlab", "harness", "bitrise"}
 	if !slices.Contains(supportedVendors, c.Vendor) {
 		return fmt.Errorf("unsupported vendor: %s (supported: %s)", c.Vendor, strings.Join(supportedVendors, ", "))
+	}
+
+	if c.Timeout < 1 {
+		return errors.New("a timeout cannot be less than 1 second")
 	}
 
 	req := conversionRequest{
@@ -123,11 +149,15 @@ func (c *ConvertCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	fmt.Println("Job submitted. Processing with AI (this may take several minutes)...")
 
 	var result *statusResponse
+	var pollErr error
 	err = bkIO.SpinWhile(f, "Processing conversion...", func() {
-		result, err = pollJobStatus(jobResp.JobID, c.Timeout)
+		result, pollErr = pollJobStatus(jobResp.JobID, c.Timeout)
 	})
 	if err != nil {
 		return fmt.Errorf("error polling job status: %w", err)
+	}
+	if pollErr != nil {
+		return fmt.Errorf("error polling job status: %w", pollErr)
 	}
 
 	if result.Status == "failed" {
@@ -140,6 +170,8 @@ func (c *ConvertCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		}
 		fmt.Printf("\n✅ conversion completed successfully!\n")
 		fmt.Printf("Output saved to: %s\n", c.Output)
+	} else if fromStdin {
+		fmt.Print(result.Result)
 	} else {
 		buildkiteDir := ".buildkite"
 		if err := os.MkdirAll(buildkiteDir, 0o755); err != nil {

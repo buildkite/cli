@@ -1,10 +1,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/buildkite/cli/v3/cmd/agent"
 	"github.com/buildkite/cli/v3/cmd/api"
 	"github.com/buildkite/cli/v3/cmd/artifacts"
@@ -21,7 +24,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/secret"
 	"github.com/buildkite/cli/v3/cmd/use"
 	"github.com/buildkite/cli/v3/cmd/user"
-	"github.com/buildkite/cli/v3/cmd/version"
+	versionPkg "github.com/buildkite/cli/v3/cmd/version"
 	"github.com/buildkite/cli/v3/cmd/whoami"
 	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/internal/config"
@@ -32,13 +35,11 @@ import (
 // Kong CLI structure, with base commands defined as additional commands are defined in their respective files
 type CLI struct {
 	// Global flags
-	Yes     bool `help:"Skip all confirmation prompts" short:"y"`
-	NoInput bool `help:"Disable all interactive prompts" name:"no-input"`
-	Quiet   bool `help:"Suppress progress output" short:"q"`
-	NoPager bool `help:"Disable pager for text output" name:"no-pager"`
-	Debug   bool `help:"Enable debug output for REST API calls"`
-	// Verbose bool `help:"Enable verbose error output" short:"V"` // TODO: Implement this, atm this is just a skeleton flag
-
+	Yes          bool               `help:"Skip all confirmation prompts" short:"y"`
+	NoInput      bool               `help:"Disable all interactive prompts" name:"no-input"`
+	Quiet        bool               `help:"Suppress progress output" short:"q"`
+	NoPager      bool               `help:"Disable pager for text output" name:"no-pager"`
+	Debug        bool               `help:"Enable debug output for REST API calls"`
 	Agent        AgentCmd           `cmd:"" help:"Manage agents"`
 	Api          ApiCmd             `cmd:"" help:"Interact with the Buildkite API"`
 	Artifacts    ArtifactsCmd       `cmd:"" help:"Manage pipeline build artifacts"`
@@ -56,16 +57,17 @@ type CLI struct {
 	Use          use.UseCmd         `cmd:"" help:"Select an organization"`
 	User         UserCmd            `cmd:"" help:"Invite users to the organization"`
 	Version      VersionCmd         `cmd:"" help:"Print the version of the CLI being used"`
-	Whoami       whoami.WhoAmICmd   `cmd:"" help:"Print the current user and organization"`
+	Whoami       whoami.WhoAmICmd   `cmd:"" help:"Print the current user and organization" hidden:""`
 }
 
 type (
 	VersionCmd struct {
-		version.VersionCmd `cmd:"" help:"Print the version of the CLI being used"`
+		versionPkg.VersionCmd `cmd:"" help:"Print the version of the CLI being used"`
 	}
 	AuthCmd struct {
 		Login  auth.LoginCmd  `cmd:"" help:"Login to Buildkite using OAuth"`
 		Logout auth.LogoutCmd `cmd:"" help:"Logout and remove stored credentials"`
+		Status auth.StatusCmd `cmd:"" help:"Print the current user auth status"`
 	}
 	AgentCmd struct {
 		Pause  agent.PauseCmd  `cmd:"" help:"Pause a Buildkite agent."`
@@ -140,7 +142,6 @@ func newKongParser(cli *CLI) (*kong.Kong, error) {
 		cli,
 		kong.Name("bk"),
 		kong.Description("Work with Buildkite from the command line."),
-		kong.UsageOnError(),
 		kong.Vars{
 			// Empty default allows commands to fall back to config value
 			"output_default_format": "",
@@ -166,6 +167,12 @@ func run() int {
 		return 0
 	}
 
+	// Handle --version and -V flags at the top level
+	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-V") {
+		fmt.Print(versionPkg.Format(versionPkg.Version))
+		return 0
+	}
+
 	cliInstance := &CLI{}
 
 	conf := config.New(nil, nil)
@@ -182,6 +189,13 @@ func run() int {
 	ctx, err := parser.Parse(os.Args[1:])
 	if err != nil {
 		tracker.TrackCommand("unknown command", os.Args[1:], nil)
+
+		var parseErr *kong.ParseError
+		if errors.As(err, &parseErr) && !strings.Contains(err.Error(), "did you mean") {
+			_ = parseErr.Context.PrintUsage(false)
+			fmt.Fprintln(os.Stderr)
+		}
+
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
 	}

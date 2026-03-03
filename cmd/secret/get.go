@@ -21,7 +21,7 @@ import (
 type GetCmd struct {
 	ClusterID string `help:"The ID of the cluster" required:"" name:"cluster-id"`
 	SecretID  string `help:"The UUID of the secret to view" required:"" name:"secret-id"`
-	Output    string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
+	output.OutputFlags
 }
 
 func (c *GetCmd) Help() string {

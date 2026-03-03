@@ -35,15 +35,6 @@ func TestValidateConfiguration_MissingValues(t *testing.T) {
 		}
 	})
 
-	t.Run("missing org", func(t *testing.T) {
-		t.Setenv("BUILDKITE_API_TOKEN", "token")
-		t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
-		conf := newTestConfig(t)
-		if err := ValidateConfiguration(conf, "pipeline view"); err == nil {
-			t.Fatalf("expected error when org is missing")
-		}
-	})
-
 	t.Run("missing token", func(t *testing.T) {
 		t.Setenv("BUILDKITE_API_TOKEN", "")
 		t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "org")

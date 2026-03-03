@@ -3,24 +3,29 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
-	"github.com/buildkite/cli/v3/internal/graphql"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
-	view "github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
+	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/pkg/browser"
 )
 
 type ViewCmd struct {
-	Pipeline string `arg:"" help:"The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." optional:""`
-	Web      bool   `help:"Open the pipeline in a web browser." short:"w"`
-	Output   string `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
+	// Pipeline is the positional arg; PipelineFlag (--pipeline/-p) takes priority when both are provided.
+	Pipeline     string `arg:"" help:"The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." optional:""`
+	PipelineFlag string `help:"The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p" name:"pipeline"`
+	Org          string `help:"Organization slug." name:"org"`
+	Web          bool   `help:"Open the pipeline in a web browser." short:"w"`
+	output.OutputFlags
 }
 
 func (c *ViewCmd) Help() string {
@@ -29,6 +34,9 @@ func (c *ViewCmd) Help() string {
 Examples:
   # View a pipeline
   $ bk pipeline view my-pipeline
+
+  # View a pipeline using flags
+  $ bk pipeline view --org my-org --pipeline my-pipeline
 
   # View a pipeline in a specific organization
   $ bk pipeline view my-org/my-pipeline
@@ -42,7 +50,7 @@ Examples:
 }
 
 func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
+	f, err := factory.New(factory.WithDebug(globals.EnableDebug()), factory.WithOrgOverride(c.Org))
 	if err != nil {
 		return err
 	}
@@ -52,21 +60,38 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.Quiet = globals.IsQuiet()
 	f.NoPager = f.NoPager || globals.DisablePager()
 
-	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
+	if err := validation.ValidateConfigurationForOrg(f.Config, kongCtx.Command(), c.Org); err != nil {
 		return err
 	}
 
-	ctx := context.Background()
+	if c.Pipeline != "" && c.PipelineFlag != "" && c.Pipeline != c.PipelineFlag {
+		return fmt.Errorf("pipeline provided as both positional argument (%q) and --pipeline flag (%q); use only one", c.Pipeline, c.PipelineFlag)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	pipelineArg := c.PipelineFlag
+	if pipelineArg == "" {
+		pipelineArg = c.Pipeline
+	}
 
 	var args []string
-	if c.Pipeline != "" {
-		args = []string{c.Pipeline}
+	if pipelineArg != "" {
+		args = []string{pipelineArg}
+	}
+
+	picker := resolver.PickOneWithFactory(f)
+	cachedPicker := resolver.CachedPicker(f.Config, picker)
+	repositoryResolver := resolver.ResolveFromRepository(f, cachedPicker)
+	if c.Org != "" {
+		repositoryResolver = resolver.ResolveFromRepositoryInOrg(f, cachedPicker, c.Org)
 	}
 
 	pipelineRes := resolver.NewAggregateResolver(
-		resolver.ResolveFromPositionalArgument(args, 0, f.Config),
-		resolver.ResolveFromConfig(f.Config, resolver.PickOneWithFactory(f)),
-		resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOneWithFactory(f))),
+		resolver.WithOrg(c.Org, resolver.ResolveFromPositionalArgument(args, 0, f.Config)),
+		resolver.WithOrg(c.Org, resolver.ResolveFromConfig(f.Config, picker)),
+		repositoryResolver,
 	)
 
 	pipeline, err := pipelineRes.Resolve(ctx)
@@ -80,30 +105,66 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return browser.OpenURL(fmt.Sprintf("https://buildkite.com/%s", slug))
 	}
 
-	resp, err := graphql.GetPipeline(ctx, f.GraphQLClient, slug)
+	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
+
+	var p buildkite.Pipeline
+	spinErr := bkIO.SpinWhile(f, "Loading pipeline information", func() {
+		p, _, err = f.RestAPIClient.Pipelines.Get(ctx, pipeline.Org, pipeline.Name)
+	})
+	if spinErr != nil {
+		return spinErr
+	}
 	if err != nil {
 		return err
 	}
-	if resp == nil || resp.Pipeline == nil {
-		fmt.Printf("Could not find pipeline: %s\n", slug)
-		return nil
+
+	pipelineView := output.Viewable[buildkite.Pipeline]{
+		Data:   p,
+		Render: renderPipelineText,
 	}
 
-	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 	if format != output.FormatText {
-		return output.Write(kongCtx.Stdout, resp.Pipeline, format)
+		return output.Write(os.Stdout, pipelineView, format)
 	}
 
 	writer, cleanup := bkIO.Pager(f.NoPager, f.Config.Pager())
 	defer func() { _ = cleanup() }()
 
-	var pipelineOutput strings.Builder
+	return output.Write(writer, pipelineView, format)
+}
 
-	err = view.RenderPipeline(&pipelineOutput, *resp.Pipeline)
-	if err != nil {
-		return err
+func renderPipelineText(p buildkite.Pipeline) string {
+	rows := [][]string{
+		{"Description", output.ValueOrDash(p.Description)},
+		{"Repository", output.ValueOrDash(p.Repository)},
+		{"Default Branch", output.ValueOrDash(p.DefaultBranch)},
+		{"Visibility", output.ValueOrDash(p.Visibility)},
+		{"Web URL", output.ValueOrDash(p.WebURL)},
 	}
 
-	_, err = fmt.Fprintf(writer, "%s\n", pipelineOutput.String())
-	return err
+	if len(p.Tags) > 0 {
+		rows = append(rows, []string{"Tags", strings.Join(p.Tags, ", ")})
+	}
+
+	if p.ClusterID != "" {
+		rows = append(rows, []string{"Cluster ID", p.ClusterID})
+	}
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Viewing %s\n\n", output.ValueOrDash(p.Name))
+
+	table := output.Table(
+		[]string{"Field", "Value"},
+		rows,
+		map[string]string{"field": "dim", "value": "italic"},
+	)
+
+	sb.WriteString(table)
+
+	if p.Configuration != "" {
+		sb.WriteString("\n\nConfiguration:\n")
+		sb.WriteString(p.Configuration)
+	}
+
+	return sb.String()
 }

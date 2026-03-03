@@ -116,23 +116,27 @@ func (conf *Config) SelectOrganization(org string, inGitRepo bool) error {
 // APIToken gets the API token configured for the currently selected organization.
 // Precedence: environment variable > keyring > user config > local config
 func (conf *Config) APIToken() string {
+	return conf.APITokenForOrg(conf.OrganizationSlug())
+}
+
+// APITokenForOrg gets the API token for a specific organization.
+// Precedence: environment variable > keyring > user config > local config
+func (conf *Config) APITokenForOrg(org string) string {
 	if token := os.Getenv("BUILDKITE_API_TOKEN"); token != "" {
 		return token
 	}
 
-	slug := conf.OrganizationSlug()
-
 	// Try keyring first
 	kr := keyring.New()
 	if kr.IsAvailable() {
-		if token, err := kr.Get(slug); err == nil && token != "" {
+		if token, err := kr.Get(org); err == nil && token != "" {
 			return token
 		}
 	}
 
 	return firstNonEmpty(
-		conf.user.getToken(slug),
-		conf.local.getToken(slug),
+		conf.user.getToken(org),
+		conf.local.getToken(org),
 	)
 }
 
@@ -306,6 +310,14 @@ func lookupBoolEnv(key string) (bool, bool) {
 		return false, false
 	}
 	return b, true
+}
+
+// ClearAllOrganizations removes all organization entries and the selected
+// organization from the user configuration file.
+func (conf *Config) ClearAllOrganizations() error {
+	conf.user.Organizations = make(map[string]orgConfig)
+	conf.user.SelectedOrg = ""
+	return conf.writeUser()
 }
 
 func (conf *Config) HasConfiguredOrganization(slug string) bool {

@@ -32,7 +32,7 @@ type ListCmd struct {
 	Tags     []string `help:"Filter agents by tags"`
 	PerPage  int      `help:"Number of agents per page" default:"30"`
 	Limit    int      `help:"Maximum number of agents to return" default:"100"`
-	Output   string   `help:"Output format. One of: json, yaml, text" short:"o" default:"${output_default_format}" enum:",json,yaml,text"`
+	output.OutputFlags
 }
 
 func (c *ListCmd) Help() string {
