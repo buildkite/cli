@@ -45,10 +45,10 @@ type statusResponse struct {
 }
 
 type ConvertCmd struct {
-	File    string `help:"Path to the pipeline file to convert (reads from stdin if not specified)" short:"F"`
-	Vendor  string `help:"CI/CD vendor (auto-detected from file path, required when reading from stdin)" short:"v"`
-	Output  string `help:"Custom path to save the converted pipeline (default: stdout for stdin input, .buildkite/pipeline.<vendor>.yml for file input)" short:"o"`
-	Timeout int    `help:"Timeout in seconds for conversion" default:"300"`
+	File    string `help:"Path to the pipeline file to convert (required)" short:"F" required:""`
+	Vendor  string `help:"CI/CD vendor (auto-detected if the file name matches vendor path and name - otherwise, needs to be specified)" short:"v"`
+	Output  string `help:"Custom path to save the converted pipeline (default: .buildkite/pipeline.<vendor>.yml)" short:"o"`
+	Timeout int    `help:"The time (in seconds) after which a conversion should be cancelled" default:"300"`
 }
 
 func (c *ConvertCmd) Help() string {
@@ -62,8 +62,7 @@ Supported vendors:
   - harness (Harness CI) (beta)
   - bitrise (Bitrise) (beta)
 
-The command will automatically detect the vendor based on the file name if not specified.
-When reading from stdin, the --vendor flag is required.
+The command will automatically detect the vendor based on the file path and name if not specified.
 
 When using --file, the converted pipeline is saved to .buildkite/pipeline.<vendor>.yml by default.
 When reading from stdin, output goes to stdout by default.
