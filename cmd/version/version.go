@@ -12,6 +12,11 @@ type VersionCmd struct{}
 
 func (c *VersionCmd) Run() error {
 	fmt.Fprintf(os.Stdout, "%s\n", Format(Version))
+
+	if latest, ok := CheckForUpdate(Version); ok {
+		fmt.Fprint(os.Stderr, FormatUpdateNudge(latest))
+	}
+
 	return nil
 }
 
