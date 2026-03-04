@@ -1,4 +1,4 @@
-package use
+package auth
 
 import (
 	"fmt"
@@ -9,23 +9,23 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
 
-type UseCmd struct {
-	OrganizationSlug string `arg:"" optional:"" help:"Organization slug to use"`
+type SwitchCmd struct {
+	OrganizationSlug string `arg:"" optional:"" help:"Organization slug to switch"`
 }
 
-func (c *UseCmd) Help() string {
+func (c *SwitchCmd) Help() string {
 	return `Select a configured organization.
 
 Examples:
-	# Use the 'my-cool-org' configuration
-	$ bk use my-cool-org
+	# Switch the 'my-cool-org' configuration
+	$ bk auth switch my-cool-org
 
 	# Interactively select an organization
-	$ bk use
+	$ bk auth switch
 `
 }
 
-func (c *UseCmd) Run(globals cli.GlobalFlags) error {
+func (c *SwitchCmd) Run(globals cli.GlobalFlags) error {
 	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
 	if err != nil {
 		return err
@@ -38,10 +38,10 @@ func (c *UseCmd) Run(globals cli.GlobalFlags) error {
 		org = &c.OrganizationSlug
 	}
 
-	return useRun(org, f.Config, f.GitRepository != nil, f.NoInput)
+	return switchRun(org, f.Config, f.GitRepository != nil, f.NoInput)
 }
 
-func useRun(org *string, conf *config.Config, inGitRepo bool, noInput bool) error {
+func switchRun(org *string, conf *config.Config, inGitRepo bool, noInput bool) error {
 	var selected string
 
 	// prompt to choose from configured orgs if one is not already selected
@@ -61,22 +61,12 @@ func useRun(org *string, conf *config.Config, inGitRepo bool, noInput bool) erro
 		return nil
 	}
 
-	// if the selected org exists, use it
+	// if the selected org exists, switch it
 	if conf.HasConfiguredOrganization(selected) {
 		fmt.Printf("Using configuration for `%s`\n", selected)
 		return conf.SelectOrganization(selected, inGitRepo)
 	}
 
-	// If token exists in keychain or config but org marker is missing (selected_org in .bk.yaml), register it
-	// so org switching/listing works going forward.
-	if conf.HasStoredTokenForOrg(selected) {
-		if err := conf.EnsureOrganization(selected); err != nil {
-			return fmt.Errorf("failed to register configuration for `%s`: %w", selected, err)
-		}
-		fmt.Printf("Using configuration for `%s`\n", selected)
-		return conf.SelectOrganization(selected, inGitRepo)
-	}
-
 	// if the selected org doesnt exist, recommend configuring it and error out
-	return fmt.Errorf("no configuration found for `%s`. run `bk configure` to add it", selected)
+	return fmt.Errorf("no configuration found for `%s`. run `bk auth login` to add it", selected)
 }
