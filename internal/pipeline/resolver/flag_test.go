@@ -62,5 +62,4 @@ func TestResolveFromFlag(t *testing.T) {
 			t.Errorf("expected pipeline 'my-pipeline', got '%s'", pipeline.Name)
 		}
 	})
-
 }

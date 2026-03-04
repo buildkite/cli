@@ -1,4 +1,4 @@
-package use
+package auth
 
 import (
 	"os"
@@ -27,15 +27,15 @@ func setEnv(t *testing.T, key, value string) {
 	})
 }
 
-func TestCmdUse(t *testing.T) {
+func TestCmdSwitch(t *testing.T) {
 	t.Parallel()
 
-	t.Run("uses already selected org", func(t *testing.T) {
+	t.Run("switches already selected org", func(t *testing.T) {
 		t.Parallel()
 		conf := config.New(afero.NewMemMapFs(), nil)
 		conf.SelectOrganization("testing", true)
 		selected := "testing"
-		err := useRun(&selected, conf, true, false)
+		err := switchRun(&selected, conf, true, false)
 		if err != nil {
 			t.Error("expected no error")
 		}
@@ -44,7 +44,7 @@ func TestCmdUse(t *testing.T) {
 		}
 	})
 
-	t.Run("uses existing org", func(t *testing.T) {
+	t.Run("switches existing org", func(t *testing.T) {
 		t.Parallel()
 
 		// add some configurations
@@ -56,7 +56,7 @@ func TestCmdUse(t *testing.T) {
 		// now get a new empty config
 		conf = config.New(fs, nil)
 		selected := "testing"
-		err := useRun(&selected, conf, true, false)
+		err := switchRun(&selected, conf, true, false)
 		if err != nil {
 			t.Errorf("expected no error: %s", err)
 		}
@@ -69,13 +69,13 @@ func TestCmdUse(t *testing.T) {
 		t.Parallel()
 		selected := "testing"
 		conf := config.New(afero.NewMemMapFs(), nil)
-		err := useRun(&selected, conf, true, false)
+		err := switchRun(&selected, conf, true, false)
 		if err == nil {
 			t.Error("expected an error")
 		}
 	})
 
-	t.Run("reads organization from user config file", func(t *testing.T) {
+	t.Run("reads organization from user's config file", func(t *testing.T) {
 		home := t.TempDir()
 		setEnv(t, "HOME", home)
 		xdgConfig := filepath.Join(home, ".config")
@@ -86,10 +86,10 @@ func TestCmdUse(t *testing.T) {
 			t.Fatalf("failed to create config dir: %v", err)
 		}
 
-		userConfigPath := filepath.Join(xdgConfig, "bk.yaml")
+		switchrConfigPath := filepath.Join(xdgConfig, "bk.yaml")
 		content := []byte("selected_org: testing\norganizations:\n  testing:\n    api_token: token-123\n")
-		if err := os.WriteFile(userConfigPath, content, 0o644); err != nil {
-			t.Fatalf("failed to write user config: %v", err)
+		if err := os.WriteFile(switchrConfigPath, content, 0o644); err != nil {
+			t.Fatalf("failed to write switchr config: %v", err)
 		}
 
 		conf := config.New(afero.NewOsFs(), nil)
@@ -101,8 +101,8 @@ func TestCmdUse(t *testing.T) {
 		}
 
 		selected := "testing"
-		if err := useRun(&selected, conf, false, true); err != nil {
-			t.Fatalf("expected useRun to succeed: %v", err)
+		if err := switchRun(&selected, conf, false, true); err != nil {
+			t.Fatalf("expected switchRun to succeed: %v", err)
 		}
 	})
 
@@ -134,9 +134,9 @@ func TestCmdUse(t *testing.T) {
 					t.Fatalf("SelectOrganization failed: %v", err)
 				}
 
-				// Use the organization
-				if err := useRun(&tc.orgName, conf, false, true); err != nil {
-					t.Fatalf("useRun failed: %v", err)
+				// Switch the organization
+				if err := switchRun(&tc.orgName, conf, false, true); err != nil {
+					t.Fatalf("switchRun failed: %v", err)
 				}
 
 				// Verify case is preserved
