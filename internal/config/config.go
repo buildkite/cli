@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"slices"
 	"strconv"
+	"sync"
 
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/pkg/keyring"
@@ -23,6 +24,8 @@ import (
 	"github.com/goccy/go-yaml"
 	"github.com/spf13/afero"
 )
+
+var legacyTokenWarningOnce sync.Once
 
 const (
 	DefaultGraphQLEndpoint = "https://graphql.buildkite.com/v1"
@@ -34,7 +37,7 @@ const (
 )
 
 type orgConfig struct {
-	APIToken string `yaml:"api_token"`
+	APIToken string `yaml:"api_token,omitempty"`
 }
 
 type fileConfig struct {
@@ -114,19 +117,18 @@ func (conf *Config) SelectOrganization(org string, inGitRepo bool) error {
 }
 
 // APIToken gets the API token configured for the currently selected organization.
-// Precedence: environment variable > keyring > user config > local config
+// Precedence: environment variable > keyring > config file (legacy, read-only with warning)
 func (conf *Config) APIToken() string {
 	return conf.APITokenForOrg(conf.OrganizationSlug())
 }
 
 // APITokenForOrg gets the API token for a specific organization.
-// Precedence: environment variable > keyring > user config > local config
+// Precedence: environment variable > keyring > config file (legacy, read-only with warning)
 func (conf *Config) APITokenForOrg(org string) string {
 	if token := os.Getenv("BUILDKITE_API_TOKEN"); token != "" {
 		return token
 	}
 
-	// Try keyring first
 	kr := keyring.New()
 	if kr.IsAvailable() {
 		if token, err := kr.Get(org); err == nil && token != "" {
@@ -134,10 +136,18 @@ func (conf *Config) APITokenForOrg(org string) string {
 		}
 	}
 
-	return firstNonEmpty(
+	// Legacy fallback: read tokens from config files (read-only)
+	if token := firstNonEmpty(
 		conf.user.getToken(org),
 		conf.local.getToken(org),
-	)
+	); token != "" {
+		legacyTokenWarningOnce.Do(func() {
+			fmt.Fprintln(os.Stderr, "Warning: reading API token from config file is deprecated. Run `bk auth login` to store your token securely in the system keychain.")
+		})
+		return token
+	}
+
+	return ""
 }
 
 // HasStoredTokenForOrg reports whether a token is stored for org in keyring
@@ -154,20 +164,11 @@ func (conf *Config) HasStoredTokenForOrg(org string) bool {
 		}
 	}
 
+	// Legacy fallback: check config files (read-only)
 	return firstNonEmpty(
 		conf.user.getToken(org),
 		conf.local.getToken(org),
 	) != ""
-}
-
-// SetTokenForOrg sets the token for the given org in the user configuration file. Tokens are not stored in the local
-// configuration file to reduce the likelihood of tokens being committed to VCS
-func (conf *Config) SetTokenForOrg(org, token string) error {
-	if conf.user.Organizations == nil {
-		conf.user.Organizations = make(map[string]orgConfig)
-	}
-	conf.user.Organizations[org] = orgConfig{APIToken: token}
-	return conf.writeUser()
 }
 
 // EnsureOrganization records an organization in user config without requiring
@@ -185,11 +186,6 @@ func (conf *Config) EnsureOrganization(org string) error {
 	}
 	conf.user.Organizations[org] = orgConfig{}
 	return conf.writeUser()
-}
-
-// GetTokenForOrg gets the API token for a specific organization from the user configuration
-func (conf *Config) GetTokenForOrg(org string) string {
-	return conf.user.getToken(org)
 }
 
 func (conf *Config) ConfiguredOrganizations() []string {

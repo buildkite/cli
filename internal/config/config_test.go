@@ -77,26 +77,26 @@ func TestConfig(t *testing.T) {
 		}
 	})
 
-	t.Run("GetTokenForOrg returns token for specific organization", func(t *testing.T) {
+	t.Run("APITokenForOrg reads legacy tokens from config", func(t *testing.T) {
 		t.Parallel()
+		setEnv(t, "BUILDKITE_API_TOKEN", "")
 
 		fs := afero.NewMemMapFs()
+		// Write a config with legacy token entries
+		content := []byte("organizations:\n  org1:\n    api_token: token-org1\n  org2:\n    api_token: token-org2\n")
+		if err := afero.WriteFile(fs, configFile(), content, 0o600); err != nil {
+			t.Fatal(err)
+		}
 		conf := New(fs, nil)
 
-		// Set tokens for different organizations
-		token1 := "token-org1"
-		token2 := "token-org2"
-		conf.SetTokenForOrg("org1", token1)
-		conf.SetTokenForOrg("org2", token2)
-
-		if conf.GetTokenForOrg("org1") != token1 {
-			t.Errorf("expected token for org1 to be %s, got %s", token1, conf.GetTokenForOrg("org1"))
+		if conf.APITokenForOrg("org1") != "token-org1" {
+			t.Errorf("expected token-org1, got %s", conf.APITokenForOrg("org1"))
 		}
-		if conf.GetTokenForOrg("org2") != token2 {
-			t.Errorf("expected token for org2 to be %s, got %s", token2, conf.GetTokenForOrg("org2"))
+		if conf.APITokenForOrg("org2") != "token-org2" {
+			t.Errorf("expected token-org2, got %s", conf.APITokenForOrg("org2"))
 		}
-		if conf.GetTokenForOrg("nonexistent") != "" {
-			t.Errorf("expected empty token for nonexistent org, got %s", conf.GetTokenForOrg("nonexistent"))
+		if conf.APITokenForOrg("nonexistent") != "" {
+			t.Errorf("expected empty token for nonexistent org, got %s", conf.APITokenForOrg("nonexistent"))
 		}
 	})
 
@@ -127,27 +127,22 @@ func TestConfig(t *testing.T) {
 		testCases := []struct {
 			name    string
 			orgName string
-			token   string
 		}{
 			{
 				name:    "mixed case organization name",
 				orgName: "gridX",
-				token:   "test-token-gridX",
 			},
 			{
 				name:    "uppercase organization name",
 				orgName: "ACME",
-				token:   "test-token-ACME",
 			},
 			{
 				name:    "lowercase organization name",
 				orgName: "buildkite",
-				token:   "test-token-buildkite",
 			},
 			{
 				name:    "camelCase organization name",
 				orgName: "myOrg",
-				token:   "test-token-myOrg",
 			},
 		}
 
@@ -158,9 +153,9 @@ func TestConfig(t *testing.T) {
 				fs := afero.NewMemMapFs()
 				conf := New(fs, nil)
 
-				// Set token for organization
-				if err := conf.SetTokenForOrg(tc.orgName, tc.token); err != nil {
-					t.Fatalf("SetTokenForOrg failed: %v", err)
+				// Register organization
+				if err := conf.EnsureOrganization(tc.orgName); err != nil {
+					t.Fatalf("EnsureOrganization failed: %v", err)
 				}
 
 				// Select organization (simulate user config scenario)
@@ -175,12 +170,6 @@ func TestConfig(t *testing.T) {
 				gotOrg := conf2.OrganizationSlug()
 				if gotOrg != tc.orgName {
 					t.Errorf("expected organization slug %q, got %q - case was not preserved", tc.orgName, gotOrg)
-				}
-
-				// Verify token can be retrieved with exact case
-				gotToken := conf2.GetTokenForOrg(tc.orgName)
-				if gotToken != tc.token {
-					t.Errorf("expected token %q, got %q", tc.token, gotToken)
 				}
 			})
 		}

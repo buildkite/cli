@@ -51,8 +51,8 @@ func TestCmdSwitch(t *testing.T) {
 		fs := afero.NewMemMapFs()
 		conf := config.New(fs, nil)
 		conf.SelectOrganization("testing", true)
-		conf.SetTokenForOrg("testing", "token")
-		conf.SetTokenForOrg("default", "token")
+		conf.EnsureOrganization("testing")
+		conf.EnsureOrganization("default")
 		// now get a new empty config
 		conf = config.New(fs, nil)
 		selected := "testing"
@@ -127,8 +127,8 @@ func TestCmdSwitch(t *testing.T) {
 				conf := config.New(fs, nil)
 
 				// Configure organization with specific case
-				if err := conf.SetTokenForOrg(tc.orgName, "test-token"); err != nil {
-					t.Fatalf("SetTokenForOrg failed: %v", err)
+				if err := conf.EnsureOrganization(tc.orgName); err != nil {
+					t.Fatalf("EnsureOrganization failed: %v", err)
 				}
 				if err := conf.SelectOrganization(tc.orgName, false); err != nil {
 					t.Fatalf("SelectOrganization failed: %v", err)

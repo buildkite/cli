@@ -48,7 +48,7 @@ type CLI struct {
 	Cluster      ClusterCmd         `cmd:"" help:"Manage organization clusters"`
 	Secret       SecretCmd          `cmd:"" help:"Manage cluster secrets"`
 	Config       bkConfig.ConfigCmd `cmd:"" help:"Manage CLI configuration"`
-	Configure    ConfigureCmd       `cmd:"" help:"Configure Buildkite API token"`
+	Configure    ConfigureCmd       `cmd:"" help:"Configure Buildkite API token" hidden:""`
 	Init         bkInit.InitCmd     `cmd:"" help:"Initialize a pipeline.yaml file"`
 	Job          JobCmd             `cmd:"" help:"Manage jobs within a build"`
 	Organization OrganizationCmd    `cmd:"" help:"Manage organizations" aliases:"org"`
