@@ -44,9 +44,7 @@ Examples:
 `
 }
 
-// LoginWithToken stores a token for an organization.
-// Keychain is preferred. Config file is used when keychain is unavailable
-// or not writable.
+// LoginWithToken stores a token for an organization in the system keychain.
 func LoginWithToken(f *factory.Factory, org, token string) error {
 	if org == "" {
 		return errors.New("--org is required when --token is provided")
@@ -56,22 +54,13 @@ func LoginWithToken(f *factory.Factory, org, token string) error {
 	}
 
 	kr := keyring.New()
-	wroteToKeychain := false
-	if kr.IsAvailable() {
-		if err := kr.Set(org, token); err != nil {
-			fmt.Printf("Warning: could not store token in keychain: %v\n", err)
-			fmt.Println("Falling back to config file storage.")
-		} else {
-			wroteToKeychain = true
-			fmt.Println("Token stored securely in system keychain.")
-		}
+	if !kr.IsAvailable() {
+		return errors.New("system keychain is not available; cannot store token")
 	}
-
-	if !wroteToKeychain {
-		if err := f.Config.SetTokenForOrg(org, token); err != nil {
-			return fmt.Errorf("failed to save token to config: %w", err)
-		}
+	if err := kr.Set(org, token); err != nil {
+		return fmt.Errorf("failed to store token in keychain: %w", err)
 	}
+	fmt.Println("Token stored securely in system keychain.")
 
 	if err := f.Config.EnsureOrganization(org); err != nil {
 		return fmt.Errorf("failed to register organization in config: %w", err)

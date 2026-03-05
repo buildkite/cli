@@ -66,10 +66,6 @@ func (c *LogoutCmd) logoutOrg(f *factory.Factory) error {
 		}
 	}
 
-	if err := f.Config.SetTokenForOrg(org, ""); err != nil {
-		return fmt.Errorf("failed to clear token from config: %w", err)
-	}
-
 	fmt.Printf("Logged out of organization %q\n", org)
 	return nil
 }
