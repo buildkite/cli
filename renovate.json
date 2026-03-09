@@ -1,0 +1,54 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":automergeMinor",
+    "schedule:nonOfficeHours"
+  ],
+  "labels": ["dependencies"],
+  "postUpdateOptions": ["gomodTidy"],
+  "packageRules": [
+    {
+      "description": "Group Buildkite dependencies",
+      "matchSourceUrls": ["https://github.com/buildkite/**"],
+      "groupName": "buildkite",
+      "automerge": true
+    },
+    {
+      "description": "Group Buildkite pipeline config",
+      "matchFileNames": [".buildkite/**"],
+      "groupName": "buildkite"
+    },
+    {
+      "description": "Group Go minor and patch updates",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "go-minor-patch",
+      "automerge": true
+    },
+    {
+      "description": "Group golang.org/x/ packages",
+      "matchSourceUrls": ["https://github.com/golang/**"],
+      "groupName": "golang-x",
+      "automerge": true
+    },
+    {
+      "description": "Group test and dev tooling",
+      "matchPackageNames": [
+        "github.com/stretchr/testify",
+        "github.com/alecthomas/assert"
+      ],
+      "groupName": "testing",
+      "automerge": true
+    },
+    {
+      "description": "Do not automerge major updates",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    }
+  ],
+  "automerge": true,
+  "automergeType": "pr",
+  "platformAutomerge": true
+}
