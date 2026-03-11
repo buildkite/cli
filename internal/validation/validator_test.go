@@ -96,6 +96,10 @@ func TestSlugRule(t *testing.T) {
 			input:   "my--slug",
 			wantErr: false,
 		},
+		"valid slug with a trailing hyphens": {
+			input:   "my-slug-",
+			wantErr: false,
+		},
 		"invalid characters": {
 			input:   "My Slug!",
 			wantErr: true,
