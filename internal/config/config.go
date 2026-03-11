@@ -25,7 +25,10 @@ import (
 	"github.com/spf13/afero"
 )
 
-var legacyTokenWarningOnce sync.Once
+var (
+	legacyTokenWarningOnce sync.Once
+	envTokenWarningOnce    sync.Once
+)
 
 const (
 	DefaultGraphQLEndpoint = "https://graphql.buildkite.com/v1"
@@ -126,6 +129,9 @@ func (conf *Config) APIToken() string {
 // Precedence: environment variable > keyring > config file (legacy, read-only with warning)
 func (conf *Config) APITokenForOrg(org string) string {
 	if token := os.Getenv("BUILDKITE_API_TOKEN"); token != "" {
+		envTokenWarningOnce.Do(func() {
+			fmt.Fprintln(os.Stderr, "Warning: using BUILDKITE_API_TOKEN environment variable for authentication.")
+		})
 		return token
 	}
 
