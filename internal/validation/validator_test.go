@@ -88,13 +88,21 @@ func TestSlugRule(t *testing.T) {
 			input:   "my-slug-123",
 			wantErr: false,
 		},
+		"valid slug with mixed case": {
+			input:   "acmE",
+			wantErr: false,
+		},
+		"valid slug with consecutive hyphens": {
+			input:   "my--slug",
+			wantErr: false,
+		},
 		"invalid characters": {
 			input:   "My Slug!",
 			wantErr: true,
 			errMsg:  "must be a valid slug",
 		},
-		"consecutive hyphens": {
-			input:   "my--slug",
+		"starts with hyphen": {
+			input:   "-my-slug",
 			wantErr: true,
 			errMsg:  "must be a valid slug",
 		},

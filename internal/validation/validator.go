@@ -63,9 +63,9 @@ func (r SlugRule) Validate(value interface{}) error {
 		return fmt.Errorf("value must be a string")
 	}
 
-	matched, _ := regexp.MatchString(`^[a-z0-9]+(?:-[a-z0-9]+)*$`, s)
+	matched, _ := regexp.MatchString(`^[a-zA-Z0-9]+[a-zA-Z0-9-]*$`, s)
 	if !matched {
-		return fmt.Errorf("must be a valid slug (lowercase letters, numbers, and hyphens)")
+		return fmt.Errorf("must be a valid slug (letters, numbers, and hyphens)")
 	}
 	return nil
 }
