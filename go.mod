@@ -9,7 +9,7 @@ require (
 	github.com/buildkite/roko v1.4.0
 	github.com/go-git/go-git/v5 v5.17.0
 	github.com/goccy/go-yaml v1.19.2
-	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
+	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/posthog/posthog-go v1.10.0
 	github.com/vektah/gqlparser/v2 v2.5.32
 	github.com/xeipuuv/gojsonschema v1.2.0
