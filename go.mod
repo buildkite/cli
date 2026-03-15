@@ -1,6 +1,6 @@
 module github.com/buildkite/cli/v3
 
-go 1.25
+go 1.25.0
 
 require (
 	github.com/alecthomas/kong v1.14.0
@@ -10,7 +10,7 @@ require (
 	github.com/go-git/go-git/v5 v5.17.0
 	github.com/goccy/go-yaml v1.19.2
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
-	github.com/posthog/posthog-go v1.10.0
+	github.com/posthog/posthog-go v1.11.1
 	github.com/vektah/gqlparser/v2 v2.5.32
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/zalando/go-keyring v0.2.6
@@ -61,8 +61,8 @@ require (
 	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/mod v0.29.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
-	golang.org/x/sys v0.41.0 // indirect
-	golang.org/x/term v0.40.0
+	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/term v0.41.0
 	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/tools v0.38.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
