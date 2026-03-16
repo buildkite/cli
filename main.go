@@ -71,11 +71,12 @@ type (
 		Switch auth.SwitchCmd `cmd:"" help:"Switch to a different organization" aliases:"use"`
 	}
 	AgentCmd struct {
-		Pause  agent.PauseCmd  `cmd:"" help:"Pause a Buildkite agent."`
-		List   agent.ListCmd   `cmd:"" help:"List agents." alias:"ls"`
-		Resume agent.ResumeCmd `cmd:"" help:"Resume a Buildkite agent."`
-		Stop   agent.StopCmd   `cmd:"" help:"Stop Buildkite agents."`
-		View   agent.ViewCmd   `cmd:"" help:"View details of an agent."`
+		Install agent.InstallCmd `cmd:"" help:"Install the buildkite-agent binary locally."`
+		Pause   agent.PauseCmd   `cmd:"" help:"Pause a Buildkite agent."`
+		List    agent.ListCmd    `cmd:"" help:"List agents." alias:"ls"`
+		Resume  agent.ResumeCmd  `cmd:"" help:"Resume a Buildkite agent."`
+		Stop    agent.StopCmd    `cmd:"" help:"Stop Buildkite agents."`
+		View    agent.ViewCmd    `cmd:"" help:"View details of an agent."`
 	}
 	ArtifactsCmd struct {
 		Download artifacts.DownloadCmd `cmd:"" help:"Download an artifact by its UUID."`
