@@ -25,14 +25,14 @@ type StatusOutput struct {
 func (w StatusOutput) TextOutput() string {
 	b := strings.Builder{}
 
-	b.WriteString(fmt.Sprintf("Current organization: %s\n", w.OrganizationSlug))
+	fmt.Fprintf(&b, "Current organization: %s\n", w.OrganizationSlug)
 	b.WriteRune('\n')
-	b.WriteString(fmt.Sprintf("API Token UUID:        %s\n", w.Token.UUID))
-	b.WriteString(fmt.Sprintf("API Token Description: %s\n", w.Token.Description))
-	b.WriteString(fmt.Sprintf("API Token Scopes:      %v\n", w.Token.Scopes))
+	fmt.Fprintf(&b, "API Token UUID:        %s\n", w.Token.UUID)
+	fmt.Fprintf(&b, "API Token Description: %s\n", w.Token.Description)
+	fmt.Fprintf(&b, "API Token Scopes:      %v\n", w.Token.Scopes)
 	b.WriteRune('\n')
-	b.WriteString(fmt.Sprintf("API Token user name:  %s\n", w.Token.User.Name))
-	b.WriteString(fmt.Sprintf("API Token user email: %s\n", w.Token.User.Email))
+	fmt.Fprintf(&b, "API Token user name:  %s\n", w.Token.User.Name)
+	fmt.Fprintf(&b, "API Token user email: %s\n", w.Token.User.Email)
 
 	return b.String()
 }
