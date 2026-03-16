@@ -13,7 +13,7 @@ steps:
       - POSTHOG_API_KEY
       - OAUTH_CLIENT_ID
     plugins:
-      - docker-compose#v5.2.0:
+      - docker-compose#v5.12.1:
           command:
             - .buildkite/release.sh
             - release
@@ -37,10 +37,10 @@ steps:
       - "deb"
       - "rpm"
     plugins:
-      - artifacts#v1.9.3:
+      - artifacts#v1.9.4:
           download:
             - dist/linux/*
-      - docker-compose#v5.2.0:
+      - docker-compose#v5.12.1:
           command:
             - .buildkite/upload-packages.sh
             - "{{matrix}}"
@@ -66,15 +66,15 @@ steps:
             - organization_slug
             - organization_id
             - pipeline_slug
-      - aws-ssm#v1.0.0:
+      - aws-ssm#v1.1.0:
           parameters:
             GITHUB_TOKEN: /pipelines/buildkite/buildkite-cli-release/github-token
             DOCKERHUB_USER: /pipelines/buildkite/buildkite-cli-release/dockerhub-user
             DOCKERHUB_PASSWORD: /pipelines/buildkite/buildkite-cli-release/dockerhub-password
-      - artifacts#v1.9.3:
+      - artifacts#v1.9.4:
           download:
             - dist/**/*
-      - docker-compose#v5.2.0:
+      - docker-compose#v5.12.1:
           command:
             - .buildkite/release.sh
             - continue

@@ -5,7 +5,7 @@ steps:
   - name: ":golangci-lint: lint"
     command: golangci-lint run --verbose --timeout 3m
     plugins:
-      - docker-compose#v5.2.0:
+      - docker-compose#v5.12.1:
           config: .buildkite/docker-compose.yaml
           run: golangci-lint
           tty: true
@@ -18,7 +18,7 @@ steps:
       - go run github.com/nikolaydubina/go-cover-treemap@latest -coverprofile cover.out > cover-tree.svg
       - echo '<details><summary>Coverage tree map</summary><img src="artifact://cover-tree.svg" alt="Test coverage tree map" width="70%"></details>' | buildkite-agent annotate --style "info"
     plugins:
-      -  docker-compose#v5.2.0:
+      -  docker-compose#v5.12.1:
           config: .buildkite/docker-compose.yaml
           run: golangci-lint
           tty: true
@@ -37,7 +37,7 @@ steps:
       - POSTHOG_API_KEY
       - OAUTH_CLIENT_ID
     plugins:
-      - docker-compose#v5.2.0:
+      - docker-compose#v5.12.1:
           command:
             - .buildkite/release.sh
             - release
@@ -92,7 +92,7 @@ steps:
             - organization_slug
             - organization_id
             - pipeline_slug
-      - aws-ssm#v1.0.0:
+      - aws-ssm#v1.1.0:
           parameters:
             GITHUB_TOKEN: /pipelines/buildkite/buildkite-cli/github-token
             GITHUB_USER: /pipelines/buildkite/buildkite-cli/github-user
