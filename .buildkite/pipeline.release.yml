@@ -1,6 +1,15 @@
 agents:
   queue: hosted
 
+x-cache-env: &cache_env
+  GOCACHE: .buildkite/cache-volume/go/build
+  GOMODCACHE: .buildkite/cache-volume/go/pkg/mod
+
+x-mise-plugin: &mise_plugin
+  buildkite-plugins/mise#v1.1.0: ~
+
+cache: ".buildkite/cache-volume"
+
 steps:
   - label: ":terminal: build ({{matrix}})"
     key: build
@@ -13,23 +22,12 @@ steps:
     secrets:
       - POSTHOG_API_KEY
       - OAUTH_CLIENT_ID
+    env:
+      <<: *cache_env
+      GOOS: "{{matrix}}"
+    command: ".buildkite/release.sh release --clean --split"
     plugins:
-      - docker-compose#v5.12.1:
-          command:
-            - .buildkite/release.sh
-            - release
-            - --clean
-            - --split
-          config: .buildkite/docker-compose.yaml
-          entrypoint: /bin/sh
-          env:
-            - GOOS={{matrix}}
-            - POSTHOG_API_KEY
-            - OAUTH_CLIENT_ID
-          mount-buildkite-agent: true
-          run: goreleaser
-          shell: false
-          tty: true
+      - *mise_plugin
 
   - label: ":rocket: :package: upload packages ({{matrix}})"
     key: upload_packages
@@ -37,20 +35,11 @@ steps:
     matrix:
       - "deb"
       - "rpm"
+    command: '.buildkite/upload-packages.sh "{{matrix}}"'
     plugins:
       - artifacts#v1.9.4:
           download:
             - dist/linux/*
-      - docker-compose#v5.12.1:
-          command:
-            - .buildkite/upload-packages.sh
-            - "{{matrix}}"
-          config: .buildkite/docker-compose.yaml
-          entrypoint: /bin/sh
-          mount-buildkite-agent: true
-          run: goreleaser
-          shell: false
-          tty: true
 
   - label: ":rocket: :github: release"
     key: release
@@ -58,6 +47,7 @@ steps:
     artifact_paths:
       - dist/**/*
     env:
+      <<: *cache_env
       AWS_REGION: us-east-1
     secrets:
       - POSTHOG_API_KEY
@@ -77,20 +67,5 @@ steps:
       - artifacts#v1.9.4:
           download:
             - dist/**/*
-      - docker-compose#v5.12.1:
-          command:
-            - .buildkite/release.sh
-            - continue
-            - --merge
-          config: .buildkite/docker-compose.yaml
-          entrypoint: /bin/sh
-          env:
-            - GITHUB_TOKEN
-            - DOCKERHUB_USER
-            - DOCKERHUB_PASSWORD
-            - POSTHOG_API_KEY
-            - OAUTH_CLIENT_ID
-          mount-buildkite-agent: true
-          run: goreleaser
-          shell: false
-          tty: true
+      - *mise_plugin
+    command: ".buildkite/release.sh continue --merge"
