@@ -21,6 +21,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/organization"
 	"github.com/buildkite/cli/v3/cmd/pipeline"
 	"github.com/buildkite/cli/v3/cmd/pkg"
+	"github.com/buildkite/cli/v3/cmd/preflight"
 	"github.com/buildkite/cli/v3/cmd/secret"
 	"github.com/buildkite/cli/v3/cmd/use"
 	"github.com/buildkite/cli/v3/cmd/user"
@@ -52,8 +53,9 @@ type CLI struct {
 	Init         bkInit.InitCmd     `cmd:"" help:"Initialize a pipeline.yaml file"`
 	Job          JobCmd             `cmd:"" help:"Manage jobs within a build"`
 	Organization OrganizationCmd    `cmd:"" help:"Manage organizations" aliases:"org"`
-	Pipeline     PipelineCmd        `cmd:"" help:"Manage pipelines"`
-	Package      PackageCmd         `cmd:"" help:"Manage packages"`
+	Pipeline  PipelineCmd            `cmd:"" help:"Manage pipelines"`
+	Package   PackageCmd             `cmd:"" help:"Manage packages"`
+	Preflight preflight.PreflightCmd `cmd:"" help:"Run a preflight build to validate changes"`
 	Use          use.UseCmd         `cmd:"" help:"Select an organization" hidden:""`
 	User         UserCmd            `cmd:"" help:"Invite users to the organization"`
 	Version      VersionCmd         `cmd:"" help:"Print the version of the CLI being used"`
