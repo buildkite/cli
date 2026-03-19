@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
+	"github.com/google/uuid"
 
 	"github.com/buildkite/cli/v3/internal/build/view/shared"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
-	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/preflight"
 	"github.com/buildkite/cli/v3/internal/util"
@@ -99,40 +99,55 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		}
 	}
 
+	preflightID := uuid.New().String()
+
 	// Snapshot the working tree into a temporary commit and push it
 	fmt.Printf("Creating snapshot of working tree...\n")
-	commit, err := preflight.Snapshot(branch)
+	commit, err := preflight.Snapshot(branch, preflightID)
 	if err != nil {
 		return bkErrors.NewInternalError(err, "failed to create preflight snapshot",
 			"Ensure you have uncommitted or committed changes to snapshot",
 			"Ensure you have push access to the remote repository",
 		)
 	}
-	fmt.Printf("Pushed snapshot %s → origin/%s\n", commit[:12], branch)
+	preflightBranch := "bk-preflight/" + preflightID
+	fmt.Printf("Pushed snapshot %s → origin/%s\n", commit[:12], preflightBranch)
 
-	// Create the build
+	// Wait for the webhook-triggered build to appear
+	fmt.Printf("Waiting for build on %s (branch: %s)...\n", resolvedPipeline.Name, preflightBranch)
+
 	var build buildkite.Build
-	var actionErr error
-	spinErr := bkIO.SpinWhile(f, fmt.Sprintf("Starting preflight build on %s (branch: %s)", resolvedPipeline.Name, branch), func() {
-		newBuild := buildkite.CreateBuild{
-			Message: fmt.Sprintf("Preflight build for %s", branch),
-			Commit:  commit,
-			Branch:  branch,
+	pollTimeout := 2 * time.Minute
+	pollInterval := 3 * time.Second
+	deadline := time.Now().Add(pollTimeout)
+
+	for {
+		if time.Now().After(deadline) {
+			return bkErrors.NewInternalError(
+				fmt.Errorf("timed out after %s", pollTimeout),
+				"no build appeared for branch "+preflightBranch,
+				"Check that the pipeline has a webhook configured for push events",
+				"Check that branch filtering allows bk-preflight/* branches",
+			)
 		}
-		var createErr error
-		build, _, createErr = f.RestAPIClient.Builds.Create(ctx, resolvedPipeline.Org, resolvedPipeline.Name, newBuild)
-		if createErr != nil {
-			actionErr = bkErrors.WrapAPIError(createErr, "creating preflight build")
+
+		builds, _, err := f.RestAPIClient.Builds.ListByPipeline(ctx, resolvedPipeline.Org, resolvedPipeline.Name, &buildkite.BuildsListOptions{
+			Branch:      []string{preflightBranch},
+			Commit:      commit,
+			ListOptions: buildkite.ListOptions{PerPage: 1},
+		})
+		if err != nil {
+			return bkErrors.WrapAPIError(err, "polling for preflight build")
 		}
-	})
-	if spinErr != nil {
-		return bkErrors.NewInternalError(spinErr, "error in spinner UI")
-	}
-	if actionErr != nil {
-		return actionErr
+		if len(builds) > 0 {
+			build = builds[0]
+			break
+		}
+
+		time.Sleep(pollInterval)
 	}
 
-	fmt.Printf("Preflight build created: %s\n", build.WebURL)
+	fmt.Printf("Preflight build found: %s\n", build.WebURL)
 
 	if err := util.OpenInWebBrowser(c.Web, build.WebURL); err != nil {
 		return bkErrors.NewInternalError(err, "failed to open web browser")
@@ -158,7 +173,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 				return bkErrors.WrapAPIError(err, "fetching build status")
 			}
 
-			summary := shared.BuildSummaryWithJobs(&b, resolvedPipeline.Org, resolvedPipeline.Name)
+			summary := shared.BuildSummaryWithFailedJobs(&b, resolvedPipeline.Org, resolvedPipeline.Name)
 			if tty {
 				fmt.Print("\033[H\033[2J")
 				fmt.Printf("%s\n", summary)
