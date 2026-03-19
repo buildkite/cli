@@ -24,8 +24,8 @@ const (
 )
 
 // DefaultClientID is the OAuth client ID for the Buildkite CLI
-// This is blank so we can use ldflags
-var DefaultClientID = ""
+// This can be overridden with ldflags
+var DefaultClientID = "5214b230f06b48938ab5"
 
 // Config holds OAuth configuration
 type Config struct {
