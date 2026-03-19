@@ -3,9 +3,12 @@ package preflight
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/alecthomas/kong"
+
+	"github.com/buildkite/cli/v3/internal/build/view/shared"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
@@ -16,6 +19,7 @@ import (
 	pkgValidation "github.com/buildkite/cli/v3/pkg/cmd/validation"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	git "github.com/go-git/go-git/v5"
+	"github.com/mattn/go-isatty"
 )
 
 type PreflightCmd struct {
@@ -141,6 +145,8 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	// Watch the build until it completes
 	fmt.Printf("Watching build #%d...\n", build.Number)
 
+	tty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+
 	ticker := time.NewTicker(time.Duration(c.Interval) * time.Second)
 	defer ticker.Stop()
 
@@ -152,13 +158,18 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 				return bkErrors.WrapAPIError(err, "fetching build status")
 			}
 
+			summary := shared.BuildSummaryWithJobs(&b, resolvedPipeline.Org, resolvedPipeline.Name)
+			if tty {
+				fmt.Print("\033[H\033[2J")
+				fmt.Printf("%s\n", summary)
+			} else {
+				fmt.Printf("[%s] %s\n", time.Now().Format(time.RFC3339), summary)
+			}
+
 			if b.FinishedAt != nil {
 				if b.State == "passed" {
-					fmt.Printf("✅ Preflight build #%d passed\n", build.Number)
 					return nil
 				}
-				fmt.Printf("❌ Preflight build #%d %s\n", build.Number, b.State)
-				fmt.Printf("   %s\n", build.WebURL)
 				return fmt.Errorf("preflight build %s", b.State)
 			}
 		case <-ctx.Done():
