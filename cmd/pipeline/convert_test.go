@@ -12,9 +12,14 @@ import (
 	"time"
 )
 
+const conversionIntegrationTestsEnv = "BK_RUN_INTEGRATION_TESTS"
+
 func TestConversionAPIEndpoint(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
+	}
+	if os.Getenv(conversionIntegrationTestsEnv) == "" {
+		t.Skipf("Skipping external conversion API test; set %s=1 to run it", conversionIntegrationTestsEnv)
 	}
 
 	// Create a simple GitHub Actions workflow for testing
@@ -234,16 +239,12 @@ func TestSubmitConversionJob(t *testing.T) {
 	}))
 	defer server.Close()
 
-	originalEndpoint := convertEndpoint
-	convertEndpoint = server.URL
-	defer func() { convertEndpoint = originalEndpoint }()
-
 	req := conversionRequest{
 		Vendor: "github",
 		Code:   "name: Test\non: [push]",
 	}
 
-	resp, err := submitConversionJob(req)
+	resp, err := submitConversionJobAtEndpoint(server.URL, req)
 	if err != nil {
 		t.Fatalf("Failed to submit Conversion job: %v", err)
 	}
@@ -290,11 +291,12 @@ func TestPollJobStatus(t *testing.T) {
 	}))
 	defer server.Close()
 
-	originalEndpoint := convertEndpoint
-	convertEndpoint = server.URL
-	defer func() { convertEndpoint = originalEndpoint }()
-
-	result, err := pollJobStatus("test-job-123", 30)
+	result, err := pollJobStatusWithConfig("test-job-123", pollConfig{
+		endpoint:    server.URL,
+		client:      server.Client(),
+		maxAttempts: 2,
+		interval:    0,
+	})
 	if err != nil {
 		t.Fatalf("Failed to poll job status: %v", err)
 	}
@@ -325,11 +327,12 @@ func TestPollJobStatusTimeout(t *testing.T) {
 	}))
 	defer server.Close()
 
-	originalEndpoint := convertEndpoint
-	convertEndpoint = server.URL
-	defer func() { convertEndpoint = originalEndpoint }()
-
-	result, err := pollJobStatus("test-job-123", 5)
+	result, err := pollJobStatusWithConfig("test-job-123", pollConfig{
+		endpoint:    server.URL,
+		client:      server.Client(),
+		maxAttempts: 1,
+		interval:    0,
+	})
 	if err == nil {
 		t.Error("Expected timeout error but got none")
 		return
