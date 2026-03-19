@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+checkout_path="${BUILDKITE_BUILD_CHECKOUT_PATH:-$(pwd)}"
+cache_root="${checkout_path}/.buildkite/cache-volume"
+
+mkdir -p \
+  "${cache_root}/go/build" \
+  "${cache_root}/go/pkg/mod" \
+  "${cache_root}/golangci-lint"
+
+export GOCACHE="${cache_root}/go/build"
+export GOMODCACHE="${cache_root}/go/pkg/mod"
+export GOLANGCI_LINT_CACHE="${cache_root}/golangci-lint"
+
+# CI pins tool versions in mise.toml/mise.lock, but the go: backend used for
+# go-cover-treemap does not support locked-mode URLs. Skip the GitHub API-backed
+# attestation/SLSA checks instead so reruns do not fail on unauthenticated rate
+# limits inside the mise plugin.
+export MISE_AQUA_GITHUB_ATTESTATIONS=false
+export MISE_AQUA_SLSA=false
+export MISE_GITHUB_ATTESTATIONS=false
+export MISE_GITHUB_GITHUB_ATTESTATIONS=false
+export MISE_GITHUB_SLSA=false
+export MISE_SLSA=false
