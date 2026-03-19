@@ -15,6 +15,11 @@ func BuildSummaryWithJobs(b *buildkite.Build, organization, pipeline string) str
 	return view.BuildSummaryWithJobs(b, organization, pipeline)
 }
 
+// BuildSummaryWithFailedJobs renders a build summary with only failed jobs
+func BuildSummaryWithFailedJobs(b *buildkite.Build, organization, pipeline string) string {
+	return view.BuildSummaryWithFailedJobs(b, organization, pipeline)
+}
+
 // RenderJobSummary renders a job summary that can be used by multiple commands
 func RenderJobSummary(j buildkite.Job) string {
 	return view.RenderJobSummary(j)

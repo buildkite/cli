@@ -16,8 +16,8 @@ import (
 //  2. Stage the entire worktree into the temp index
 //  3. Write a tree object
 //  4. Create a commit on top of HEAD
-//  5. Push the detached commit to origin/<branch>
-func Snapshot(branch string) (string, error) {
+//  5. Push the detached commit to refs/heads/bk-preflight/<preflight-id>
+func Snapshot(branch string, preflight_id string) (string, error) {
 	tmp, err := os.CreateTemp("", "git-index-*")
 	if err != nil {
 		return "", fmt.Errorf("create temp index: %w", err)
@@ -51,7 +51,7 @@ func Snapshot(branch string) (string, error) {
 	}
 
 	// Push the detached commit to the remote branch.
-	refspec := commit + ":refs/heads/" + branch
+	refspec := commit + ":refs/heads/bk-preflight/" + preflight_id
 	if err := run(env, "git", "push", "--force", "origin", refspec); err != nil {
 		return "", err
 	}
@@ -62,7 +62,7 @@ func Snapshot(branch string) (string, error) {
 func run(env []string, name string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	cmd.Env = env
-	cmd.Stdout = os.Stdout
+	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), err)

@@ -56,6 +56,20 @@ func BuildSummary(b *buildkite.Build, organization, pipeline string) string {
 	return buildSummary(b, organization, pipeline)
 }
 
+func BuildSummaryWithFailedJobs(b *buildkite.Build, organization, pipeline string) string {
+	var sb strings.Builder
+	sb.WriteString(buildSummary(b, organization, pipeline))
+
+	if b != nil {
+		if jobs := renderFailedJobs(b.Jobs); jobs != "" {
+			sb.WriteString("\n\n")
+			sb.WriteString(jobs)
+		}
+	}
+
+	return sb.String()
+}
+
 func BuildSummaryWithJobs(b *buildkite.Build, organization, pipeline string) string {
 	var sb strings.Builder
 	sb.WriteString(buildSummary(b, organization, pipeline))
@@ -168,6 +182,42 @@ func renderJobs(jobs []buildkite.Job) string {
 	return fmt.Sprintf("Jobs (%d)\n\n%s", len(scriptJobs), table)
 }
 
+func renderFailedJobs(jobs []buildkite.Job) string {
+	failedJobs := filterFailedJobs(jobs)
+	if len(failedJobs) == 0 {
+		return ""
+	}
+
+	headers := []string{"State", "Name", "Duration"}
+	rows := make([][]string, 0, len(failedJobs))
+	for _, job := range failedJobs {
+		name := job.Name
+		if name == "" {
+			name = job.Label
+		}
+		if name == "" {
+			parts := strings.Split(job.Command, "\n")
+			if len(parts) > 0 {
+				name = parts[0]
+			}
+		}
+		if name == "" {
+			name = "-"
+		}
+		name = truncateText(name, 72)
+
+		rows = append(rows, []string{
+			job.State,
+			name,
+			formatJobDuration(job),
+		})
+	}
+
+	table := output.Table(headers, rows, map[string]string{"state": "bold", "name": "italic", "duration": "dim"})
+
+	return fmt.Sprintf("Failed Jobs (%d)\n\n%s", len(failedJobs), table)
+}
+
 func renderArtifacts(artifacts []buildkite.Artifact) string {
 	if len(artifacts) == 0 {
 		return ""
@@ -205,6 +255,16 @@ func filterScriptJobs(jobs []buildkite.Job) []buildkite.Job {
 	result := make([]buildkite.Job, 0, len(jobs))
 	for _, job := range jobs {
 		if job.Type == "script" {
+			result = append(result, job)
+		}
+	}
+	return result
+}
+
+func filterFailedJobs(jobs []buildkite.Job) []buildkite.Job {
+	result := make([]buildkite.Job, 0, len(jobs))
+	for _, job := range jobs {
+		if job.Type == "script" && job.State == "failed" {
 			result = append(result, job)
 		}
 	}
