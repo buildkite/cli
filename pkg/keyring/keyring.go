@@ -3,8 +3,6 @@
 package keyring
 
 import (
-	"crypto/rand"
-	"fmt"
 	"os"
 	"sync"
 
@@ -63,12 +61,13 @@ func (k *Keyring) IsAvailable() bool {
 }
 
 // MockForTesting replaces the keyring backend with an in-memory store
-// and resets the availability cache so subsequent New() calls reflect
-// the mock.
+// and marks it as available so subsequent New() calls use the mock.
 func MockForTesting() {
 	keyring.MockInit()
 	keyringAvailableOnce = sync.Once{}
-	keyringAvailable = false
+	keyringAvailableOnce.Do(func() {
+		keyringAvailable = true
+	})
 }
 
 // isKeyringAvailable checks if the system keyring can be used
@@ -80,17 +79,7 @@ func isKeyringAvailable() bool {
 			return
 		}
 
-		// Test if keyring is functional by attempting a dummy operation.
-		// Use a random suffix so a failed delete won't leave a colliding entry.
-		var buf [4]byte
-		_, _ = rand.Read(buf[:])
-		testKey := fmt.Sprintf("buildkite-cli-keyring-test-%x", buf)
-		err := keyring.Set(serviceName, testKey, "test")
-		if err != nil {
-			keyringAvailable = false
-			return
-		}
-		_ = keyring.Delete(serviceName, testKey)
+		// Assume keyring is available; callers can handle errors
 		keyringAvailable = true
 	})
 	return keyringAvailable
