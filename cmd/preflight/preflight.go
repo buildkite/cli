@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
+	"github.com/google/uuid"
 
 	"github.com/buildkite/cli/v3/internal/build/view/shared"
 	"github.com/buildkite/cli/v3/internal/cli"
@@ -99,25 +100,28 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		}
 	}
 
+	preflightID := uuid.New().String()
+
 	// Snapshot the working tree into a temporary commit and push it
 	fmt.Printf("Creating snapshot of working tree...\n")
-	commit, err := preflight.Snapshot(branch)
+	commit, err := preflight.Snapshot(branch, preflightID)
 	if err != nil {
 		return bkErrors.NewInternalError(err, "failed to create preflight snapshot",
 			"Ensure you have uncommitted or committed changes to snapshot",
 			"Ensure you have push access to the remote repository",
 		)
 	}
-	fmt.Printf("Pushed snapshot %s → origin/%s\n", commit[:12], branch)
+	preflightBranch := "bk-preflight/" + preflightID
+	fmt.Printf("Pushed snapshot %s → origin/%s\n", commit[:12], preflightBranch)
 
 	// Create the build
 	var build buildkite.Build
 	var actionErr error
-	spinErr := bkIO.SpinWhile(f, fmt.Sprintf("Starting preflight build on %s (branch: %s)", resolvedPipeline.Name, branch), func() {
+	spinErr := bkIO.SpinWhile(f, fmt.Sprintf("Starting preflight build on %s (branch: %s)", resolvedPipeline.Name, preflightBranch), func() {
 		newBuild := buildkite.CreateBuild{
 			Message: fmt.Sprintf("Preflight build for %s", branch),
 			Commit:  commit,
-			Branch:  branch,
+			Branch:  preflightBranch,
 		}
 		var createErr error
 		build, _, createErr = f.RestAPIClient.Builds.Create(ctx, resolvedPipeline.Org, resolvedPipeline.Name, newBuild)
