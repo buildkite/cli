@@ -28,11 +28,20 @@ We'd love to hear any feedback and questions you might have. Please [file an iss
 
 ## Development
 
-Developed using Go 1.20+ with modules.
+This repository uses [mise](https://mise.jdx.dev/) to pin Go and the main
+local development tools.
 
 ```bash
 git clone git@github.com:buildkite/cli.git
 cd cli/
-go generate
+mise install
+mise run hooks
+mise run format
+mise run lint
+mise run test
+mise run generate
 go run main.go --help
 ```
+
+`mise.toml` pins Go `1.26.1` to match the current release build image. The
+module itself remains compatible with Go `1.25.0` as declared in `go.mod`.

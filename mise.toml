@@ -1,0 +1,32 @@
+# Pinned local toolchain for contributors. The Go version matches the
+# repository's current release build image; the module minimum stays in go.mod.
+[tools]
+go = "1.26.1"
+golangci-lint = "2.11.3"
+lefthook = "2.1.4"
+"aqua:mvdan/gofumpt" = "0.9.2"
+"aqua:goreleaser/goreleaser" = "2.14.3"
+
+[tasks.format]
+description = "Format Go files with gofumpt"
+run = "gofumpt -w ."
+
+[tasks.lint]
+description = "Run golangci-lint with the repository configuration"
+run = "golangci-lint run --verbose --timeout 3m"
+
+[tasks.test]
+description = "Run the Go test suite"
+run = "go test ./..."
+
+[tasks.generate]
+description = "Regenerate the GraphQL client code"
+run = "go generate ./cmd/generate"
+
+[tasks.hooks]
+description = "Install the repository git hooks"
+run = "lefthook install"
+
+[tasks.ci]
+description = "Run the main local CI checks"
+depends = ["lint", "test"]

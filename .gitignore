@@ -3,3 +3,5 @@ dist/
 buildkite.yaml
 .bk.yaml
 build-logs-*
+mise.local.toml
+.mise.local.toml
