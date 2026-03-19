@@ -1,9 +1,12 @@
 This project is the Buildkite CLI (`bk`)
 
 ## Commands
-- Test: `go test ./...`
-- Lint: `docker-compose -f .buildkite/docker-compose.yaml run golangci-lint golangci-lint run`
-- Generate: `go generate` (required after GraphQL changes)
+- Bootstrap: `mise install`
+- Hooks: `mise run hooks`
+- Format: `mise run format`
+- Test: `mise run test`
+- Lint: `mise run lint`
+- Generate: `mise run generate` (required after GraphQL changes)
 - Run: `go run main.go`
 
 ## Environment
@@ -15,5 +18,6 @@ This project is the Buildkite CLI (`bk`)
 - CLI commands: `pkg/cmd/`
 
 ## Notes
+- `mise.toml` pins the local Go/tool versions
 - CI: https://buildkite.com/buildkite/buildkite-cli
 - Always format after changing code
