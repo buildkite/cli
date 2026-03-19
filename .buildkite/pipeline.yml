@@ -13,7 +13,7 @@ cache: ".buildkite/cache-volume"
 
 steps:
   - name: ":golangci-lint: lint"
-    command: mise run lint
+    command: golangci-lint run --verbose --timeout 3m
     env:
       <<: *cache_env
     plugins:
