@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -euo pipefail
 
 checkout_path="${BUILDKITE_BUILD_CHECKOUT_PATH:-$(pwd)}"

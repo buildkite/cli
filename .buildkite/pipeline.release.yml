@@ -20,7 +20,7 @@ steps:
       - OAUTH_CLIENT_ID
     env:
       GOOS: "{{matrix}}"
-    command: '. .buildkite/cache-env.sh && .buildkite/release.sh release --clean --split'
+    command: '.buildkite/release.sh release --clean --split'
     plugins:
       - *mise_plugin
 
@@ -62,4 +62,4 @@ steps:
           download:
             - dist/**/*
       - *mise_plugin
-    command: '. .buildkite/cache-env.sh && .buildkite/release.sh continue --merge'
+    command: '.buildkite/release.sh continue --merge'
