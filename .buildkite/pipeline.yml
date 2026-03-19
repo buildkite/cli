@@ -17,6 +17,7 @@ steps:
       - cover-tree.svg
     commands:
       - . .buildkite/cache-env.sh
+      - unset BUILDKITE_ORGANIZATION_SLUG BUILDKITE_API_TOKEN
       - go test -coverprofile cover.out ./...
       - go run github.com/nikolaydubina/go-cover-treemap@v1.5.1 -coverprofile cover.out > cover-tree.svg
       - echo '<details><summary>Coverage tree map</summary><img src="artifact://cover-tree.svg" alt="Test coverage tree map" width="70%"></details>' | buildkite-agent annotate --style "info"
