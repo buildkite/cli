@@ -7,15 +7,13 @@ x-cache-env: &cache_env
   GOLANGCI_LINT_CACHE: .buildkite/cache-volume/golangci-lint
 
 x-mise-plugin: &mise_plugin
-  buildkite-plugins/mise#v1.1.0: ~
+  buildkite-plugins/mise#v1.1.1: ~
 
 cache: ".buildkite/cache-volume"
 
 steps:
   - name: ":golangci-lint: lint"
-    commands:
-      - '. "${BUILDKITE_ENV_FILE}"'
-      - golangci-lint run --verbose --timeout 3m
+    command: golangci-lint run --verbose --timeout 3m
     env:
       <<: *cache_env
     plugins:
@@ -27,7 +25,6 @@ steps:
     env:
       <<: *cache_env
     commands:
-      - '. "${BUILDKITE_ENV_FILE}"'
       - go test -coverprofile cover.out ./...
       - go run github.com/nikolaydubina/go-cover-treemap@v1.5.1 -coverprofile cover.out > cover-tree.svg
       - echo '<details><summary>Coverage tree map</summary><img src="artifact://cover-tree.svg" alt="Test coverage tree map" width="70%"></details>' | buildkite-agent annotate --style "info"
@@ -49,9 +46,7 @@ steps:
     env:
       <<: *cache_env
       GOOS: "{{matrix}}"
-    commands:
-      - '. "${BUILDKITE_ENV_FILE}"'
-      - .buildkite/release.sh release --clean --snapshot --split
+    command: ".buildkite/release.sh release --clean --snapshot --split"
     plugins:
       - *mise_plugin
 
