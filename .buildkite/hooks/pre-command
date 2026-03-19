@@ -12,3 +12,11 @@ mkdir -p \
 export GOCACHE="${cache_root}/go/build"
 export GOMODCACHE="${cache_root}/go/pkg/mod"
 export GOLANGCI_LINT_CACHE="${cache_root}/golangci-lint"
+
+if [[ "${BUILDKITE_STEP_KEY:-}" == "test" ]]; then
+  # Hosted agents inject the pipeline org and API token into the step
+  # environment. A subset of CLI tests exercise config precedence and must not
+  # inherit those ambient overrides, or they resolve the live Buildkite org
+  # instead of the fixture-backed test config.
+  unset BUILDKITE_API_TOKEN BUILDKITE_ORGANIZATION_SLUG
+fi

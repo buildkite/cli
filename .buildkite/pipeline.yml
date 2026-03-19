@@ -13,11 +13,9 @@ steps:
       - *mise_plugin
 
   - name: ":go: test"
+    key: test
     artifact_paths:
       - cover-tree.svg
-    env:
-      BUILDKITE_API_TOKEN: ""
-      BUILDKITE_ORGANIZATION_SLUG: ""
     commands:
       - go test -coverprofile cover.out ./...
       - go run github.com/nikolaydubina/go-cover-treemap@v1.5.1 -coverprofile cover.out > cover-tree.svg
