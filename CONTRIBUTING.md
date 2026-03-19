@@ -6,13 +6,19 @@ We welcome contributions from the community to make Buildkite CLI, `bk`, project
 
 To get started with contributing, please follow these steps:
 
-1. Fork the repository 
-2. Create a feature branch with a nice name (`git checkout -b cli-new-feature`) for your changes
-3. Write your code
-    * We use `golangci-lint` and would be good to use the same in order to pass a PR merge. You can use `docker-compose -f .buildkite/docker-compose.yaml run golangci-lint golangci-lint run` for that. 
-    * Make sure the tests are passing by running go test ./...
-5. Commit your changes and push them to your forked repository.
-7. Submit a pull request with a detailed description of your changes and linked to any relevant issues.
+1. Fork the repository.
+2. Create a feature branch with a nice name (`git checkout -b cli-new-feature`) for your changes.
+3. Install [mise](https://mise.jdx.dev/) and run `mise install`.
+4. Install the local git hooks with `mise run hooks`.
+5. Write your code.
+6. Run the local checks before opening a pull request.
+   * Format the code with `mise run format`.
+   * Lint with `mise run lint`.
+   * Make sure the tests pass with `mise run test`.
+   * Run `mise run generate` after GraphQL changes. If you need to refresh `schema.graphql`, set `BUILDKITE_GRAPHQL_TOKEN` first.
+   * If you prefer the containerized lint setup, `docker-compose -f .buildkite/docker-compose.yaml run golangci-lint golangci-lint run` still works.
+7. Commit your changes and push them to your forked repository.
+8. Submit a pull request with a detailed description of your changes and links to any relevant issues.
 
 The team maintaining this codebase will review your PR and start a CI build for it. For security reasons, we don't automatically run CI against forked repos, and a human will review your PR prior to its CI running.
 
