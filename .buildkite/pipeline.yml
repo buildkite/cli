@@ -40,9 +40,7 @@ steps:
     secrets:
       - POSTHOG_API_KEY
       - OAUTH_CLIENT_ID
-    env:
-      GOOS: "{{matrix}}"
-    command: '.buildkite/release.sh release --clean --snapshot --split'
+    command: 'GOOS="{{matrix}}" .buildkite/release.sh release --clean --snapshot --split'
     plugins:
       - *mise_plugin
 
