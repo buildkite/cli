@@ -10,6 +10,7 @@ import (
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
+	"github.com/buildkite/cli/v3/internal/preflight"
 	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	pkgValidation "github.com/buildkite/cli/v3/pkg/cmd/validation"
@@ -94,13 +95,24 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		}
 	}
 
+	// Snapshot the working tree into a temporary commit and push it
+	fmt.Printf("Creating snapshot of working tree...\n")
+	commit, err := preflight.Snapshot(branch)
+	if err != nil {
+		return bkErrors.NewInternalError(err, "failed to create preflight snapshot",
+			"Ensure you have uncommitted or committed changes to snapshot",
+			"Ensure you have push access to the remote repository",
+		)
+	}
+	fmt.Printf("Pushed snapshot %s → origin/%s\n", commit[:12], branch)
+
 	// Create the build
 	var build buildkite.Build
 	var actionErr error
 	spinErr := bkIO.SpinWhile(f, fmt.Sprintf("Starting preflight build on %s (branch: %s)", resolvedPipeline.Name, branch), func() {
 		newBuild := buildkite.CreateBuild{
 			Message: fmt.Sprintf("Preflight build for %s", branch),
-			Commit:  c.Commit,
+			Commit:  commit,
 			Branch:  branch,
 		}
 		var createErr error
