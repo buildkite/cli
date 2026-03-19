@@ -1,10 +1,6 @@
 agents:
   queue: hosted
 
-x-cache-env: &cache_env
-  GOCACHE: .buildkite/cache-volume/go/build
-  GOMODCACHE: .buildkite/cache-volume/go/pkg/mod
-
 x-mise-plugin: &mise_plugin
   buildkite-plugins/mise#v1.1.1: ~
 
@@ -22,9 +18,8 @@ steps:
       - POSTHOG_API_KEY
       - OAUTH_CLIENT_ID
     env:
-      <<: *cache_env
       GOOS: "{{matrix}}"
-    command: ".buildkite/release.sh release --clean --split"
+    command: '. .buildkite/cache-env.sh && .buildkite/release.sh release --clean --split'
     plugins:
       - *mise_plugin
 
@@ -44,7 +39,6 @@ steps:
     artifact_paths:
       - dist/**/*
     env:
-      <<: *cache_env
       AWS_REGION: us-east-1
     secrets:
       - POSTHOG_API_KEY
@@ -65,4 +59,4 @@ steps:
           download:
             - dist/**/*
       - *mise_plugin
-    command: ".buildkite/release.sh continue --merge"
+    command: '. .buildkite/cache-env.sh && .buildkite/release.sh continue --merge'
