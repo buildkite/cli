@@ -1,11 +1,16 @@
 # Pinned local toolchain for contributors. The Go version matches the
-# repository's current release build image; the module minimum stays in go.mod.
+# CI and release toolchain; the module minimum stays in go.mod.
+[settings]
+experimental = true
+lockfile = true
+
 [tools]
 go = "1.26.1"
 golangci-lint = "2.11.3"
 lefthook = "2.1.4"
 "aqua:mvdan/gofumpt" = "0.9.2"
-"aqua:goreleaser/goreleaser" = "2.14.3"
+"github:goreleaser/goreleaser-pro" = "2.14.3"
+ko = "0.18.1"
 
 [tasks.format]
 description = "Format Go files with gofumpt"

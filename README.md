@@ -43,5 +43,6 @@ mise run generate
 go run main.go --help
 ```
 
-`mise.toml` pins Go `1.26.1` to match the current release build image. The
-module itself remains compatible with Go `1.25.0` as declared in `go.mod`.
+`mise.toml` pins the shared toolchain, including the release helpers used in
+CI. The module itself remains compatible with Go `1.25.0` as declared in
+`go.mod`.

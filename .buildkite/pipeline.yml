@@ -1,28 +1,35 @@
 agents:
   queue: hosted
 
+x-cache-env: &cache_env
+  GOCACHE: .buildkite/cache-volume/go/build
+  GOMODCACHE: .buildkite/cache-volume/go/pkg/mod
+  GOLANGCI_LINT_CACHE: .buildkite/cache-volume/golangci-lint
+
+x-mise-plugin: &mise_plugin
+  buildkite-plugins/mise#v1.1.0: ~
+
+cache: ".buildkite/cache-volume"
+
 steps:
   - name: ":golangci-lint: lint"
-    command: golangci-lint run --verbose --timeout 3m
+    command: mise run lint
+    env:
+      <<: *cache_env
     plugins:
-      - docker-compose#v5.12.1:
-          config: .buildkite/docker-compose.yaml
-          run: golangci-lint
-          tty: true
+      - *mise_plugin
 
   - name: ":go: test"
     artifact_paths:
       - cover-tree.svg
+    env:
+      <<: *cache_env
     commands:
       - go test -coverprofile cover.out ./...
-      - go run github.com/nikolaydubina/go-cover-treemap@latest -coverprofile cover.out > cover-tree.svg
+      - go run github.com/nikolaydubina/go-cover-treemap@v1.5.1 -coverprofile cover.out > cover-tree.svg
       - echo '<details><summary>Coverage tree map</summary><img src="artifact://cover-tree.svg" alt="Test coverage tree map" width="70%"></details>' | buildkite-agent annotate --style "info"
     plugins:
-      -  docker-compose#v5.12.1:
-          config: .buildkite/docker-compose.yaml
-          run: golangci-lint
-          tty: true
-          mount-buildkite-agent: true
+      - *mise_plugin
 
   - wait
 
@@ -36,24 +43,12 @@ steps:
     secrets:
       - POSTHOG_API_KEY
       - OAUTH_CLIENT_ID
+    env:
+      <<: *cache_env
+      GOOS: "{{matrix}}"
+    command: ".buildkite/release.sh release --clean --snapshot --split"
     plugins:
-      - docker-compose#v5.12.1:
-          command:
-            - .buildkite/release.sh
-            - release
-            - --clean
-            - --snapshot
-            - --split
-          config: .buildkite/docker-compose.yaml
-          entrypoint: /bin/sh
-          env:
-            - GOOS={{matrix}}
-            - POSTHOG_API_KEY
-            - OAUTH_CLIENT_ID
-          mount-buildkite-agent: true
-          run: goreleaser
-          shell: false
-          tty: true
+      - *mise_plugin
 
   - input: ":package: Create a release?"
     prompt: "Select the release type"
