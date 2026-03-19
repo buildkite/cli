@@ -6,7 +6,7 @@ x-cache-env: &cache_env
   GOMODCACHE: .buildkite/cache-volume/go/pkg/mod
 
 x-mise-plugin: &mise_plugin
-  buildkite-plugins/mise#v1.1.0: ~
+  buildkite-plugins/mise#v1.1.1: ~
 
 cache: ".buildkite/cache-volume"
 
