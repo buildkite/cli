@@ -60,6 +60,9 @@ func (c *ListCmd) Run() error {
 		if v := conf.Pager(); v != "" && v != "less -R" {
 			items = append(items, configItem{string(KeyPager), v, "effective"})
 		}
+		if v := conf.Experiments(); v != "" {
+			items = append(items, configItem{string(KeyExperiments), v, "effective"})
+		}
 	}
 
 	if c.Local && !inGitRepo {

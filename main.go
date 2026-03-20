@@ -153,6 +153,16 @@ func newKongParser(cli *CLI) (*kong.Kong, error) {
 	)
 }
 
+// applyExperiments toggles visibility of experimental commands based on config.
+func applyExperiments(parser *kong.Kong, conf *config.Config) {
+	for _, node := range parser.Model.Children {
+		switch node.Name {
+		case "preflight":
+			node.Hidden = !conf.HasExperiment("preflight")
+		}
+	}
+}
+
 func main() {
 	os.Exit(run())
 }
@@ -167,6 +177,7 @@ func run() int {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			return 1
 		}
+		applyExperiments(parser, config.New(nil, nil))
 		_, _ = parser.Parse([]string{"--help"})
 		return 0
 	}
@@ -190,6 +201,7 @@ func run() int {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
 	}
+	applyExperiments(parser, conf)
 	ctx, err := parser.Parse(os.Args[1:])
 	if err != nil {
 		tracker.TrackCommand("unknown command", os.Args[1:], nil)

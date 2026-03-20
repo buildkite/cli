@@ -57,6 +57,15 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		return bkErrors.NewInternalError(err, "failed to initialize CLI", "This is likely a bug", "Report to Buildkite")
 	}
 
+	if !f.Config.HasExperiment("preflight") {
+		return bkErrors.NewValidationError(
+			fmt.Errorf("experiment not enabled"),
+			"the preflight command requires the 'preflight' experiment to be enabled",
+			"Run: bk config set experiments preflight",
+			"Or set BUILDKITE_EXPERIMENTS=preflight",
+		)
+	}
+
 	f.SkipConfirm = globals.SkipConfirmation()
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
