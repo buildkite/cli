@@ -24,7 +24,6 @@ import (
 
 type PreflightCmd struct {
 	Pipeline string `help:"The pipeline to build. This can be a {pipeline slug} or {org slug}/{pipeline slug}." short:"p"`
-	Branch   string `help:"The branch to build. Defaults to the current git branch." short:"b"`
 	Web      bool   `help:"Open the build in a web browser after creation." short:"w"`
 	Watch    bool   `help:"Watch the build until completion." default:"true" negatable:""`
 	Interval int    `help:"Polling interval in seconds when watching." default:"5"`
@@ -103,25 +102,11 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		)
 	}
 
-	// Resolve branch from flag or git repo
-	branch := c.Branch
-	if branch == "" {
-		branch, err = currentBranch(f.GitRepository)
-		if err != nil {
-			return bkErrors.NewValidationError(
-				err,
-				"could not determine current branch",
-				"Specify a branch with --branch (-b)",
-				"Ensure you are in a git repository",
-			)
-		}
-	}
-
 	preflightID := uuid.New().String()
 
 	// Snapshot the working tree into a temporary commit and push it
 	fmt.Printf("Creating snapshot of working tree...\n")
-	commit, err := preflight.Snapshot(branch, preflightID)
+	commit, err := preflight.Snapshot(preflightID)
 	if err != nil {
 		return bkErrors.NewInternalError(err, "failed to create preflight snapshot",
 			"Ensure you have uncommitted or committed changes to snapshot",
@@ -162,7 +147,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			time.Sleep(pollInterval)
 			continue
 		}
-		recordPollingError(nil, &pollErrorCount, "")
+		_ = recordPollingError(nil, &pollErrorCount, "")
 		if len(builds) > 0 {
 			build = builds[0]
 			break
@@ -200,7 +185,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 				}
 				continue
 			}
-			recordPollingError(nil, &watchPollErrorCount, "")
+			_ = recordPollingError(nil, &watchPollErrorCount, "")
 
 			summary := shared.BuildSummaryWithFailedJobs(&b, resolvedPipeline.Org, resolvedPipeline.Name)
 			if tty {
@@ -220,17 +205,6 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			return nil
 		}
 	}
-}
-
-func currentBranch(repo *git.Repository) (string, error) {
-	if err := requireGitRepository(repo); err != nil {
-		return "", err
-	}
-	head, err := repo.Head()
-	if err != nil {
-		return "", err
-	}
-	return head.Name().Short(), nil
 }
 
 func requireGitRepository(repo *git.Repository) error {
