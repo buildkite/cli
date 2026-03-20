@@ -16,7 +16,7 @@ import (
 //  3. Write a tree object
 //  4. Create a commit on top of HEAD
 //  5. Push the detached commit to refs/heads/bk-preflight/<preflight-id>
-func Snapshot(branch string, preflight_id string) (string, error) {
+func Snapshot(preflight_id string) (string, error) {
 	tmp, err := os.CreateTemp("", "git-index-*")
 	if err != nil {
 		return "", fmt.Errorf("create temp index: %w", err)
@@ -44,7 +44,7 @@ func Snapshot(branch string, preflight_id string) (string, error) {
 	}
 
 	// Create a commit on top of HEAD.
-	commit, err := runOut(env, "git", "commit-tree", tree, "-p", "HEAD", "-m", fmt.Sprintf("Preflight snapshot for %s", branch))
+	commit, err := runOut(env, "git", "commit-tree", tree, "-p", "HEAD", "-m", fmt.Sprintf("Preflight snapshot\n\nPreflight Run ID: %s", preflight_id))
 	if err != nil {
 		return "", err
 	}

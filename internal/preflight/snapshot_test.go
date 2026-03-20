@@ -70,9 +70,8 @@ func TestSnapshot_CommittedChanges(t *testing.T) {
 	}
 	t.Cleanup(func() { os.Chdir(origDir) })
 
-	branch := "preflight/test-branch"
 	preflightID := "test-id-committed"
-	commit, err := Snapshot(branch, preflightID)
+	commit, err := Snapshot(preflightID)
 	if err != nil {
 		t.Fatalf("Snapshot() error: %v", err)
 	}
@@ -113,7 +112,7 @@ func TestSnapshot_UntrackedFiles(t *testing.T) {
 	t.Cleanup(func() { os.Chdir(origDir) })
 
 	preflightID := "test-id-untracked"
-	commit, err := Snapshot("preflight/untracked", preflightID)
+	commit, err := Snapshot(preflightID)
 	if err != nil {
 		t.Fatalf("Snapshot() error: %v", err)
 	}
@@ -143,7 +142,7 @@ func TestSnapshot_DoesNotModifyRealIndex(t *testing.T) {
 	// Record the index state before snapshot.
 	statusBefore := runGit(t, worktree, "status", "--porcelain")
 
-	_, err := Snapshot("preflight/index-check", "test-id-index")
+	_, err := Snapshot("test-id-index")
 	if err != nil {
 		t.Fatalf("Snapshot() error: %v", err)
 	}
@@ -165,11 +164,10 @@ func TestSnapshot_ForcePushesExistingBranch(t *testing.T) {
 	}
 	t.Cleanup(func() { os.Chdir(origDir) })
 
-	branch := "preflight/force-push"
 	preflightID := "test-id-force"
 
 	// First snapshot.
-	commit1, err := Snapshot(branch, preflightID)
+	commit1, err := Snapshot(preflightID)
 	if err != nil {
 		t.Fatalf("first Snapshot() error: %v", err)
 	}
@@ -179,7 +177,7 @@ func TestSnapshot_ForcePushesExistingBranch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	commit2, err := Snapshot(branch, preflightID)
+	commit2, err := Snapshot(preflightID)
 	if err != nil {
 		t.Fatalf("second Snapshot() error: %v", err)
 	}
