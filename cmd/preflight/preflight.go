@@ -30,6 +30,8 @@ type PreflightCmd struct {
 	Interval int    `help:"Polling interval in seconds when watching." default:"5"`
 }
 
+const maxPollingErrors = 10
+
 func (c *PreflightCmd) Help() string {
 	return `Create a preflight build on a pipeline to validate your current changes before merging.
 It snapshots your working tree (including untracked files), creates a temporary commit, and pushes it to the configured repository origin on a bk-preflight/* branch.
@@ -119,6 +121,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	pollTimeout := 2 * time.Minute
 	pollInterval := 3 * time.Second
 	deadline := time.Now().Add(pollTimeout)
+	pollErrorCount := 0
 
 	for {
 		if time.Now().After(deadline) {
@@ -136,8 +139,13 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			ListOptions: buildkite.ListOptions{PerPage: 1},
 		})
 		if err != nil {
-			return bkErrors.WrapAPIError(err, "polling for preflight build")
+			if pollErr := recordPollingError(err, &pollErrorCount, "polling for preflight build"); pollErr != nil {
+				return pollErr
+			}
+			time.Sleep(pollInterval)
+			continue
 		}
+		recordPollingError(nil, &pollErrorCount, "")
 		if len(builds) > 0 {
 			build = builds[0]
 			break
@@ -163,14 +171,19 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 
 	ticker := time.NewTicker(time.Duration(c.Interval) * time.Second)
 	defer ticker.Stop()
+	watchPollErrorCount := 0
 
 	for {
 		select {
 		case <-ticker.C:
 			b, _, err := f.RestAPIClient.Builds.Get(ctx, resolvedPipeline.Org, resolvedPipeline.Name, fmt.Sprint(build.Number), nil)
 			if err != nil {
-				return bkErrors.WrapAPIError(err, "fetching build status")
+				if pollErr := recordPollingError(err, &watchPollErrorCount, "fetching build status"); pollErr != nil {
+					return pollErr
+				}
+				continue
 			}
+			recordPollingError(nil, &watchPollErrorCount, "")
 
 			summary := shared.BuildSummaryWithFailedJobs(&b, resolvedPipeline.Org, resolvedPipeline.Name)
 			if tty {
@@ -201,4 +214,24 @@ func currentBranch(repo *git.Repository) (string, error) {
 		return "", err
 	}
 	return head.Name().Short(), nil
+}
+
+func recordPollingError(err error, errorCount *int, operation string) error {
+	if err == nil {
+		*errorCount = 0
+		return nil
+	}
+
+	*errorCount++
+	if *errorCount >= maxPollingErrors {
+		return bkErrors.NewInternalError(
+			err,
+			fmt.Sprintf("%s failed %d times", operation, maxPollingErrors),
+			"Buildkite API may be unavailable or your network may be unstable",
+			"Retry the preflight command once connectivity is restored",
+		)
+	}
+
+	fmt.Fprintf(os.Stderr, "WARNING: %s failed (%d/%d): %v\n", operation, *errorCount, maxPollingErrors, err)
+	return nil
 }
