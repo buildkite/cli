@@ -11,7 +11,6 @@ import (
 // uncommitted changes) without touching the real git index, then pushes it to
 // the given remote branch. It returns the full commit SHA.
 //
-// This mirrors the process used by the precommit tool:
 //  1. Create a temp index seeded from HEAD
 //  2. Stage the entire worktree into the temp index
 //  3. Write a tree object
