@@ -55,7 +55,7 @@ type CLI struct {
 	Organization OrganizationCmd        `cmd:"" help:"Manage organizations" aliases:"org"`
 	Pipeline     PipelineCmd            `cmd:"" help:"Manage pipelines"`
 	Package      PackageCmd             `cmd:"" help:"Manage packages"`
-	Preflight    preflight.PreflightCmd `cmd:"" help:"Validate pre-commit changes"`
+	Preflight    preflight.PreflightCmd `cmd:"" help:"Run a preflight build to validate changes"`
 	Use          use.UseCmd             `cmd:"" help:"Select an organization" hidden:""`
 	User         UserCmd                `cmd:"" help:"Invite users to the organization"`
 	Version      VersionCmd             `cmd:"" help:"Print the version of the CLI being used"`

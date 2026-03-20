@@ -25,7 +25,6 @@ import (
 type PreflightCmd struct {
 	Pipeline string `help:"The pipeline to build. This can be a {pipeline slug} or {org slug}/{pipeline slug}." short:"p"`
 	Branch   string `help:"The branch to build. Defaults to the current git branch." short:"b"`
-	Commit   string `help:"The commit to build." short:"c" default:"HEAD"`
 	Web      bool   `help:"Open the build in a web browser after creation." short:"w"`
 	Watch    bool   `help:"Watch the build until completion." default:"true" negatable:""`
 	Interval int    `help:"Polling interval in seconds when watching." default:"5"`
