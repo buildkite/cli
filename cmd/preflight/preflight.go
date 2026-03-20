@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/google/uuid"
+	"github.com/mattn/go-isatty"
+	"golang.org/x/term"
 
 	"github.com/buildkite/cli/v3/internal/build/view/shared"
 	"github.com/buildkite/cli/v3/internal/cli"
@@ -19,7 +22,6 @@ import (
 	pkgValidation "github.com/buildkite/cli/v3/pkg/cmd/validation"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	git "github.com/go-git/go-git/v5"
-	"github.com/mattn/go-isatty"
 )
 
 type PreflightCmd struct {
@@ -105,8 +107,10 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	preflightID := uuid.New().String()
 
 	// Snapshot the working tree into a temporary commit and push it
-	fmt.Printf("Creating snapshot of working tree...\n")
-	commit, err := preflight.Snapshot(preflightID)
+	fmt.Println()
+	fmt.Println("Preparing preflight with uncommitted changes...")
+	fmt.Println()
+	result, err := preflight.Snapshot(preflightID)
 	if err != nil {
 		return bkErrors.NewInternalError(err, "failed to create preflight snapshot",
 			"Ensure you have uncommitted or committed changes to snapshot",
@@ -114,10 +118,12 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		)
 	}
 	preflightBranch := "bk-preflight/" + preflightID
-	fmt.Printf("Pushed snapshot %s → origin/%s\n", commit[:12], preflightBranch)
+
+	printSnapshotSummary(result, preflightBranch)
+	fmt.Printf("  Pushing to origin...\n")
 
 	// Wait for the webhook-triggered build to appear
-	fmt.Printf("Waiting for build on %s (branch: %s)...\n", resolvedPipeline.Name, preflightBranch)
+	fmt.Printf("  Waiting for build...\n")
 
 	var build buildkite.Build
 	pollTimeout := 2 * time.Minute
@@ -137,7 +143,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 
 		builds, _, err := f.RestAPIClient.Builds.ListByPipeline(ctx, resolvedPipeline.Org, resolvedPipeline.Name, &buildkite.BuildsListOptions{
 			Branch:      []string{preflightBranch},
-			Commit:      commit,
+			Commit:      result.Commit,
 			ListOptions: buildkite.ListOptions{PerPage: 1},
 		})
 		if err != nil {
@@ -156,7 +162,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		time.Sleep(pollInterval)
 	}
 
-	fmt.Printf("Preflight build found: %s\n", build.WebURL)
+	fmt.Printf("  Build:   #%d → %s\n", build.Number, build.WebURL)
 
 	if err := util.OpenInWebBrowser(c.Web, build.WebURL); err != nil {
 		return bkErrors.NewInternalError(err, "failed to open web browser")
@@ -213,6 +219,54 @@ func requireGitRepository(repo *git.Repository) error {
 	}
 
 	return nil
+}
+
+func printSnapshotSummary(result *preflight.SnapshotResult, branch string) {
+	width := terminalWidth()
+
+	// File list box
+	if len(result.Files) > 0 {
+		label := fmt.Sprintf(" Files  %d file", len(result.Files))
+		if len(result.Files) != 1 {
+			label += "s"
+		}
+		label += " "
+
+		// Top border: ┌─ Files  N files ─────...─┐
+		topInner := width - 4 // subtract ┌─ and ─┐
+		dashesAfterLabel := topInner - len(label)
+		if dashesAfterLabel < 1 {
+			dashesAfterLabel = 1
+		}
+		fmt.Printf("┌─%s%s┐\n", label, strings.Repeat("─", dashesAfterLabel))
+
+		// File rows
+		for _, f := range result.Files {
+			line := fmt.Sprintf("   %s %s", f.StatusSymbol(), f.Path)
+			padding := width - 2 - len(line) // subtract │ and │
+			if padding < 0 {
+				padding = 0
+			}
+			fmt.Printf("│%s%s│\n", line, strings.Repeat(" ", padding))
+		}
+
+		// Bottom border
+		fmt.Printf("└%s┘\n", strings.Repeat("─", width-2))
+	}
+
+	fmt.Println()
+	fmt.Printf("  Commit:  %s\n", result.Commit[:10])
+	fmt.Printf("  Ref:     %s\n", result.Ref)
+}
+
+func terminalWidth() int {
+	fd := os.Stdout.Fd()
+	if isatty.IsTerminal(fd) || isatty.IsCygwinTerminal(fd) {
+		if w, _, err := term.GetSize(int(fd)); err == nil && w > 0 {
+			return w
+		}
+	}
+	return 80
 }
 
 func recordPollingError(err error, errorCount *int, operation string) error {
