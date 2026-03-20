@@ -66,6 +66,14 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	}
 
 	ctx := context.Background()
+	if err := requireGitRepository(f.GitRepository); err != nil {
+		return bkErrors.NewValidationError(
+			err,
+			"preflight must be run from a git repository",
+			"Run this command from inside a git repository",
+			"Ensure you are in a repository with a .git directory",
+		)
+	}
 
 	resolvers := resolver.NewAggregateResolver(
 		resolver.ResolveFromFlag(c.Pipeline, f.Config),
@@ -206,14 +214,22 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 }
 
 func currentBranch(repo *git.Repository) (string, error) {
-	if repo == nil {
-		return "", fmt.Errorf("not in a git repository")
+	if err := requireGitRepository(repo); err != nil {
+		return "", err
 	}
 	head, err := repo.Head()
 	if err != nil {
 		return "", err
 	}
 	return head.Name().Short(), nil
+}
+
+func requireGitRepository(repo *git.Repository) error {
+	if repo == nil {
+		return fmt.Errorf("not in a git repository")
+	}
+
+	return nil
 }
 
 func recordPollingError(err error, errorCount *int, operation string) error {
