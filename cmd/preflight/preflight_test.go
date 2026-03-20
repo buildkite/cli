@@ -2,49 +2,73 @@ package preflight
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
-
-	"github.com/buildkite/cli/v3/internal/cli"
 )
 
-type stubGlobals struct{}
+func TestRecordPollingError(t *testing.T) {
+	t.Run("increments count and retries before max", func(t *testing.T) {
+		count := 0
 
-func (s stubGlobals) SkipConfirmation() bool { return false }
-func (s stubGlobals) DisableInput() bool     { return false }
-func (s stubGlobals) IsQuiet() bool          { return false }
-func (s stubGlobals) DisablePager() bool     { return false }
-func (s stubGlobals) EnableDebug() bool      { return false }
-
-var _ cli.GlobalFlags = stubGlobals{}
-
-func TestPreflightCmd_Run(t *testing.T) {
-	t.Run("returns validation error when experiment disabled", func(t *testing.T) {
-		t.Setenv("BUILDKITE_EXPERIMENTS", "")
-
-		cmd := &PreflightCmd{}
-		err := cmd.Run(nil, stubGlobals{})
-		if err == nil {
-			t.Fatal("expected error, got nil")
+		err := recordPollingError(errors.New("temporary failure"), &count, "polling for preflight build")
+		if err != nil {
+			t.Fatalf("recordPollingError returned unexpected error: %v", err)
 		}
-
-		var bkErr *bkErrors.Error
-		if !errors.As(err, &bkErr) {
-			t.Fatalf("expected bkErrors.Error, got %T: %v", err, err)
-		}
-		if !errors.Is(bkErr, bkErrors.ErrValidation) {
-			t.Errorf("expected ErrValidation, got category: %v", bkErr.Category)
+		if count != 1 {
+			t.Fatalf("expected count to be 1, got %d", count)
 		}
 	})
 
-	t.Run("succeeds when experiment enabled", func(t *testing.T) {
-		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+	t.Run("returns internal error on max consecutive failures", func(t *testing.T) {
+		count := maxPollingErrors - 1
 
-		cmd := &PreflightCmd{}
-		err := cmd.Run(nil, stubGlobals{})
+		err := recordPollingError(errors.New("temporary failure"), &count, "fetching build status")
+		if err == nil {
+			t.Fatal("expected an error on max consecutive failures")
+		}
+		if count != maxPollingErrors {
+			t.Fatalf("expected count to be %d, got %d", maxPollingErrors, count)
+		}
+		if !errors.Is(err, bkErrors.ErrInternal) {
+			t.Fatalf("expected internal error category, got: %v", err)
+		}
+		expected := fmt.Sprintf("fetching build status failed %d times", maxPollingErrors)
+		if got := err.Error(); got == "" || !strings.Contains(got, expected) {
+			t.Fatalf("expected error to contain %q, got %q", expected, got)
+		}
+	})
+
+	t.Run("resets count on successful poll", func(t *testing.T) {
+		count := 7
+
+		err := recordPollingError(nil, &count, "")
 		if err != nil {
-			t.Fatalf("expected no error, got: %v", err)
+			t.Fatalf("recordPollingError returned unexpected error: %v", err)
+		}
+		if count != 0 {
+			t.Fatalf("expected count to reset to 0, got %d", count)
+		}
+	})
+
+	t.Run("resets after success then retries from zero", func(t *testing.T) {
+		count := maxPollingErrors - 1
+
+		if err := recordPollingError(nil, &count, ""); err != nil {
+			t.Fatalf("unexpected reset error: %v", err)
+		}
+		if count != 0 {
+			t.Fatalf("expected count to reset to 0, got %d", count)
+		}
+
+		err := recordPollingError(errors.New("temporary failure"), &count, "polling for preflight build")
+		if err != nil {
+			t.Fatalf("expected retryable error after reset, got: %v", err)
+		}
+		if count != 1 {
+			t.Fatalf("expected count to be 1 after new failure, got %d", count)
 		}
 	})
 }
