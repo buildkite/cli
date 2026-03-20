@@ -71,28 +71,28 @@ func TestSnapshot_CommittedChanges(t *testing.T) {
 	t.Cleanup(func() { os.Chdir(origDir) })
 
 	preflightID := "test-id-committed"
-	commit, err := Snapshot(preflightID)
+	result, err := Snapshot(preflightID)
 	if err != nil {
 		t.Fatalf("Snapshot() error: %v", err)
 	}
 
-	if len(commit) != 40 {
-		t.Errorf("expected 40-char SHA, got %q (len %d)", commit, len(commit))
+	if len(result.Commit) != 40 {
+		t.Errorf("expected 40-char SHA, got %q (len %d)", result.Commit, len(result.Commit))
 	}
 
 	// The commit should exist in the repo.
-	runGit(t, worktree, "cat-file", "-t", commit)
+	runGit(t, worktree, "cat-file", "-t", result.Commit)
 
 	// The snapshot tree should contain the updated content.
-	content := runGit(t, worktree, "show", commit+":README.md")
+	content := runGit(t, worktree, "show", result.Commit+":README.md")
 	if content != "# updated" {
 		t.Errorf("snapshot content = %q, want %q", content, "# updated")
 	}
 
 	// The remote branch should have been pushed.
 	remoteCommit := runGit(t, worktree, "ls-remote", "origin", "refs/heads/bk-preflight/"+preflightID)
-	if !strings.Contains(remoteCommit, commit) {
-		t.Errorf("remote branch does not contain commit %s, got %q", commit, remoteCommit)
+	if !strings.Contains(remoteCommit, result.Commit) {
+		t.Errorf("remote branch does not contain commit %s, got %q", result.Commit, remoteCommit)
 	}
 }
 
@@ -112,13 +112,13 @@ func TestSnapshot_UntrackedFiles(t *testing.T) {
 	t.Cleanup(func() { os.Chdir(origDir) })
 
 	preflightID := "test-id-untracked"
-	commit, err := Snapshot(preflightID)
+	result, err := Snapshot(preflightID)
 	if err != nil {
 		t.Fatalf("Snapshot() error: %v", err)
 	}
 
 	// The snapshot should include the untracked file.
-	content := runGit(t, worktree, "show", commit+":new-file.txt")
+	content := runGit(t, worktree, "show", result.Commit+":new-file.txt")
 	if content != "hello" {
 		t.Errorf("untracked file content = %q, want %q", content, "hello")
 	}
@@ -167,7 +167,7 @@ func TestSnapshot_ForcePushesExistingBranch(t *testing.T) {
 	preflightID := "test-id-force"
 
 	// First snapshot.
-	commit1, err := Snapshot(preflightID)
+	result1, err := Snapshot(preflightID)
 	if err != nil {
 		t.Fatalf("first Snapshot() error: %v", err)
 	}
@@ -177,18 +177,18 @@ func TestSnapshot_ForcePushesExistingBranch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	commit2, err := Snapshot(preflightID)
+	result2, err := Snapshot(preflightID)
 	if err != nil {
 		t.Fatalf("second Snapshot() error: %v", err)
 	}
 
-	if commit1 == commit2 {
+	if result1.Commit == result2.Commit {
 		t.Error("expected different commits for different snapshots")
 	}
 
 	// The remote branch should point to the second commit.
 	remoteRef := runGit(t, worktree, "ls-remote", "origin", "refs/heads/bk-preflight/"+preflightID)
-	if !strings.Contains(remoteRef, commit2) {
-		t.Errorf("remote branch should point to %s, got %q", commit2, remoteRef)
+	if !strings.Contains(remoteRef, result2.Commit) {
+		t.Errorf("remote branch should point to %s, got %q", result2.Commit, remoteRef)
 	}
 }
