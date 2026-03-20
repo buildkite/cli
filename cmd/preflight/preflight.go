@@ -33,7 +33,7 @@ type PreflightCmd struct {
 
 func (c *PreflightCmd) Help() string {
 	return `Create a preflight build on a pipeline to validate your current changes before merging.
-By default, it uses the current branch and HEAD commit from your local repository.
+It snapshots your working tree (including untracked files), creates a temporary commit, and pushes it to the configured repository origin on a bk-preflight/* branch.
 The build is watched until completion and the final status is reported.
 
 Examples:
