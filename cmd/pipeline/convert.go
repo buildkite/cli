@@ -20,7 +20,7 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
 
-var convertEndpoint = "https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate"
+const convertEndpoint = "https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate"
 
 type conversionRequest struct {
 	Vendor string `json:"vendor"`
@@ -215,12 +215,16 @@ func detectVendor(filePath string) (string, error) {
 }
 
 func submitConversionJob(req conversionRequest) (*conversionResponse, error) {
+	return submitConversionJobAtEndpoint(convertEndpoint, req)
+}
+
+func submitConversionJobAtEndpoint(endpoint string, req conversionRequest) (*conversionResponse, error) {
 	reqBody, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(context.Background(), "POST", convertEndpoint, bytes.NewReader(reqBody))
+	httpReq, err := http.NewRequestWithContext(context.Background(), http.MethodPost, endpoint, bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
 	}
@@ -252,23 +256,58 @@ func submitConversionJob(req conversionRequest) (*conversionResponse, error) {
 }
 
 func pollJobStatus(jobID string, timeoutSeconds int) (*statusResponse, error) {
-	statusURL := fmt.Sprintf("%s/%s/status", convertEndpoint, jobID)
-	client := &http.Client{Timeout: 30 * time.Second}
-
 	maxAttempts := timeoutSeconds / 5
 	if maxAttempts < 1 {
 		maxAttempts = 1
 	}
 
-	for i := 0; i < maxAttempts; i++ {
-		time.Sleep(5 * time.Second)
+	return pollJobStatusWithConfig(jobID, pollConfig{
+		endpoint:    convertEndpoint,
+		client:      &http.Client{Timeout: 30 * time.Second},
+		maxAttempts: maxAttempts,
+		interval:    5 * time.Second,
+		timeout:     time.Duration(timeoutSeconds) * time.Second,
+	})
+}
 
-		req, err := http.NewRequestWithContext(context.Background(), "GET", statusURL, nil)
+type pollConfig struct {
+	endpoint    string
+	client      *http.Client
+	maxAttempts int
+	interval    time.Duration
+	timeout     time.Duration
+}
+
+func pollJobStatusWithConfig(jobID string, cfg pollConfig) (*statusResponse, error) {
+	if cfg.endpoint == "" {
+		cfg.endpoint = convertEndpoint
+	}
+	if cfg.client == nil {
+		cfg.client = &http.Client{Timeout: 30 * time.Second}
+	}
+	if cfg.maxAttempts < 1 {
+		cfg.maxAttempts = 1
+	}
+	if cfg.interval < 0 {
+		cfg.interval = 0
+	}
+	if cfg.timeout < 0 {
+		cfg.timeout = 0
+	}
+
+	statusURL := fmt.Sprintf("%s/%s/status", cfg.endpoint, jobID)
+
+	for attempt := 0; attempt < cfg.maxAttempts; attempt++ {
+		if attempt > 0 && cfg.interval > 0 {
+			time.Sleep(cfg.interval)
+		}
+
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, statusURL, nil)
 		if err != nil {
 			return nil, fmt.Errorf("error creating status request: %w", err)
 		}
 
-		resp, err := client.Do(req)
+		resp, err := cfg.client.Do(req)
 		if err != nil {
 			return nil, fmt.Errorf("error checking status: %w", err)
 		}
@@ -297,5 +336,9 @@ func pollJobStatus(jobID string, timeoutSeconds int) (*statusResponse, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("conversion timed out after %d seconds", timeoutSeconds)
+	if cfg.timeout > 0 {
+		return nil, fmt.Errorf("conversion timed out after %d seconds", int(cfg.timeout/time.Second))
+	}
+
+	return nil, fmt.Errorf("conversion timed out after %d attempts", cfg.maxAttempts)
 }
