@@ -16,10 +16,10 @@ brew tap buildkite/buildkite && brew install buildkite/buildkite/bk
 
 Or download a binary from the [releases page](https://github.com/buildkite/cli/releases).
 
-### Configure
+### Authenticate
 
 ```sh
-bk configure
+bk auth login
 ```
 
 ## Feedback
