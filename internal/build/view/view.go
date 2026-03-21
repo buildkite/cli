@@ -61,6 +61,10 @@ func BuildSummaryWithFailedJobs(b *buildkite.Build, organization, pipeline strin
 	sb.WriteString(buildSummary(b, organization, pipeline))
 
 	if b != nil {
+		if jobs := renderRunningJobs(b.Jobs); jobs != "" {
+			sb.WriteString("\n\n")
+			sb.WriteString(jobs)
+		}
 		if jobs := renderFailedJobs(b.Jobs); jobs != "" {
 			sb.WriteString("\n\n")
 			sb.WriteString(jobs)
@@ -146,6 +150,23 @@ func buildSummary(b *buildkite.Build, organization, pipeline string) string {
 	return sb.String()
 }
 
+func jobName(job buildkite.Job) string {
+	name := job.Name
+	if name == "" {
+		name = job.Label
+	}
+	if name == "" {
+		parts := strings.Split(job.Command, "\n")
+		if len(parts) > 0 {
+			name = parts[0]
+		}
+	}
+	if name == "" {
+		name = "-"
+	}
+	return name
+}
+
 func renderJobs(jobs []buildkite.Job) string {
 	scriptJobs := filterScriptJobs(jobs)
 	if len(scriptJobs) == 0 {
@@ -180,6 +201,40 @@ func renderJobs(jobs []buildkite.Job) string {
 	table := output.Table(headers, rows, map[string]string{"state": "bold", "name": "italic", "duration": "dim"})
 
 	return fmt.Sprintf("Jobs (%d)\n\n%s", len(scriptJobs), table)
+}
+
+const maxRunningJobsShown = 5
+
+func renderRunningJobs(jobs []buildkite.Job) string {
+	runningJobs := filterRunningJobs(jobs)
+	if len(runningJobs) == 0 {
+		return ""
+	}
+
+	headers := []string{"State", "ID", "Name", "Duration"}
+	shown := runningJobs
+	if len(shown) > maxRunningJobsShown {
+		shown = shown[:maxRunningJobsShown]
+	}
+
+	rows := make([][]string, 0, len(shown))
+	for _, job := range shown {
+		rows = append(rows, []string{
+			job.State,
+			job.ID,
+			truncateText(jobName(job), 72),
+			formatJobDuration(job),
+		})
+	}
+
+	table := output.Table(headers, rows, map[string]string{"state": "bold", "id": "dim", "name": "italic", "duration": "dim"})
+
+	title := fmt.Sprintf("Running Jobs (%d)", len(runningJobs))
+	if remaining := len(runningJobs) - maxRunningJobsShown; remaining > 0 {
+		return fmt.Sprintf("%s\n\n%s\n  … and %d more running", title, table, remaining)
+	}
+
+	return fmt.Sprintf("%s\n\n%s", title, table)
 }
 
 func renderFailedJobs(jobs []buildkite.Job) string {
@@ -255,6 +310,16 @@ func filterScriptJobs(jobs []buildkite.Job) []buildkite.Job {
 	result := make([]buildkite.Job, 0, len(jobs))
 	for _, job := range jobs {
 		if job.Type == "script" {
+			result = append(result, job)
+		}
+	}
+	return result
+}
+
+func filterRunningJobs(jobs []buildkite.Job) []buildkite.Job {
+	result := make([]buildkite.Job, 0, len(jobs))
+	for _, job := range jobs {
+		if job.Type == "script" && job.State == "running" {
 			result = append(result, job)
 		}
 	}
