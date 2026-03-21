@@ -201,6 +201,7 @@ func (c *PreflightCmd) watchLive(
 	lw := preflight.NewLiveWriter(os.Stdout)
 	promoted := map[string]bool{}
 	tick := 0
+	totalPassed := 0
 	pollInterval := time.Duration(c.Interval) * time.Second
 
 	for {
@@ -225,9 +226,18 @@ func (c *PreflightCmd) watchLive(
 					}
 				}
 
+				// Never show broken jobs (pipeline upload failures etc.)
+				if j.State == "broken" {
+					continue
+				}
+
 				if preflight.IsJobTerminal(j) && !promoted[j.ID] {
 					promoted[j.ID] = true
-					lw.Println(preflight.FormatTerminalJob(j))
+					if j.State == "passed" {
+						totalPassed++
+					} else {
+						lw.Println(preflight.FormatTerminalJob(j))
+					}
 				} else if preflight.IsJobActive(j) {
 					live = append(live, preflight.FormatLiveJob(j))
 				} else if !preflight.IsJobTerminal(j) {
@@ -240,17 +250,20 @@ func (c *PreflightCmd) watchLive(
 				}
 			}
 
-			// Show a collapsed summary for queued jobs instead of listing each one.
-			if scheduled > 0 || waiting > 0 {
-				parts := []string{}
-				if scheduled > 0 {
-					parts = append(parts, fmt.Sprintf("%d scheduled", scheduled))
-				}
-				if waiting > 0 {
-					parts = append(parts, fmt.Sprintf("%d waiting", waiting))
-				}
+			// Show a collapsed summary for queued/passed jobs.
+			var parts []string
+			if totalPassed > 0 {
+				parts = append(parts, fmt.Sprintf("\033[32m%d passed\033[0m", totalPassed))
+			}
+			if scheduled > 0 {
+				parts = append(parts, fmt.Sprintf("%d scheduled", scheduled))
+			}
+			if waiting > 0 {
+				parts = append(parts, fmt.Sprintf("%d waiting", waiting))
+			}
+			if len(parts) > 0 {
 				live = append(live,
-					fmt.Sprintf("  \033[90m◌ … %s\033[0m", strings.Join(parts, ", ")))
+					fmt.Sprintf("  \033[90m◌\033[0m … %s", strings.Join(parts, ", ")))
 			}
 
 			live = append(live, "")
