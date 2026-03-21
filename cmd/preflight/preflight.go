@@ -194,8 +194,12 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 
 			if b.FinishedAt != nil {
 				if b.State == "passed" {
+					fmt.Println()
+					fmt.Println("✅ Preflight passed!")
 					return nil
 				}
+				fmt.Println()
+				fmt.Printf("❌ Preflight %s\n", b.State)
 				return fmt.Errorf("preflight build %s", b.State)
 			}
 		case <-ctx.Done():
