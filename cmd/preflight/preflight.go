@@ -12,9 +12,9 @@ import (
 	"github.com/mattn/go-isatty"
 	"golang.org/x/term"
 
-	"github.com/buildkite/cli/v3/internal/build/view/shared"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
+	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/preflight"
 	"github.com/buildkite/cli/v3/internal/util"
@@ -173,7 +173,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	}
 
 	// Watch the build until it completes
-	fmt.Printf("Watching build #%d...\n", build.Number)
+	fmt.Println()
 
 	tty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
 
@@ -181,40 +181,155 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	defer ticker.Stop()
 	watchPollErrorCount := 0
 
+	if tty {
+		return c.watchLive(ctx, f, resolvedPipeline, build, ticker, &watchPollErrorCount)
+	}
+	return c.watchPlain(ctx, f, resolvedPipeline, build, ticker, &watchPollErrorCount)
+}
+
+// watchLive uses a LiveWriter to render an in-place updating display on TTYs.
+// Completed jobs are promoted to permanent scrollback; in-progress jobs are
+// redrawn in a live region at the bottom.
+func (c *PreflightCmd) watchLive(
+	ctx context.Context,
+	f *factory.Factory,
+	pl *pipeline.Pipeline,
+	build buildkite.Build,
+	ticker *time.Ticker,
+	pollErrorCount *int,
+) error {
+	lw := preflight.NewLiveWriter(os.Stdout)
+	promoted := map[string]bool{}
+	tick := 0
+	pollInterval := time.Duration(c.Interval) * time.Second
+
 	for {
 		select {
 		case <-ticker.C:
-			b, _, err := f.RestAPIClient.Builds.Get(ctx, resolvedPipeline.Org, resolvedPipeline.Name, fmt.Sprint(build.Number), nil)
+			b, _, err := f.RestAPIClient.Builds.Get(ctx, pl.Org, pl.Name, fmt.Sprint(build.Number), nil)
 			if err != nil {
-				if pollErr := recordPollingError(err, &watchPollErrorCount, "fetching build status"); pollErr != nil {
+				if pollErr := recordPollingError(err, pollErrorCount, "fetching build status"); pollErr != nil {
 					return pollErr
 				}
 				continue
 			}
-			_ = recordPollingError(nil, &watchPollErrorCount, "")
+			_ = recordPollingError(nil, pollErrorCount, "")
 
-			summary := shared.BuildSummaryWithFailedJobs(&b, resolvedPipeline.Org, resolvedPipeline.Name)
-			if tty {
-				fmt.Print("\033[H\033[2J")
-				fmt.Printf("%s\n", summary)
-			} else {
-				fmt.Printf("[%s] %s\n", time.Now().Format(time.RFC3339), summary)
+			var live []string
+			var scheduled, waiting int
+			for _, j := range b.Jobs {
+				// Skip non-command types that aren't interesting once terminal.
+				if j.Type == "waiter" || j.Type == "manual" || j.Type == "trigger" {
+					if preflight.IsJobTerminal(j) {
+						continue
+					}
+				}
+
+				if preflight.IsJobTerminal(j) && !promoted[j.ID] {
+					promoted[j.ID] = true
+					lw.Println(preflight.FormatTerminalJob(j))
+				} else if preflight.IsJobActive(j) {
+					live = append(live, preflight.FormatLiveJob(j))
+				} else if !preflight.IsJobTerminal(j) {
+					switch j.State {
+					case "scheduled", "assigned", "accepted":
+						scheduled++
+					default:
+						waiting++
+					}
+				}
 			}
+
+			// Show a collapsed summary for queued jobs instead of listing each one.
+			if scheduled > 0 || waiting > 0 {
+				parts := []string{}
+				if scheduled > 0 {
+					parts = append(parts, fmt.Sprintf("%d scheduled", scheduled))
+				}
+				if waiting > 0 {
+					parts = append(parts, fmt.Sprintf("%d waiting", waiting))
+				}
+				live = append(live,
+					fmt.Sprintf("  \033[90m◌ … %s\033[0m", strings.Join(parts, ", ")))
+			}
+
+			live = append(live, "")
+			live = append(live,
+				fmt.Sprintf("  %s Watching build #%d… (poll %s, ctrl-c to stop)",
+					preflight.Spinner(tick), b.Number, pollInterval))
+
+			lw.SetLines(live)
 
 			if b.FinishedAt != nil {
-				if b.State == "passed" {
-					fmt.Println()
-					fmt.Println("✅ Preflight passed!")
-					return nil
-				}
-				fmt.Println()
-				fmt.Printf("❌ Preflight %s\n", b.State)
-				return fmt.Errorf("preflight build %s", b.State)
+				lw.Flush()
+				return printBuildResult(b)
 			}
+
+			tick++
+
 		case <-ctx.Done():
 			return nil
 		}
 	}
+}
+
+// watchPlain is the non-TTY fallback that prints a one-line status on each
+// poll without ANSI escape codes.
+func (c *PreflightCmd) watchPlain(
+	ctx context.Context,
+	f *factory.Factory,
+	pl *pipeline.Pipeline,
+	build buildkite.Build,
+	ticker *time.Ticker,
+	pollErrorCount *int,
+) error {
+	for {
+		select {
+		case <-ticker.C:
+			b, _, err := f.RestAPIClient.Builds.Get(ctx, pl.Org, pl.Name, fmt.Sprint(build.Number), nil)
+			if err != nil {
+				if pollErr := recordPollingError(err, pollErrorCount, "fetching build status"); pollErr != nil {
+					return pollErr
+				}
+				continue
+			}
+			_ = recordPollingError(nil, pollErrorCount, "")
+
+			var running, passed, failed int
+			for _, j := range b.Jobs {
+				if j.Type != "script" {
+					continue
+				}
+				switch j.State {
+				case "running":
+					running++
+				case "passed":
+					passed++
+				case "failed", "broken", "timed_out":
+					failed++
+				}
+			}
+			fmt.Printf("[%s] Build #%d %s — %d passed, %d failed, %d running\n",
+				time.Now().Format(time.RFC3339), b.Number, b.State, passed, failed, running)
+
+			if b.FinishedAt != nil {
+				return printBuildResult(b)
+			}
+
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func printBuildResult(b buildkite.Build) error {
+	fmt.Println()
+	if b.State == "passed" {
+		fmt.Println("✅ Preflight passed!")
+		return nil
+	}
+	fmt.Printf("❌ Preflight %s\n", b.State)
+	return fmt.Errorf("preflight build %s", b.State)
 }
 
 func requireGitRepository(repo *git.Repository) error {
