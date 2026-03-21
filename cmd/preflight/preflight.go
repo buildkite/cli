@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -28,7 +29,7 @@ type PreflightCmd struct {
 	Pipeline string `help:"The pipeline to build. This can be a {pipeline slug} or {org slug}/{pipeline slug}." short:"p"`
 	Web      bool   `help:"Open the build in a web browser after creation." short:"w"`
 	Watch    bool   `help:"Watch the build until completion." default:"true" negatable:""`
-	Interval int    `help:"Polling interval in seconds when watching." default:"5"`
+	Interval float64 `help:"Polling interval in seconds when watching." default:"0.5"`
 }
 
 const maxPollingErrors = 10
@@ -110,6 +111,8 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	fmt.Println()
 	fmt.Println("Preparing preflight with uncommitted changes...")
 	fmt.Println()
+
+	// TODO: Snapshot should return branch.
 	result, err := preflight.Snapshot(preflightID)
 	if err != nil {
 		return bkErrors.NewInternalError(err, "failed to create preflight snapshot",
@@ -127,7 +130,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 
 	var build buildkite.Build
 	pollTimeout := 30 * time.Second
-	pollInterval := 3 * time.Second
+	pollInterval := 1 * time.Second
 	deadline := time.Now().Add(pollTimeout)
 	pollErrorCount := 0
 
@@ -177,7 +180,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 
 	tty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
 
-	ticker := time.NewTicker(time.Duration(c.Interval) * time.Second)
+	ticker := time.NewTicker(time.Duration(c.Interval * float64(time.Second)))
 	defer ticker.Stop()
 	watchPollErrorCount := 0
 
@@ -200,9 +203,9 @@ func (c *PreflightCmd) watchLive(
 ) error {
 	lw := preflight.NewLiveWriter(os.Stdout)
 	promoted := map[string]bool{}
+	promotedGroups := map[string]bool{}
 	tick := 0
 	totalPassed := 0
-	pollInterval := time.Duration(c.Interval) * time.Second
 
 	for {
 		select {
@@ -218,6 +221,11 @@ func (c *PreflightCmd) watchLive(
 
 			var live []string
 			var scheduled, waiting int
+
+			// Collect parallel groups by display name.
+			groups := map[string]*preflight.ParallelGroup{}
+			groupOrder := 0
+
 			for _, j := range b.Jobs {
 				// Skip non-command types that aren't interesting once terminal.
 				if j.Type == "waiter" || j.Type == "manual" || j.Type == "trigger" {
@@ -231,6 +239,32 @@ func (c *PreflightCmd) watchLive(
 					continue
 				}
 
+				name := preflight.JobDisplayName(j)
+
+				// Parallel jobs get aggregated into a group summary.
+				if preflight.IsParallelJob(j) {
+					g, ok := groups[name]
+					if !ok {
+						g = &preflight.ParallelGroup{Name: name, Order: groupOrder}
+						groups[name] = g
+						groupOrder++
+					}
+					g.Total++
+					switch {
+					case j.State == "passed":
+						g.Passed++
+					case j.State == "failed" || j.State == "timed_out" || j.SoftFailed:
+						g.Failed++
+						g.FailedJobs = append(g.FailedJobs, j)
+					case preflight.IsJobActive(j):
+						g.Running++
+					default:
+						g.Waiting++
+					}
+					continue
+				}
+
+				// Non-parallel jobs handled individually.
 				if preflight.IsJobTerminal(j) && !promoted[j.ID] {
 					promoted[j.ID] = true
 					if j.State == "passed" {
@@ -241,16 +275,41 @@ func (c *PreflightCmd) watchLive(
 				} else if preflight.IsJobActive(j) {
 					live = append(live, preflight.FormatLiveJob(j))
 				} else if !preflight.IsJobTerminal(j) {
-					switch j.State {
-					case "scheduled", "assigned", "accepted":
+					if j.State == "scheduled" || j.State == "assigned" || j.State == "accepted" {
 						scheduled++
-					default:
+					} else {
 						waiting++
 					}
 				}
 			}
 
-			// Show a collapsed summary for queued/passed jobs.
+			// Render parallel groups sorted by insertion order.
+			sortedGroups := make([]*preflight.ParallelGroup, 0, len(groups))
+			for _, g := range groups {
+				sortedGroups = append(sortedGroups, g)
+			}
+			sort.Slice(sortedGroups, func(i, j int) bool {
+				return sortedGroups[i].Order < sortedGroups[j].Order
+			})
+			for _, g := range sortedGroups {
+				done := g.Passed + g.Failed
+				if done == g.Total && !promotedGroups[g.Name] {
+					// Fully complete — promote to scrollback.
+					promotedGroups[g.Name] = true
+					if g.Failed > 0 {
+						for _, line := range preflight.FormatParallelGroupTerminal(g) {
+							lw.Println(line)
+						}
+					} else {
+						totalPassed += g.Total
+					}
+				} else if g.Running > 0 || g.Failed > 0 {
+					// Show in live region only if jobs are active or have failures.
+					live = append(live, preflight.FormatParallelGroupLive(g)...)
+				}
+			}
+
+			// Show a collapsed summary for passed/scheduled/waiting jobs.
 			var parts []string
 			if totalPassed > 0 {
 				parts = append(parts, fmt.Sprintf("\033[32m%d passed\033[0m", totalPassed))
@@ -268,8 +327,10 @@ func (c *PreflightCmd) watchLive(
 
 			live = append(live, "")
 			live = append(live,
-				fmt.Sprintf("  %s Watching build #%d… (poll %s, ctrl-c to stop)",
-					preflight.Spinner(tick), b.Number, pollInterval))
+				fmt.Sprintf("  %s Watching build #%d…",
+					preflight.Spinner(tick), b.Number))
+			live = append(live,
+				"\033[90m  Use `bk log view <job-id>` to view logs\033[0m")
 
 			lw.SetLines(live)
 
