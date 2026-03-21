@@ -357,6 +357,8 @@ func (c *PreflightCmd) watchPlain(
 	ticker *time.Ticker,
 	pollErrorCount *int,
 ) error {
+	var lastLine string
+	reported := map[string]bool{}
 	for {
 		select {
 		case <-ticker.C:
@@ -371,7 +373,7 @@ func (c *PreflightCmd) watchPlain(
 
 			var running, passed, failed int
 			for _, j := range b.Jobs {
-				if j.Type != "script" {
+				if j.Type != "script" || j.State == "broken" {
 					continue
 				}
 				switch j.State {
@@ -379,12 +381,20 @@ func (c *PreflightCmd) watchPlain(
 					running++
 				case "passed":
 					passed++
-				case "failed", "broken", "timed_out":
+				case "failed", "timed_out":
 					failed++
 				}
+				if (j.State == "failed" || j.State == "timed_out" || j.SoftFailed) && !reported[j.ID] {
+					reported[j.ID] = true
+					fmt.Printf("  ✗ %s  %s  %s\n", preflight.JobDisplayName(j), j.State, j.ID)
+				}
 			}
-			fmt.Printf("[%s] Build #%d %s — %d passed, %d failed, %d running\n",
-				time.Now().Format(time.RFC3339), b.Number, b.State, passed, failed, running)
+			line := fmt.Sprintf("Build #%d %s — %d passed, %d failed, %d running",
+				b.Number, b.State, passed, failed, running)
+			if line != lastLine {
+				fmt.Printf("[%s] %s\n", time.Now().Format(time.RFC3339), line)
+				lastLine = line
+			}
 
 			if b.FinishedAt != nil {
 				return printBuildResult(b)
