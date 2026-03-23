@@ -31,11 +31,22 @@ func (f FileChange) StatusSymbol() string {
 	}
 }
 
+// SnapshotOption configures Snapshot behavior.
+type SnapshotOption func()
+
+// WithDebug enables verbose git output on failure.
+func WithDebug() SnapshotOption {
+	return func() { debug = true }
+}
+
 // Snapshot pushes the current working tree state to a remote preflight ref.
 // If there are uncommitted changes, it creates a temporary commit containing
 // them without touching the real git index. If the worktree is clean, it
 // pushes HEAD directly.
-func Snapshot(dir string, preflightID string) (*SnapshotResult, error) {
+func Snapshot(dir string, preflightID string, opts ...SnapshotOption) (*SnapshotResult, error) {
+	for _, opt := range opts {
+		opt()
+	}
 	tmp, err := os.CreateTemp("", "git-index-*")
 	if err != nil {
 		return nil, fmt.Errorf("create temp index: %w", err)
