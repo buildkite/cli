@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/buildkite/cli/v3/internal/pipeline"
@@ -53,6 +54,7 @@ type fileConfig struct {
 	NoInput       bool                 `yaml:"no_input,omitempty"`
 	Pager         string               `yaml:"pager,omitempty"`
 	Telemetry     *bool                `yaml:"telemetry,omitempty"`
+	Experiments   string               `yaml:"experiments,omitempty"`
 }
 
 // Config contains the configuration for the currently selected organization
@@ -336,6 +338,31 @@ func (conf *Config) TelemetryEnabled() bool {
 // SetTelemetry sets whether telemetry is enabled (user config only)
 func (conf *Config) SetTelemetry(v bool) error {
 	conf.user.Telemetry = &v
+	return conf.writeUser()
+}
+
+// Experiments returns the comma-separated list of enabled experiments.
+// Precedence: env (even if empty) > user config
+func (conf *Config) Experiments() string {
+	if v, ok := os.LookupEnv("BUILDKITE_EXPERIMENTS"); ok {
+		return v
+	}
+	return conf.user.Experiments
+}
+
+// HasExperiment reports whether the given experiment name is enabled.
+func (conf *Config) HasExperiment(name string) bool {
+	for _, exp := range strings.Split(conf.Experiments(), ",") {
+		if strings.TrimSpace(exp) == name {
+			return true
+		}
+	}
+	return false
+}
+
+// SetExperiments sets the experiments string (user config only)
+func (conf *Config) SetExperiments(v string) error {
+	conf.user.Experiments = v
 	return conf.writeUser()
 }
 
