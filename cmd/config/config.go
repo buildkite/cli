@@ -45,6 +45,7 @@ const (
 	KeyNoInput      ConfigKey = "no_input"
 	KeyPager        ConfigKey = "pager"
 	KeyTelemetry    ConfigKey = "telemetry"
+	KeyExperiments  ConfigKey = "experiments"
 )
 
 // AllKeys returns all valid configuration keys
@@ -57,6 +58,7 @@ func AllKeys() []ConfigKey {
 		KeyNoInput,
 		KeyPager,
 		KeyTelemetry,
+		KeyExperiments,
 	}
 }
 
@@ -77,7 +79,7 @@ func (k ConfigKey) IsLocalOnly() bool {
 // IsUserOnly returns true if the key can only be set in user config
 func (k ConfigKey) IsUserOnly() bool {
 	switch k {
-	case KeyNoInput, KeyPager, KeyTelemetry:
+	case KeyNoInput, KeyPager, KeyTelemetry, KeyExperiments:
 		return true
 	default:
 		return false
@@ -146,6 +148,8 @@ func SetConfigValue(conf *config.Config, key ConfigKey, value string, local bool
 			return fmt.Errorf("invalid boolean value %q: %w", value, err)
 		}
 		return conf.SetTelemetry(v)
+	case KeyExperiments:
+		return conf.SetExperiments(value)
 	}
 
 	return nil
