@@ -16,6 +16,7 @@ type FileChange struct {
 type SnapshotResult struct {
 	Commit string
 	Ref    string
+	Branch string
 	Files  []FileChange
 }
 
@@ -90,7 +91,8 @@ func Snapshot(dir string, preflightID string, opts ...SnapshotOption) (*Snapshot
 	if user == "" {
 		user = "unknown"
 	}
-	ref := fmt.Sprintf("refs/heads/bk/preflight/%s/%s", user, preflightID)
+	branch := fmt.Sprintf("bk/preflight/%s/%s", user, preflightID)
+	ref := fmt.Sprintf("refs/heads/%s", branch)
 	commit := head
 
 	if len(files) > 0 {
@@ -117,6 +119,7 @@ func Snapshot(dir string, preflightID string, opts ...SnapshotOption) (*Snapshot
 	return &SnapshotResult{
 		Commit: commit,
 		Ref:    ref,
+		Branch: branch,
 		Files:  files,
 	}, nil
 }
