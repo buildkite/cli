@@ -2,7 +2,7 @@
 # repository's current release build image; the module minimum stays in go.mod.
 [tools]
 go = "1.26.1"
-golangci-lint = "2.11.3"
+golangci-lint = "2.11.4"
 lefthook = "2.1.4"
 "aqua:mvdan/gofumpt" = "0.9.2"
 "aqua:goreleaser/goreleaser" = "2.14.3"
