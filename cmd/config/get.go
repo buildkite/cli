@@ -68,12 +68,6 @@ func (c *GetCmd) Run() error {
 		}
 	case KeyPager:
 		value = conf.Pager()
-	case KeyTelemetry:
-		if conf.TelemetryEnabled() {
-			value = "true"
-		} else {
-			value = "false"
-		}
 	case KeyExperiments:
 		value = conf.Experiments()
 	}
