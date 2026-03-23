@@ -43,13 +43,16 @@ func CreateAgentToken(ctx context.Context, f *factory.Factory, org, clusterID, d
 	return token.Token, nil
 }
 
-// WriteAgentConfig writes a minimal agent config file with the given token and build path.
-// The file is created with 0600 permissions.
-func WriteAgentConfig(path, token, buildPath string) error {
+// WriteAgentConfig writes a minimal agent config file with the given token, build path,
+// and optional tags. The file is created with 0600 permissions.
+func WriteAgentConfig(path, token, buildPath string, tags []string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
 
 	content := fmt.Sprintf("token=%q\nbuild-path=%q\n", token, buildPath)
+	for _, tag := range tags {
+		content += fmt.Sprintf("tags=%q\n", tag)
+	}
 	return os.WriteFile(path, []byte(content), 0o600)
 }

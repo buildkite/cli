@@ -23,11 +23,11 @@ var (
 // InstallCmd allows users to define which agent version they want to install
 // We will take care of OS/arch in the command itself
 type InstallCmd struct {
-	Version    string `help:"Specify an agent version to install" default:"latest"`
-	Dest       string `help:"Destination directory for the binary" type:"path"`
-	Cluster    string `help:"Cluster UUID to create the agent token on (default: the \"Default\" cluster)" optional:""`
-	NoToken    bool   `help:"Skip creating an agent token and config file" name:"no-token"`
-	ConfigPath string `help:"Path to write the agent config file" type:"path"`
+	Version     string `help:"Specify an agent version to install" default:"latest"`
+	Dest        string `help:"Destination directory for the binary" type:"path"`
+	ClusterUUID string `help:"Cluster UUID to create the agent token on (default: the \"Default\" cluster)" name:"cluster-uuid" optional:""`
+	NoToken     bool   `help:"Skip creating an agent token and config file" name:"no-token"`
+	ConfigPath  string `help:"Path to write the agent config file" type:"path"`
 }
 
 func (i *InstallCmd) Help() string {
@@ -132,7 +132,7 @@ func (i *InstallCmd) createTokenAndConfig(globals cli.GlobalFlags) error {
 	ctx := context.Background()
 	org := f.Config.OrganizationSlug()
 
-	clusterID, err := bkAgent.FindCluster(ctx, f, org, i.Cluster)
+	clusterID, err := bkAgent.FindCluster(ctx, f, org, i.ClusterUUID)
 	if err != nil {
 		return fmt.Errorf("finding default cluster: %w", err)
 	}
@@ -149,7 +149,7 @@ func (i *InstallCmd) createTokenAndConfig(globals cli.GlobalFlags) error {
 	}
 
 	buildPath := bkAgent.DefaultBuildPath(userOS)
-	if err := bkAgent.WriteAgentConfig(configPath, token, buildPath); err != nil {
+	if err := bkAgent.WriteAgentConfig(configPath, token, buildPath, nil); err != nil {
 		return fmt.Errorf("writing agent config: %w", err)
 	}
 
