@@ -26,6 +26,16 @@ func setEnv(t *testing.T, key, value string) {
 	})
 }
 
+func unsetEnv(t *testing.T, key string) {
+	original, had := os.LookupEnv(key)
+	os.Unsetenv(key)
+	t.Cleanup(func() {
+		if had {
+			os.Setenv(key, original)
+		}
+	})
+}
+
 func prepareTestDirectory(fs afero.Fs, fixturePath, configPath string) error {
 	// read the content of the fixture config file from the real filesystem
 	in, err := os.ReadFile(filepath.Join("../../fixtures/config", fixturePath))
@@ -310,4 +320,99 @@ func TestConfig(t *testing.T) {
 			}
 		})
 	})
+}
+
+func TestExperiments(t *testing.T) {
+	t.Run("defaults to empty", func(t *testing.T) {
+		unsetEnv(t, "BUILDKITE_EXPERIMENTS")
+
+		fs := afero.NewMemMapFs()
+		conf := New(fs, nil)
+
+		if got := conf.Experiments(); got != "" {
+			t.Errorf("Experiments() = %q, want %q", got, "")
+		}
+	})
+
+	t.Run("env overrides config", func(t *testing.T) {
+		setEnv(t, "BUILDKITE_EXPERIMENTS", "alpha")
+
+		fs := afero.NewMemMapFs()
+		conf := New(fs, nil)
+		conf.SetExperiments("beta")
+
+		if got := conf.Experiments(); got != "alpha" {
+			t.Errorf("Experiments() = %q, want %q (env should override)", got, "alpha")
+		}
+	})
+
+	t.Run("env empty string does not fall through", func(t *testing.T) {
+		setEnv(t, "BUILDKITE_EXPERIMENTS", "")
+
+		fs := afero.NewMemMapFs()
+		conf := New(fs, nil)
+		conf.SetExperiments("beta")
+
+		if got := conf.Experiments(); got != "" {
+			t.Errorf("Experiments() = %q, want %q (empty env should not fall through)", got, "")
+		}
+	})
+
+	t.Run("config value is used", func(t *testing.T) {
+		unsetEnv(t, "BUILDKITE_EXPERIMENTS")
+
+		fs := afero.NewMemMapFs()
+		conf := New(fs, nil)
+		conf.SetExperiments("preflight")
+
+		if got := conf.Experiments(); got != "preflight" {
+			t.Errorf("Experiments() = %q, want %q", got, "preflight")
+		}
+	})
+
+	t.Run("SetExperiments persists", func(t *testing.T) {
+		unsetEnv(t, "BUILDKITE_EXPERIMENTS")
+
+		fs := afero.NewMemMapFs()
+		conf := New(fs, nil)
+
+		if err := conf.SetExperiments("preflight,beta"); err != nil {
+			t.Fatalf("SetExperiments() error: %v", err)
+		}
+
+		conf2 := New(fs, nil)
+		if got := conf2.Experiments(); got != "preflight,beta" {
+			t.Errorf("Experiments() after reload = %q, want %q", got, "preflight,beta")
+		}
+	})
+}
+
+func TestHasExperiment(t *testing.T) {
+	tests := []struct {
+		name        string
+		experiments string
+		query       string
+		want        bool
+	}{
+		{"single match", "preflight", "preflight", true},
+		{"multiple with match", "foo,preflight,bar", "preflight", true},
+		{"multiple without match", "foo,bar", "preflight", false},
+		{"whitespace handling", " preflight , bar ", "preflight", true},
+		{"empty string", "", "preflight", false},
+		{"partial name no match", "preflightx", "preflight", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			unsetEnv(t, "BUILDKITE_EXPERIMENTS")
+
+			fs := afero.NewMemMapFs()
+			conf := New(fs, nil)
+			conf.SetExperiments(tt.experiments)
+
+			if got := conf.HasExperiment(tt.query); got != tt.want {
+				t.Errorf("HasExperiment(%q) with experiments=%q: got %v, want %v", tt.query, tt.experiments, got, tt.want)
+			}
+		})
+	}
 }
