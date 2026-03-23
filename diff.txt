@@ -1,0 +1,360 @@
+diff --git a/internal/preflight/run.go b/internal/preflight/run.go
+new file mode 100644
+index 0000000..863bd48
+--- /dev/null
++++ b/internal/preflight/run.go
+@@ -0,0 +1,45 @@
++package preflight
++
++import (
++	"fmt"
++	"os"
++	"os/exec"
++	"strings"
++)
++
++func run(dir string, env []string, name string, args ...string) error {
++	cmd := exec.Command(name, args...)
++	cmd.Dir = dir
++	cmd.Env = env
++	cmd.Stdout = os.Stderr
++	cmd.Stderr = os.Stderr
++	if err := cmd.Run(); err != nil {
++		return fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), err)
++	}
++	return nil
++}
++
++// runQuiet runs a command, suppressing output unless it fails.
++func runQuiet(dir string, env []string, name string, args ...string) error {
++	cmd := exec.Command(name, args...)
++	cmd.Dir = dir
++	cmd.Env = env
++	out, err := cmd.CombinedOutput()
++	if err != nil {
++		os.Stderr.Write(out)
++		return fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), err)
++	}
++	return nil
++}
++
++func runOut(dir string, env []string, name string, args ...string) (string, error) {
++	cmd := exec.Command(name, args...)
++	cmd.Dir = dir
++	cmd.Env = env
++	cmd.Stderr = os.Stderr
++	out, err := cmd.Output()
++	if err != nil {
++		return "", fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), err)
++	}
++	return strings.TrimSpace(string(out)), nil
++}
+diff --git a/internal/preflight/snapshot.go b/internal/preflight/snapshot.go
+new file mode 100644
+index 0000000..5d29195
+--- /dev/null
++++ b/internal/preflight/snapshot.go
+@@ -0,0 +1,128 @@
++package preflight
++
++import (
++	"fmt"
++	"os"
++	"strings"
++)
++
++// FileChange represents a single file changed in the snapshot.
++type FileChange struct {
++	Status string // e.g. "M", "A", "D", "R"
++	Path   string
++}
++
++// SnapshotResult holds the output of a successful snapshot operation.
++type SnapshotResult struct {
++	Commit string
++	Ref    string
++	Files  []FileChange
++}
++
++// StatusSymbol returns a human-readable symbol for the file change status.
++func (f FileChange) StatusSymbol() string {
++	switch f.Status {
++	case "A":
++		return "+"
++	case "D":
++		return "-"
++	default:
++		return "~"
++	}
++}
++
++// Snapshot creates a temporary commit from the current working tree (including
++// uncommitted changes) without touching the real git index, then pushes it to
++// the given remote branch. It returns the snapshot result including the commit
++// SHA and list of changed files.
++//
++//  1. Create a temp index seeded from HEAD
++//  2. Stage the entire worktree into the temp index
++//  3. Diff the temp index against HEAD to find changed files
++//  4. Write a tree object
++//  5. Create a commit on top of HEAD
++//  6. Push the detached commit to refs/heads/bk-preflight/<preflight-id>
++func Snapshot(dir string, preflightID string) (*SnapshotResult, error) {
++	tmp, err := os.CreateTemp("", "git-index-*")
++	if err != nil {
++		return nil, fmt.Errorf("create temp index: %w", err)
++	}
++	tmpIndex := tmp.Name()
++	tmp.Close()
++	defer os.Remove(tmpIndex)
++
++	env := append(os.Environ(), "GIT_INDEX_FILE="+tmpIndex)
++
++	// Seed the temp index from HEAD.
++	if err := run(dir, env, "git", "read-tree", "HEAD"); err != nil {
++		return nil, err
++	}
++
++	// Stage the entire worktree into the temp index.
++	if err := run(dir, env, "git", "add", "-A"); err != nil {
++		return nil, err
++	}
++
++	// Diff the temp index against HEAD to find changed files.
++	files, err := diffFiles(dir, env)
++	if err != nil {
++		return nil, err
++	}
++
++	// Write the tree object.
++	tree, err := runOut(dir, env, "git", "write-tree")
++	if err != nil {
++		return nil, err
++	}
++
++	// Create a commit on top of HEAD.
++	commit, err := runOut(dir, env, "git", "commit-tree", tree, "-p", "HEAD", "-m", fmt.Sprintf("Preflight snapshot\n\nPreflight Run ID: %s", preflightID))
++	if err != nil {
++		return nil, err
++	}
++
++	// Push the detached commit to the remote branch.
++	ref := "refs/heads/bk-preflight/" + preflightID
++	refspec := commit + ":" + ref
++	if err := runQuiet(dir, env, "git", "push", "--force", "origin", refspec); err != nil {
++		return nil, err
++	}
++
++	return &SnapshotResult{
++		Commit: commit,
++		Ref:    ref,
++		Files:  files,
++	}, nil
++}
++
++// diffFiles returns the list of files changed between HEAD and the temp index.
++func diffFiles(dir string, env []string) ([]FileChange, error) {
++	out, err := runOut(dir, env, "git", "diff-index", "--cached", "--name-status", "HEAD")
++	if err != nil {
++		return nil, err
++	}
++
++	if out == "" {
++		return nil, nil
++	}
++
++	var files []FileChange
++	for _, line := range strings.Split(out, "\n") {
++		line = strings.TrimSpace(line)
++		if line == "" {
++			continue
++		}
++		parts := strings.SplitN(line, "\t", 2)
++		if len(parts) != 2 {
++			continue
++		}
++		files = append(files, FileChange{
++			Status: parts[0][:1], // Take first char (e.g. "R100" → "R")
++			Path:   parts[1],
++		})
++	}
++
++	return files, nil
++}
++
++
+diff --git a/internal/preflight/snapshot_test.go b/internal/preflight/snapshot_test.go
+new file mode 100644
+index 0000000..0eb352f
+--- /dev/null
++++ b/internal/preflight/snapshot_test.go
+@@ -0,0 +1,169 @@
++package preflight
++
++import (
++	"os"
++	"os/exec"
++	"path/filepath"
++	"strings"
++	"testing"
++)
++
++// initTestRepo creates a real git repository in a temp directory with an
++// initial commit and a bare "origin" remote so that Snapshot can push.
++// It returns the worktree path and a cleanup-aware test helper.
++func initTestRepo(t *testing.T) string {
++	t.Helper()
++
++	dir := t.TempDir()
++	worktree := filepath.Join(dir, "work")
++	bare := filepath.Join(dir, "origin.git")
++
++	// Create the bare remote.
++	runGit(t, "", "init", "--bare", bare)
++
++	// Create the working repo.
++	runGit(t, "", "init", worktree)
++	runGit(t, worktree, "config", "user.email", "test@test.com")
++	runGit(t, worktree, "config", "user.name", "Test")
++
++	// Create an initial commit so HEAD exists.
++	initial := filepath.Join(worktree, "README.md")
++	if err := os.WriteFile(initial, []byte("# test\n"), 0o644); err != nil {
++		t.Fatal(err)
++	}
++	runGit(t, worktree, "add", ".")
++	runGit(t, worktree, "commit", "-m", "initial commit")
++
++	// Add the bare repo as origin.
++	runGit(t, worktree, "remote", "add", "origin", bare)
++
++	return worktree
++}
++
++func runGit(t *testing.T, dir string, args ...string) string {
++	t.Helper()
++
++	cmd := exec.Command("git", args...)
++	if dir != "" {
++		cmd.Dir = dir
++	}
++	out, err := cmd.CombinedOutput()
++	if err != nil {
++		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
++	}
++	return strings.TrimSpace(string(out))
++}
++
++func TestSnapshot_CommittedChanges(t *testing.T) {
++
++	worktree := initTestRepo(t)
++
++	// Add a tracked file change (but don't commit it).
++	if err := os.WriteFile(filepath.Join(worktree, "README.md"), []byte("# updated\n"), 0o644); err != nil {
++		t.Fatal(err)
++	}
++
++	preflightID := "test-id-committed"
++	result, err := Snapshot(worktree, preflightID)
++	if err != nil {
++		t.Fatalf("Snapshot() error: %v", err)
++	}
++
++	if len(result.Commit) != 40 {
++		t.Errorf("expected 40-char SHA, got %q (len %d)", result.Commit, len(result.Commit))
++	}
++
++	// The commit should exist in the repo.
++	runGit(t, worktree, "cat-file", "-t", result.Commit)
++
++	// The snapshot tree should contain the updated content.
++	content := runGit(t, worktree, "show", result.Commit+":README.md")
++	if content != "# updated" {
++		t.Errorf("snapshot content = %q, want %q", content, "# updated")
++	}
++
++	// The remote branch should have been pushed.
++	remoteCommit := runGit(t, worktree, "ls-remote", "origin", "refs/heads/bk-preflight/"+preflightID)
++	if !strings.Contains(remoteCommit, result.Commit) {
++		t.Errorf("remote branch does not contain commit %s, got %q", result.Commit, remoteCommit)
++	}
++}
++
++func TestSnapshot_UntrackedFiles(t *testing.T) {
++
++	worktree := initTestRepo(t)
++
++	// Add a brand new untracked file.
++	if err := os.WriteFile(filepath.Join(worktree, "new-file.txt"), []byte("hello\n"), 0o644); err != nil {
++		t.Fatal(err)
++	}
++
++	preflightID := "test-id-untracked"
++	result, err := Snapshot(worktree, preflightID)
++	if err != nil {
++		t.Fatalf("Snapshot() error: %v", err)
++	}
++
++	// The snapshot should include the untracked file.
++	content := runGit(t, worktree, "show", result.Commit+":new-file.txt")
++	if content != "hello" {
++		t.Errorf("untracked file content = %q, want %q", content, "hello")
++	}
++}
++
++func TestSnapshot_DoesNotModifyRealIndex(t *testing.T) {
++
++	worktree := initTestRepo(t)
++
++	// Create an untracked file.
++	if err := os.WriteFile(filepath.Join(worktree, "untracked.txt"), []byte("data\n"), 0o644); err != nil {
++		t.Fatal(err)
++	}
++
++	// Record the index state before snapshot.
++	statusBefore := runGit(t, worktree, "status", "--porcelain")
++
++	_, err := Snapshot(worktree, "test-id-index")
++	if err != nil {
++		t.Fatalf("Snapshot() error: %v", err)
++	}
++
++	// The real index should be unchanged.
++	statusAfter := runGit(t, worktree, "status", "--porcelain")
++	if statusBefore != statusAfter {
++		t.Errorf("git status changed after Snapshot:\nbefore: %q\nafter:  %q", statusBefore, statusAfter)
++	}
++}
++
++func TestSnapshot_ForcePushesExistingBranch(t *testing.T) {
++
++	worktree := initTestRepo(t)
++
++	preflightID := "test-id-force"
++
++	// First snapshot.
++	result1, err := Snapshot(worktree, preflightID)
++	if err != nil {
++		t.Fatalf("first Snapshot() error: %v", err)
++	}
++
++	// Modify a file and snapshot again to the same branch.
++	if err := os.WriteFile(filepath.Join(worktree, "README.md"), []byte("# v2\n"), 0o644); err != nil {
++		t.Fatal(err)
++	}
++
++	result2, err := Snapshot(worktree, preflightID)
++	if err != nil {
++		t.Fatalf("second Snapshot() error: %v", err)
++	}
++
++	if result1.Commit == result2.Commit {
++		t.Error("expected different commits for different snapshots")
++	}
++
++	// The remote branch should point to the second commit.
++	remoteRef := runGit(t, worktree, "ls-remote", "origin", "refs/heads/bk-preflight/"+preflightID)
++	if !strings.Contains(remoteRef, result2.Commit) {
++		t.Errorf("remote branch should point to %s, got %q", result2.Commit, remoteRef)
++	}
++}

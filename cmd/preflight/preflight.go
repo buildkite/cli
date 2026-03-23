@@ -48,7 +48,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	fmt.Println("Creating snapshot of working tree...")
 	result, err := preflight.Snapshot(wt.Filesystem.Root(), preflightID)
 	if err != nil {
-		return bkErrors.NewInternalError(err, "failed to create preflight snapshot",
+		return bkErrors.NewSnapshotError(err,
 			"Ensure you have uncommitted or committed changes to snapshot",
 			"Ensure you have push access to the remote repository",
 		)
