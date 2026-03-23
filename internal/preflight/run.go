@@ -7,8 +7,9 @@ import (
 	"strings"
 )
 
-func run(env []string, name string, args ...string) error {
+func run(dir string, env []string, name string, args ...string) error {
 	cmd := exec.Command(name, args...)
+	cmd.Dir = dir
 	cmd.Env = env
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
@@ -19,8 +20,9 @@ func run(env []string, name string, args ...string) error {
 }
 
 // runQuiet runs a command, suppressing output unless it fails.
-func runQuiet(env []string, name string, args ...string) error {
+func runQuiet(dir string, env []string, name string, args ...string) error {
 	cmd := exec.Command(name, args...)
+	cmd.Dir = dir
 	cmd.Env = env
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -30,8 +32,9 @@ func runQuiet(env []string, name string, args ...string) error {
 	return nil
 }
 
-func runOut(env []string, name string, args ...string) (string, error) {
+func runOut(dir string, env []string, name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
+	cmd.Dir = dir
 	cmd.Env = env
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
