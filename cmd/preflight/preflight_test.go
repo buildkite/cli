@@ -38,13 +38,24 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 	})
 
-	t.Run("succeeds when experiment enabled", func(t *testing.T) {
+	t.Run("returns validation error when not in git repo", func(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		// Run from a temp dir that is not a git repo.
+		t.Chdir(t.TempDir())
 
 		cmd := &PreflightCmd{}
 		err := cmd.Run(nil, stubGlobals{})
-		if err != nil {
-			t.Fatalf("expected no error, got: %v", err)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+
+		var bkErr *bkErrors.Error
+		if !errors.As(err, &bkErr) {
+			t.Fatalf("expected bkErrors.Error, got %T: %v", err, err)
+		}
+		if !errors.Is(bkErr, bkErrors.ErrValidation) {
+			t.Errorf("expected ErrValidation, got category: %v", bkErr.Category)
 		}
 	})
 }
