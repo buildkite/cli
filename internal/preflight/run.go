@@ -7,9 +7,6 @@ import (
 	"strings"
 )
 
-// debug controls whether git stderr is printed on failure.
-var debug bool
-
 // gitCmd creates an exec.Command for git with the given dir and env pre-configured.
 func gitCmd(dir string, env []string, args ...string) *exec.Cmd {
 	cmd := exec.Command("git", args...)
@@ -19,7 +16,7 @@ func gitCmd(dir string, env []string, args ...string) *exec.Cmd {
 }
 
 // gitRun runs a git command, discarding output on success.
-func gitRun(dir string, env []string, args ...string) error {
+func gitRun(dir string, env []string, debug bool, args ...string) error {
 	cmd := gitCmd(dir, env, args...)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		if debug {
@@ -31,7 +28,7 @@ func gitRun(dir string, env []string, args ...string) error {
 }
 
 // gitOutput runs a git command and returns its trimmed stdout.
-func gitOutput(dir string, env []string, args ...string) (string, error) {
+func gitOutput(dir string, env []string, debug bool, args ...string) (string, error) {
 	cmd := gitCmd(dir, env, args...)
 	out, err := cmd.Output()
 	if err != nil {
