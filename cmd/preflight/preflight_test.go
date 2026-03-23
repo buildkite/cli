@@ -1,12 +1,17 @@
 package preflight
 
 import (
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	buildkite "github.com/buildkite/go-buildkite/v4"
 
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 
@@ -63,8 +68,30 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 	})
 
-	t.Run("succeeds with dirty worktree", func(t *testing.T) {
+	t.Run("snapshots and creates build", func(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		var gotReq buildkite.CreateBuild
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == "POST" && strings.Contains(r.URL.Path, "/builds") {
+				json.NewDecoder(r.Body).Decode(&gotReq)
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(buildkite.Build{
+					ID:      "build-id-123",
+					Number:  1,
+					State:   "scheduled",
+					WebURL:  "https://buildkite.com/test-org/test-pipeline/builds/1",
+					Message: gotReq.Message,
+					Commit:  gotReq.Commit,
+					Branch:  gotReq.Branch,
+					URL:     "https://api.buildkite.com/v2/organizations/test-org/pipelines/test-pipeline/builds/1",
+				})
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
 
 		worktree := initTestRepo(t)
 		t.Chdir(worktree)
@@ -74,23 +101,48 @@ func TestPreflightCmd_Run(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		cmd := &PreflightCmd{}
+		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline"}
 		err := cmd.Run(nil, stubGlobals{})
 		if err != nil {
 			t.Fatalf("expected no error, got: %v", err)
 		}
+
+		if gotReq.Commit == "" {
+			t.Fatal("expected build creation request with a commit, got empty")
+		}
+		if !strings.HasPrefix(gotReq.Branch, "bk/preflight/") {
+			t.Errorf("expected branch starting with bk/preflight/, got %q", gotReq.Branch)
+		}
+		if !strings.HasPrefix(gotReq.Message, "Preflight ") {
+			t.Errorf("expected message starting with 'Preflight ', got %q", gotReq.Message)
+		}
 	})
 
-	t.Run("succeeds with clean worktree", func(t *testing.T) {
+	t.Run("returns error when build creation fails", func(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"message":"Pipeline not found"}`))
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
 
 		worktree := initTestRepo(t)
 		t.Chdir(worktree)
 
-		cmd := &PreflightCmd{}
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline"}
 		err := cmd.Run(nil, stubGlobals{})
-		if err != nil {
-			t.Fatalf("expected no error, got: %v", err)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "creating preflight build") {
+			t.Fatalf("expected build creation error, got: %v", err)
 		}
 	})
 }
