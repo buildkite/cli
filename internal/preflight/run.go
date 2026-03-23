@@ -30,18 +30,6 @@ func gitRun(dir string, env []string, args ...string) error {
 	return nil
 }
 
-// gitRunQuiet runs a git command, suppressing all output.
-func gitRunQuiet(dir string, env []string, args ...string) error {
-	cmd := gitCmd(dir, env, args...)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		if debug {
-			os.Stderr.Write(out)
-		}
-		return fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
-	}
-	return nil
-}
-
 // gitOutput runs a git command and returns its trimmed stdout.
 func gitOutput(dir string, env []string, args ...string) (string, error) {
 	cmd := gitCmd(dir, env, args...)

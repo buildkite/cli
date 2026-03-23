@@ -105,7 +105,7 @@ func Snapshot(dir string, preflightID string, opts ...SnapshotOption) (*Snapshot
 
 	// Push the commit to the remote branch.
 	refspec := fmt.Sprintf("%s:%s", commit, ref)
-	if err := gitRunQuiet(dir, env, "push", "origin", refspec); err != nil {
+	if err := gitRun(dir, env, "push", "origin", refspec); err != nil {
 		return nil, err
 	}
 
