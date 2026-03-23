@@ -23,6 +23,7 @@ Valid keys:
   quiet          Suppress progress output (true, false)
   no_input       Disable interactive prompts (true, false)
   pager          Custom pager command
+  experiments    Enabled experiment flags
 
 Examples:
   $ bk config get output_format
@@ -68,6 +69,8 @@ func (c *GetCmd) Run() error {
 		}
 	case KeyPager:
 		value = conf.Pager()
+	case KeyExperiments:
+		value = conf.Experiments()
 	}
 
 	if value != "" {

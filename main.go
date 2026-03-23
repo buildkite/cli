@@ -21,6 +21,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/organization"
 	"github.com/buildkite/cli/v3/cmd/pipeline"
 	"github.com/buildkite/cli/v3/cmd/pkg"
+	"github.com/buildkite/cli/v3/cmd/preflight"
 	"github.com/buildkite/cli/v3/cmd/secret"
 	"github.com/buildkite/cli/v3/cmd/use"
 	"github.com/buildkite/cli/v3/cmd/user"
@@ -35,29 +36,30 @@ import (
 // Kong CLI structure, with base commands defined as additional commands are defined in their respective files
 type CLI struct {
 	// Global flags
-	Yes          bool               `help:"Skip all confirmation prompts" short:"y"`
-	NoInput      bool               `help:"Disable all interactive prompts" name:"no-input"`
-	Quiet        bool               `help:"Suppress progress output" short:"q"`
-	NoPager      bool               `help:"Disable pager for text output" name:"no-pager"`
-	Debug        bool               `help:"Enable debug output for REST API calls"`
-	Agent        AgentCmd           `cmd:"" help:"Manage agents"`
-	Api          ApiCmd             `cmd:"" help:"Interact with the Buildkite API"`
-	Artifacts    ArtifactsCmd       `cmd:"" help:"Manage pipeline build artifacts"`
-	Auth         AuthCmd            `cmd:"" help:"Authenticate with Buildkite"`
-	Build        BuildCmd           `cmd:"" help:"Manage pipeline builds"`
-	Cluster      ClusterCmd         `cmd:"" help:"Manage organization clusters"`
-	Secret       SecretCmd          `cmd:"" help:"Manage cluster secrets"`
-	Config       bkConfig.ConfigCmd `cmd:"" help:"Manage CLI configuration"`
-	Configure    ConfigureCmd       `cmd:"" help:"Configure Buildkite API token" hidden:""`
-	Init         bkInit.InitCmd     `cmd:"" help:"Initialize a pipeline.yaml file"`
-	Job          JobCmd             `cmd:"" help:"Manage jobs within a build"`
-	Organization OrganizationCmd    `cmd:"" help:"Manage organizations" aliases:"org"`
-	Pipeline     PipelineCmd        `cmd:"" help:"Manage pipelines"`
-	Package      PackageCmd         `cmd:"" help:"Manage packages"`
-	Use          use.UseCmd         `cmd:"" help:"Select an organization" hidden:""`
-	User         UserCmd            `cmd:"" help:"Invite users to the organization"`
-	Version      VersionCmd         `cmd:"" help:"Print the version of the CLI being used"`
-	Whoami       whoami.WhoAmICmd   `cmd:"" help:"Print the current user and organization" hidden:""`
+	Yes          bool                   `help:"Skip all confirmation prompts" short:"y"`
+	NoInput      bool                   `help:"Disable all interactive prompts" name:"no-input"`
+	Quiet        bool                   `help:"Suppress progress output" short:"q"`
+	NoPager      bool                   `help:"Disable pager for text output" name:"no-pager"`
+	Debug        bool                   `help:"Enable debug output for REST API calls"`
+	Agent        AgentCmd               `cmd:"" help:"Manage agents"`
+	Api          ApiCmd                 `cmd:"" help:"Interact with the Buildkite API"`
+	Artifacts    ArtifactsCmd           `cmd:"" help:"Manage pipeline build artifacts"`
+	Auth         AuthCmd                `cmd:"" help:"Authenticate with Buildkite"`
+	Build        BuildCmd               `cmd:"" help:"Manage pipeline builds"`
+	Cluster      ClusterCmd             `cmd:"" help:"Manage organization clusters"`
+	Secret       SecretCmd              `cmd:"" help:"Manage cluster secrets"`
+	Config       bkConfig.ConfigCmd     `cmd:"" help:"Manage CLI configuration"`
+	Configure    ConfigureCmd           `cmd:"" help:"Configure Buildkite API token" hidden:""`
+	Init         bkInit.InitCmd         `cmd:"" help:"Initialize a pipeline.yaml file"`
+	Job          JobCmd                 `cmd:"" help:"Manage jobs within a build"`
+	Organization OrganizationCmd        `cmd:"" help:"Manage organizations" aliases:"org"`
+	Pipeline     PipelineCmd            `cmd:"" help:"Manage pipelines"`
+	Package      PackageCmd             `cmd:"" help:"Manage packages"`
+	Preflight    preflight.PreflightCmd `cmd:"" help:"Validate pre-commit changes"`
+	Use          use.UseCmd             `cmd:"" help:"Select an organization" hidden:""`
+	User         UserCmd                `cmd:"" help:"Invite users to the organization"`
+	Version      VersionCmd             `cmd:"" help:"Print the version of the CLI being used"`
+	Whoami       whoami.WhoAmICmd       `cmd:"" help:"Print the current user and organization" hidden:""`
 }
 
 type (
@@ -152,6 +154,16 @@ func newKongParser(cli *CLI) (*kong.Kong, error) {
 	)
 }
 
+// applyExperiments toggles visibility of experimental commands based on config.
+func applyExperiments(parser *kong.Kong, conf *config.Config) {
+	for _, node := range parser.Model.Children {
+		switch node.Name {
+		case "preflight":
+			node.Hidden = !conf.HasExperiment("preflight")
+		}
+	}
+}
+
 func main() {
 	os.Exit(run())
 }
@@ -166,6 +178,7 @@ func run() int {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			return 1
 		}
+		applyExperiments(parser, config.New(nil, nil))
 		_, _ = parser.Parse([]string{"--help"})
 		return 0
 	}
@@ -189,6 +202,7 @@ func run() int {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
 	}
+	applyExperiments(parser, conf)
 	ctx, err := parser.Parse(os.Args[1:])
 	if err != nil {
 		tracker.TrackCommand("unknown command", os.Args[1:], nil)

@@ -17,6 +17,7 @@ func TestValidateKey(t *testing.T) {
 			"quiet",
 			"no_input",
 			"pager",
+			"experiments",
 		}
 
 		for _, key := range validKeys {
