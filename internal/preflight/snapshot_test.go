@@ -308,7 +308,7 @@ func TestDiffFiles(t *testing.T) {
 			env := setupDiffEnv(t, worktree)
 			tt.setup(t, worktree, env)
 
-			got, err := diffFiles(worktree, env)
+			got, err := diffFiles(worktree, env, false)
 			if err != nil {
 				t.Fatalf("diffFiles() error: %v", err)
 			}
