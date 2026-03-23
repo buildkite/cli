@@ -353,7 +353,7 @@ func (conf *Config) Experiments() string {
 // HasExperiment reports whether the given experiment name is enabled.
 func (conf *Config) HasExperiment(name string) bool {
 	for _, exp := range strings.Split(conf.Experiments(), ",") {
-		if strings.TrimSpace(exp) == name {
+		if exp := strings.TrimSpace(exp); exp != "" && exp == name {
 			return true
 		}
 	}

@@ -24,7 +24,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	if !f.Config.HasExperiment("preflight") {
 		return bkErrors.NewValidationError(
 			fmt.Errorf("experiment not enabled"),
-			"the preflight command is under developement and requires the 'preflight' experiment to opt in. Run: bk config set experiments preflight or set BUILDKITE_EXPERIMENTS=preflight")
+			"the preflight command is under development and requires the 'preflight' experiment to opt in. Run: bk config set experiments preflight or set BUILDKITE_EXPERIMENTS=preflight")
 	}
 
 	fmt.Println("Preflight is being implemented, watch this space!")

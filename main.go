@@ -21,6 +21,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/organization"
 	"github.com/buildkite/cli/v3/cmd/pipeline"
 	"github.com/buildkite/cli/v3/cmd/pkg"
+	"github.com/buildkite/cli/v3/cmd/preflight"
 	"github.com/buildkite/cli/v3/cmd/secret"
 	"github.com/buildkite/cli/v3/cmd/use"
 	"github.com/buildkite/cli/v3/cmd/user"
@@ -54,7 +55,7 @@ type CLI struct {
 	Organization OrganizationCmd        `cmd:"" help:"Manage organizations" aliases:"org"`
 	Pipeline     PipelineCmd            `cmd:"" help:"Manage pipelines"`
 	Package      PackageCmd             `cmd:"" help:"Manage packages"`
-	Preflight    preflight.PreflightCmd `cmd:"" help:"Validate changes pre-commit"`
+	Preflight    preflight.PreflightCmd `cmd:"" help:"Validate pre-commit changes"`
 	Use          use.UseCmd             `cmd:"" help:"Select an organization" hidden:""`
 	User         UserCmd                `cmd:"" help:"Invite users to the organization"`
 	Version      VersionCmd             `cmd:"" help:"Print the version of the CLI being used"`
@@ -152,6 +153,16 @@ func newKongParser(cli *CLI) (*kong.Kong, error) {
 	)
 }
 
+// applyExperiments toggles visibility of experimental commands based on config.
+func applyExperiments(parser *kong.Kong, conf *config.Config) {
+	for _, node := range parser.Model.Children {
+		switch node.Name {
+		case "preflight":
+			node.Hidden = !conf.HasExperiment("preflight")
+		}
+	}
+}
+
 func main() {
 	os.Exit(run())
 }
@@ -166,6 +177,7 @@ func run() int {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			return 1
 		}
+		applyExperiments(parser, config.New(nil, nil))
 		_, _ = parser.Parse([]string{"--help"})
 		return 0
 	}
@@ -189,6 +201,7 @@ func run() int {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
 	}
+	applyExperiments(parser, conf)
 	ctx, err := parser.Parse(os.Args[1:])
 	if err != nil {
 		tracker.TrackCommand("unknown command", os.Args[1:], nil)
