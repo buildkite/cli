@@ -45,10 +45,15 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 
 	preflightID := uuid.New().String()
 
+	var opts []preflight.SnapshotOption
+	if globals.EnableDebug() {
+		opts = append(opts, preflight.WithDebug())
+	}
+
 	fmt.Println("Creating snapshot of working tree...")
-	result, err := preflight.Snapshot(wt.Filesystem.Root(), preflightID)
+	result, err := preflight.Snapshot(wt.Filesystem.Root(), preflightID, opts...)
 	if err != nil {
-		return bkErrors.NewInternalError(err, "failed to create preflight snapshot",
+		return bkErrors.NewSnapshotError(err,
 			"Ensure you have uncommitted or committed changes to snapshot",
 			"Ensure you have push access to the remote repository",
 		)

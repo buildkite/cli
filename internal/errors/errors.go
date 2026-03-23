@@ -29,6 +29,9 @@ var (
 	// ErrInternal indicates an internal error in the CLI
 	ErrInternal = errors.New("internal error")
 
+	// ErrSnapshot indicates an error creating a preflight snapshot
+	ErrSnapshot = errors.New("snapshot error")
+
 	// ErrUserAborted indicates the user has canceled an operation
 	ErrUserAborted = errors.New("user aborted")
 )
@@ -194,6 +197,11 @@ func NewAuthenticationError(err error, details string, suggestions ...string) er
 // NewInternalError creates a new internal error
 func NewInternalError(err error, details string, suggestions ...string) error {
 	return NewError(err, ErrInternal, details, suggestions...)
+}
+
+// NewSnapshotError creates a new snapshot error
+func NewSnapshotError(err error, suggestions ...string) error {
+	return NewError(err, ErrSnapshot, "", suggestions...)
 }
 
 // NewUserAbortedError creates a new user aborted error

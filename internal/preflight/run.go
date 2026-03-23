@@ -7,6 +7,9 @@ import (
 	"strings"
 )
 
+// debug controls whether git stderr is printed on failure.
+var debug bool
+
 // gitCmd creates an exec.Command for git with the given dir and env pre-configured.
 func gitCmd(dir string, env []string, args ...string) *exec.Cmd {
 	cmd := exec.Command("git", args...)
@@ -15,23 +18,25 @@ func gitCmd(dir string, env []string, args ...string) *exec.Cmd {
 	return cmd
 }
 
-// gitRun runs a git command, streaming output to stderr.
+// gitRun runs a git command, discarding output on success.
 func gitRun(dir string, env []string, args ...string) error {
 	cmd := gitCmd(dir, env, args...)
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	if out, err := cmd.CombinedOutput(); err != nil {
+		if debug {
+			os.Stderr.Write(out)
+		}
 		return fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
 	return nil
 }
 
-// gitRunQuiet runs a git command, suppressing output unless it fails.
+// gitRunQuiet runs a git command, suppressing all output.
 func gitRunQuiet(dir string, env []string, args ...string) error {
 	cmd := gitCmd(dir, env, args...)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		os.Stderr.Write(out)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		if debug {
+			os.Stderr.Write(out)
+		}
 		return fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
 	return nil
@@ -40,9 +45,13 @@ func gitRunQuiet(dir string, env []string, args ...string) error {
 // gitOutput runs a git command and returns its trimmed stdout.
 func gitOutput(dir string, env []string, args ...string) (string, error) {
 	cmd := gitCmd(dir, env, args...)
-	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
 	if err != nil {
+		if debug {
+			if ee, ok := err.(*exec.ExitError); ok {
+				os.Stderr.Write(ee.Stderr)
+			}
+		}
 		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
 	return strings.TrimSpace(string(out)), nil
