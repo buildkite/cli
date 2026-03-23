@@ -23,6 +23,7 @@ Valid keys:
   quiet          Suppress progress output (true, false)
   no_input       Disable interactive prompts (true, false)
   pager          Custom pager command
+  experiments    Enabled experiment flags
 
 Examples:
   $ bk config get output_format
