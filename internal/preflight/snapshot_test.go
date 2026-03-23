@@ -135,24 +135,22 @@ func TestSnapshot_DoesNotModifyRealIndex(t *testing.T) {
 	}
 }
 
-func TestSnapshot_ForcePushesExistingBranch(t *testing.T) {
+func TestSnapshot_UniquePreflightIDs(t *testing.T) {
 
 	worktree := initTestRepo(t)
 
-	preflightID := "test-id-force"
-
 	// First snapshot.
-	result1, err := Snapshot(worktree, preflightID)
+	result1, err := Snapshot(worktree, "run-1")
 	if err != nil {
 		t.Fatalf("first Snapshot() error: %v", err)
 	}
 
-	// Modify a file and snapshot again to the same branch.
+	// Modify a file and snapshot with a different preflight ID.
 	if err := os.WriteFile(filepath.Join(worktree, "README.md"), []byte("# v2\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	result2, err := Snapshot(worktree, preflightID)
+	result2, err := Snapshot(worktree, "run-2")
 	if err != nil {
 		t.Fatalf("second Snapshot() error: %v", err)
 	}
@@ -161,9 +159,198 @@ func TestSnapshot_ForcePushesExistingBranch(t *testing.T) {
 		t.Error("expected different commits for different snapshots")
 	}
 
-	// The remote branch should point to the second commit.
+	// Both remote branches should exist with their respective commits.
+	remote1 := runGit(t, worktree, "ls-remote", "origin", "refs/heads/bk-preflight/run-1")
+	if !strings.Contains(remote1, result1.Commit) {
+		t.Errorf("run-1 branch should point to %s, got %q", result1.Commit, remote1)
+	}
+
+	remote2 := runGit(t, worktree, "ls-remote", "origin", "refs/heads/bk-preflight/run-2")
+	if !strings.Contains(remote2, result2.Commit) {
+		t.Errorf("run-2 branch should point to %s, got %q", result2.Commit, remote2)
+	}
+}
+
+// setupDiffEnv creates a temp git index seeded from HEAD and returns the env
+// slice for use with diffFiles. The caller can stage changes into this index
+// using git commands with the returned env.
+func setupDiffEnv(t *testing.T, worktree string) []string {
+	t.Helper()
+
+	tmp, err := os.CreateTemp("", "git-index-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpIndex := tmp.Name()
+	tmp.Close()
+	t.Cleanup(func() { os.Remove(tmpIndex) })
+
+	env := append(os.Environ(), "GIT_INDEX_FILE="+tmpIndex)
+
+	cmd := exec.Command("git", "read-tree", "HEAD")
+	cmd.Dir = worktree
+	cmd.Env = env
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git read-tree HEAD: %v\n%s", err, out)
+	}
+
+	return env
+}
+
+func TestDiffFiles(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, worktree string, env []string)
+		want  []FileChange
+	}{
+		{
+			name: "modified file",
+			setup: func(t *testing.T, worktree string, env []string) {
+				t.Helper()
+				os.WriteFile(filepath.Join(worktree, "README.md"), []byte("# changed\n"), 0o644)
+				cmd := exec.Command("git", "add", "README.md")
+				cmd.Dir = worktree
+				cmd.Env = env
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("git add: %v\n%s", err, out)
+				}
+			},
+			want: []FileChange{{Status: "M", Path: "README.md"}},
+		},
+		{
+			name: "added file",
+			setup: func(t *testing.T, worktree string, env []string) {
+				t.Helper()
+				os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("new\n"), 0o644)
+				cmd := exec.Command("git", "add", "new.txt")
+				cmd.Dir = worktree
+				cmd.Env = env
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("git add: %v\n%s", err, out)
+				}
+			},
+			want: []FileChange{{Status: "A", Path: "new.txt"}},
+		},
+		{
+			name: "deleted file",
+			setup: func(t *testing.T, worktree string, env []string) {
+				t.Helper()
+				os.Remove(filepath.Join(worktree, "README.md"))
+				cmd := exec.Command("git", "add", "README.md")
+				cmd.Dir = worktree
+				cmd.Env = env
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("git add: %v\n%s", err, out)
+				}
+			},
+			want: []FileChange{{Status: "D", Path: "README.md"}},
+		},
+		{
+			name: "renamed file",
+			setup: func(t *testing.T, worktree string, env []string) {
+				t.Helper()
+				os.Rename(filepath.Join(worktree, "README.md"), filepath.Join(worktree, "DOCS.md"))
+				cmd := exec.Command("git", "add", "-A")
+				cmd.Dir = worktree
+				cmd.Env = env
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("git add: %v\n%s", err, out)
+				}
+			},
+			want: []FileChange{{Status: "R", Path: "DOCS.md"}},
+		},
+		{
+			name: "file with spaces in name",
+			setup: func(t *testing.T, worktree string, env []string) {
+				t.Helper()
+				os.WriteFile(filepath.Join(worktree, "my file.txt"), []byte("data\n"), 0o644)
+				cmd := exec.Command("git", "add", "my file.txt")
+				cmd.Dir = worktree
+				cmd.Env = env
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("git add: %v\n%s", err, out)
+				}
+			},
+			want: []FileChange{{Status: "A", Path: "my file.txt"}},
+		},
+		{
+			name: "no changes",
+			setup: func(t *testing.T, worktree string, env []string) {
+				t.Helper()
+			},
+			want: nil,
+		},
+		{
+			name: "multiple changes",
+			setup: func(t *testing.T, worktree string, env []string) {
+				t.Helper()
+				os.WriteFile(filepath.Join(worktree, "README.md"), []byte("# v2\n"), 0o644)
+				os.WriteFile(filepath.Join(worktree, "a.txt"), []byte("a\n"), 0o644)
+				os.WriteFile(filepath.Join(worktree, "b.txt"), []byte("b\n"), 0o644)
+				cmd := exec.Command("git", "add", "-A")
+				cmd.Dir = worktree
+				cmd.Env = env
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("git add: %v\n%s", err, out)
+				}
+			},
+			want: []FileChange{
+				{Status: "M", Path: "README.md"},
+				{Status: "A", Path: "a.txt"},
+				{Status: "A", Path: "b.txt"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			worktree := initTestRepo(t)
+			env := setupDiffEnv(t, worktree)
+			tt.setup(t, worktree, env)
+
+			got, err := diffFiles(worktree, env)
+			if err != nil {
+				t.Fatalf("diffFiles() error: %v", err)
+			}
+
+			if len(got) != len(tt.want) {
+				t.Fatalf("diffFiles() returned %d files, want %d\ngot: %+v", len(got), len(tt.want), got)
+			}
+			for i := range tt.want {
+				if got[i].Status != tt.want[i].Status {
+					t.Errorf("file[%d].Status = %q, want %q", i, got[i].Status, tt.want[i].Status)
+				}
+				if got[i].Path != tt.want[i].Path {
+					t.Errorf("file[%d].Path = %q, want %q", i, got[i].Path, tt.want[i].Path)
+				}
+			}
+		})
+	}
+}
+
+func TestSnapshot_CleanWorktree(t *testing.T) {
+
+	worktree := initTestRepo(t)
+
+	preflightID := "test-id-clean"
+	result, err := Snapshot(worktree, preflightID)
+	if err != nil {
+		t.Fatalf("Snapshot() error: %v", err)
+	}
+
+	// Should push HEAD directly with no files changed.
+	head := runGit(t, worktree, "rev-parse", "HEAD")
+	if result.Commit != head {
+		t.Errorf("expected HEAD %s, got %s", head, result.Commit)
+	}
+
+	if len(result.Files) != 0 {
+		t.Errorf("expected no changed files, got %d", len(result.Files))
+	}
+
+	// The remote branch should exist and point to HEAD.
 	remoteRef := runGit(t, worktree, "ls-remote", "origin", "refs/heads/bk-preflight/"+preflightID)
-	if !strings.Contains(remoteRef, result2.Commit) {
-		t.Errorf("remote branch should point to %s, got %q", result2.Commit, remoteRef)
+	if !strings.Contains(remoteRef, head) {
+		t.Errorf("remote branch should point to HEAD %s, got %q", head, remoteRef)
 	}
 }
