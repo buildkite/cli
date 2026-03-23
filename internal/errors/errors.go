@@ -200,8 +200,8 @@ func NewInternalError(err error, details string, suggestions ...string) error {
 }
 
 // NewSnapshotError creates a new snapshot error
-func NewSnapshotError(err error, suggestions ...string) error {
-	return NewError(err, ErrSnapshot, "", suggestions...)
+func NewSnapshotError(err error, details string, suggestions ...string) error {
+	return NewError(err, ErrSnapshot, details, suggestions...)
 }
 
 // NewUserAbortedError creates a new user aborted error
