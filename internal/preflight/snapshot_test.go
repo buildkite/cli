@@ -83,7 +83,7 @@ func TestSnapshot_CommittedChanges(t *testing.T) {
 	}
 
 	// The remote branch should have been pushed.
-	remoteCommit := runGit(t, worktree, "ls-remote", "origin", "refs/heads/bk-preflight/"+preflightID)
+	remoteCommit := runGit(t, worktree, "ls-remote", "origin", result.Ref)
 	if !strings.Contains(remoteCommit, result.Commit) {
 		t.Errorf("remote branch does not contain commit %s, got %q", result.Commit, remoteCommit)
 	}
@@ -160,12 +160,12 @@ func TestSnapshot_UniquePreflightIDs(t *testing.T) {
 	}
 
 	// Both remote branches should exist with their respective commits.
-	remote1 := runGit(t, worktree, "ls-remote", "origin", "refs/heads/bk-preflight/run-1")
+	remote1 := runGit(t, worktree, "ls-remote", "origin", result1.Ref)
 	if !strings.Contains(remote1, result1.Commit) {
 		t.Errorf("run-1 branch should point to %s, got %q", result1.Commit, remote1)
 	}
 
-	remote2 := runGit(t, worktree, "ls-remote", "origin", "refs/heads/bk-preflight/run-2")
+	remote2 := runGit(t, worktree, "ls-remote", "origin", result2.Ref)
 	if !strings.Contains(remote2, result2.Commit) {
 		t.Errorf("run-2 branch should point to %s, got %q", result2.Commit, remote2)
 	}
@@ -349,7 +349,7 @@ func TestSnapshot_CleanWorktree(t *testing.T) {
 	}
 
 	// The remote branch should exist and point to HEAD.
-	remoteRef := runGit(t, worktree, "ls-remote", "origin", "refs/heads/bk-preflight/"+preflightID)
+	remoteRef := runGit(t, worktree, "ls-remote", "origin", result.Ref)
 	if !strings.Contains(remoteRef, head) {
 		t.Errorf("remote branch should point to HEAD %s, got %q", head, remoteRef)
 	}
