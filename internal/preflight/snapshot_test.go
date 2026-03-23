@@ -63,15 +63,8 @@ func TestSnapshot_CommittedChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Snapshot must be run from within the repo.
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(worktree); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Chdir(origDir) })
-
 	preflightID := "test-id-committed"
-	result, err := Snapshot(preflightID)
+	result, err := Snapshot(worktree, preflightID)
 	if err != nil {
 		t.Fatalf("Snapshot() error: %v", err)
 	}
@@ -105,14 +98,8 @@ func TestSnapshot_UntrackedFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(worktree); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Chdir(origDir) })
-
 	preflightID := "test-id-untracked"
-	result, err := Snapshot(preflightID)
+	result, err := Snapshot(worktree, preflightID)
 	if err != nil {
 		t.Fatalf("Snapshot() error: %v", err)
 	}
@@ -133,16 +120,10 @@ func TestSnapshot_DoesNotModifyRealIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(worktree); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Chdir(origDir) })
-
 	// Record the index state before snapshot.
 	statusBefore := runGit(t, worktree, "status", "--porcelain")
 
-	_, err := Snapshot("test-id-index")
+	_, err := Snapshot(worktree, "test-id-index")
 	if err != nil {
 		t.Fatalf("Snapshot() error: %v", err)
 	}
@@ -158,16 +139,10 @@ func TestSnapshot_ForcePushesExistingBranch(t *testing.T) {
 
 	worktree := initTestRepo(t)
 
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(worktree); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Chdir(origDir) })
-
 	preflightID := "test-id-force"
 
 	// First snapshot.
-	result1, err := Snapshot(preflightID)
+	result1, err := Snapshot(worktree, preflightID)
 	if err != nil {
 		t.Fatalf("first Snapshot() error: %v", err)
 	}
@@ -177,7 +152,7 @@ func TestSnapshot_ForcePushesExistingBranch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result2, err := Snapshot(preflightID)
+	result2, err := Snapshot(worktree, preflightID)
 	if err != nil {
 		t.Fatalf("second Snapshot() error: %v", err)
 	}

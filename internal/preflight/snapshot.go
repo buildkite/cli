@@ -42,7 +42,7 @@ func (f FileChange) StatusSymbol() string {
 //  4. Write a tree object
 //  5. Create a commit on top of HEAD
 //  6. Push the detached commit to refs/heads/bk-preflight/<preflight-id>
-func Snapshot(preflightID string) (*SnapshotResult, error) {
+func Snapshot(dir string, preflightID string) (*SnapshotResult, error) {
 	tmp, err := os.CreateTemp("", "git-index-*")
 	if err != nil {
 		return nil, fmt.Errorf("create temp index: %w", err)
@@ -54,29 +54,29 @@ func Snapshot(preflightID string) (*SnapshotResult, error) {
 	env := append(os.Environ(), "GIT_INDEX_FILE="+tmpIndex)
 
 	// Seed the temp index from HEAD.
-	if err := run(env, "git", "read-tree", "HEAD"); err != nil {
+	if err := run(dir, env, "git", "read-tree", "HEAD"); err != nil {
 		return nil, err
 	}
 
 	// Stage the entire worktree into the temp index.
-	if err := run(env, "git", "add", "-A"); err != nil {
+	if err := run(dir, env, "git", "add", "-A"); err != nil {
 		return nil, err
 	}
 
 	// Diff the temp index against HEAD to find changed files.
-	files, err := diffFiles(env)
+	files, err := diffFiles(dir, env)
 	if err != nil {
 		return nil, err
 	}
 
 	// Write the tree object.
-	tree, err := runOut(env, "git", "write-tree")
+	tree, err := runOut(dir, env, "git", "write-tree")
 	if err != nil {
 		return nil, err
 	}
 
 	// Create a commit on top of HEAD.
-	commit, err := runOut(env, "git", "commit-tree", tree, "-p", "HEAD", "-m", fmt.Sprintf("Preflight snapshot\n\nPreflight Run ID: %s", preflightID))
+	commit, err := runOut(dir, env, "git", "commit-tree", tree, "-p", "HEAD", "-m", fmt.Sprintf("Preflight snapshot\n\nPreflight Run ID: %s", preflightID))
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func Snapshot(preflightID string) (*SnapshotResult, error) {
 	// Push the detached commit to the remote branch.
 	ref := "refs/heads/bk-preflight/" + preflightID
 	refspec := commit + ":" + ref
-	if err := runQuiet(env, "git", "push", "--force", "origin", refspec); err != nil {
+	if err := runQuiet(dir, env, "git", "push", "--force", "origin", refspec); err != nil {
 		return nil, err
 	}
 
@@ -96,8 +96,8 @@ func Snapshot(preflightID string) (*SnapshotResult, error) {
 }
 
 // diffFiles returns the list of files changed between HEAD and the temp index.
-func diffFiles(env []string) ([]FileChange, error) {
-	out, err := runOut(env, "git", "diff-index", "--cached", "--name-status", "HEAD")
+func diffFiles(dir string, env []string) ([]FileChange, error) {
+	out, err := runOut(dir, env, "git", "diff-index", "--cached", "--name-status", "HEAD")
 	if err != nil {
 		return nil, err
 	}
