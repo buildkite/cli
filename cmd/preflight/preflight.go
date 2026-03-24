@@ -133,16 +133,14 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 				canceled++
 			case "skipped", "broken":
 				skipped++
-			case "blocked", "blocked_failed", "unblocked", "unblocked_failed":
+			case "blocked", "blocked_failed":
 				blocked++
-			case "scheduled", "assigned", "accepted":
+			case "scheduled", "assigned", "accepted", "reserved":
 				scheduled++
 			case "waiting", "waiting_failed",
 				"pending", "limited", "limiting",
 				"platform_limited", "platform_limiting",
-				"expired", "reserved":
-				waiting++
-			default:
+				"expired":
 				waiting++
 			}
 		}
