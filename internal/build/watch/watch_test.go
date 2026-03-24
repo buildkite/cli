@@ -3,6 +3,7 @@ package watch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -100,7 +101,7 @@ func TestWatchBuild(t *testing.T) {
 		}
 	})
 
-	t.Run("respects context cancellation", func(t *testing.T) {
+	t.Run("returns context.DeadlineExceeded on timeout", func(t *testing.T) {
 		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(buildkite.Build{Number: 1, State: "running"})
@@ -112,11 +113,30 @@ func TestWatchBuild(t *testing.T) {
 
 		client := newTestClient(t, s.URL)
 		_, err := WatchBuild(ctx, client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) {})
-		if err == nil {
-			t.Fatal("expected error, got nil")
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("expected context.DeadlineExceeded, got: %v", err)
 		}
-		if !strings.Contains(err.Error(), "context") {
-			t.Errorf("expected context error, got: %v", err)
+	})
+
+	t.Run("returns context.Canceled on explicit cancel", func(t *testing.T) {
+		pollCount := 0
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(buildkite.Build{Number: 1, State: "running"})
+		}))
+		defer s.Close()
+
+		ctx, cancel := context.WithCancel(context.Background())
+
+		client := newTestClient(t, s.URL)
+		_, err := WatchBuild(ctx, client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) {
+			pollCount++
+			if pollCount >= 2 {
+				cancel()
+			}
+		})
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("expected context.Canceled, got: %v", err)
 		}
 	})
 }
