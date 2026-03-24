@@ -12,7 +12,7 @@ func TestWriteAgentConfig(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "subdir", "buildkite-agent.cfg")
 
-	err := WriteAgentConfig(configPath, "test-token-123", "/tmp/builds")
+	err := WriteAgentConfig(configPath, "test-token-123", "/tmp/builds", []string{"queue=default"})
 	if err != nil {
 		t.Fatalf("WriteAgentConfig() error: %v", err)
 	}
@@ -22,7 +22,7 @@ func TestWriteAgentConfig(t *testing.T) {
 		t.Fatalf("reading config: %v", err)
 	}
 
-	expected := "token=\"test-token-123\"\nbuild-path=\"/tmp/builds\"\n"
+	expected := "token=\"test-token-123\"\nbuild-path=\"/tmp/builds\"\ntags=\"queue=default\"\n"
 	if string(content) != expected {
 		t.Errorf("config content = %q, want %q", content, expected)
 	}
@@ -43,7 +43,7 @@ func TestWriteAgentConfig_CreatesParentDirs(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "a", "b", "c", "buildkite-agent.cfg")
 
-	err := WriteAgentConfig(configPath, "token", "/builds")
+	err := WriteAgentConfig(configPath, "token", "/builds", nil)
 	if err != nil {
 		t.Fatalf("WriteAgentConfig() error: %v", err)
 	}
