@@ -26,20 +26,30 @@ func (c *LoginCmd) Help() string {
 	return `
 Authenticate with Buildkite using OAuth instead of manually creating an API token.
 
-This command opens your browser to authenticate with Buildkite. After you select an
-organization in the browser, the CLI automatically detects which organization was
-authorized and stores the token securely in your system keychain (macOS Keychain,
-Windows Credential Manager, or Linux Secret Service).
+By default, the CLI requests all available scopes and Buildkite grants only those
+your account has permission for. Use --scopes to request a specific subset instead.
+
+Scope groups can be used as shorthand for common permission sets:
+  read_only    All read_* scopes (read-only access)
+
+Groups can be mixed with individual scopes:
+  --scopes "read_only write_builds"
 
 Examples:
 
-  # Login (select organization in browser)
+  # Login with full permissions (inherits your account's scopes)
   $ bk auth login
 
   # Login non-interactively with an API token
   $ bk auth login --org my-org --token my-token
 
-  # Login with custom scopes (e.g., for cluster management)
+  # Login with read-only access
+  $ bk auth login --scopes read_only
+
+  # Login with read-only plus write access to builds
+  $ bk auth login --scopes "read_only write_builds"
+
+  # Login with specific scopes
   $ bk auth login --scopes "read_user read_organizations read_clusters write_clusters"
 `
 }
@@ -92,11 +102,16 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return errors.New("--org requires --token. Use `bk auth login` for OAuth or `bk auth login --org <org> --token <token>` for token login")
 	}
 
+	// Resolve scope groups (e.g., "read_only" → individual read_* scopes).
+	// When --scopes is empty, no scope parameter is sent and the token
+	// inherits the user's full Buildkite permissions.
+	resolvedScopes := oauth.ResolveScopes(c.Scopes)
+
 	// Create OAuth flow
 	cfg := &oauth.Config{
 		// Host default handled via NewFlow, omitted to allow usage of BUILDKITE_HOST
 		ClientID: oauth.DefaultClientID,
-		Scopes:   c.Scopes,
+		Scopes:   resolvedScopes,
 	}
 
 	flow, err := oauth.NewFlow(cfg)
