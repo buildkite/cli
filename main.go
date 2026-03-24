@@ -74,6 +74,7 @@ type (
 	}
 	AgentCmd struct {
 		Install agent.InstallCmd `cmd:"" help:"Install the buildkite-agent binary locally."`
+		Run     agent.RunCmd     `cmd:"" help:"Run an ephemeral buildkite-agent locally."`
 		Pause   agent.PauseCmd   `cmd:"" help:"Pause a Buildkite agent."`
 		List    agent.ListCmd    `cmd:"" help:"List agents." alias:"ls"`
 		Resume  agent.ResumeCmd  `cmd:"" help:"Resume a Buildkite agent."`
