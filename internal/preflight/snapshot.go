@@ -91,11 +91,7 @@ func Snapshot(dir string, preflightID uuid.UUID, opts ...SnapshotOption) (*Snaps
 		return nil, err
 	}
 
-	user := os.Getenv("USER")
-	if user == "" {
-		user = "unknown"
-	}
-	ref := fmt.Sprintf("refs/heads/bk/preflight/%s/%s", user, preflightID.String())
+	ref := fmt.Sprintf("refs/heads/bk/preflight/%s", preflightID.String())
 	commit := head
 
 	if len(files) > 0 {

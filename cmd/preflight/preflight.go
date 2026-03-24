@@ -15,7 +15,7 @@ import (
 type PreflightCmd struct{}
 
 func (c *PreflightCmd) Help() string {
-	return `Snapshots your working tree (uncommitted, staged, and untracked changes) and pushes it to a bk/preflight/$USER/<id> branch. If there are no local changes, pushes HEAD directly.`
+	return `Snapshots your working tree (uncommitted, staged, and untracked changes) and pushes it to a bk/preflight/<id> branch. If there are no local changes, pushes HEAD directly.`
 }
 
 func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
