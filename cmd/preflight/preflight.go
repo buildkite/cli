@@ -8,10 +8,8 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
-	"unicode/utf8"
 
 	"github.com/alecthomas/kong"
 	"github.com/google/uuid"
@@ -31,6 +29,18 @@ type PreflightCmd struct {
 	Watch     bool    `help:"Watch the build until completion." default:"true" negatable:""`
 	Interval  float64 `help:"Polling interval in seconds when watching." default:"2"`
 	NoCleanup bool    `help:"Skip deleting the remote preflight branch after the build finishes."`
+}
+
+type renderStatusError struct {
+	err error
+}
+
+func (e renderStatusError) Error() string {
+	return e.err.Error()
+}
+
+func (e renderStatusError) Unwrap() error {
+	return e.err
 }
 
 func (c *PreflightCmd) Help() string {
@@ -86,12 +96,15 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		)
 	}
 
+	tty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+	renderer := newRenderer(os.Stdout, tty, resolvedPipeline.Name)
+
 	var opts []preflight.SnapshotOption
 	if globals.EnableDebug() {
 		opts = append(opts, preflight.WithDebug())
 	}
 
-	fmt.Println("Creating snapshot of working tree...")
+	renderer.appendSnapshotLine("Creating snapshot of working tree...")
 	result, err := preflight.Snapshot(wt.Filesystem.Root(), preflightID, opts...)
 	if err != nil {
 		return bkErrors.NewSnapshotError(err, "failed to create preflight snapshot",
@@ -100,16 +113,10 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		)
 	}
 
-	fmt.Printf("Commit: %s\n", result.Commit[:10])
-	fmt.Printf("Ref:    %s\n", result.Ref)
-	if len(result.Files) > 0 {
-		fmt.Printf("Files:  %d changed\n", len(result.Files))
-		for _, file := range result.Files {
-			fmt.Printf("  %s %s\n", file.StatusSymbol(), file.Path)
-		}
-	}
+	renderer.setSnapshot(result)
 
-	fmt.Printf("Creating build on %s/%s...\n", resolvedPipeline.Org, resolvedPipeline.Name)
+	renderer.appendSnapshotLine("")
+	renderer.appendSnapshotLine(fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name))
 	build, _, err := f.RestAPIClient.Builds.Create(ctx, resolvedPipeline.Org, resolvedPipeline.Name, buildkite.CreateBuild{
 		Message: fmt.Sprintf("Preflight %s", preflightID),
 		Commit:  result.Commit,
@@ -122,42 +129,30 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		return bkErrors.WrapAPIError(err, "creating preflight build")
 	}
 
-	fmt.Printf("Build:  %s\n", build.WebURL)
+	renderer.appendSnapshotLine(fmt.Sprintf("Build:  %s", build.WebURL))
 
 	if !c.Watch {
 		return nil
 	}
 
-	fmt.Println()
-
-	tty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
 	interval := time.Duration(c.Interval * float64(time.Second))
-	var lastLine string
-	var lastWidth int
-	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) {
-		line := fmt.Sprintf("Build #%d %s", b.Number, b.State)
-		if summary := watch.Summarize(b).String(); summary != "" {
-			line += " — " + summary
+	tracker := watch.NewJobTracker()
+
+	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) error {
+		if err := renderer.renderStatus(tracker.Update(b), b); err != nil {
+			return renderStatusError{err: err}
 		}
-		if tty {
-			display := fmt.Sprintf("[%s] %s", time.Now().Format(time.TimeOnly), line)
-			width := utf8.RuneCountInString(display)
-			padding := ""
-			if width < lastWidth {
-				padding = strings.Repeat(" ", lastWidth-width)
-			}
-			fmt.Printf("\r%s%s", display, padding)
-			lastWidth = width
-		} else if line != lastLine {
-			fmt.Printf("[%s] %s\n", time.Now().Format(time.TimeOnly), line)
-			lastLine = line
-		}
+		return nil
 	})
-	if tty {
-		fmt.Println()
+	if err != nil {
+		var renderErr renderStatusError
+		if errors.As(err, &renderErr) {
+			return bkErrors.NewInternalError(renderErr.err, "rendering build status failed")
+		}
 	}
 
 	if !c.NoCleanup {
+		fmt.Fprintf(os.Stderr, "Cleaning up remote branch %s...\n", result.Branch)
 		if cleanupErr := preflight.Cleanup(wt.Filesystem.Root(), result.Ref, globals.EnableDebug()); cleanupErr != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to delete remote branch %s: %v\n", result.Ref, cleanupErr)
 		} else {
@@ -191,11 +186,14 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		)
 	}
 
-	fmt.Println()
+	// Flush the screen so final output is not overwritten.
+	renderer.flush()
+
+	renderer.renderFinalFailures(tracker.AllFailed())
+
+	renderer.setResult(finalBuild.State)
 	if finalBuild.State == "passed" {
-		fmt.Println("✅ Preflight passed!")
 		return nil
 	}
-	fmt.Printf("❌ Preflight %s\n", finalBuild.State)
 	return fmt.Errorf("preflight build %s", finalBuild.State)
 }

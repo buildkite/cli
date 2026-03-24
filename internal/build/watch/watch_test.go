@@ -35,8 +35,9 @@ func TestWatchBuild(t *testing.T) {
 
 		client := newTestClient(t, s.URL)
 		var statusCalls int
-		b, err := WatchBuild(context.Background(), client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) {
+		b, err := WatchBuild(context.Background(), client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) error {
 			statusCalls++
+			return nil
 		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -61,8 +62,9 @@ func TestWatchBuild(t *testing.T) {
 		defer s.Close()
 
 		client := newTestClient(t, s.URL)
-		_, err := WatchBuild(context.Background(), client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) {
+		_, err := WatchBuild(context.Background(), client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) error {
 			t.Error("onStatus should not be called on errors")
+			return nil
 		})
 		if err == nil {
 			t.Fatal("expected error, got nil")
@@ -92,7 +94,7 @@ func TestWatchBuild(t *testing.T) {
 		defer s.Close()
 
 		client := newTestClient(t, s.URL)
-		b, err := WatchBuild(context.Background(), client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) {})
+		b, err := WatchBuild(context.Background(), client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) error { return nil })
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -112,7 +114,7 @@ func TestWatchBuild(t *testing.T) {
 		defer cancel()
 
 		client := newTestClient(t, s.URL)
-		_, err := WatchBuild(ctx, client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) {})
+		_, err := WatchBuild(ctx, client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) error { return nil })
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Errorf("expected context.DeadlineExceeded, got: %v", err)
 		}
@@ -129,11 +131,12 @@ func TestWatchBuild(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		client := newTestClient(t, s.URL)
-		_, err := WatchBuild(ctx, client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) {
+		_, err := WatchBuild(ctx, client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) error {
 			pollCount++
 			if pollCount >= 2 {
 				cancel()
 			}
+			return nil
 		})
 		if !errors.Is(err, context.Canceled) {
 			t.Errorf("expected context.Canceled, got: %v", err)
@@ -175,7 +178,7 @@ func TestWatchBuild(t *testing.T) {
 		defer s.Close()
 
 		client := newTestClient(t, s.URL)
-		b, err := WatchBuild(context.Background(), client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) {})
+		b, err := WatchBuild(context.Background(), client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) error { return nil })
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -184,6 +187,23 @@ func TestWatchBuild(t *testing.T) {
 		}
 		if pollCount != 1 {
 			t.Errorf("expected 1 poll, got %d", pollCount)
+		}
+	})
+
+	t.Run("returns callback error", func(t *testing.T) {
+		callbackErr := errors.New("render failed")
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(buildkite.Build{Number: 1, State: "running"})
+		}))
+		defer s.Close()
+
+		client := newTestClient(t, s.URL)
+		_, err := WatchBuild(context.Background(), client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) error {
+			return callbackErr
+		})
+		if !errors.Is(err, callbackErr) {
+			t.Fatalf("expected callback error, got %v", err)
 		}
 	})
 }

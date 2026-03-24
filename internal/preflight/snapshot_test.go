@@ -57,7 +57,6 @@ func runGit(t *testing.T, dir string, args ...string) string {
 }
 
 func TestSnapshot_CommittedChanges(t *testing.T) {
-
 	worktree := initTestRepo(t)
 
 	// Add a tracked file change (but don't commit it).
@@ -92,7 +91,6 @@ func TestSnapshot_CommittedChanges(t *testing.T) {
 }
 
 func TestSnapshot_UntrackedFiles(t *testing.T) {
-
 	worktree := initTestRepo(t)
 
 	// Add a brand new untracked file.
@@ -114,7 +112,6 @@ func TestSnapshot_UntrackedFiles(t *testing.T) {
 }
 
 func TestSnapshot_DoesNotModifyRealIndex(t *testing.T) {
-
 	worktree := initTestRepo(t)
 
 	// Create an untracked file.
@@ -138,7 +135,6 @@ func TestSnapshot_DoesNotModifyRealIndex(t *testing.T) {
 }
 
 func TestSnapshot_UniquePreflightIDs(t *testing.T) {
-
 	worktree := initTestRepo(t)
 
 	// First snapshot.
@@ -331,7 +327,6 @@ func TestDiffFiles(t *testing.T) {
 }
 
 func TestSnapshot_CleanWorktree(t *testing.T) {
-
 	worktree := initTestRepo(t)
 
 	preflightID := uuid.MustParse("00000000-0000-0000-0000-000000000006")
