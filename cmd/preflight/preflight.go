@@ -190,7 +190,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	return c.watchPlain(ctx, f, resolvedPipeline, build, ticker, &watchPollErrorCount)
 }
 
-// watchLive uses a LiveWriter to render an in-place updating display on TTYs.
+// watchLive uses a Screen to render an in-place updating display on TTYs.
 // Completed jobs are promoted to permanent scrollback; in-progress jobs are
 // redrawn in a live region at the bottom.
 func (c *PreflightCmd) watchLive(
@@ -201,7 +201,10 @@ func (c *PreflightCmd) watchLive(
 	ticker *time.Ticker,
 	pollErrorCount *int,
 ) error {
-	lw := preflight.NewLiveWriter(os.Stdout)
+	screen := preflight.NewScreen(os.Stdout)
+	completed := screen.AddRegion("completed")
+	jobs := screen.AddRegion("jobs")
+
 	promoted := map[string]bool{}
 	promotedGroups := map[string]bool{}
 	tick := 0
@@ -270,7 +273,7 @@ func (c *PreflightCmd) watchLive(
 					if j.State == "passed" {
 						totalPassed++
 					} else {
-						lw.Println(preflight.FormatTerminalJob(j))
+						completed.AppendLine(preflight.FormatTerminalJob(j))
 					}
 				} else if preflight.IsJobActive(j) {
 					live = append(live, preflight.FormatLiveJob(j))
@@ -298,7 +301,7 @@ func (c *PreflightCmd) watchLive(
 					promotedGroups[g.Name] = true
 					if g.Failed > 0 {
 						for _, line := range preflight.FormatParallelGroupTerminal(g) {
-							lw.Println(line)
+							completed.AppendLine(line)
 						}
 					} else {
 						totalPassed += g.Total
@@ -332,10 +335,10 @@ func (c *PreflightCmd) watchLive(
 			live = append(live,
 				"\033[90m  Use `bk log view <job-id>` to view logs\033[0m")
 
-			lw.SetLines(live)
+			jobs.SetLines(live)
 
 			if b.FinishedAt != nil {
-				lw.Flush()
+				screen.Flush()
 				return printBuildResult(b)
 			}
 
