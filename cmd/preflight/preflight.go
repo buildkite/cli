@@ -43,7 +43,10 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		return bkErrors.NewInternalError(err, "failed to get git worktree")
 	}
 
-	preflightID := uuid.New().String()
+	preflightID, err := uuid.NewV7()
+	if err != nil {
+		return bkErrors.NewInternalError(err, "UUIDv7 generation failed")
+	}
 
 	var opts []preflight.SnapshotOption
 	if globals.EnableDebug() {

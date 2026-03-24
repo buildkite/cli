@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 // initTestRepo creates a real git repository in a temp directory with an
@@ -63,7 +65,7 @@ func TestSnapshot_CommittedChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	preflightID := "test-id-committed"
+	preflightID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	result, err := Snapshot(worktree, preflightID)
 	if err != nil {
 		t.Fatalf("Snapshot() error: %v", err)
@@ -98,7 +100,7 @@ func TestSnapshot_UntrackedFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	preflightID := "test-id-untracked"
+	preflightID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
 	result, err := Snapshot(worktree, preflightID)
 	if err != nil {
 		t.Fatalf("Snapshot() error: %v", err)
@@ -123,7 +125,7 @@ func TestSnapshot_DoesNotModifyRealIndex(t *testing.T) {
 	// Record the index state before snapshot.
 	statusBefore := runGit(t, worktree, "status", "--porcelain")
 
-	_, err := Snapshot(worktree, "test-id-index")
+	_, err := Snapshot(worktree, uuid.MustParse("00000000-0000-0000-0000-000000000003"))
 	if err != nil {
 		t.Fatalf("Snapshot() error: %v", err)
 	}
@@ -140,7 +142,7 @@ func TestSnapshot_UniquePreflightIDs(t *testing.T) {
 	worktree := initTestRepo(t)
 
 	// First snapshot.
-	result1, err := Snapshot(worktree, "run-1")
+	result1, err := Snapshot(worktree, uuid.MustParse("00000000-0000-0000-0000-000000000004"))
 	if err != nil {
 		t.Fatalf("first Snapshot() error: %v", err)
 	}
@@ -150,7 +152,7 @@ func TestSnapshot_UniquePreflightIDs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result2, err := Snapshot(worktree, "run-2")
+	result2, err := Snapshot(worktree, uuid.MustParse("00000000-0000-0000-0000-000000000005"))
 	if err != nil {
 		t.Fatalf("second Snapshot() error: %v", err)
 	}
@@ -332,7 +334,7 @@ func TestSnapshot_CleanWorktree(t *testing.T) {
 
 	worktree := initTestRepo(t)
 
-	preflightID := "test-id-clean"
+	preflightID := uuid.MustParse("00000000-0000-0000-0000-000000000006")
 	result, err := Snapshot(worktree, preflightID)
 	if err != nil {
 		t.Fatalf("Snapshot() error: %v", err)

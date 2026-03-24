@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 // FileChange represents a single file changed in the snapshot.
@@ -47,7 +49,7 @@ func WithDebug() SnapshotOption {
 // If there are uncommitted changes, it creates a temporary commit containing
 // them without touching the real git index. If the worktree is clean, it
 // pushes HEAD directly.
-func Snapshot(dir string, preflightID string, opts ...SnapshotOption) (*SnapshotResult, error) {
+func Snapshot(dir string, preflightID uuid.UUID, opts ...SnapshotOption) (*SnapshotResult, error) {
 	cfg := &snapshotConfig{}
 	for _, opt := range opts {
 		opt(cfg)
@@ -90,7 +92,7 @@ func Snapshot(dir string, preflightID string, opts ...SnapshotOption) (*Snapshot
 	if user == "" {
 		user = "unknown"
 	}
-	ref := fmt.Sprintf("refs/heads/bk/preflight/%s/%s", user, preflightID)
+	ref := fmt.Sprintf("refs/heads/bk/preflight/%s/%s", user, preflightID.String())
 	commit := head
 
 	if len(files) > 0 {
