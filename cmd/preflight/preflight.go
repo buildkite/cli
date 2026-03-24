@@ -309,6 +309,13 @@ func (c *PreflightCmd) watchLive(
 				}
 			}
 
+			// TODO: Replace mock with real API call to
+			// GET /v2/analytics/organizations/{org}/builds/{build-uuid}/tests?state=enabled
+			mockTests := preflight.MockFailedTests()
+			if len(mockTests) > 0 {
+				live = append(live, preflight.FormatFailedTestsLive(mockTests, b.Number)...)
+			}
+
 			// Show a collapsed summary for passed/scheduled/waiting jobs.
 			var parts []string
 			if totalPassed > 0 {
