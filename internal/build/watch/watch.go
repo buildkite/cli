@@ -30,16 +30,11 @@ func WatchBuild(
 	interval time.Duration,
 	onStatus StatusFunc,
 ) (buildkite.Build, error) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
 	consecutiveErrors := 0
 
 	for {
-		select {
-		case <-ctx.Done():
-			return buildkite.Build{}, ctx.Err()
-		case <-ticker.C:
+		if err := ctx.Err(); err != nil {
+			return buildkite.Build{}, err
 		}
 
 		reqCtx, cancel := context.WithTimeout(ctx, DefaultRequestTimeout)
@@ -51,14 +46,19 @@ func WatchBuild(
 			if consecutiveErrors >= DefaultMaxConsecutiveErrors {
 				return buildkite.Build{}, fmt.Errorf("fetching build status (%d consecutive errors): %w", consecutiveErrors, err)
 			}
-			continue
+		} else {
+			consecutiveErrors = 0
+			onStatus(b)
+
+			if b.FinishedAt != nil {
+				return b, nil
+			}
 		}
-		consecutiveErrors = 0
 
-		onStatus(b)
-
-		if b.FinishedAt != nil {
-			return b, nil
+		select {
+		case <-ctx.Done():
+			return buildkite.Build{}, ctx.Err()
+		case <-time.After(interval):
 		}
 	}
 }
