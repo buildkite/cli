@@ -336,6 +336,10 @@ func (c *PreflightCmd) watchLive(
 
 			if b.FinishedAt != nil {
 				lw.Flush()
+				// TODO: Replace mock with real API call to
+				// GET /v2/analytics/organizations/{org}/builds/{build-uuid}/tests?state=enabled
+				mockTests := preflight.MockFailedTests()
+				fmt.Print(preflight.FormatFailedTests(mockTests, b.Number))
 				return printBuildResult(b)
 			}
 
