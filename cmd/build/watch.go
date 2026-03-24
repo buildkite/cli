@@ -10,11 +10,13 @@ import (
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	"github.com/buildkite/cli/v3/internal/build/view/shared"
+	"github.com/buildkite/cli/v3/internal/build/watch"
 	"github.com/buildkite/cli/v3/internal/cli"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/validation"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	pkgValidation "github.com/buildkite/cli/v3/pkg/cmd/validation"
+	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/mattn/go-isatty"
 )
 
@@ -105,30 +107,17 @@ func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	fmt.Printf("Watching build %d on %s/%s\n", bld.BuildNumber, bld.Organization, bld.Pipeline)
 
-	ticker := time.NewTicker(time.Duration(c.Interval) * time.Second)
-	defer ticker.Stop()
+	interval := time.Duration(c.Interval) * time.Second
 
-	for {
-		select {
-		case <-ticker.C:
-			b, _, err := f.RestAPIClient.Builds.Get(ctx, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), nil)
-			if err != nil {
-				return err
-			}
-
-			summary := shared.BuildSummaryWithJobs(&b, bld.Organization, bld.Pipeline)
-			if tty {
-				fmt.Print("\033[H\033[2J") // Clear terminal (keeps scrollback in terminal)
-				fmt.Printf("%s\n", summary)
-			} else {
-				fmt.Printf("[%s] %s\n", time.Now().Format(time.RFC3339), summary)
-			}
-
-			if b.FinishedAt != nil {
-				return nil
-			}
-		case <-ctx.Done():
-			return nil
+	_, err = watch.WatchBuild(ctx, f.RestAPIClient, bld.Organization, bld.Pipeline, bld.BuildNumber, interval, func(b buildkite.Build) {
+		summary := shared.BuildSummaryWithJobs(&b, bld.Organization, bld.Pipeline)
+		if tty {
+			fmt.Print("\033[H\033[2J")
+			fmt.Printf("%s\n", summary)
+		} else {
+			fmt.Printf("[%s] %s\n", time.Now().Format(time.RFC3339), summary)
 		}
-	}
+	})
+
+	return err
 }

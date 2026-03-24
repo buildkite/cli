@@ -3,20 +3,24 @@ package preflight
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/alecthomas/kong"
-	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/google/uuid"
 
+	"github.com/buildkite/cli/v3/internal/build/watch"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/preflight"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
 type PreflightCmd struct {
-	Pipeline string `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
+	Pipeline string  `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
+	Watch    bool    `help:"Watch the build until completion." default:"true" negatable:""`
+	Interval float64 `help:"Polling interval in seconds when watching." default:"2"`
 }
 
 func (c *PreflightCmd) Help() string {
@@ -103,5 +107,49 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 
 	fmt.Printf("Build:  %s\n", build.WebURL)
 
-	return nil
+	if !c.Watch {
+		return nil
+	}
+
+	fmt.Println()
+
+	interval := time.Duration(c.Interval * float64(time.Second))
+	var lastLine string
+	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) {
+		var running, passed, failed int
+		for _, j := range b.Jobs {
+			if j.Type != "script" || j.State == "broken" {
+				continue
+			}
+			switch j.State {
+			case "running":
+				running++
+			case "passed":
+				passed++
+			case "failed", "timed_out":
+				failed++
+			}
+		}
+
+		line := fmt.Sprintf("Build #%d %s — %d passed, %d failed, %d running",
+			b.Number, b.State, passed, failed, running)
+		if line != lastLine {
+			fmt.Printf("[%s] %s\n", time.Now().Format(time.TimeOnly), line)
+			lastLine = line
+		}
+	})
+	if err != nil {
+		return bkErrors.NewInternalError(err, "watching build failed",
+			"Buildkite API may be unavailable or your network may be unstable",
+			"Retry the preflight command once connectivity is restored",
+		)
+	}
+
+	fmt.Println()
+	if finalBuild.State == "passed" {
+		fmt.Println("✅ Preflight passed!")
+		return nil
+	}
+	fmt.Printf("❌ Preflight %s\n", finalBuild.State)
+	return fmt.Errorf("preflight build %s", finalBuild.State)
 }

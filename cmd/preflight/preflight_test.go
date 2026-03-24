@@ -10,9 +10,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	buildkite "github.com/buildkite/go-buildkite/v4"
 
+	"github.com/buildkite/cli/v3/internal/build/watch"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 
 	"github.com/buildkite/cli/v3/internal/cli"
@@ -101,7 +103,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline"}
+		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: false}
 		err := cmd.Run(nil, stubGlobals{})
 		if err != nil {
 			t.Fatalf("expected no error, got: %v", err)
@@ -115,6 +117,138 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 		if !strings.HasPrefix(gotReq.Message, "Preflight ") {
 			t.Errorf("expected message starting with 'Preflight ', got %q", gotReq.Message)
+		}
+	})
+
+	t.Run("watches build until completion", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		pollCount := 0
+		now := time.Now()
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if r.Method == "POST" && strings.Contains(r.URL.Path, "/builds") {
+				json.NewEncoder(w).Encode(buildkite.Build{
+					Number: 1,
+					State:  "scheduled",
+					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
+				})
+				return
+			}
+			if r.Method == "GET" && strings.Contains(r.URL.Path, "/builds/1") {
+				pollCount++
+				b := buildkite.Build{Number: 1, State: "running"}
+				if pollCount >= 3 {
+					b.State = "passed"
+					b.FinishedAt = &buildkite.Timestamp{Time: now}
+				}
+				json.NewEncoder(w).Encode(b)
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01}
+		err := cmd.Run(nil, stubGlobals{})
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+		if pollCount < 3 {
+			t.Errorf("expected at least 3 polls, got %d", pollCount)
+		}
+	})
+
+	t.Run("returns error when build fails", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		now := time.Now()
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if r.Method == "POST" && strings.Contains(r.URL.Path, "/builds") {
+				json.NewEncoder(w).Encode(buildkite.Build{
+					Number: 1,
+					State:  "scheduled",
+					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
+				})
+				return
+			}
+			if r.Method == "GET" && strings.Contains(r.URL.Path, "/builds/1") {
+				json.NewEncoder(w).Encode(buildkite.Build{
+					Number:     1,
+					State:      "failed",
+					FinishedAt: &buildkite.Timestamp{Time: now},
+				})
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01}
+		err := cmd.Run(nil, stubGlobals{})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "preflight build failed") {
+			t.Errorf("expected 'preflight build failed', got: %v", err)
+		}
+	})
+
+	t.Run("aborts after 10 consecutive polling errors", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		pollCount := 0
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if r.Method == "POST" && strings.Contains(r.URL.Path, "/builds") {
+				json.NewEncoder(w).Encode(buildkite.Build{
+					Number: 1,
+					State:  "scheduled",
+					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
+				})
+				return
+			}
+			if r.Method == "GET" && strings.Contains(r.URL.Path, "/builds/1") {
+				pollCount++
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01}
+		err := cmd.Run(nil, stubGlobals{})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "watching build failed") {
+			t.Errorf("expected 'watching build failed', got: %v", err)
+		}
+		if pollCount < watch.DefaultMaxConsecutiveErrors {
+			t.Errorf("expected at least %d polls, got %d", watch.DefaultMaxConsecutiveErrors, pollCount)
 		}
 	})
 
