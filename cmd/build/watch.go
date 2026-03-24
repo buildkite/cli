@@ -2,6 +2,7 @@ package build
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -118,6 +119,9 @@ func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			fmt.Printf("[%s] %s\n", time.Now().Format(time.RFC3339), summary)
 		}
 	})
+	if errors.Is(err, context.Canceled) {
+		return nil
+	}
 
 	return err
 }

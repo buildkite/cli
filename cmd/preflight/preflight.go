@@ -2,12 +2,15 @@ package preflight
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/google/uuid"
+	"github.com/mattn/go-isatty"
 
 	"github.com/buildkite/cli/v3/internal/build/watch"
 	"github.com/buildkite/cli/v3/internal/cli"
@@ -114,8 +117,10 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 
 	fmt.Println()
 
+	tty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
 	interval := time.Duration(c.Interval * float64(time.Second))
 	var lastLine string
+	var lastLineLen int
 	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) {
 		s := watch.Summarize(b)
 		var parts []string
@@ -144,11 +149,26 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			parts = append(parts, fmt.Sprintf("%d waiting", s.Waiting))
 		}
 		line := fmt.Sprintf("Build #%d %s — %s", b.Number, b.State, strings.Join(parts, ", "))
-		if line != lastLine {
+		if tty {
+			// Clear previous line and overwrite in place every iteration
+			display := fmt.Sprintf("[%s] %s", time.Now().Format(time.TimeOnly), line)
+			padding := ""
+			if len(display) < lastLineLen {
+				padding = strings.Repeat(" ", lastLineLen-len(display))
+			}
+			fmt.Printf("\r%s%s", display, padding)
+			lastLineLen = len(display)
+		} else if line != lastLine {
 			fmt.Printf("[%s] %s\n", time.Now().Format(time.TimeOnly), line)
 			lastLine = line
 		}
 	})
+	if tty {
+		fmt.Println() // move past the replaced line
+	}
+	if errors.Is(err, context.Canceled) {
+		return nil
+	}
 	if err != nil {
 		return bkErrors.NewInternalError(err, "watching build failed",
 			"Buildkite API may be unavailable or your network may be unstable",
