@@ -325,6 +325,13 @@ func (c *PreflightCmd) watchLive(
 					fmt.Sprintf("  \033[90m◌\033[0m … %s", strings.Join(parts, ", ")))
 			}
 
+			// TODO: Replace mock with real API call to
+			// GET /v2/analytics/organizations/{org}/builds/{build-uuid}/tests?state=enabled
+			mockTests := preflight.MockFailedTests()
+			if len(mockTests) > 0 {
+				live = append(live, preflight.FormatFailedTestsLive(mockTests, b.Number)...)
+			}
+
 			live = append(live, "")
 			live = append(live,
 				fmt.Sprintf("  %s Watching build #%d…",
