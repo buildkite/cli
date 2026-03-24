@@ -127,3 +127,41 @@ func TestSummarize(t *testing.T) {
 		})
 	}
 }
+
+func TestJobSummary_String(t *testing.T) {
+	tests := []struct {
+		name    string
+		summary JobSummary
+		want    string
+	}{
+		{
+			name:    "empty summary",
+			summary: JobSummary{},
+			want:    "",
+		},
+		{
+			name:    "single field",
+			summary: JobSummary{Passed: 3},
+			want:    "3 passed",
+		},
+		{
+			name:    "multiple fields in order",
+			summary: JobSummary{Passed: 2, Failed: 1, Running: 3},
+			want:    "2 passed, 1 failed, 3 running",
+		},
+		{
+			name:    "all fields",
+			summary: JobSummary{Passed: 1, Failed: 2, Canceled: 3, Running: 4, Scheduled: 5, Blocked: 6, Skipped: 7, Waiting: 8},
+			want:    "1 passed, 2 failed, 3 canceled, 4 running, 5 scheduled, 6 blocked, 7 skipped, 8 waiting",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.summary.String()
+			if got != tt.want {
+				t.Errorf("String() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

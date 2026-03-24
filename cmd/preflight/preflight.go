@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/alecthomas/kong"
 	"github.com/google/uuid"
@@ -120,51 +121,25 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	tty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
 	interval := time.Duration(c.Interval * float64(time.Second))
 	var lastLine string
-	var lastLineLen int
+	var lastWidth int
 	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) {
-		s := watch.Summarize(b)
-		var parts []string
-		if s.Passed > 0 {
-			parts = append(parts, fmt.Sprintf("%d passed", s.Passed))
-		}
-		if s.Failed > 0 {
-			parts = append(parts, fmt.Sprintf("%d failed", s.Failed))
-		}
-		if s.Canceled > 0 {
-			parts = append(parts, fmt.Sprintf("%d canceled", s.Canceled))
-		}
-		if s.Running > 0 {
-			parts = append(parts, fmt.Sprintf("%d running", s.Running))
-		}
-		if s.Scheduled > 0 {
-			parts = append(parts, fmt.Sprintf("%d scheduled", s.Scheduled))
-		}
-		if s.Blocked > 0 {
-			parts = append(parts, fmt.Sprintf("%d blocked", s.Blocked))
-		}
-		if s.Skipped > 0 {
-			parts = append(parts, fmt.Sprintf("%d skipped", s.Skipped))
-		}
-		if s.Waiting > 0 {
-			parts = append(parts, fmt.Sprintf("%d waiting", s.Waiting))
-		}
-		line := fmt.Sprintf("Build #%d %s — %s", b.Number, b.State, strings.Join(parts, ", "))
+		line := fmt.Sprintf("Build #%d %s — %s", b.Number, b.State, watch.Summarize(b))
 		if tty {
-			// Clear previous line and overwrite in place every iteration
 			display := fmt.Sprintf("[%s] %s", time.Now().Format(time.TimeOnly), line)
+			width := utf8.RuneCountInString(display)
 			padding := ""
-			if len(display) < lastLineLen {
-				padding = strings.Repeat(" ", lastLineLen-len(display))
+			if width < lastWidth {
+				padding = strings.Repeat(" ", lastWidth-width)
 			}
 			fmt.Printf("\r%s%s", display, padding)
-			lastLineLen = len(display)
+			lastWidth = width
 		} else if line != lastLine {
 			fmt.Printf("[%s] %s\n", time.Now().Format(time.TimeOnly), line)
 			lastLine = line
 		}
 	})
 	if tty {
-		fmt.Println() // move past the replaced line
+		fmt.Println()
 	}
 	if errors.Is(err, context.Canceled) {
 		return nil

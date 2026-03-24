@@ -1,6 +1,9 @@
 package watch
 
 import (
+	"fmt"
+	"strings"
+
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
@@ -14,6 +17,32 @@ type JobSummary struct {
 	Blocked   int
 	Skipped   int
 	Waiting   int
+}
+
+// String returns a human-readable summary of non-zero job counts,
+// e.g. "3 passed, 1 failed, 2 running".
+func (s JobSummary) String() string {
+	type entry struct {
+		count int
+		label string
+	}
+	entries := []entry{
+		{s.Passed, "passed"},
+		{s.Failed, "failed"},
+		{s.Canceled, "canceled"},
+		{s.Running, "running"},
+		{s.Scheduled, "scheduled"},
+		{s.Blocked, "blocked"},
+		{s.Skipped, "skipped"},
+		{s.Waiting, "waiting"},
+	}
+	var parts []string
+	for _, e := range entries {
+		if e.count > 0 {
+			parts = append(parts, fmt.Sprintf("%d %s", e.count, e.label))
+		}
+	}
+	return strings.Join(parts, ", ")
 }
 
 // Summarize counts script jobs from a build into high-level state buckets.
