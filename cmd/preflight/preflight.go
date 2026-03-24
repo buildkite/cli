@@ -204,6 +204,8 @@ func (c *PreflightCmd) watchLive(
 	lw := preflight.NewLiveWriter(os.Stdout)
 	promoted := map[string]bool{}
 	promotedGroups := map[string]bool{}
+	promotedTests := map[string]bool{}
+	testHeaderShown := false
 	tick := 0
 	totalPassed := 0
 
@@ -306,6 +308,43 @@ func (c *PreflightCmd) watchLive(
 				} else if g.Running > 0 || g.Failed > 0 {
 					// Show in live region only if jobs are active or have failures.
 					live = append(live, preflight.FormatParallelGroupLive(g)...)
+				}
+			}
+
+			// TODO: Replace mock with real API call to
+			// GET /v2/analytics/organizations/{org}/builds/{build-uuid}/tests?state=enabled
+			mockTests := preflight.MockFailedTests()
+			var newTests []preflight.FailedTest
+			for _, t := range mockTests {
+				if !promotedTests[t.ID] {
+					newTests = append(newTests, t)
+				}
+			}
+			if len(newTests) > 0 {
+				if !testHeaderShown {
+					testHeaderShown = true
+					lw.Println(preflight.FormatFailedTestsHeader(len(mockTests)))
+				}
+				display := newTests
+				if len(promotedTests) + len(newTests) > preflight.MaxDisplayedTests {
+					remaining := preflight.MaxDisplayedTests - len(promotedTests)
+					if remaining > 0 {
+						display = newTests[:remaining]
+					} else {
+						display = nil
+					}
+				}
+				if len(display) > 0 {
+					for _, line := range preflight.FormatFailedTestsTable(display) {
+						lw.Println(line)
+					}
+				}
+				for _, t := range newTests {
+					promotedTests[t.ID] = true
+				}
+				overflow := len(mockTests) - preflight.MaxDisplayedTests
+				if overflow > 0 {
+					lw.Println(preflight.FormatFailedTestsOverflow(overflow, b.Number))
 				}
 			}
 
