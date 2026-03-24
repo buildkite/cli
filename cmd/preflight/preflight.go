@@ -4,12 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+<<<<<<< HEAD
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
 	"syscall"
+=======
+	"strings"
+>>>>>>> 24534ac (Add other job states)
 	"time"
 	"unicode/utf8"
 
