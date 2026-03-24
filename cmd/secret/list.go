@@ -19,7 +19,7 @@ import (
 )
 
 type ListCmd struct {
-	ClusterID string `help:"The ID of the cluster to list secrets for" required:"" name:"cluster-id"`
+	ClusterUUID string `help:"The UUID of the cluster to list secrets for" required:"" name:"cluster-uuid"`
 	output.OutputFlags
 }
 
@@ -29,10 +29,10 @@ List secrets for a cluster.
 
 Examples:
   # List all secrets in a cluster
-  $ bk secret list --cluster-id my-cluster-id
+  $ bk secret list --cluster-uuid my-cluster-uuid
 
   # List secrets in JSON format
-  $ bk secret list --cluster-id my-cluster-id -o json
+  $ bk secret list --cluster-uuid my-cluster-uuid -o json
 `
 }
 
@@ -58,7 +58,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	var secrets []buildkite.ClusterSecret
 	spinErr := bkIO.SpinWhile(f, "Loading secrets", func() {
-		secrets, _, err = f.RestAPIClient.ClusterSecrets.List(ctx, f.Config.OrganizationSlug(), c.ClusterID, nil)
+		secrets, _, err = f.RestAPIClient.ClusterSecrets.List(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, nil)
 	})
 	if spinErr != nil {
 		return spinErr

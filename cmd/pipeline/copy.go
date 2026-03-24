@@ -18,11 +18,12 @@ import (
 )
 
 type CopyCmd struct {
-	Pipeline string `arg:"" help:"Source pipeline to copy (slug or org/slug). Uses current pipeline if not specified." optional:""`
-	Org      string `help:"Organization slug" name:"org"`
-	Target   string `help:"Name for the new pipeline, or org/name to copy to a different organization" short:"t"`
-	Cluster  string `help:"Cluster name or ID for the new pipeline (required for cross-org copies if target org uses clusters)" short:"c"`
-	DryRun   bool   `help:"Show what would be copied without creating the pipeline"`
+	Pipeline    string `arg:"" help:"Source pipeline to copy (slug or org/slug). Uses current pipeline if not specified." optional:""`
+	Org         string `help:"Organization slug" name:"org"`
+	Target      string `help:"Name for the new pipeline, or org/name to copy to a different organization" short:"t"`
+	ClusterUUID string `help:"Cluster UUID for the new pipeline" name:"cluster-uuid"`
+	ClusterName string `help:"Cluster name for the new pipeline (resolved to UUID)" name:"cluster-name"`
+	DryRun      bool   `help:"Show what would be copied without creating the pipeline"`
 	output.OutputFlags
 }
 
@@ -40,8 +41,14 @@ func (c *CopyCmd) orgSlug(f *factory.Factory) string {
 	return f.Config.OrganizationSlug()
 }
 
+func (c *CopyCmd) Validate() error {
+	if c.ClusterUUID != "" && c.ClusterName != "" {
+		return fmt.Errorf("only one of --cluster-uuid or --cluster-name can be specified")
+	}
+	return nil
+}
+
 func (c *CopyCmd) Help() string {
-	// returns the biggest help message ever seen
 	return `Copy an existing pipeline's configuration to create a new pipeline.
 
 This command copies all configuration from a source pipeline including:
@@ -67,7 +74,10 @@ Examples:
   $ bk pipeline cp other-org/their-pipeline --target "my-copy"
 
   # Copy to a different organization
-  $ bk pipeline cp my-pipeline --target "other-org/my-pipeline" --cluster "8302f0b-9b99-4663-23f3-2d64f88s693e"
+  $ bk pipeline cp my-pipeline --target "other-org/my-pipeline" --cluster-uuid "8302f0b-9b99-4663-23f3-2d64f88s693e"
+
+  # Copy to a different organization using cluster name
+  $ bk pipeline cp my-pipeline --target "other-org/my-pipeline" --cluster-name "my-cluster"
 
   # Interactive mode - prompts for source and target
   $ bk pipeline cp
@@ -119,7 +129,7 @@ func (c *CopyCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	isCrossOrg := target.Org != sourcePipeline.Org
 
 	// Resolve cluster ID - required for cross-org copies
-	clusterID, err := c.resolveCluster(f, source.ClusterID, isCrossOrg)
+	clusterID, err := c.resolveCluster(ctx, f, target.Org, source.ClusterID, isCrossOrg)
 	if err != nil {
 		return err
 	}
@@ -191,16 +201,20 @@ func parseTarget(target, defaultOrg string) *copyTarget {
 	}
 }
 
-func (c *CopyCmd) resolveCluster(f *factory.Factory, sourceClusterID string, isCrossOrg bool) (string, error) {
-	if c.Cluster != "" {
-		return c.Cluster, nil
+func (c *CopyCmd) resolveCluster(ctx context.Context, f *factory.Factory, targetOrg, sourceClusterID string, isCrossOrg bool) (string, error) {
+	if c.ClusterUUID != "" {
+		return c.ClusterUUID, nil
+	}
+
+	if c.ClusterName != "" {
+		return resolveClusterName(ctx, f, targetOrg, c.ClusterName)
 	}
 
 	if !isCrossOrg {
 		return sourceClusterID, nil
 	}
 
-	return bkIO.PromptForInput("Target cluster ID (required for cross-org copy)", "", f.NoInput)
+	return bkIO.PromptForInput("Target cluster UUID (required for cross-org copy)", "", f.NoInput)
 }
 
 func (c *CopyCmd) fetchSourcePipeline(ctx context.Context, f *factory.Factory, org, slug string) (*buildkite.Pipeline, error) {

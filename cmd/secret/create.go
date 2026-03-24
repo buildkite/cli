@@ -17,7 +17,7 @@ import (
 )
 
 type CreateCmd struct {
-	ClusterID   string `help:"The ID of the cluster" required:"" name:"cluster-id"`
+	ClusterUUID string `help:"The UUID of the cluster" required:"" name:"cluster-uuid"`
 	Key         string `help:"The key name for the secret (e.g. MY_SECRET)" required:""`
 	Value       string `help:"The secret value. If not provided, you will be prompted to enter it." optional:""`
 	Description string `help:"A description of the secret" optional:""`
@@ -34,13 +34,13 @@ interactively (input will be masked).
 
 Examples:
   # Create a secret with interactive value input
-  $ bk secret create --cluster-id my-cluster-id --key MY_SECRET
+  $ bk secret create --cluster-uuid my-cluster-uuid --key MY_SECRET
 
   # Create a secret with the value provided inline
-  $ bk secret create --cluster-id my-cluster-id --key MY_SECRET --value "s3cr3t"
+  $ bk secret create --cluster-uuid my-cluster-uuid --key MY_SECRET --value "s3cr3t"
 
   # Create a secret with a description
-  $ bk secret create --cluster-id my-cluster-id --key MY_SECRET --description "My secret description"
+  $ bk secret create --cluster-uuid my-cluster-uuid --key MY_SECRET --description "My secret description"
 `
 }
 
@@ -89,7 +89,7 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	var secret buildkite.ClusterSecret
 	spinErr := bkIO.SpinWhile(f, "Creating secret", func() {
-		secret, _, err = f.RestAPIClient.ClusterSecrets.Create(ctx, f.Config.OrganizationSlug(), c.ClusterID, input)
+		secret, _, err = f.RestAPIClient.ClusterSecrets.Create(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, input)
 	})
 	if spinErr != nil {
 		return spinErr
