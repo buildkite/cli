@@ -3,6 +3,7 @@ package preflight
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/alecthomas/kong"
@@ -116,23 +117,64 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	interval := time.Duration(c.Interval * float64(time.Second))
 	var lastLine string
 	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) {
-		var running, passed, failed int
+		var running, passed, failed, waiting, scheduled, canceled, skipped, blocked int
 		for _, j := range b.Jobs {
-			if j.Type != "script" || j.State == "broken" {
+			if j.Type != "script" {
 				continue
 			}
 			switch j.State {
-			case "running":
+			case "running", "canceling", "timing_out":
 				running++
 			case "passed":
 				passed++
 			case "failed", "timed_out":
 				failed++
+			case "canceled":
+				canceled++
+			case "skipped", "broken":
+				skipped++
+			case "blocked", "blocked_failed", "unblocked", "unblocked_failed":
+				blocked++
+			case "scheduled", "assigned", "accepted":
+				scheduled++
+			case "waiting", "waiting_failed",
+				"pending", "limited", "limiting",
+				"platform_limited", "platform_limiting",
+				"expired", "reserved":
+				waiting++
+			default:
+				waiting++
 			}
 		}
 
-		line := fmt.Sprintf("Build #%d %s — %d passed, %d failed, %d running",
-			b.Number, b.State, passed, failed, running)
+		var parts []string
+		if passed > 0 {
+			parts = append(parts, fmt.Sprintf("%d passed", passed))
+		}
+		if failed > 0 {
+			parts = append(parts, fmt.Sprintf("%d failed", failed))
+		}
+		if canceled > 0 {
+			parts = append(parts, fmt.Sprintf("%d canceled", canceled))
+		}
+		if running > 0 {
+			parts = append(parts, fmt.Sprintf("%d running", running))
+		}
+		if scheduled > 0 {
+			parts = append(parts, fmt.Sprintf("%d scheduled", scheduled))
+		}
+		if blocked > 0 {
+			parts = append(parts, fmt.Sprintf("%d blocked", blocked))
+		}
+		if skipped > 0 {
+			parts = append(parts, fmt.Sprintf("%d skipped", skipped))
+		}
+		if waiting > 0 {
+			parts = append(parts, fmt.Sprintf("%d waiting", waiting))
+		}
+
+		line := fmt.Sprintf("Build #%d %s — %s",
+			b.Number, b.State, strings.Join(parts, ", "))
 		if line != lastLine {
 			fmt.Printf("[%s] %s\n", time.Now().Format(time.TimeOnly), line)
 			lastLine = line
