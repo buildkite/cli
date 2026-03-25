@@ -11,7 +11,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"unicode/utf8"
 
 	"github.com/alecthomas/kong"
 	"github.com/google/uuid"
@@ -86,12 +85,20 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		)
 	}
 
+	tty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+
+	// Create a Screen with regions for live terminal output.
+	screen := preflight.NewScreen(os.Stdout)
+	snapshotRegion := screen.AddRegion("snapshot")
+	summaryRegion := screen.AddRegion("summary")
+	resultRegion := screen.AddRegion("result")
+
 	var opts []preflight.SnapshotOption
 	if globals.EnableDebug() {
 		opts = append(opts, preflight.WithDebug())
 	}
 
-	fmt.Println("Creating snapshot of working tree...")
+	snapshotRegion.AppendLine("Creating snapshot of working tree...")
 	result, err := preflight.Snapshot(wt.Filesystem.Root(), preflightID, opts...)
 	if err != nil {
 		return bkErrors.NewSnapshotError(err, "failed to create preflight snapshot",
@@ -100,16 +107,19 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		)
 	}
 
-	fmt.Printf("Commit: %s\n", result.Commit[:10])
-	fmt.Printf("Ref:    %s\n", result.Ref)
+	snapshotLines := []string{
+		fmt.Sprintf("Commit: %s", result.Commit[:10]),
+		fmt.Sprintf("Ref:    %s", result.Ref),
+	}
 	if len(result.Files) > 0 {
-		fmt.Printf("Files:  %d changed\n", len(result.Files))
+		snapshotLines = append(snapshotLines, fmt.Sprintf("Files:  %d changed", len(result.Files)))
 		for _, file := range result.Files {
-			fmt.Printf("  %s %s\n", file.StatusSymbol(), file.Path)
+			snapshotLines = append(snapshotLines, fmt.Sprintf("  %s %s", file.StatusSymbol(), file.Path))
 		}
 	}
+	snapshotRegion.SetLines(snapshotLines)
 
-	fmt.Printf("Creating build on %s/%s...\n", resolvedPipeline.Org, resolvedPipeline.Name)
+	snapshotRegion.AppendLine(fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name))
 	build, _, err := f.RestAPIClient.Builds.Create(ctx, resolvedPipeline.Org, resolvedPipeline.Name, buildkite.CreateBuild{
 		Message: fmt.Sprintf("Preflight %s", preflightID),
 		Commit:  result.Commit,
@@ -119,18 +129,15 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		return bkErrors.WrapAPIError(err, "creating preflight build")
 	}
 
-	fmt.Printf("Build:  %s\n", build.WebURL)
+	snapshotRegion.AppendLine(fmt.Sprintf("Build:  %s", build.WebURL))
 
 	if !c.Watch {
 		return nil
 	}
 
-	fmt.Println()
-
-	tty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
 	interval := time.Duration(c.Interval * float64(time.Second))
+
 	var lastLine string
-	var lastWidth int
 	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) {
 		line := fmt.Sprintf("Build #%d %s", b.Number, b.State)
 		if summary := watch.Summarize(b).String(); summary != "" {
@@ -138,13 +145,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		}
 		if tty {
 			display := fmt.Sprintf("[%s] %s", time.Now().Format(time.TimeOnly), line)
-			width := utf8.RuneCountInString(display)
-			padding := ""
-			if width < lastWidth {
-				padding = strings.Repeat(" ", lastWidth-width)
-			}
-			fmt.Printf("\r%s%s", display, padding)
-			lastWidth = width
+			summaryRegion.SetLines([]string{display})
 		} else if line != lastLine {
 			fmt.Printf("[%s] %s\n", time.Now().Format(time.TimeOnly), line)
 			lastLine = line
@@ -188,11 +189,13 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		)
 	}
 
-	fmt.Println()
+	// Flush the screen so final output is not overwritten.
+	screen.Flush()
+
 	if finalBuild.State == "passed" {
-		fmt.Println("✅ Preflight passed!")
+		resultRegion.SetLines([]string{"", "✅ Preflight passed!"})
 		return nil
 	}
-	fmt.Printf("❌ Preflight %s\n", finalBuild.State)
+	resultRegion.SetLines([]string{"", fmt.Sprintf("❌ Preflight %s", finalBuild.State)})
 	return fmt.Errorf("preflight build %s", finalBuild.State)
 }
