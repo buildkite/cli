@@ -139,6 +139,31 @@ func TestWatchBuild(t *testing.T) {
 			t.Errorf("expected context.Canceled, got: %v", err)
 		}
 	})
+
+	t.Run("returns skipped build without finished timestamp", func(t *testing.T) {
+		pollCount := 0
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			pollCount++
+			json.NewEncoder(w).Encode(buildkite.Build{
+				Number: 1,
+				State:  "skipped",
+			})
+		}))
+		defer s.Close()
+
+		client := newTestClient(t, s.URL)
+		b, err := WatchBuild(context.Background(), client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) {})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if b.State != "skipped" {
+			t.Errorf("expected state skipped, got %s", b.State)
+		}
+		if pollCount != 1 {
+			t.Errorf("expected 1 poll, got %d", pollCount)
+		}
+	})
 }
 
 func newTestClient(t *testing.T, baseURL string) *buildkite.Client {
