@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -155,10 +156,21 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	if !c.NoCleanup {
 		if cleanupErr := preflight.Cleanup(wt.Filesystem.Root(), result.Ref, globals.EnableDebug()); cleanupErr != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to delete remote branch %s: %v\n", result.Ref, cleanupErr)
+		} else {
+			fmt.Printf("Deleted remote branch %s\n", result.Branch)
 		}
 	}
 
 	if errors.Is(err, context.Canceled) {
+		if finalBuild.FinishedAt == nil {
+			cancelCtx, cancelStop := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancelStop()
+			if _, cancelErr := f.RestAPIClient.Builds.Cancel(cancelCtx, resolvedPipeline.Org, resolvedPipeline.Name, strconv.Itoa(build.Number)); cancelErr != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to cancel build #%d: %v\n", build.Number, cancelErr)
+			} else {
+				fmt.Fprintf(os.Stderr, "Cancelled build #%d\n", build.Number)
+			}
+		}
 		return nil
 	}
 	if err != nil {

@@ -39,11 +39,14 @@ func WatchBuild(
 	interval time.Duration,
 	onStatus StatusFunc,
 ) (buildkite.Build, error) {
-	consecutiveErrors := 0
+	var (
+		consecutiveErrors int
+		lastBuild         buildkite.Build
+	)
 
 	for {
 		if err := ctx.Err(); err != nil {
-			return buildkite.Build{}, err
+			return lastBuild, err
 		}
 
 		reqCtx, cancel := context.WithTimeout(ctx, DefaultRequestTimeout)
@@ -53,10 +56,11 @@ func WatchBuild(
 		if err != nil {
 			consecutiveErrors++
 			if consecutiveErrors >= DefaultMaxConsecutiveErrors {
-				return buildkite.Build{}, fmt.Errorf("fetching build status (%d consecutive errors): %w", consecutiveErrors, err)
+				return lastBuild, fmt.Errorf("fetching build status (%d consecutive errors): %w", consecutiveErrors, err)
 			}
 		} else {
 			consecutiveErrors = 0
+			lastBuild = b
 			if onStatus != nil {
 				onStatus(b)
 			}
@@ -68,7 +72,7 @@ func WatchBuild(
 
 		select {
 		case <-ctx.Done():
-			return buildkite.Build{}, ctx.Err()
+			return lastBuild, ctx.Err()
 		case <-time.After(interval):
 		}
 	}
