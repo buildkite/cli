@@ -24,7 +24,8 @@ type CreateCmd struct {
 	Org           string `help:"Organization slug." name:"org"`
 	Description   string `help:"Description of the pipeline" short:"d"`
 	Repository    string `help:"Repository URL" short:"r"`
-	ClusterID     string `help:"Cluster name or ID to assign the pipeline to" short:"c"`
+	ClusterUUID   string `help:"Cluster UUID to assign the pipeline to" name:"cluster-uuid"`
+	ClusterName   string `help:"Cluster name to assign the pipeline to (resolved to UUID)" name:"cluster-name"`
 	CreateWebhook bool   `help:"Create an SCM webhook for the pipeline (GitHub and GitHub Enterprise only)" short:"W"`
 	DryRun        bool   `help:"Simulate pipeline creation without actually creating it"`
 	output.OutputFlags
@@ -37,14 +38,21 @@ func (c *CreateCmd) orgSlug(conf *config.Config) string {
 	return conf.OrganizationSlug()
 }
 
+func (c *CreateCmd) Validate() error {
+	if c.ClusterUUID != "" && c.ClusterName != "" {
+		return fmt.Errorf("only one of --cluster-uuid or --cluster-name can be specified")
+	}
+	return nil
+}
+
 func (c *CreateCmd) Help() string {
 	return `Creates a new pipeline in the current org and outputs the URL to the pipeline.
 
 You can specify a --dry-run flag to see the pipeline that would be created without
 actually creating it. This outputs a JSON representation of the pipeline to be created by default.
 
-The --cluster-id flag accepts either a cluster name or cluster ID. If a name is provided,
-it will be automatically resolved to the corresponding cluster ID.
+Use --cluster-uuid to assign a pipeline to a cluster by UUID, or --cluster-name to
+assign by name (the name will be resolved to the corresponding UUID).
 
 Examples:
   # Create a new pipeline
@@ -53,11 +61,11 @@ Examples:
   # Create a new pipeline and view the created pipeline in JSON format
   $ bk pipeline create "My Pipeline" --description "My pipeline description" --repository "git@github.com:org/repo.git" --output json
 
-  # Create a pipeline with a cluster (by name)
-  $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" -c "my-cluster"
+  # Create a pipeline with a cluster (by UUID)
+  $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" --cluster-uuid "cluster-uuid-123"
 
-  # Create a pipeline with a cluster (by ID)
-  $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" -c "cluster-id-123"
+  # Create a pipeline with a cluster (by name)
+  $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" --cluster-name "my-cluster"
 
   # Create a pipeline and set up a GitHub webhook
   $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" --create-webhook
@@ -132,8 +140,7 @@ func (c *CreateCmd) runPipelineCreate(kongCtx *kong.Context, f *factory.Factory)
 }
 
 func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) (*buildkite.Pipeline, error) {
-	// Resolve cluster name to ID if provided
-	clusterID, err := resolveClusterID(ctx, f, c.orgSlug(f.Config), c.ClusterID)
+	clusterID, err := c.resolveClusterUUID(ctx, f)
 	if err != nil {
 		return nil, err
 	}
@@ -263,8 +270,9 @@ func (c *CreateCmd) createPipelineDryRun(ctx context.Context, f *factory.Factory
 	pipeline.Description = c.Description
 	pipeline.Slug = pipelineSlug
 	pipeline.Repository = c.Repository
-	pipeline.ClusterID = c.ClusterID
-	pipeline.ClusterURL = getClusterUrl(orgSlug, c.ClusterID)
+	clusterUUID, _ := c.resolveClusterUUID(ctx, f)
+	pipeline.ClusterID = clusterUUID
+	pipeline.ClusterURL = getClusterUrl(orgSlug, clusterUUID)
 	pipeline.DefaultBranch = "main"
 	pipeline.BuildsURL = fmt.Sprintf("https://api.buildkite.com/v2/organizations/%s/pipelines/%s/builds", orgSlug, pipelineSlug)
 	pipeline.BadgeURL = fmt.Sprintf("https://badge.buildkite.com/%s.svg", "00000000000000000000000000000000000000000000000000")
@@ -422,36 +430,33 @@ func listClusterNames(ctx context.Context, f *factory.Factory, org string) ([]st
 	return clusterNames, nil
 }
 
-func resolveClusterID(ctx context.Context, f *factory.Factory, org, clusterNameOrID string) (string, error) {
-	if clusterNameOrID == "" {
+func (c *CreateCmd) resolveClusterUUID(ctx context.Context, f *factory.Factory) (string, error) {
+	if c.ClusterUUID != "" {
+		return c.ClusterUUID, nil
+	}
+	if c.ClusterName == "" {
 		return "", nil
 	}
 
-	// First, try to get clusters map
+	return resolveClusterName(ctx, f, c.orgSlug(f.Config), c.ClusterName)
+}
+
+func resolveClusterName(ctx context.Context, f *factory.Factory, org, clusterName string) (string, error) {
 	clusterMap, err := getClusters(ctx, f, org)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch clusters: %w", err)
 	}
 
-	// Check if it's a cluster name
-	if clusterID, exists := clusterMap[clusterNameOrID]; exists {
+	if clusterID, exists := clusterMap[clusterName]; exists {
 		return clusterID, nil
 	}
 
-	// Check if it's already a valid cluster ID
-	for _, id := range clusterMap {
-		if id == clusterNameOrID {
-			return clusterNameOrID, nil
-		}
-	}
-
-	// Not found - provide helpful error with available clusters
 	clusterNames, _ := listClusterNames(ctx, f, org)
 	if len(clusterNames) > 0 {
-		return "", fmt.Errorf("cluster '%s' not found. Available clusters: %s", clusterNameOrID, strings.Join(clusterNames, ", "))
+		return "", fmt.Errorf("cluster '%s' not found. Available clusters: %s", clusterName, strings.Join(clusterNames, ", "))
 	}
 
-	return "", fmt.Errorf("cluster '%s' not found", clusterNameOrID)
+	return "", fmt.Errorf("cluster '%s' not found", clusterName)
 }
 
 func getCreatedByDetails(ctx context.Context, f *factory.Factory) *buildkite.User {

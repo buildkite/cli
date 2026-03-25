@@ -19,20 +19,20 @@ import (
 )
 
 type ViewCmd struct {
-	ClusterID string `arg:"" help:"Cluster ID to view"`
+	ClusterUUID string `arg:"" help:"Cluster UUID to view" name:"cluster-uuid"`
 	output.OutputFlags
 }
 
 func (c *ViewCmd) Help() string {
 	return `
-It accepts cluster id.
+It accepts cluster UUID.
 
 Examples:
   # View a cluster
-  $ bk cluster view my-cluster-id
+  $ bk cluster view my-cluster-uuid
 
   # View cluster in JSON format
-  $ bk cluster view my-cluster-id -o json
+  $ bk cluster view my-cluster-uuid -o json
 `
 }
 
@@ -58,7 +58,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	var cluster buildkite.Cluster
 	spinErr := bkIO.SpinWhile(f, "Loading cluster information", func() {
-		cluster, _, err = f.RestAPIClient.Clusters.Get(ctx, f.Config.OrganizationSlug(), c.ClusterID)
+		cluster, _, err = f.RestAPIClient.Clusters.Get(ctx, f.Config.OrganizationSlug(), c.ClusterUUID)
 	})
 	if spinErr != nil {
 		return spinErr
