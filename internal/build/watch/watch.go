@@ -20,7 +20,8 @@ const (
 // StatusFunc is called on each successful poll with the latest build state.
 type StatusFunc func(b buildkite.Build)
 
-func isTerminalBuildState(state string) bool {
+// IsTerminalBuildState returns true if the build state is a terminal state.
+func IsTerminalBuildState(state string) bool {
 	switch state {
 	case "passed", "failed", "canceled", "skipped", "not_run":
 		return true
@@ -39,11 +40,14 @@ func WatchBuild(
 	interval time.Duration,
 	onStatus StatusFunc,
 ) (buildkite.Build, error) {
-	consecutiveErrors := 0
+	var (
+		consecutiveErrors int
+		lastBuild         buildkite.Build
+	)
 
 	for {
 		if err := ctx.Err(); err != nil {
-			return buildkite.Build{}, err
+			return lastBuild, err
 		}
 
 		reqCtx, cancel := context.WithTimeout(ctx, DefaultRequestTimeout)
@@ -53,22 +57,23 @@ func WatchBuild(
 		if err != nil {
 			consecutiveErrors++
 			if consecutiveErrors >= DefaultMaxConsecutiveErrors {
-				return buildkite.Build{}, fmt.Errorf("fetching build status (%d consecutive errors): %w", consecutiveErrors, err)
+				return lastBuild, fmt.Errorf("fetching build status (%d consecutive errors): %w", consecutiveErrors, err)
 			}
 		} else {
 			consecutiveErrors = 0
+			lastBuild = b
 			if onStatus != nil {
 				onStatus(b)
 			}
 
-			if b.FinishedAt != nil || isTerminalBuildState(b.State) {
+			if b.FinishedAt != nil || IsTerminalBuildState(b.State) {
 				return b, nil
 			}
 		}
 
 		select {
 		case <-ctx.Done():
-			return buildkite.Build{}, ctx.Err()
+			return lastBuild, ctx.Err()
 		case <-time.After(interval):
 		}
 	}

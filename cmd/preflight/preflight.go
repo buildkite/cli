@@ -4,8 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
+	"os/signal"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 	"unicode/utf8"
 
@@ -23,9 +27,10 @@ import (
 )
 
 type PreflightCmd struct {
-	Pipeline string  `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
-	Watch    bool    `help:"Watch the build until completion." default:"true" negatable:""`
-	Interval float64 `help:"Polling interval in seconds when watching." default:"2"`
+	Pipeline  string  `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
+	Watch     bool    `help:"Watch the build until completion." default:"true" negatable:""`
+	Interval  float64 `help:"Polling interval in seconds when watching." default:"2"`
+	NoCleanup bool    `help:"Skip deleting the remote preflight branch after the build finishes."`
 }
 
 func (c *PreflightCmd) Help() string {
@@ -66,7 +71,8 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		return bkErrors.NewValidationError(fmt.Errorf("interval must be greater than 0"), "invalid polling interval")
 	}
 	// Resolve the pipeline to create a build against.
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	resolvers := resolver.NewAggregateResolver(
 		resolver.ResolveFromFlag(c.Pipeline, f.Config),
 		resolver.ResolveFromConfig(f.Config, resolver.PickOneWithFactory(f)),
@@ -147,7 +153,32 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	if tty {
 		fmt.Println()
 	}
+
+	if !c.NoCleanup {
+		if cleanupErr := preflight.Cleanup(wt.Filesystem.Root(), result.Ref, globals.EnableDebug()); cleanupErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to delete remote branch %s: %v\n", result.Ref, cleanupErr)
+		} else {
+			fmt.Printf("Deleted remote branch %s\n", result.Branch)
+		}
+	}
+
 	if errors.Is(err, context.Canceled) {
+		if finalBuild.FinishedAt == nil && !watch.IsTerminalBuildState(finalBuild.State) {
+			cancelCtx, cancelStop := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancelStop()
+			if _, cancelErr := f.RestAPIClient.Builds.Cancel(cancelCtx, resolvedPipeline.Org, resolvedPipeline.Name, strconv.Itoa(build.Number)); cancelErr != nil {
+				var apiErr *buildkite.ErrorResponse
+				if errors.As(cancelErr, &apiErr) && apiErr.Response.StatusCode == http.StatusUnprocessableEntity && apiErr.Message == "Build can't be canceled because it's already finished." {
+					if globals.EnableDebug() {
+						fmt.Fprintf(os.Stderr, "Debug: build #%d already finished, skipping cancel\n", build.Number)
+					}
+				} else {
+					fmt.Fprintf(os.Stderr, "Warning: failed to cancel build #%d: %v\n", build.Number, cancelErr)
+				}
+			} else {
+				fmt.Fprintf(os.Stderr, "Cancelled build #%d\n", build.Number)
+			}
+		}
 		return nil
 	}
 	if err != nil {

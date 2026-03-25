@@ -120,7 +120,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 	})
 
-	t.Run("watches build until completion", func(t *testing.T) {
+	t.Run("watches build until completion and cleans up remote branch", func(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
 
 		pollCount := 0
@@ -163,6 +163,58 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 		if pollCount < 3 {
 			t.Errorf("expected at least 3 polls, got %d", pollCount)
+		}
+
+		// Verify the remote preflight branch was deleted.
+		refs := runGit(t, worktree, "ls-remote", "--heads", "origin")
+		if strings.Contains(refs, "bk/preflight/") {
+			t.Errorf("expected preflight branch to be cleaned up, but found: %s", refs)
+		}
+	})
+
+	t.Run("no-cleanup preserves remote branch", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		now := time.Now()
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if r.Method == "POST" && strings.Contains(r.URL.Path, "/builds") {
+				json.NewEncoder(w).Encode(buildkite.Build{
+					Number: 1,
+					State:  "scheduled",
+					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
+				})
+				return
+			}
+			if r.Method == "GET" && strings.Contains(r.URL.Path, "/builds/1") {
+				json.NewEncoder(w).Encode(buildkite.Build{
+					Number:     1,
+					State:      "passed",
+					FinishedAt: &buildkite.Timestamp{Time: now},
+				})
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01, NoCleanup: true}
+		err := cmd.Run(nil, stubGlobals{})
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		// Verify the remote preflight branch still exists.
+		refs := runGit(t, worktree, "ls-remote", "--heads", "origin")
+		if !strings.Contains(refs, "bk/preflight/") {
+			t.Error("expected preflight branch to still exist with --no-cleanup")
 		}
 	})
 
