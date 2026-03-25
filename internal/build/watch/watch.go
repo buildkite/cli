@@ -22,7 +22,7 @@ type StatusFunc func(b buildkite.Build)
 
 func isTerminalBuildState(state string) bool {
 	switch state {
-	case "passed", "failed", "failing", "blocked", "canceled", "canceling", "skipped", "not_run":
+	case "passed", "failed", "canceled", "skipped", "not_run":
 		return true
 	default:
 		return false
