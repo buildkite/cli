@@ -23,9 +23,10 @@ import (
 )
 
 type PreflightCmd struct {
-	Pipeline string  `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
-	Watch    bool    `help:"Watch the build until completion." default:"true" negatable:""`
-	Interval float64 `help:"Polling interval in seconds when watching." default:"2"`
+	Pipeline  string  `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
+	Watch     bool    `help:"Watch the build until completion." default:"true" negatable:""`
+	Interval  float64 `help:"Polling interval in seconds when watching." default:"2"`
+	NoCleanup bool    `help:"Skip deleting the remote preflight branch after the build finishes."`
 }
 
 func (c *PreflightCmd) Help() string {
@@ -155,6 +156,12 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			"Buildkite API may be unavailable or your network may be unstable",
 			"Retry the preflight command once connectivity is restored",
 		)
+	}
+
+	if !c.NoCleanup {
+		if cleanupErr := preflight.Cleanup(wt.Filesystem.Root(), result.Ref, globals.EnableDebug()); cleanupErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to delete remote branch %s: %v\n", result.Ref, cleanupErr)
+		}
 	}
 
 	fmt.Println()
