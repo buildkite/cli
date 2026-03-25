@@ -18,13 +18,13 @@ import (
 )
 
 type CopyCmd struct {
-	Pipeline    string `arg:"" help:"Source pipeline to copy (slug or org/slug). Uses current pipeline if not specified." optional:""`
-	Org         string `help:"Organization slug" name:"org"`
-	Target      string `help:"Name for the new pipeline, or org/name to copy to a different organization" short:"t"`
+	Pipeline         string `arg:"" help:"Source pipeline to copy (slug or org/slug). Uses current pipeline if not specified." optional:""`
+	Org              string `help:"Organization slug" name:"org"`
+	Target           string `help:"Name for the new pipeline, or org/name to copy to a different organization" short:"t"`
 	ClusterUUID      string `help:"Cluster UUID for the new pipeline" name:"cluster-uuid"`
 	ClusterName      string `help:"Cluster name for the new pipeline (resolved to UUID)" name:"cluster-name"`
 	ClusterShorthand string `short:"c" hidden:"" name:"c" help:""`
-	DryRun      bool   `help:"Show what would be copied without creating the pipeline"`
+	DryRun           bool   `help:"Show what would be copied without creating the pipeline"`
 	output.OutputFlags
 }
 

@@ -20,15 +20,15 @@ import (
 )
 
 type CreateCmd struct {
-	Name          string `arg:"" help:"Name of the pipeline" required:""`
-	Org           string `help:"Organization slug." name:"org"`
-	Description   string `help:"Description of the pipeline" short:"d"`
-	Repository    string `help:"Repository URL" short:"r"`
+	Name             string `arg:"" help:"Name of the pipeline" required:""`
+	Org              string `help:"Organization slug." name:"org"`
+	Description      string `help:"Description of the pipeline" short:"d"`
+	Repository       string `help:"Repository URL" short:"r"`
 	ClusterUUID      string `help:"Cluster UUID to assign the pipeline to" name:"cluster-uuid"`
 	ClusterName      string `help:"Cluster name to assign the pipeline to (resolved to UUID)" name:"cluster-name"`
 	ClusterShorthand string `short:"c" hidden:"" name:"c" help:""`
-	CreateWebhook bool   `help:"Create an SCM webhook for the pipeline (GitHub and GitHub Enterprise only)" short:"W"`
-	DryRun        bool   `help:"Simulate pipeline creation without actually creating it"`
+	CreateWebhook    bool   `help:"Create an SCM webhook for the pipeline (GitHub and GitHub Enterprise only)" short:"W"`
+	DryRun           bool   `help:"Simulate pipeline creation without actually creating it"`
 	output.OutputFlags
 }
 
