@@ -57,7 +57,9 @@ func WatchBuild(
 			}
 		} else {
 			consecutiveErrors = 0
-			onStatus(b)
+			if onStatus != nil {
+				onStatus(b)
+			}
 
 			if b.FinishedAt != nil || isTerminalBuildState(b.State) {
 				return b, nil

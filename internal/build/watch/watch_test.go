@@ -140,6 +140,28 @@ func TestWatchBuild(t *testing.T) {
 		}
 	})
 
+	t.Run("nil onStatus callback", func(t *testing.T) {
+		now := time.Now()
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(buildkite.Build{
+				Number:     1,
+				State:      "passed",
+				FinishedAt: &buildkite.Timestamp{Time: now},
+			})
+		}))
+		defer s.Close()
+
+		client := newTestClient(t, s.URL)
+		b, err := WatchBuild(context.Background(), client, "org", "pipe", 1, 10*time.Millisecond, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if b.State != "passed" {
+			t.Errorf("expected state passed, got %s", b.State)
+		}
+	})
+
 	t.Run("returns skipped build without finished timestamp", func(t *testing.T) {
 		pollCount := 0
 		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
