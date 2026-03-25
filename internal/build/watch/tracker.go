@@ -122,12 +122,15 @@ func JobDuration(j buildkite.Job) time.Duration {
 	return end.Sub(j.StartedAt.Time).Truncate(time.Second)
 }
 
+// isFailedJob mirrors the build page's hasJobFailed / isJobTerminated logic:
+// a script job is failed if it finished without passing (failed, timed_out,
+// canceled, expired) or was soft-failed.
 func isFailedJob(j buildkite.Job) bool {
-	return j.State == "failed" || j.State == "timed_out" || j.SoftFailed
+	return j.State == "failed" || j.State == "timed_out" || j.State == "canceled" || j.State == "expired" || j.SoftFailed
 }
 
 func wasFailedJob(state string, softFailed bool) bool {
-	return state == "failed" || state == "timed_out" || softFailed
+	return state == "failed" || state == "timed_out" || state == "canceled" || state == "expired" || softFailed
 }
 
 func isActiveState(state string) bool {

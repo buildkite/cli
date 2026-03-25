@@ -90,7 +90,8 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	// Create a Screen with regions for live terminal output.
 	screen := preflight.NewScreen(os.Stdout)
 	snapshotRegion := screen.AddRegion("snapshot")
-	summaryRegion := screen.AddRegion("summary")
+	failedRegion := screen.AddRegion("failed")
+	jobsRegion := screen.AddRegion("jobs")
 	resultRegion := screen.AddRegion("result")
 
 	var opts []preflight.SnapshotOption
@@ -136,24 +137,46 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	}
 
 	interval := time.Duration(c.Interval * float64(time.Second))
+	tracker := watch.NewJobTracker()
 
 	var lastLine string
 	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) {
-		line := fmt.Sprintf("Build #%d %s", b.Number, b.State)
-		if summary := watch.Summarize(b).String(); summary != "" {
-			line += " — " + summary
-		}
+		status := tracker.Update(b)
+
 		if tty {
-			display := fmt.Sprintf("[%s] %s", time.Now().Format(time.TimeOnly), line)
-			summaryRegion.SetLines([]string{display})
-		} else if line != lastLine {
-			fmt.Printf("[%s] %s\n", time.Now().Format(time.TimeOnly), line)
-			lastLine = line
+			for _, fj := range status.NewlyFailed {
+				failedRegion.AppendLine(formatFailedJob(fj))
+			}
+
+			var lines []string
+			for _, j := range status.Running {
+				dur := watch.JobDuration(j)
+				durStr := ""
+				if dur > 0 {
+					durStr = " " + dur.String()
+				}
+				lines = append(lines, fmt.Sprintf("  \033[36m●\033[0m %s  \033[36mrunning\033[0m%s", watch.JobDisplayName(j), durStr))
+			}
+			if status.TotalRunning > len(status.Running) {
+				lines = append(lines, fmt.Sprintf("  \033[90m… and %d more running\033[0m", status.TotalRunning-len(status.Running)))
+			}
+			lines = append(lines, formatSummaryLine(status.Summary))
+			lines = append(lines, fmt.Sprintf("  Watching build #%d…", b.Number))
+			jobsRegion.SetLines(lines)
+		} else {
+			for _, fj := range status.NewlyFailed {
+				fmt.Printf("  ✗ %s  %s  %s\n", fj.Name, fj.State, fj.ID)
+			}
+			line := fmt.Sprintf("Build #%d %s", b.Number, b.State)
+			if summary := status.Summary.String(); summary != "" {
+				line += " — " + summary
+			}
+			if line != lastLine {
+				fmt.Printf("[%s] %s\n", time.Now().Format(time.TimeOnly), line)
+				lastLine = line
+			}
 		}
 	})
-	if tty {
-		fmt.Println()
-	}
 
 	if !c.NoCleanup {
 		if cleanupErr := preflight.Cleanup(wt.Filesystem.Root(), result.Ref, globals.EnableDebug()); cleanupErr != nil {
@@ -192,10 +215,66 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	// Flush the screen so final output is not overwritten.
 	screen.Flush()
 
+	// Plain mode: print a recap of all failed jobs at the end.
+	if !tty {
+		finalStatus := tracker.Update(finalBuild)
+		if finalStatus.Summary.Failed > 0 {
+			fmt.Println()
+			fmt.Printf("Failed jobs (%d):\n", finalStatus.Summary.Failed)
+			for _, j := range finalBuild.Jobs {
+				if j.Type != "script" {
+					continue
+				}
+				if j.State == "failed" || j.State == "timed_out" || j.SoftFailed {
+					fmt.Printf("  ✗ %s  %s  %s\n", watch.JobDisplayName(j), j.State, j.ID)
+				}
+			}
+		}
+	}
+
 	if finalBuild.State == "passed" {
 		resultRegion.SetLines([]string{"", "✅ Preflight passed!"})
 		return nil
 	}
 	resultRegion.SetLines([]string{"", fmt.Sprintf("❌ Preflight %s", finalBuild.State)})
 	return fmt.Errorf("preflight build %s", finalBuild.State)
+}
+
+func formatFailedJob(fj watch.FailedJob) string {
+	var parts []string
+	parts = append(parts, fmt.Sprintf("  \033[31m✗\033[0m %s", fj.Name))
+
+	if fj.SoftFailed {
+		parts = append(parts, " \033[33msoft failed\033[0m")
+	} else {
+		parts = append(parts, fmt.Sprintf("  \033[31m%s\033[0m", fj.State))
+	}
+	if fj.ExitStatus != nil && *fj.ExitStatus != 0 {
+		parts = append(parts, fmt.Sprintf("  \033[31mexit %d\033[0m", *fj.ExitStatus))
+	}
+	if fj.Duration > 0 {
+		parts = append(parts, fmt.Sprintf("  \033[2m(%s)\033[0m", fj.Duration))
+	}
+	parts = append(parts, fmt.Sprintf("  \033[2m%s\033[0m", fj.ID))
+	return strings.Join(parts, "")
+}
+
+func formatSummaryLine(s watch.JobSummary) string {
+	var parts []string
+	if s.Passed > 0 {
+		parts = append(parts, fmt.Sprintf("\033[32m%d passed\033[0m", s.Passed))
+	}
+	if s.Failed > 0 {
+		parts = append(parts, fmt.Sprintf("\033[31m%d failed\033[0m", s.Failed))
+	}
+	if s.Scheduled > 0 {
+		parts = append(parts, fmt.Sprintf("%d scheduled", s.Scheduled))
+	}
+	if s.Waiting > 0 {
+		parts = append(parts, fmt.Sprintf("%d waiting", s.Waiting))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("  \033[90m◌\033[0m … %s", strings.Join(parts, ", "))
 }
