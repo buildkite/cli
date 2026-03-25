@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -162,11 +163,18 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	}
 
 	if errors.Is(err, context.Canceled) {
-		if finalBuild.FinishedAt == nil {
+		if finalBuild.FinishedAt == nil && !watch.IsTerminalBuildState(finalBuild.State) {
 			cancelCtx, cancelStop := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancelStop()
 			if _, cancelErr := f.RestAPIClient.Builds.Cancel(cancelCtx, resolvedPipeline.Org, resolvedPipeline.Name, strconv.Itoa(build.Number)); cancelErr != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to cancel build #%d: %v\n", build.Number, cancelErr)
+				var apiErr *buildkite.ErrorResponse
+				if errors.As(cancelErr, &apiErr) && apiErr.Response.StatusCode == http.StatusUnprocessableEntity && apiErr.Message == "Build can't be canceled because it's already finished." {
+					if globals.EnableDebug() {
+						fmt.Fprintf(os.Stderr, "Debug: build #%d already finished, skipping cancel\n", build.Number)
+					}
+				} else {
+					fmt.Fprintf(os.Stderr, "Warning: failed to cancel build #%d: %v\n", build.Number, cancelErr)
+				}
 			} else {
 				fmt.Fprintf(os.Stderr, "Cancelled build #%d\n", build.Number)
 			}
