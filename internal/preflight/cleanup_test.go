@@ -31,3 +31,21 @@ func TestCleanup(t *testing.T) {
 		t.Errorf("expected remote branch to be deleted, got %q", out)
 	}
 }
+
+func TestCleanup_AlreadyDeleted(t *testing.T) {
+	worktree := initTestRepo(t)
+
+	preflightID := uuid.MustParse("00000000-0000-0000-0000-000000000011")
+	result, err := Snapshot(worktree, preflightID)
+	if err != nil {
+		t.Fatalf("Snapshot() error: %v", err)
+	}
+
+	// Delete the branch manually first.
+	runGit(t, worktree, "push", "origin", "--delete", result.Ref)
+
+	// Cleanup should succeed even though the branch is already gone.
+	if err := Cleanup(worktree, result.Ref, false); err != nil {
+		t.Fatalf("Cleanup() should succeed when branch already deleted, got: %v", err)
+	}
+}
