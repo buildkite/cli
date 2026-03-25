@@ -125,6 +125,10 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		return nil
 	}
 
+	if c.Interval <= 0 {
+		return bkErrors.NewValidationError(fmt.Errorf("interval must be greater than 0"), "invalid polling interval")
+	}
+
 	fmt.Println()
 
 	tty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
