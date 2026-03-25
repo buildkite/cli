@@ -1,0 +1,2589 @@
+diff --git a/cmd/build/watch.go b/cmd/build/watch.go
+index fb5d68d..8bd9320 100644
+--- a/cmd/build/watch.go
++++ b/cmd/build/watch.go
+@@ -2,6 +2,7 @@ package build
+ 
+ import (
+ 	"context"
++	"errors"
+ 	"fmt"
+ 	"os"
+ 	"time"
+@@ -10,11 +11,13 @@ import (
+ 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
+ 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
+ 	"github.com/buildkite/cli/v3/internal/build/view/shared"
++	"github.com/buildkite/cli/v3/internal/build/watch"
+ 	"github.com/buildkite/cli/v3/internal/cli"
+ 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
+ 	"github.com/buildkite/cli/v3/internal/validation"
+ 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+ 	pkgValidation "github.com/buildkite/cli/v3/pkg/cmd/validation"
++	buildkite "github.com/buildkite/go-buildkite/v4"
+ 	"github.com/mattn/go-isatty"
+ )
+ 
+@@ -105,30 +108,20 @@ func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+ 
+ 	fmt.Printf("Watching build %d on %s/%s\n", bld.BuildNumber, bld.Organization, bld.Pipeline)
+ 
+-	ticker := time.NewTicker(time.Duration(c.Interval) * time.Second)
+-	defer ticker.Stop()
+-
+-	for {
+-		select {
+-		case <-ticker.C:
+-			b, _, err := f.RestAPIClient.Builds.Get(ctx, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), nil)
+-			if err != nil {
+-				return err
+-			}
+-
+-			summary := shared.BuildSummaryWithJobs(&b, bld.Organization, bld.Pipeline)
+-			if tty {
+-				fmt.Print("\033[H\033[2J") // Clear terminal (keeps scrollback in terminal)
+-				fmt.Printf("%s\n", summary)
+-			} else {
+-				fmt.Printf("[%s] %s\n", time.Now().Format(time.RFC3339), summary)
+-			}
+-
+-			if b.FinishedAt != nil {
+-				return nil
+-			}
+-		case <-ctx.Done():
+-			return nil
++	interval := time.Duration(c.Interval) * time.Second
++
++	_, err = watch.WatchBuild(ctx, f.RestAPIClient, bld.Organization, bld.Pipeline, bld.BuildNumber, interval, func(b buildkite.Build) {
++		summary := shared.BuildSummaryWithJobs(&b, bld.Organization, bld.Pipeline)
++		if tty {
++			fmt.Print("\033[H\033[2J")
++			fmt.Printf("%s\n", summary)
++		} else {
++			fmt.Printf("[%s] %s\n", time.Now().Format(time.RFC3339), summary)
+ 		}
++	})
++	if errors.Is(err, context.Canceled) {
++		return nil
+ 	}
++
++	return err
+ }
+diff --git a/cmd/cluster/view.go b/cmd/cluster/view.go
+index 0c6be31..0cffd23 100644
+--- a/cmd/cluster/view.go
++++ b/cmd/cluster/view.go
+@@ -19,20 +19,20 @@ import (
+ )
+ 
+ type ViewCmd struct {
+-	ClusterID string `arg:"" help:"Cluster ID to view"`
++	ClusterUUID string `arg:"" help:"Cluster UUID to view" name:"cluster-uuid"`
+ 	output.OutputFlags
+ }
+ 
+ func (c *ViewCmd) Help() string {
+ 	return `
+-It accepts cluster id.
++It accepts cluster UUID.
+ 
+ Examples:
+   # View a cluster
+-  $ bk cluster view my-cluster-id
++  $ bk cluster view my-cluster-uuid
+ 
+   # View cluster in JSON format
+-  $ bk cluster view my-cluster-id -o json
++  $ bk cluster view my-cluster-uuid -o json
+ `
+ }
+ 
+@@ -58,7 +58,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+ 
+ 	var cluster buildkite.Cluster
+ 	spinErr := bkIO.SpinWhile(f, "Loading cluster information", func() {
+-		cluster, _, err = f.RestAPIClient.Clusters.Get(ctx, f.Config.OrganizationSlug(), c.ClusterID)
++		cluster, _, err = f.RestAPIClient.Clusters.Get(ctx, f.Config.OrganizationSlug(), c.ClusterUUID)
+ 	})
+ 	if spinErr != nil {
+ 		return spinErr
+diff --git a/cmd/pipeline/copy.go b/cmd/pipeline/copy.go
+index 46624ac..7ae4442 100644
+--- a/cmd/pipeline/copy.go
++++ b/cmd/pipeline/copy.go
+@@ -18,11 +18,13 @@ import (
+ )
+ 
+ type CopyCmd struct {
+-	Pipeline string `arg:"" help:"Source pipeline to copy (slug or org/slug). Uses current pipeline if not specified." optional:""`
+-	Org      string `help:"Organization slug" name:"org"`
+-	Target   string `help:"Name for the new pipeline, or org/name to copy to a different organization" short:"t"`
+-	Cluster  string `help:"Cluster name or ID for the new pipeline (required for cross-org copies if target org uses clusters)" short:"c"`
+-	DryRun   bool   `help:"Show what would be copied without creating the pipeline"`
++	Pipeline         string `arg:"" help:"Source pipeline to copy (slug or org/slug). Uses current pipeline if not specified." optional:""`
++	Org              string `help:"Organization slug" name:"org"`
++	Target           string `help:"Name for the new pipeline, or org/name to copy to a different organization" short:"t"`
++	ClusterUUID      string `help:"Cluster UUID for the new pipeline" name:"cluster-uuid"`
++	ClusterName      string `help:"Cluster name for the new pipeline (resolved to UUID)" name:"cluster-name"`
++	ClusterShorthand string `short:"c" hidden:"" name:"c" help:""`
++	DryRun           bool   `help:"Show what would be copied without creating the pipeline"`
+ 	output.OutputFlags
+ }
+ 
+@@ -40,8 +42,17 @@ func (c *CopyCmd) orgSlug(f *factory.Factory) string {
+ 	return f.Config.OrganizationSlug()
+ }
+ 
++func (c *CopyCmd) Validate() error {
++	if c.ClusterShorthand != "" {
++		return fmt.Errorf("-c is no longer supported for cluster; use --cluster-uuid or --cluster-name instead")
++	}
++	if c.ClusterUUID != "" && c.ClusterName != "" {
++		return fmt.Errorf("only one of --cluster-uuid or --cluster-name can be specified")
++	}
++	return nil
++}
++
+ func (c *CopyCmd) Help() string {
+-	// returns the biggest help message ever seen
+ 	return `Copy an existing pipeline's configuration to create a new pipeline.
+ 
+ This command copies all configuration from a source pipeline including:
+@@ -67,7 +78,10 @@ Examples:
+   $ bk pipeline cp other-org/their-pipeline --target "my-copy"
+ 
+   # Copy to a different organization
+-  $ bk pipeline cp my-pipeline --target "other-org/my-pipeline" --cluster "8302f0b-9b99-4663-23f3-2d64f88s693e"
++  $ bk pipeline cp my-pipeline --target "other-org/my-pipeline" --cluster-uuid "8302f0b-9b99-4663-23f3-2d64f88s693e"
++
++  # Copy to a different organization using cluster name
++  $ bk pipeline cp my-pipeline --target "other-org/my-pipeline" --cluster-name "my-cluster"
+ 
+   # Interactive mode - prompts for source and target
+   $ bk pipeline cp
+@@ -119,7 +133,7 @@ func (c *CopyCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+ 	isCrossOrg := target.Org != sourcePipeline.Org
+ 
+ 	// Resolve cluster ID - required for cross-org copies
+-	clusterID, err := c.resolveCluster(f, source.ClusterID, isCrossOrg)
++	clusterID, err := c.resolveCluster(ctx, f, target.Org, source.ClusterID, isCrossOrg)
+ 	if err != nil {
+ 		return err
+ 	}
+@@ -191,16 +205,20 @@ func parseTarget(target, defaultOrg string) *copyTarget {
+ 	}
+ }
+ 
+-func (c *CopyCmd) resolveCluster(f *factory.Factory, sourceClusterID string, isCrossOrg bool) (string, error) {
+-	if c.Cluster != "" {
+-		return c.Cluster, nil
++func (c *CopyCmd) resolveCluster(ctx context.Context, f *factory.Factory, targetOrg, sourceClusterID string, isCrossOrg bool) (string, error) {
++	if c.ClusterUUID != "" {
++		return c.ClusterUUID, nil
++	}
++
++	if c.ClusterName != "" {
++		return resolveClusterName(ctx, f, targetOrg, c.ClusterName)
+ 	}
+ 
+ 	if !isCrossOrg {
+ 		return sourceClusterID, nil
+ 	}
+ 
+-	return bkIO.PromptForInput("Target cluster ID (required for cross-org copy)", "", f.NoInput)
++	return bkIO.PromptForInput("Target cluster UUID (required for cross-org copy)", "", f.NoInput)
+ }
+ 
+ func (c *CopyCmd) fetchSourcePipeline(ctx context.Context, f *factory.Factory, org, slug string) (*buildkite.Pipeline, error) {
+diff --git a/cmd/pipeline/create.go b/cmd/pipeline/create.go
+index b69b028..b7fd0f7 100644
+--- a/cmd/pipeline/create.go
++++ b/cmd/pipeline/create.go
+@@ -20,13 +20,15 @@ import (
+ )
+ 
+ type CreateCmd struct {
+-	Name          string `arg:"" help:"Name of the pipeline" required:""`
+-	Org           string `help:"Organization slug." name:"org"`
+-	Description   string `help:"Description of the pipeline" short:"d"`
+-	Repository    string `help:"Repository URL" short:"r"`
+-	ClusterID     string `help:"Cluster name or ID to assign the pipeline to" short:"c"`
+-	CreateWebhook bool   `help:"Create an SCM webhook for the pipeline (GitHub and GitHub Enterprise only)" short:"W"`
+-	DryRun        bool   `help:"Simulate pipeline creation without actually creating it"`
++	Name             string `arg:"" help:"Name of the pipeline" required:""`
++	Org              string `help:"Organization slug." name:"org"`
++	Description      string `help:"Description of the pipeline" short:"d"`
++	Repository       string `help:"Repository URL" short:"r"`
++	ClusterUUID      string `help:"Cluster UUID to assign the pipeline to" name:"cluster-uuid"`
++	ClusterName      string `help:"Cluster name to assign the pipeline to (resolved to UUID)" name:"cluster-name"`
++	ClusterShorthand string `short:"c" hidden:"" name:"c" help:""`
++	CreateWebhook    bool   `help:"Create an SCM webhook for the pipeline (GitHub and GitHub Enterprise only)" short:"W"`
++	DryRun           bool   `help:"Simulate pipeline creation without actually creating it"`
+ 	output.OutputFlags
+ }
+ 
+@@ -37,14 +39,24 @@ func (c *CreateCmd) orgSlug(conf *config.Config) string {
+ 	return conf.OrganizationSlug()
+ }
+ 
++func (c *CreateCmd) Validate() error {
++	if c.ClusterShorthand != "" {
++		return fmt.Errorf("-c is no longer supported for cluster; use --cluster-uuid or --cluster-name instead")
++	}
++	if c.ClusterUUID != "" && c.ClusterName != "" {
++		return fmt.Errorf("only one of --cluster-uuid or --cluster-name can be specified")
++	}
++	return nil
++}
++
+ func (c *CreateCmd) Help() string {
+ 	return `Creates a new pipeline in the current org and outputs the URL to the pipeline.
+ 
+ You can specify a --dry-run flag to see the pipeline that would be created without
+ actually creating it. This outputs a JSON representation of the pipeline to be created by default.
+ 
+-The --cluster-id flag accepts either a cluster name or cluster ID. If a name is provided,
+-it will be automatically resolved to the corresponding cluster ID.
++Use --cluster-uuid to assign a pipeline to a cluster by UUID, or --cluster-name to
++assign by name (the name will be resolved to the corresponding UUID).
+ 
+ Examples:
+   # Create a new pipeline
+@@ -53,11 +65,11 @@ Examples:
+   # Create a new pipeline and view the created pipeline in JSON format
+   $ bk pipeline create "My Pipeline" --description "My pipeline description" --repository "git@github.com:org/repo.git" --output json
+ 
+-  # Create a pipeline with a cluster (by name)
+-  $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" -c "my-cluster"
++  # Create a pipeline with a cluster (by UUID)
++  $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" --cluster-uuid "cluster-uuid-123"
+ 
+-  # Create a pipeline with a cluster (by ID)
+-  $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" -c "cluster-id-123"
++  # Create a pipeline with a cluster (by name)
++  $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" --cluster-name "my-cluster"
+ 
+   # Create a pipeline and set up a GitHub webhook
+   $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" --create-webhook
+@@ -132,8 +144,7 @@ func (c *CreateCmd) runPipelineCreate(kongCtx *kong.Context, f *factory.Factory)
+ }
+ 
+ func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) (*buildkite.Pipeline, error) {
+-	// Resolve cluster name to ID if provided
+-	clusterID, err := resolveClusterID(ctx, f, c.orgSlug(f.Config), c.ClusterID)
++	clusterID, err := c.resolveClusterUUID(ctx, f)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -263,8 +274,9 @@ func (c *CreateCmd) createPipelineDryRun(ctx context.Context, f *factory.Factory
+ 	pipeline.Description = c.Description
+ 	pipeline.Slug = pipelineSlug
+ 	pipeline.Repository = c.Repository
+-	pipeline.ClusterID = c.ClusterID
+-	pipeline.ClusterURL = getClusterUrl(orgSlug, c.ClusterID)
++	clusterUUID, _ := c.resolveClusterUUID(ctx, f)
++	pipeline.ClusterID = clusterUUID
++	pipeline.ClusterURL = getClusterUrl(orgSlug, clusterUUID)
+ 	pipeline.DefaultBranch = "main"
+ 	pipeline.BuildsURL = fmt.Sprintf("https://api.buildkite.com/v2/organizations/%s/pipelines/%s/builds", orgSlug, pipelineSlug)
+ 	pipeline.BadgeURL = fmt.Sprintf("https://badge.buildkite.com/%s.svg", "00000000000000000000000000000000000000000000000000")
+@@ -422,36 +434,33 @@ func listClusterNames(ctx context.Context, f *factory.Factory, org string) ([]st
+ 	return clusterNames, nil
+ }
+ 
+-func resolveClusterID(ctx context.Context, f *factory.Factory, org, clusterNameOrID string) (string, error) {
+-	if clusterNameOrID == "" {
++func (c *CreateCmd) resolveClusterUUID(ctx context.Context, f *factory.Factory) (string, error) {
++	if c.ClusterUUID != "" {
++		return c.ClusterUUID, nil
++	}
++	if c.ClusterName == "" {
+ 		return "", nil
+ 	}
+ 
+-	// First, try to get clusters map
++	return resolveClusterName(ctx, f, c.orgSlug(f.Config), c.ClusterName)
++}
++
++func resolveClusterName(ctx context.Context, f *factory.Factory, org, clusterName string) (string, error) {
+ 	clusterMap, err := getClusters(ctx, f, org)
+ 	if err != nil {
+ 		return "", fmt.Errorf("failed to fetch clusters: %w", err)
+ 	}
+ 
+-	// Check if it's a cluster name
+-	if clusterID, exists := clusterMap[clusterNameOrID]; exists {
++	if clusterID, exists := clusterMap[clusterName]; exists {
+ 		return clusterID, nil
+ 	}
+ 
+-	// Check if it's already a valid cluster ID
+-	for _, id := range clusterMap {
+-		if id == clusterNameOrID {
+-			return clusterNameOrID, nil
+-		}
+-	}
+-
+-	// Not found - provide helpful error with available clusters
+ 	clusterNames, _ := listClusterNames(ctx, f, org)
+ 	if len(clusterNames) > 0 {
+-		return "", fmt.Errorf("cluster '%s' not found. Available clusters: %s", clusterNameOrID, strings.Join(clusterNames, ", "))
++		return "", fmt.Errorf("cluster '%s' not found. Available clusters: %s", clusterName, strings.Join(clusterNames, ", "))
+ 	}
+ 
+-	return "", fmt.Errorf("cluster '%s' not found", clusterNameOrID)
++	return "", fmt.Errorf("cluster '%s' not found", clusterName)
+ }
+ 
+ func getCreatedByDetails(ctx context.Context, f *factory.Factory) *buildkite.User {
+diff --git a/cmd/preflight/preflight.go b/cmd/preflight/preflight.go
+index 098f2bb..0af192d 100644
+--- a/cmd/preflight/preflight.go
++++ b/cmd/preflight/preflight.go
+@@ -1,18 +1,36 @@
+ package preflight
+ 
+ import (
++	"context"
++	"errors"
+ 	"fmt"
++	"net/http"
++	"os"
++	"os/signal"
++	"strconv"
++	"strings"
++	"syscall"
++	"time"
+ 
+ 	"github.com/alecthomas/kong"
+ 	"github.com/google/uuid"
++	"github.com/mattn/go-isatty"
+ 
++	"github.com/buildkite/cli/v3/internal/build/watch"
+ 	"github.com/buildkite/cli/v3/internal/cli"
+ 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
++	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
+ 	"github.com/buildkite/cli/v3/internal/preflight"
+ 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
++	buildkite "github.com/buildkite/go-buildkite/v4"
+ )
+ 
+-type PreflightCmd struct{}
++type PreflightCmd struct {
++	Pipeline  string  `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
++	Watch     bool    `help:"Watch the build until completion." default:"true" negatable:""`
++	Interval  float64 `help:"Polling interval in seconds when watching." default:"2"`
++	NoCleanup bool    `help:"Skip deleting the remote preflight branch after the build finishes."`
++}
+ 
+ func (c *PreflightCmd) Help() string {
+ 	return `Snapshots your working tree (uncommitted, staged, and untracked changes) and pushes it to a bk/preflight/<id> branch. If there are no local changes, pushes HEAD directly.`
+@@ -48,12 +66,40 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
+ 		return bkErrors.NewInternalError(err, "UUIDv7 generation failed")
+ 	}
+ 
++	if c.Interval <= 0 {
++		return bkErrors.NewValidationError(fmt.Errorf("interval must be greater than 0"), "invalid polling interval")
++	}
++	// Resolve the pipeline to create a build against.
++	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
++	defer stop()
++	resolvers := resolver.NewAggregateResolver(
++		resolver.ResolveFromFlag(c.Pipeline, f.Config),
++		resolver.ResolveFromConfig(f.Config, resolver.PickOneWithFactory(f)),
++		resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOneWithFactory(f))),
++	)
++
++	resolvedPipeline, err := resolvers.Resolve(ctx)
++	if err != nil {
++		return bkErrors.NewValidationError(err, "could not resolve a pipeline",
++			"Specify a pipeline in .bk.yaml or link your repository to a pipeline",
++		)
++	}
++
++	tty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
++
++	// Create a Screen with regions for live terminal output.
++	screen := preflight.NewScreen(os.Stdout)
++	snapshotRegion := screen.AddRegion("snapshot")
++	failedRegion := screen.AddRegion("failed")
++	jobsRegion := screen.AddRegion("jobs")
++	resultRegion := screen.AddRegion("result")
++
+ 	var opts []preflight.SnapshotOption
+ 	if globals.EnableDebug() {
+ 		opts = append(opts, preflight.WithDebug())
+ 	}
+ 
+-	fmt.Println("Creating snapshot of working tree...")
++	snapshotRegion.AppendLine("Creating snapshot of working tree...")
+ 	result, err := preflight.Snapshot(wt.Filesystem.Root(), preflightID, opts...)
+ 	if err != nil {
+ 		return bkErrors.NewSnapshotError(err, "failed to create preflight snapshot",
+@@ -62,14 +108,173 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
+ 		)
+ 	}
+ 
+-	fmt.Printf("Commit: %s\n", result.Commit[:10])
+-	fmt.Printf("Ref:    %s\n", result.Ref)
++	snapshotLines := []string{
++		fmt.Sprintf("Commit: %s", result.Commit[:10]),
++		fmt.Sprintf("Ref:    %s", result.Ref),
++	}
+ 	if len(result.Files) > 0 {
+-		fmt.Printf("Files:  %d changed\n", len(result.Files))
+-		for _, f := range result.Files {
+-			fmt.Printf("  %s %s\n", f.StatusSymbol(), f.Path)
++		snapshotLines = append(snapshotLines, fmt.Sprintf("Files:  %d changed", len(result.Files)))
++		for _, file := range result.Files {
++			snapshotLines = append(snapshotLines, fmt.Sprintf("  %s %s", file.StatusSymbol(), file.Path))
++		}
++	}
++	snapshotRegion.SetLines(snapshotLines)
++
++	snapshotRegion.AppendLine(fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name))
++	build, _, err := f.RestAPIClient.Builds.Create(ctx, resolvedPipeline.Org, resolvedPipeline.Name, buildkite.CreateBuild{
++		Message: fmt.Sprintf("Preflight %s", preflightID),
++		Commit:  result.Commit,
++		Branch:  result.Branch,
++	})
++	if err != nil {
++		return bkErrors.WrapAPIError(err, "creating preflight build")
++	}
++
++	snapshotRegion.AppendLine(fmt.Sprintf("Build:  %s", build.WebURL))
++
++	if !c.Watch {
++		return nil
++	}
++
++	interval := time.Duration(c.Interval * float64(time.Second))
++	tracker := watch.NewJobTracker()
++
++	var lastLine string
++	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) {
++		status := tracker.Update(b)
++
++		if tty {
++			for _, fj := range status.NewlyFailed {
++				failedRegion.AppendLine(formatFailedJob(fj))
++			}
++
++			var lines []string
++			for _, j := range status.Running {
++				dur := watch.JobDuration(j)
++				durStr := ""
++				if dur > 0 {
++					durStr = " " + dur.String()
++				}
++				lines = append(lines, fmt.Sprintf("  \033[36m●\033[0m %s  \033[36mrunning\033[0m%s", watch.JobDisplayName(j), durStr))
++			}
++			if status.TotalRunning > len(status.Running) {
++				lines = append(lines, fmt.Sprintf("  \033[90m… and %d more running\033[0m", status.TotalRunning-len(status.Running)))
++			}
++			lines = append(lines, formatSummaryLine(status.Summary))
++			lines = append(lines, fmt.Sprintf("  Watching build #%d…", b.Number))
++			jobsRegion.SetLines(lines)
++		} else {
++			for _, fj := range status.NewlyFailed {
++				fmt.Printf("  ✗ %s  %s  %s\n", fj.Name, fj.State, fj.ID)
++			}
++			line := fmt.Sprintf("Build #%d %s", b.Number, b.State)
++			if summary := status.Summary.String(); summary != "" {
++				line += " — " + summary
++			}
++			if line != lastLine {
++				fmt.Printf("[%s] %s\n", time.Now().Format(time.TimeOnly), line)
++				lastLine = line
++			}
++		}
++	})
++
++	if !c.NoCleanup {
++		if cleanupErr := preflight.Cleanup(wt.Filesystem.Root(), result.Ref, globals.EnableDebug()); cleanupErr != nil {
++			fmt.Fprintf(os.Stderr, "Warning: failed to delete remote branch %s: %v\n", result.Ref, cleanupErr)
++		} else {
++			fmt.Printf("Deleted remote branch %s\n", result.Branch)
+ 		}
+ 	}
+ 
+-	return nil
++	if errors.Is(err, context.Canceled) {
++		if finalBuild.FinishedAt == nil && !watch.IsTerminalBuildState(finalBuild.State) {
++			cancelCtx, cancelStop := context.WithTimeout(context.Background(), 5*time.Second)
++			defer cancelStop()
++			if _, cancelErr := f.RestAPIClient.Builds.Cancel(cancelCtx, resolvedPipeline.Org, resolvedPipeline.Name, strconv.Itoa(build.Number)); cancelErr != nil {
++				var apiErr *buildkite.ErrorResponse
++				if errors.As(cancelErr, &apiErr) && apiErr.Response.StatusCode == http.StatusUnprocessableEntity && apiErr.Message == "Build can't be canceled because it's already finished." {
++					if globals.EnableDebug() {
++						fmt.Fprintf(os.Stderr, "Debug: build #%d already finished, skipping cancel\n", build.Number)
++					}
++				} else {
++					fmt.Fprintf(os.Stderr, "Warning: failed to cancel build #%d: %v\n", build.Number, cancelErr)
++				}
++			} else {
++				fmt.Fprintf(os.Stderr, "Cancelled build #%d\n", build.Number)
++			}
++		}
++		return nil
++	}
++	if err != nil {
++		return bkErrors.NewInternalError(err, "watching build failed",
++			"Buildkite API may be unavailable or your network may be unstable",
++			"Retry the preflight command once connectivity is restored",
++		)
++	}
++
++	// Flush the screen so final output is not overwritten.
++	screen.Flush()
++
++	// Plain mode: print a recap of all failed jobs at the end.
++	if !tty {
++		finalStatus := tracker.Update(finalBuild)
++		if finalStatus.Summary.Failed > 0 {
++			fmt.Println()
++			fmt.Printf("Failed jobs (%d):\n", finalStatus.Summary.Failed)
++			for _, j := range finalBuild.Jobs {
++				if j.Type != "script" {
++					continue
++				}
++				if j.State == "failed" || j.State == "timed_out" || j.SoftFailed {
++					fmt.Printf("  ✗ %s  %s  %s\n", watch.JobDisplayName(j), j.State, j.ID)
++				}
++			}
++		}
++	}
++
++	if finalBuild.State == "passed" {
++		resultRegion.SetLines([]string{"", "✅ Preflight passed!"})
++		return nil
++	}
++	resultRegion.SetLines([]string{"", fmt.Sprintf("❌ Preflight %s", finalBuild.State)})
++	return fmt.Errorf("preflight build %s", finalBuild.State)
++}
++
++func formatFailedJob(fj watch.FailedJob) string {
++	var parts []string
++	parts = append(parts, fmt.Sprintf("  \033[31m✗\033[0m %s", fj.Name))
++
++	if fj.SoftFailed {
++		parts = append(parts, " \033[33msoft failed\033[0m")
++	} else {
++		parts = append(parts, fmt.Sprintf("  \033[31m%s\033[0m", fj.State))
++	}
++	if fj.ExitStatus != nil && *fj.ExitStatus != 0 {
++		parts = append(parts, fmt.Sprintf("  \033[31mexit %d\033[0m", *fj.ExitStatus))
++	}
++	if fj.Duration > 0 {
++		parts = append(parts, fmt.Sprintf("  \033[2m(%s)\033[0m", fj.Duration))
++	}
++	parts = append(parts, fmt.Sprintf("  \033[2m%s\033[0m", fj.ID))
++	return strings.Join(parts, "")
++}
++
++func formatSummaryLine(s watch.JobSummary) string {
++	var parts []string
++	if s.Passed > 0 {
++		parts = append(parts, fmt.Sprintf("\033[32m%d passed\033[0m", s.Passed))
++	}
++	if s.Failed > 0 {
++		parts = append(parts, fmt.Sprintf("\033[31m%d failed\033[0m", s.Failed))
++	}
++	if s.Scheduled > 0 {
++		parts = append(parts, fmt.Sprintf("%d scheduled", s.Scheduled))
++	}
++	if s.Waiting > 0 {
++		parts = append(parts, fmt.Sprintf("%d waiting", s.Waiting))
++	}
++	if len(parts) == 0 {
++		return ""
++	}
++	return fmt.Sprintf("  \033[90m◌\033[0m … %s", strings.Join(parts, ", "))
+ }
+diff --git a/cmd/preflight/preflight_test.go b/cmd/preflight/preflight_test.go
+index 2620e7b..aff8c69 100644
+--- a/cmd/preflight/preflight_test.go
++++ b/cmd/preflight/preflight_test.go
+@@ -1,13 +1,20 @@
+ package preflight
+ 
+ import (
++	"encoding/json"
+ 	"errors"
++	"net/http"
++	"net/http/httptest"
+ 	"os"
+ 	"os/exec"
+ 	"path/filepath"
+ 	"strings"
+ 	"testing"
++	"time"
+ 
++	buildkite "github.com/buildkite/go-buildkite/v4"
++
++	"github.com/buildkite/cli/v3/internal/build/watch"
+ 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
+ 
+ 	"github.com/buildkite/cli/v3/internal/cli"
+@@ -63,9 +70,31 @@ func TestPreflightCmd_Run(t *testing.T) {
+ 		}
+ 	})
+ 
+-	t.Run("succeeds with dirty worktree", func(t *testing.T) {
++	t.Run("snapshots and creates build", func(t *testing.T) {
+ 		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+ 
++		var gotReq buildkite.CreateBuild
++		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++			if r.Method == "POST" && strings.Contains(r.URL.Path, "/builds") {
++				json.NewDecoder(r.Body).Decode(&gotReq)
++				w.Header().Set("Content-Type", "application/json")
++				json.NewEncoder(w).Encode(buildkite.Build{
++					ID:      "build-id-123",
++					Number:  1,
++					State:   "scheduled",
++					WebURL:  "https://buildkite.com/test-org/test-pipeline/builds/1",
++					Message: gotReq.Message,
++					Commit:  gotReq.Commit,
++					Branch:  gotReq.Branch,
++					URL:     "https://api.buildkite.com/v2/organizations/test-org/pipelines/test-pipeline/builds/1",
++				})
++				return
++			}
++			http.NotFound(w, r)
++		}))
++		defer s.Close()
++		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
++
+ 		worktree := initTestRepo(t)
+ 		t.Chdir(worktree)
+ 
+@@ -74,24 +103,233 @@ func TestPreflightCmd_Run(t *testing.T) {
+ 			t.Fatal(err)
+ 		}
+ 
+-		cmd := &PreflightCmd{}
++		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: false, Interval: 2}
+ 		err := cmd.Run(nil, stubGlobals{})
+ 		if err != nil {
+ 			t.Fatalf("expected no error, got: %v", err)
+ 		}
++
++		if gotReq.Commit == "" {
++			t.Fatal("expected build creation request with a commit, got empty")
++		}
++		if !strings.HasPrefix(gotReq.Branch, "bk/preflight/") {
++			t.Errorf("expected branch starting with bk/preflight/, got %q", gotReq.Branch)
++		}
++		if !strings.HasPrefix(gotReq.Message, "Preflight ") {
++			t.Errorf("expected message starting with 'Preflight ', got %q", gotReq.Message)
++		}
+ 	})
+ 
+-	t.Run("succeeds with clean worktree", func(t *testing.T) {
++	t.Run("watches build until completion and cleans up remote branch", func(t *testing.T) {
+ 		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+ 
++		pollCount := 0
++		now := time.Now()
++		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++			w.Header().Set("Content-Type", "application/json")
++			if r.Method == "POST" && strings.Contains(r.URL.Path, "/builds") {
++				json.NewEncoder(w).Encode(buildkite.Build{
++					Number: 1,
++					State:  "scheduled",
++					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
++				})
++				return
++			}
++			if r.Method == "GET" && strings.Contains(r.URL.Path, "/builds/1") {
++				pollCount++
++				b := buildkite.Build{Number: 1, State: "running"}
++				if pollCount >= 3 {
++					b.State = "passed"
++					b.FinishedAt = &buildkite.Timestamp{Time: now}
++				}
++				json.NewEncoder(w).Encode(b)
++				return
++			}
++			http.NotFound(w, r)
++		}))
++		defer s.Close()
++		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
++
+ 		worktree := initTestRepo(t)
+ 		t.Chdir(worktree)
++		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
++			t.Fatal(err)
++		}
+ 
+-		cmd := &PreflightCmd{}
++		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01}
+ 		err := cmd.Run(nil, stubGlobals{})
+ 		if err != nil {
+ 			t.Fatalf("expected no error, got: %v", err)
+ 		}
++		if pollCount < 3 {
++			t.Errorf("expected at least 3 polls, got %d", pollCount)
++		}
++
++		// Verify the remote preflight branch was deleted.
++		refs := runGit(t, worktree, "ls-remote", "--heads", "origin")
++		if strings.Contains(refs, "bk/preflight/") {
++			t.Errorf("expected preflight branch to be cleaned up, but found: %s", refs)
++		}
++	})
++
++	t.Run("no-cleanup preserves remote branch", func(t *testing.T) {
++		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
++
++		now := time.Now()
++		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++			w.Header().Set("Content-Type", "application/json")
++			if r.Method == "POST" && strings.Contains(r.URL.Path, "/builds") {
++				json.NewEncoder(w).Encode(buildkite.Build{
++					Number: 1,
++					State:  "scheduled",
++					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
++				})
++				return
++			}
++			if r.Method == "GET" && strings.Contains(r.URL.Path, "/builds/1") {
++				json.NewEncoder(w).Encode(buildkite.Build{
++					Number:     1,
++					State:      "passed",
++					FinishedAt: &buildkite.Timestamp{Time: now},
++				})
++				return
++			}
++			http.NotFound(w, r)
++		}))
++		defer s.Close()
++		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
++
++		worktree := initTestRepo(t)
++		t.Chdir(worktree)
++		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
++			t.Fatal(err)
++		}
++
++		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01, NoCleanup: true}
++		err := cmd.Run(nil, stubGlobals{})
++		if err != nil {
++			t.Fatalf("expected no error, got: %v", err)
++		}
++
++		// Verify the remote preflight branch still exists.
++		refs := runGit(t, worktree, "ls-remote", "--heads", "origin")
++		if !strings.Contains(refs, "bk/preflight/") {
++			t.Error("expected preflight branch to still exist with --no-cleanup")
++		}
++	})
++
++	t.Run("returns error when build fails", func(t *testing.T) {
++		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
++
++		now := time.Now()
++		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++			w.Header().Set("Content-Type", "application/json")
++			if r.Method == "POST" && strings.Contains(r.URL.Path, "/builds") {
++				json.NewEncoder(w).Encode(buildkite.Build{
++					Number: 1,
++					State:  "scheduled",
++					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
++				})
++				return
++			}
++			if r.Method == "GET" && strings.Contains(r.URL.Path, "/builds/1") {
++				json.NewEncoder(w).Encode(buildkite.Build{
++					Number:     1,
++					State:      "failed",
++					FinishedAt: &buildkite.Timestamp{Time: now},
++				})
++				return
++			}
++			http.NotFound(w, r)
++		}))
++		defer s.Close()
++		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
++
++		worktree := initTestRepo(t)
++		t.Chdir(worktree)
++		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
++			t.Fatal(err)
++		}
++
++		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01}
++		err := cmd.Run(nil, stubGlobals{})
++		if err == nil {
++			t.Fatal("expected error, got nil")
++		}
++		if !strings.Contains(err.Error(), "preflight build failed") {
++			t.Errorf("expected 'preflight build failed', got: %v", err)
++		}
++	})
++
++	t.Run("aborts after 10 consecutive polling errors", func(t *testing.T) {
++		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
++
++		pollCount := 0
++		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++			w.Header().Set("Content-Type", "application/json")
++			if r.Method == "POST" && strings.Contains(r.URL.Path, "/builds") {
++				json.NewEncoder(w).Encode(buildkite.Build{
++					Number: 1,
++					State:  "scheduled",
++					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
++				})
++				return
++			}
++			if r.Method == "GET" && strings.Contains(r.URL.Path, "/builds/1") {
++				pollCount++
++				w.WriteHeader(http.StatusInternalServerError)
++				return
++			}
++			http.NotFound(w, r)
++		}))
++		defer s.Close()
++		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
++
++		worktree := initTestRepo(t)
++		t.Chdir(worktree)
++		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
++			t.Fatal(err)
++		}
++
++		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01}
++		err := cmd.Run(nil, stubGlobals{})
++		if err == nil {
++			t.Fatal("expected error, got nil")
++		}
++		if !strings.Contains(err.Error(), "watching build failed") {
++			t.Errorf("expected 'watching build failed', got: %v", err)
++		}
++		if pollCount < watch.DefaultMaxConsecutiveErrors {
++			t.Errorf("expected at least %d polls, got %d", watch.DefaultMaxConsecutiveErrors, pollCount)
++		}
++	})
++
++	t.Run("returns error when build creation fails", func(t *testing.T) {
++		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
++
++		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++			w.WriteHeader(http.StatusUnprocessableEntity)
++			w.Header().Set("Content-Type", "application/json")
++			w.Write([]byte(`{"message":"Pipeline not found"}`))
++		}))
++		defer s.Close()
++		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
++
++		worktree := initTestRepo(t)
++		t.Chdir(worktree)
++
++		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
++			t.Fatal(err)
++		}
++
++		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Interval: 2}
++		err := cmd.Run(nil, stubGlobals{})
++		if err == nil {
++			t.Fatal("expected error, got nil")
++		}
++		if !strings.Contains(err.Error(), "creating preflight build") {
++			t.Fatalf("expected build creation error, got: %v", err)
++		}
+ 	})
+ }
+ 
+diff --git a/cmd/secret/create.go b/cmd/secret/create.go
+index 2b8ab2a..c910a4a 100644
+--- a/cmd/secret/create.go
++++ b/cmd/secret/create.go
+@@ -17,7 +17,7 @@ import (
+ )
+ 
+ type CreateCmd struct {
+-	ClusterID   string `help:"The ID of the cluster" required:"" name:"cluster-id"`
++	ClusterUUID string `help:"The UUID of the cluster" required:"" name:"cluster-uuid"`
+ 	Key         string `help:"The key name for the secret (e.g. MY_SECRET)" required:""`
+ 	Value       string `help:"The secret value. If not provided, you will be prompted to enter it." optional:""`
+ 	Description string `help:"A description of the secret" optional:""`
+@@ -34,13 +34,13 @@ interactively (input will be masked).
+ 
+ Examples:
+   # Create a secret with interactive value input
+-  $ bk secret create --cluster-id my-cluster-id --key MY_SECRET
++  $ bk secret create --cluster-uuid my-cluster-uuid --key MY_SECRET
+ 
+   # Create a secret with the value provided inline
+-  $ bk secret create --cluster-id my-cluster-id --key MY_SECRET --value "s3cr3t"
++  $ bk secret create --cluster-uuid my-cluster-uuid --key MY_SECRET --value "s3cr3t"
+ 
+   # Create a secret with a description
+-  $ bk secret create --cluster-id my-cluster-id --key MY_SECRET --description "My secret description"
++  $ bk secret create --cluster-uuid my-cluster-uuid --key MY_SECRET --description "My secret description"
+ `
+ }
+ 
+@@ -89,7 +89,7 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+ 
+ 	var secret buildkite.ClusterSecret
+ 	spinErr := bkIO.SpinWhile(f, "Creating secret", func() {
+-		secret, _, err = f.RestAPIClient.ClusterSecrets.Create(ctx, f.Config.OrganizationSlug(), c.ClusterID, input)
++		secret, _, err = f.RestAPIClient.ClusterSecrets.Create(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, input)
+ 	})
+ 	if spinErr != nil {
+ 		return spinErr
+diff --git a/cmd/secret/delete.go b/cmd/secret/delete.go
+index 8853995..01cd93e 100644
+--- a/cmd/secret/delete.go
++++ b/cmd/secret/delete.go
+@@ -15,8 +15,8 @@ import (
+ )
+ 
+ type DeleteCmd struct {
+-	ClusterID string `help:"The ID of the cluster" required:"" name:"cluster-id"`
+-	SecretID  string `help:"The UUID of the secret to delete" required:"" name:"secret-id"`
++	ClusterUUID string `help:"The UUID of the cluster" required:"" name:"cluster-uuid"`
++	SecretID    string `help:"The UUID of the secret to delete" required:"" name:"secret-id"`
+ }
+ 
+ func (c *DeleteCmd) Help() string {
+@@ -27,10 +27,10 @@ You will be prompted to confirm deletion unless --yes is set.
+ 
+ Examples:
+   # Delete a secret (with confirmation prompt)
+-  $ bk secret delete --cluster-id my-cluster-id --secret-id my-secret-id
++  $ bk secret delete --cluster-uuid my-cluster-uuid --secret-id my-secret-id
+ 
+   # Delete a secret without confirmation
+-  $ bk secret delete --cluster-id my-cluster-id --secret-id my-secret-id --yes
++  $ bk secret delete --cluster-uuid my-cluster-uuid --secret-id my-secret-id --yes
+ `
+ }
+ 
+@@ -61,7 +61,7 @@ func (c *DeleteCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+ 	}
+ 
+ 	spinErr := bkIO.SpinWhile(f, "Deleting secret", func() {
+-		_, err = f.RestAPIClient.ClusterSecrets.Delete(ctx, f.Config.OrganizationSlug(), c.ClusterID, c.SecretID)
++		_, err = f.RestAPIClient.ClusterSecrets.Delete(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, c.SecretID)
+ 	})
+ 	if spinErr != nil {
+ 		return spinErr
+diff --git a/cmd/secret/get.go b/cmd/secret/get.go
+index e856857..decabba 100644
+--- a/cmd/secret/get.go
++++ b/cmd/secret/get.go
+@@ -19,8 +19,8 @@ import (
+ )
+ 
+ type GetCmd struct {
+-	ClusterID string `help:"The ID of the cluster" required:"" name:"cluster-id"`
+-	SecretID  string `help:"The UUID of the secret to view" required:"" name:"secret-id"`
++	ClusterUUID string `help:"The UUID of the cluster" required:"" name:"cluster-uuid"`
++	SecretID    string `help:"The UUID of the secret to view" required:"" name:"secret-id"`
+ 	output.OutputFlags
+ }
+ 
+@@ -30,10 +30,10 @@ View details of a cluster secret.
+ 
+ Examples:
+   # View a secret
+-  $ bk secret get --cluster-id my-cluster-id --secret-id my-secret-id
++  $ bk secret get --cluster-uuid my-cluster-uuid --secret-id my-secret-id
+ 
+   # View a secret in JSON format
+-  $ bk secret get --cluster-id my-cluster-id --secret-id my-secret-id -o json
++  $ bk secret get --cluster-uuid my-cluster-uuid --secret-id my-secret-id -o json
+ `
+ }
+ 
+@@ -59,7 +59,7 @@ func (c *GetCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+ 
+ 	var secret buildkite.ClusterSecret
+ 	spinErr := bkIO.SpinWhile(f, "Loading secret", func() {
+-		secret, _, err = f.RestAPIClient.ClusterSecrets.Get(ctx, f.Config.OrganizationSlug(), c.ClusterID, c.SecretID)
++		secret, _, err = f.RestAPIClient.ClusterSecrets.Get(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, c.SecretID)
+ 	})
+ 	if spinErr != nil {
+ 		return spinErr
+diff --git a/cmd/secret/list.go b/cmd/secret/list.go
+index 0735505..b8c5d29 100644
+--- a/cmd/secret/list.go
++++ b/cmd/secret/list.go
+@@ -19,7 +19,7 @@ import (
+ )
+ 
+ type ListCmd struct {
+-	ClusterID string `help:"The ID of the cluster to list secrets for" required:"" name:"cluster-id"`
++	ClusterUUID string `help:"The UUID of the cluster to list secrets for" required:"" name:"cluster-uuid"`
+ 	output.OutputFlags
+ }
+ 
+@@ -29,10 +29,10 @@ List secrets for a cluster.
+ 
+ Examples:
+   # List all secrets in a cluster
+-  $ bk secret list --cluster-id my-cluster-id
++  $ bk secret list --cluster-uuid my-cluster-uuid
+ 
+   # List secrets in JSON format
+-  $ bk secret list --cluster-id my-cluster-id -o json
++  $ bk secret list --cluster-uuid my-cluster-uuid -o json
+ `
+ }
+ 
+@@ -58,7 +58,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+ 
+ 	var secrets []buildkite.ClusterSecret
+ 	spinErr := bkIO.SpinWhile(f, "Loading secrets", func() {
+-		secrets, _, err = f.RestAPIClient.ClusterSecrets.List(ctx, f.Config.OrganizationSlug(), c.ClusterID, nil)
++		secrets, _, err = f.RestAPIClient.ClusterSecrets.List(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, nil)
+ 	})
+ 	if spinErr != nil {
+ 		return spinErr
+diff --git a/cmd/secret/secret_test.go b/cmd/secret/secret_test.go
+index 69d94a1..648f10f 100644
+--- a/cmd/secret/secret_test.go
++++ b/cmd/secret/secret_test.go
+@@ -307,27 +307,27 @@ func TestUpdateCmdValidate(t *testing.T) {
+ 	}{
+ 		{
+ 			name:    "no flags set",
+-			cmd:     UpdateCmd{ClusterID: "c", SecretID: "s"},
++			cmd:     UpdateCmd{ClusterUUID: "c", SecretID: "s"},
+ 			wantErr: true,
+ 		},
+ 		{
+ 			name:    "only description",
+-			cmd:     UpdateCmd{ClusterID: "c", SecretID: "s", Description: "new desc"},
++			cmd:     UpdateCmd{ClusterUUID: "c", SecretID: "s", Description: "new desc"},
+ 			wantErr: false,
+ 		},
+ 		{
+ 			name:    "only policy",
+-			cmd:     UpdateCmd{ClusterID: "c", SecretID: "s", Policy: "new policy"},
++			cmd:     UpdateCmd{ClusterUUID: "c", SecretID: "s", Policy: "new policy"},
+ 			wantErr: false,
+ 		},
+ 		{
+ 			name:    "only update-value",
+-			cmd:     UpdateCmd{ClusterID: "c", SecretID: "s", UpdateValue: true},
++			cmd:     UpdateCmd{ClusterUUID: "c", SecretID: "s", UpdateValue: true},
+ 			wantErr: false,
+ 		},
+ 		{
+ 			name:    "description and update-value",
+-			cmd:     UpdateCmd{ClusterID: "c", SecretID: "s", Description: "desc", UpdateValue: true},
++			cmd:     UpdateCmd{ClusterUUID: "c", SecretID: "s", Description: "desc", UpdateValue: true},
+ 			wantErr: false,
+ 		},
+ 	}
+diff --git a/cmd/secret/update.go b/cmd/secret/update.go
+index 09f9262..96e0a85 100644
+--- a/cmd/secret/update.go
++++ b/cmd/secret/update.go
+@@ -17,7 +17,7 @@ import (
+ )
+ 
+ type UpdateCmd struct {
+-	ClusterID   string `help:"The ID of the cluster" required:"" name:"cluster-id"`
++	ClusterUUID string `help:"The UUID of the cluster" required:"" name:"cluster-uuid"`
+ 	SecretID    string `help:"The UUID of the secret to update" required:"" name:"secret-id"`
+ 	Description string `help:"Update the description of the secret" optional:""`
+ 	Policy      string `help:"Update the access policy for the secret (YAML format)" optional:""`
+@@ -33,13 +33,13 @@ Use --update-value to be prompted for a new secret value (input will be masked).
+ 
+ Examples:
+   # Update a secret's description
+-  $ bk secret update --cluster-id my-cluster-id --secret-id my-secret-id --description "New description"
++  $ bk secret update --cluster-uuid my-cluster-uuid --secret-id my-secret-id --description "New description"
+ 
+   # Update a secret's value
+-  $ bk secret update --cluster-id my-cluster-id --secret-id my-secret-id --update-value
++  $ bk secret update --cluster-uuid my-cluster-uuid --secret-id my-secret-id --update-value
+ 
+   # Update both description and value
+-  $ bk secret update --cluster-id my-cluster-id --secret-id my-secret-id --description "New description" --update-value
++  $ bk secret update --cluster-uuid my-cluster-uuid --secret-id my-secret-id --description "New description" --update-value
+ `
+ }
+ 
+@@ -85,7 +85,7 @@ func (c *UpdateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+ 		}
+ 
+ 		spinErr := bkIO.SpinWhile(f, "Updating secret value", func() {
+-			_, err = f.RestAPIClient.ClusterSecrets.UpdateValue(ctx, org, c.ClusterID, c.SecretID, buildkite.ClusterSecretValueUpdate{
++			_, err = f.RestAPIClient.ClusterSecrets.UpdateValue(ctx, org, c.ClusterUUID, c.SecretID, buildkite.ClusterSecretValueUpdate{
+ 				Value: value,
+ 			})
+ 		})
+@@ -100,7 +100,7 @@ func (c *UpdateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+ 	var secret buildkite.ClusterSecret
+ 	if c.Description != "" || c.Policy != "" {
+ 		spinErr := bkIO.SpinWhile(f, "Updating secret", func() {
+-			secret, _, err = f.RestAPIClient.ClusterSecrets.Update(ctx, org, c.ClusterID, c.SecretID, buildkite.ClusterSecretUpdate{
++			secret, _, err = f.RestAPIClient.ClusterSecrets.Update(ctx, org, c.ClusterUUID, c.SecretID, buildkite.ClusterSecretUpdate{
+ 				Description: c.Description,
+ 				Policy:      c.Policy,
+ 			})
+@@ -114,7 +114,7 @@ func (c *UpdateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+ 	} else {
+ 		// Fetch the secret to display current state
+ 		spinErr := bkIO.SpinWhile(f, "Loading secret", func() {
+-			secret, _, err = f.RestAPIClient.ClusterSecrets.Get(ctx, org, c.ClusterID, c.SecretID)
++			secret, _, err = f.RestAPIClient.ClusterSecrets.Get(ctx, org, c.ClusterUUID, c.SecretID)
+ 		})
+ 		if spinErr != nil {
+ 			return spinErr
+diff --git a/internal/build/watch/summary.go b/internal/build/watch/summary.go
+new file mode 100644
+index 0000000..7106a10
+--- /dev/null
++++ b/internal/build/watch/summary.go
+@@ -0,0 +1,78 @@
++package watch
++
++import (
++	"fmt"
++	"strings"
++
++	buildkite "github.com/buildkite/go-buildkite/v4"
++)
++
++// JobSummary aggregates job counts by high-level state.
++type JobSummary struct {
++	Passed    int
++	Failed    int
++	Canceled  int
++	Running   int
++	Scheduled int
++	Blocked   int
++	Skipped   int
++	Waiting   int
++}
++
++// String returns a human-readable summary of non-zero job counts,
++// e.g. "3 passed, 1 failed, 2 running".
++func (s JobSummary) String() string {
++	type entry struct {
++		count int
++		label string
++	}
++	entries := []entry{
++		{s.Passed, "passed"},
++		{s.Failed, "failed"},
++		{s.Canceled, "canceled"},
++		{s.Running, "running"},
++		{s.Scheduled, "scheduled"},
++		{s.Blocked, "blocked"},
++		{s.Skipped, "skipped"},
++		{s.Waiting, "waiting"},
++	}
++	var parts []string
++	for _, e := range entries {
++		if e.count > 0 {
++			parts = append(parts, fmt.Sprintf("%d %s", e.count, e.label))
++		}
++	}
++	return strings.Join(parts, ", ")
++}
++
++// Summarize counts script jobs from a build into high-level state buckets.
++func Summarize(b buildkite.Build) JobSummary {
++	var s JobSummary
++	for _, j := range b.Jobs {
++		if j.Type != "script" {
++			continue
++		}
++		switch j.State {
++		case "running", "canceling", "timing_out":
++			s.Running++
++		case "passed":
++			s.Passed++
++		case "failed", "timed_out":
++			s.Failed++
++		case "canceled":
++			s.Canceled++
++		case "skipped", "broken":
++			s.Skipped++
++		case "blocked", "blocked_failed":
++			s.Blocked++
++		case "scheduled", "assigned", "accepted", "reserved":
++			s.Scheduled++
++		case "waiting", "waiting_failed",
++			"pending", "limited", "limiting",
++			"platform_limited", "platform_limiting",
++			"expired":
++			s.Waiting++
++		}
++	}
++	return s
++}
+diff --git a/internal/build/watch/summary_test.go b/internal/build/watch/summary_test.go
+new file mode 100644
+index 0000000..b59bf85
+--- /dev/null
++++ b/internal/build/watch/summary_test.go
+@@ -0,0 +1,167 @@
++package watch
++
++import (
++	"testing"
++
++	buildkite "github.com/buildkite/go-buildkite/v4"
++)
++
++func TestSummarize(t *testing.T) {
++	tests := []struct {
++		name string
++		jobs []buildkite.Job
++		want JobSummary
++	}{
++		{
++			name: "empty build",
++			jobs: nil,
++			want: JobSummary{},
++		},
++		{
++			name: "skips non-script jobs",
++			jobs: []buildkite.Job{
++				{Type: "waiter", State: "passed"},
++				{Type: "manual", State: "blocked"},
++			},
++			want: JobSummary{},
++		},
++		{
++			name: "counts passed",
++			jobs: []buildkite.Job{
++				{Type: "script", State: "passed"},
++				{Type: "script", State: "passed"},
++			},
++			want: JobSummary{Passed: 2},
++		},
++		{
++			name: "counts failed and timed_out",
++			jobs: []buildkite.Job{
++				{Type: "script", State: "failed"},
++				{Type: "script", State: "timed_out"},
++			},
++			want: JobSummary{Failed: 2},
++		},
++		{
++			name: "counts running states",
++			jobs: []buildkite.Job{
++				{Type: "script", State: "running"},
++				{Type: "script", State: "canceling"},
++				{Type: "script", State: "timing_out"},
++			},
++			want: JobSummary{Running: 3},
++		},
++		{
++			name: "counts canceled",
++			jobs: []buildkite.Job{
++				{Type: "script", State: "canceled"},
++			},
++			want: JobSummary{Canceled: 1},
++		},
++		{
++			name: "counts skipped and broken",
++			jobs: []buildkite.Job{
++				{Type: "script", State: "skipped"},
++				{Type: "script", State: "broken"},
++			},
++			want: JobSummary{Skipped: 2},
++		},
++		{
++			name: "counts blocked states",
++			jobs: []buildkite.Job{
++				{Type: "script", State: "blocked"},
++				{Type: "script", State: "blocked_failed"},
++			},
++			want: JobSummary{Blocked: 2},
++		},
++		{
++			name: "counts scheduled states",
++			jobs: []buildkite.Job{
++				{Type: "script", State: "scheduled"},
++				{Type: "script", State: "assigned"},
++				{Type: "script", State: "accepted"},
++				{Type: "script", State: "reserved"},
++			},
++			want: JobSummary{Scheduled: 4},
++		},
++		{
++			name: "counts waiting states",
++			jobs: []buildkite.Job{
++				{Type: "script", State: "waiting"},
++				{Type: "script", State: "waiting_failed"},
++				{Type: "script", State: "pending"},
++				{Type: "script", State: "limited"},
++				{Type: "script", State: "limiting"},
++				{Type: "script", State: "platform_limited"},
++				{Type: "script", State: "platform_limiting"},
++				{Type: "script", State: "expired"},
++			},
++			want: JobSummary{Waiting: 8},
++		},
++		{
++			name: "ignores unknown states",
++			jobs: []buildkite.Job{
++				{Type: "script", State: "passed"},
++				{Type: "script", State: "something_new"},
++			},
++			want: JobSummary{Passed: 1},
++		},
++		{
++			name: "mixed build",
++			jobs: []buildkite.Job{
++				{Type: "script", State: "passed"},
++				{Type: "script", State: "failed"},
++				{Type: "script", State: "running"},
++				{Type: "script", State: "scheduled"},
++				{Type: "waiter", State: "passed"},
++			},
++			want: JobSummary{Passed: 1, Failed: 1, Running: 1, Scheduled: 1},
++		},
++	}
++
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got := Summarize(buildkite.Build{Jobs: tt.jobs})
++			if got != tt.want {
++				t.Errorf("Summarize() = %+v, want %+v", got, tt.want)
++			}
++		})
++	}
++}
++
++func TestJobSummary_String(t *testing.T) {
++	tests := []struct {
++		name    string
++		summary JobSummary
++		want    string
++	}{
++		{
++			name:    "empty summary",
++			summary: JobSummary{},
++			want:    "",
++		},
++		{
++			name:    "single field",
++			summary: JobSummary{Passed: 3},
++			want:    "3 passed",
++		},
++		{
++			name:    "multiple fields in order",
++			summary: JobSummary{Passed: 2, Failed: 1, Running: 3},
++			want:    "2 passed, 1 failed, 3 running",
++		},
++		{
++			name:    "all fields",
++			summary: JobSummary{Passed: 1, Failed: 2, Canceled: 3, Running: 4, Scheduled: 5, Blocked: 6, Skipped: 7, Waiting: 8},
++			want:    "1 passed, 2 failed, 3 canceled, 4 running, 5 scheduled, 6 blocked, 7 skipped, 8 waiting",
++		},
++	}
++
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got := tt.summary.String()
++			if got != tt.want {
++				t.Errorf("String() = %q, want %q", got, tt.want)
++			}
++		})
++	}
++}
+diff --git a/internal/build/watch/tracker.go b/internal/build/watch/tracker.go
+new file mode 100644
+index 0000000..4cb643e
+--- /dev/null
++++ b/internal/build/watch/tracker.go
+@@ -0,0 +1,138 @@
++package watch
++
++import (
++	"time"
++
++	buildkite "github.com/buildkite/go-buildkite/v4"
++)
++
++const MaxRunning = 10
++
++// trackedJob holds a job and its lifecycle state across polls.
++type trackedJob struct {
++	Job       buildkite.Job
++	PrevState string // state from previous poll, "" if first seen
++	Reported  bool   // true once surfaced to caller as failed
++}
++
++// FailedJob is a snapshot of a job that has failed, for rendering.
++type FailedJob struct {
++	Name       string
++	ID         string
++	State      string
++	ExitStatus *int
++	Duration   time.Duration
++	SoftFailed bool
++}
++
++// BuildStatus is the output of JobTracker.Update().
++type BuildStatus struct {
++	NewlyFailed  []FailedJob
++	Running      []buildkite.Job
++	TotalRunning int
++	Summary      JobSummary
++	Build        buildkite.Build
++}
++
++// JobTracker tracks job state changes across polls.
++type JobTracker struct {
++	jobs map[string]*trackedJob
++}
++
++// NewJobTracker creates a new JobTracker.
++func NewJobTracker() *JobTracker {
++	return &JobTracker{
++		jobs: make(map[string]*trackedJob),
++	}
++}
++
++// Update processes a build and returns the current status with any state changes.
++func (t *JobTracker) Update(b buildkite.Build) BuildStatus {
++	var status BuildStatus
++	status.Build = b
++
++	var running []buildkite.Job
++
++	for _, j := range b.Jobs {
++		if j.Type != "script" || j.State == "broken" {
++			continue
++		}
++
++		tj, exists := t.jobs[j.ID]
++		if !exists {
++			tj = &trackedJob{}
++			t.jobs[j.ID] = tj
++		} else {
++			tj.PrevState = tj.Job.State
++		}
++		tj.Job = j
++
++		if isFailedJob(j) && !wasFailedJob(tj.PrevState, false) && !tj.Reported {
++			status.NewlyFailed = append(status.NewlyFailed, newFailedJob(j))
++			tj.Reported = true
++		}
++
++		if isActiveState(j.State) {
++			running = append(running, j)
++		}
++	}
++
++	status.Summary = Summarize(b)
++	status.TotalRunning = len(running)
++	if len(running) > MaxRunning {
++		status.Running = running[:MaxRunning]
++	} else {
++		status.Running = running
++	}
++
++	return status
++}
++
++func newFailedJob(j buildkite.Job) FailedJob {
++	return FailedJob{
++		Name:       JobDisplayName(j),
++		ID:         j.ID,
++		State:      j.State,
++		ExitStatus: j.ExitStatus,
++		Duration:   JobDuration(j),
++		SoftFailed: j.SoftFailed,
++	}
++}
++
++// JobDisplayName returns a human-readable name for a job.
++func JobDisplayName(j buildkite.Job) string {
++	if j.Name != "" {
++		return j.Name
++	}
++	if j.Label != "" {
++		return j.Label
++	}
++	return j.Type + " step"
++}
++
++// JobDuration returns the elapsed duration for a job.
++func JobDuration(j buildkite.Job) time.Duration {
++	if j.StartedAt == nil {
++		return 0
++	}
++	end := time.Now()
++	if j.FinishedAt != nil {
++		end = j.FinishedAt.Time
++	}
++	return end.Sub(j.StartedAt.Time).Truncate(time.Second)
++}
++
++// isFailedJob mirrors the build page's hasJobFailed / isJobTerminated logic:
++// a script job is failed if it finished without passing (failed, timed_out,
++// canceled, expired) or was soft-failed.
++func isFailedJob(j buildkite.Job) bool {
++	return j.State == "failed" || j.State == "timed_out" || j.State == "canceled" || j.State == "expired" || j.SoftFailed
++}
++
++func wasFailedJob(state string, softFailed bool) bool {
++	return state == "failed" || state == "timed_out" || state == "canceled" || state == "expired" || softFailed
++}
++
++func isActiveState(state string) bool {
++	return state == "running" || state == "canceling" || state == "timing_out"
++}
+diff --git a/internal/build/watch/tracker_test.go b/internal/build/watch/tracker_test.go
+new file mode 100644
+index 0000000..dfe0e76
+--- /dev/null
++++ b/internal/build/watch/tracker_test.go
+@@ -0,0 +1,292 @@
++package watch
++
++import (
++	"fmt"
++	"testing"
++	"time"
++
++	buildkite "github.com/buildkite/go-buildkite/v4"
++)
++
++func TestJobTracker_Update(t *testing.T) {
++	t.Run("first poll reports failures", func(t *testing.T) {
++		tracker := NewJobTracker()
++		status := tracker.Update(buildkite.Build{
++			Jobs: []buildkite.Job{
++				{ID: "1", Type: "script", State: "passed"},
++				{ID: "2", Type: "script", State: "failed"},
++				{ID: "3", Type: "script", State: "running"},
++			},
++		})
++
++		if len(status.NewlyFailed) != 1 {
++			t.Fatalf("expected 1 newly failed, got %d", len(status.NewlyFailed))
++		}
++		if status.NewlyFailed[0].ID != "2" {
++			t.Errorf("expected job 2, got %s", status.NewlyFailed[0].ID)
++		}
++	})
++
++	t.Run("same data second poll has no newly failed", func(t *testing.T) {
++		tracker := NewJobTracker()
++		tracker.Update(buildkite.Build{
++			Jobs: []buildkite.Job{
++				{ID: "1", Type: "script", State: "failed"},
++			},
++		})
++
++		status := tracker.Update(buildkite.Build{
++			Jobs: []buildkite.Job{
++				{ID: "1", Type: "script", State: "failed"},
++			},
++		})
++
++		if len(status.NewlyFailed) != 0 {
++			t.Errorf("expected 0 newly failed, got %d", len(status.NewlyFailed))
++		}
++	})
++
++	t.Run("running to failed transition", func(t *testing.T) {
++		tracker := NewJobTracker()
++		tracker.Update(buildkite.Build{
++			Jobs: []buildkite.Job{
++				{ID: "1", Type: "script", State: "running"},
++			},
++		})
++
++		status := tracker.Update(buildkite.Build{
++			Jobs: []buildkite.Job{
++				{ID: "1", Type: "script", State: "failed"},
++			},
++		})
++
++		if len(status.NewlyFailed) != 1 {
++			t.Fatalf("expected 1 newly failed, got %d", len(status.NewlyFailed))
++		}
++		if status.NewlyFailed[0].State != "failed" {
++			t.Errorf("expected state failed, got %s", status.NewlyFailed[0].State)
++		}
++	})
++
++	t.Run("soft failed reported", func(t *testing.T) {
++		tracker := NewJobTracker()
++		tracker.Update(buildkite.Build{
++			Jobs: []buildkite.Job{
++				{ID: "1", Type: "script", State: "running"},
++			},
++		})
++
++		status := tracker.Update(buildkite.Build{
++			Jobs: []buildkite.Job{
++				{ID: "1", Type: "script", State: "passed", SoftFailed: true},
++			},
++		})
++
++		if len(status.NewlyFailed) != 1 {
++			t.Fatalf("expected 1 newly failed, got %d", len(status.NewlyFailed))
++		}
++		if !status.NewlyFailed[0].SoftFailed {
++			t.Error("expected SoftFailed to be true")
++		}
++	})
++
++	t.Run("timed out reported as failed", func(t *testing.T) {
++		tracker := NewJobTracker()
++		tracker.Update(buildkite.Build{
++			Jobs: []buildkite.Job{
++				{ID: "1", Type: "script", State: "running"},
++			},
++		})
++
++		status := tracker.Update(buildkite.Build{
++			Jobs: []buildkite.Job{
++				{ID: "1", Type: "script", State: "timed_out"},
++			},
++		})
++
++		if len(status.NewlyFailed) != 1 {
++			t.Fatalf("expected 1 newly failed, got %d", len(status.NewlyFailed))
++		}
++		if status.NewlyFailed[0].State != "timed_out" {
++			t.Errorf("expected state timed_out, got %s", status.NewlyFailed[0].State)
++		}
++	})
++
++	t.Run("skips non-script and broken jobs", func(t *testing.T) {
++		tracker := NewJobTracker()
++		status := tracker.Update(buildkite.Build{
++			Jobs: []buildkite.Job{
++				{ID: "1", Type: "waiter", State: "failed"},
++				{ID: "2", Type: "manual", State: "failed"},
++				{ID: "3", Type: "script", State: "broken"},
++				{ID: "4", Type: "script", State: "failed"},
++			},
++		})
++
++		if len(status.NewlyFailed) != 1 {
++			t.Fatalf("expected 1 newly failed, got %d", len(status.NewlyFailed))
++		}
++		if status.NewlyFailed[0].ID != "4" {
++			t.Errorf("expected job 4, got %s", status.NewlyFailed[0].ID)
++		}
++	})
++
++	t.Run("running jobs capped at MaxRunning", func(t *testing.T) {
++		tracker := NewJobTracker()
++		var jobs []buildkite.Job
++		for i := 0; i < 15; i++ {
++			jobs = append(jobs, buildkite.Job{
++				ID:    fmt.Sprintf("job-%d", i),
++				Type:  "script",
++				State: "running",
++			})
++		}
++
++		status := tracker.Update(buildkite.Build{Jobs: jobs})
++
++		if status.TotalRunning != 15 {
++			t.Errorf("expected TotalRunning 15, got %d", status.TotalRunning)
++		}
++		if len(status.Running) != MaxRunning {
++			t.Errorf("expected Running capped at %d, got %d", MaxRunning, len(status.Running))
++		}
++	})
++
++	t.Run("new job appears mid-build", func(t *testing.T) {
++		tracker := NewJobTracker()
++		tracker.Update(buildkite.Build{
++			Jobs: []buildkite.Job{
++				{ID: "1", Type: "script", State: "running"},
++			},
++		})
++
++		status := tracker.Update(buildkite.Build{
++			Jobs: []buildkite.Job{
++				{ID: "1", Type: "script", State: "running"},
++				{ID: "2", Type: "script", State: "failed"},
++			},
++		})
++
++		if len(status.NewlyFailed) != 1 {
++			t.Fatalf("expected 1 newly failed, got %d", len(status.NewlyFailed))
++		}
++		if status.NewlyFailed[0].ID != "2" {
++			t.Errorf("expected job 2, got %s", status.NewlyFailed[0].ID)
++		}
++	})
++
++	t.Run("summary counts are correct", func(t *testing.T) {
++		tracker := NewJobTracker()
++		status := tracker.Update(buildkite.Build{
++			Jobs: []buildkite.Job{
++				{ID: "1", Type: "script", State: "passed"},
++				{ID: "2", Type: "script", State: "failed"},
++				{ID: "3", Type: "script", State: "running"},
++				{ID: "4", Type: "script", State: "scheduled"},
++				{ID: "5", Type: "script", State: "running"},
++			},
++		})
++
++		if status.Summary.Passed != 1 {
++			t.Errorf("expected 1 passed, got %d", status.Summary.Passed)
++		}
++		if status.Summary.Failed != 1 {
++			t.Errorf("expected 1 failed, got %d", status.Summary.Failed)
++		}
++		if status.Summary.Running != 2 {
++			t.Errorf("expected 2 running, got %d", status.Summary.Running)
++		}
++		if status.Summary.Scheduled != 1 {
++			t.Errorf("expected 1 scheduled, got %d", status.Summary.Scheduled)
++		}
++	})
++
++	t.Run("failed job includes exit status and duration", func(t *testing.T) {
++		tracker := NewJobTracker()
++		now := time.Now()
++		start := now.Add(-5 * time.Second)
++		exitCode := 2
++
++		status := tracker.Update(buildkite.Build{
++			Jobs: []buildkite.Job{
++				{
++					ID:         "1",
++					Type:       "script",
++					Name:       "lint",
++					State:      "failed",
++					ExitStatus: &exitCode,
++					StartedAt:  &buildkite.Timestamp{Time: start},
++					FinishedAt: &buildkite.Timestamp{Time: now},
++				},
++			},
++		})
++
++		if len(status.NewlyFailed) != 1 {
++			t.Fatalf("expected 1 newly failed, got %d", len(status.NewlyFailed))
++		}
++		fj := status.NewlyFailed[0]
++		if fj.Name != "lint" {
++			t.Errorf("expected name lint, got %s", fj.Name)
++		}
++		if fj.ExitStatus == nil || *fj.ExitStatus != 2 {
++			t.Errorf("expected exit status 2, got %v", fj.ExitStatus)
++		}
++		if fj.Duration != 5*time.Second {
++			t.Errorf("expected duration 5s, got %s", fj.Duration)
++		}
++	})
++}
++
++func TestJobDisplayName(t *testing.T) {
++	tests := []struct {
++		name string
++		job  buildkite.Job
++		want string
++	}{
++		{"uses Name", buildkite.Job{Name: "lint"}, "lint"},
++		{"uses Label when no Name", buildkite.Job{Label: "test"}, "test"},
++		{"falls back to type", buildkite.Job{Type: "script"}, "script step"},
++		{"Name takes precedence", buildkite.Job{Name: "lint", Label: "test"}, "lint"},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got := JobDisplayName(tt.job)
++			if got != tt.want {
++				t.Errorf("JobDisplayName() = %q, want %q", got, tt.want)
++			}
++		})
++	}
++}
++
++func TestJobDuration(t *testing.T) {
++	t.Run("no start time", func(t *testing.T) {
++		d := JobDuration(buildkite.Job{})
++		if d != 0 {
++			t.Errorf("expected 0, got %s", d)
++		}
++	})
++
++	t.Run("with start and finish", func(t *testing.T) {
++		start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
++		finish := time.Date(2025, 1, 1, 0, 0, 12, 0, time.UTC)
++		d := JobDuration(buildkite.Job{
++			StartedAt:  &buildkite.Timestamp{Time: start},
++			FinishedAt: &buildkite.Timestamp{Time: finish},
++		})
++		if d != 12*time.Second {
++			t.Errorf("expected 12s, got %s", d)
++		}
++	})
++
++	t.Run("truncates to seconds", func(t *testing.T) {
++		start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
++		finish := time.Date(2025, 1, 1, 0, 0, 3, 500_000_000, time.UTC)
++		d := JobDuration(buildkite.Job{
++			StartedAt:  &buildkite.Timestamp{Time: start},
++			FinishedAt: &buildkite.Timestamp{Time: finish},
++		})
++		if d != 3*time.Second {
++			t.Errorf("expected 3s, got %s", d)
++		}
++	})
++}
+diff --git a/internal/build/watch/watch.go b/internal/build/watch/watch.go
+new file mode 100644
+index 0000000..97853b4
+--- /dev/null
++++ b/internal/build/watch/watch.go
+@@ -0,0 +1,80 @@
++package watch
++
++import (
++	"context"
++	"fmt"
++	"time"
++
++	buildkite "github.com/buildkite/go-buildkite/v4"
++)
++
++const (
++	// DefaultMaxConsecutiveErrors is the number of consecutive polling failures
++	// before the watch loop aborts.
++	DefaultMaxConsecutiveErrors = 10
++
++	// DefaultRequestTimeout is the per-request timeout for each polling call.
++	DefaultRequestTimeout = 30 * time.Second
++)
++
++// StatusFunc is called on each successful poll with the latest build state.
++type StatusFunc func(b buildkite.Build)
++
++// IsTerminalBuildState returns true if the build state is a terminal state.
++func IsTerminalBuildState(state string) bool {
++	switch state {
++	case "passed", "failed", "canceled", "skipped", "not_run":
++		return true
++	default:
++		return false
++	}
++}
++
++// WatchBuild polls a build until it reaches a terminal state (FinishedAt != nil).
++// It calls onStatus after each successful poll so callers can render progress.
++func WatchBuild(
++	ctx context.Context,
++	client *buildkite.Client,
++	org, pipeline string,
++	buildNumber int,
++	interval time.Duration,
++	onStatus StatusFunc,
++) (buildkite.Build, error) {
++	var (
++		consecutiveErrors int
++		lastBuild         buildkite.Build
++	)
++
++	for {
++		if err := ctx.Err(); err != nil {
++			return lastBuild, err
++		}
++
++		reqCtx, cancel := context.WithTimeout(ctx, DefaultRequestTimeout)
++		b, _, err := client.Builds.Get(reqCtx, org, pipeline, fmt.Sprint(buildNumber), nil)
++		cancel()
++
++		if err != nil {
++			consecutiveErrors++
++			if consecutiveErrors >= DefaultMaxConsecutiveErrors {
++				return lastBuild, fmt.Errorf("fetching build status (%d consecutive errors): %w", consecutiveErrors, err)
++			}
++		} else {
++			consecutiveErrors = 0
++			lastBuild = b
++			if onStatus != nil {
++				onStatus(b)
++			}
++
++			if b.FinishedAt != nil || IsTerminalBuildState(b.State) {
++				return b, nil
++			}
++		}
++
++		select {
++		case <-ctx.Done():
++			return lastBuild, ctx.Err()
++		case <-time.After(interval):
++		}
++	}
++}
+diff --git a/internal/build/watch/watch_test.go b/internal/build/watch/watch_test.go
+new file mode 100644
+index 0000000..f9cfede
+--- /dev/null
++++ b/internal/build/watch/watch_test.go
+@@ -0,0 +1,201 @@
++package watch
++
++import (
++	"context"
++	"encoding/json"
++	"errors"
++	"net/http"
++	"net/http/httptest"
++	"strings"
++	"testing"
++	"time"
++
++	buildkite "github.com/buildkite/go-buildkite/v4"
++)
++
++func TestWatchBuild(t *testing.T) {
++	t.Run("polls until finished", func(t *testing.T) {
++		pollCount := 0
++		now := time.Now()
++		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++			w.Header().Set("Content-Type", "application/json")
++			if r.Method == "GET" && strings.Contains(r.URL.Path, "/builds/1") {
++				pollCount++
++				b := buildkite.Build{Number: 1, State: "running"}
++				if pollCount >= 3 {
++					b.State = "passed"
++					b.FinishedAt = &buildkite.Timestamp{Time: now}
++				}
++				json.NewEncoder(w).Encode(b)
++				return
++			}
++			http.NotFound(w, r)
++		}))
++		defer s.Close()
++
++		client := newTestClient(t, s.URL)
++		var statusCalls int
++		b, err := WatchBuild(context.Background(), client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) {
++			statusCalls++
++		})
++		if err != nil {
++			t.Fatalf("unexpected error: %v", err)
++		}
++		if b.State != "passed" {
++			t.Errorf("expected state passed, got %s", b.State)
++		}
++		if pollCount < 3 {
++			t.Errorf("expected at least 3 polls, got %d", pollCount)
++		}
++		if statusCalls < 3 {
++			t.Errorf("expected at least 3 status calls, got %d", statusCalls)
++		}
++	})
++
++	t.Run("aborts after consecutive errors", func(t *testing.T) {
++		pollCount := 0
++		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++			pollCount++
++			w.WriteHeader(http.StatusInternalServerError)
++		}))
++		defer s.Close()
++
++		client := newTestClient(t, s.URL)
++		_, err := WatchBuild(context.Background(), client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) {
++			t.Error("onStatus should not be called on errors")
++		})
++		if err == nil {
++			t.Fatal("expected error, got nil")
++		}
++		if pollCount < DefaultMaxConsecutiveErrors {
++			t.Errorf("expected at least %d polls, got %d", DefaultMaxConsecutiveErrors, pollCount)
++		}
++	})
++
++	t.Run("resets error count on success", func(t *testing.T) {
++		pollCount := 0
++		now := time.Now()
++		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++			w.Header().Set("Content-Type", "application/json")
++			pollCount++
++			// Fail for the first few, then succeed
++			if pollCount <= 5 {
++				w.WriteHeader(http.StatusInternalServerError)
++				return
++			}
++			json.NewEncoder(w).Encode(buildkite.Build{
++				Number:     1,
++				State:      "passed",
++				FinishedAt: &buildkite.Timestamp{Time: now},
++			})
++		}))
++		defer s.Close()
++
++		client := newTestClient(t, s.URL)
++		b, err := WatchBuild(context.Background(), client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) {})
++		if err != nil {
++			t.Fatalf("unexpected error: %v", err)
++		}
++		if b.State != "passed" {
++			t.Errorf("expected state passed, got %s", b.State)
++		}
++	})
++
++	t.Run("returns context.DeadlineExceeded on timeout", func(t *testing.T) {
++		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++			w.Header().Set("Content-Type", "application/json")
++			json.NewEncoder(w).Encode(buildkite.Build{Number: 1, State: "running"})
++		}))
++		defer s.Close()
++
++		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
++		defer cancel()
++
++		client := newTestClient(t, s.URL)
++		_, err := WatchBuild(ctx, client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) {})
++		if !errors.Is(err, context.DeadlineExceeded) {
++			t.Errorf("expected context.DeadlineExceeded, got: %v", err)
++		}
++	})
++
++	t.Run("returns context.Canceled on explicit cancel", func(t *testing.T) {
++		pollCount := 0
++		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++			w.Header().Set("Content-Type", "application/json")
++			json.NewEncoder(w).Encode(buildkite.Build{Number: 1, State: "running"})
++		}))
++		defer s.Close()
++
++		ctx, cancel := context.WithCancel(context.Background())
++
++		client := newTestClient(t, s.URL)
++		_, err := WatchBuild(ctx, client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) {
++			pollCount++
++			if pollCount >= 2 {
++				cancel()
++			}
++		})
++		if !errors.Is(err, context.Canceled) {
++			t.Errorf("expected context.Canceled, got: %v", err)
++		}
++	})
++
++	t.Run("nil onStatus callback", func(t *testing.T) {
++		now := time.Now()
++		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++			w.Header().Set("Content-Type", "application/json")
++			json.NewEncoder(w).Encode(buildkite.Build{
++				Number:     1,
++				State:      "passed",
++				FinishedAt: &buildkite.Timestamp{Time: now},
++			})
++		}))
++		defer s.Close()
++
++		client := newTestClient(t, s.URL)
++		b, err := WatchBuild(context.Background(), client, "org", "pipe", 1, 10*time.Millisecond, nil)
++		if err != nil {
++			t.Fatalf("unexpected error: %v", err)
++		}
++		if b.State != "passed" {
++			t.Errorf("expected state passed, got %s", b.State)
++		}
++	})
++
++	t.Run("returns skipped build without finished timestamp", func(t *testing.T) {
++		pollCount := 0
++		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++			w.Header().Set("Content-Type", "application/json")
++			pollCount++
++			json.NewEncoder(w).Encode(buildkite.Build{
++				Number: 1,
++				State:  "skipped",
++			})
++		}))
++		defer s.Close()
++
++		client := newTestClient(t, s.URL)
++		b, err := WatchBuild(context.Background(), client, "org", "pipe", 1, 10*time.Millisecond, func(b buildkite.Build) {})
++		if err != nil {
++			t.Fatalf("unexpected error: %v", err)
++		}
++		if b.State != "skipped" {
++			t.Errorf("expected state skipped, got %s", b.State)
++		}
++		if pollCount != 1 {
++			t.Errorf("expected 1 poll, got %d", pollCount)
++		}
++	})
++}
++
++func newTestClient(t *testing.T, baseURL string) *buildkite.Client {
++	t.Helper()
++	client, err := buildkite.NewOpts(
++		buildkite.WithBaseURL(baseURL),
++		buildkite.WithTokenAuth("test-token"),
++	)
++	if err != nil {
++		t.Fatalf("creating test client: %v", err)
++	}
++	return client
++}
+diff --git a/internal/preflight/cleanup.go b/internal/preflight/cleanup.go
+new file mode 100644
+index 0000000..2b9e29d
+--- /dev/null
++++ b/internal/preflight/cleanup.go
+@@ -0,0 +1,18 @@
++package preflight
++
++import "fmt"
++
++// Cleanup deletes the preflight branch from the remote.
++// If the branch no longer exists on the remote, it is treated as success.
++func Cleanup(dir string, ref string, debug bool) error {
++	out, err := gitOutput(dir, nil, debug, "ls-remote", "origin", ref)
++	if err != nil {
++		return err
++	}
++	if out == "" {
++		return nil
++	}
++
++	refspec := fmt.Sprintf(":%s", ref)
++	return gitRun(dir, nil, debug, "push", "origin", refspec)
++}
+diff --git a/internal/preflight/cleanup_test.go b/internal/preflight/cleanup_test.go
+new file mode 100644
+index 0000000..451dd82
+--- /dev/null
++++ b/internal/preflight/cleanup_test.go
+@@ -0,0 +1,51 @@
++package preflight
++
++import (
++	"testing"
++
++	"github.com/google/uuid"
++)
++
++func TestCleanup(t *testing.T) {
++	worktree := initTestRepo(t)
++
++	preflightID := uuid.MustParse("00000000-0000-0000-0000-000000000010")
++	result, err := Snapshot(worktree, preflightID)
++	if err != nil {
++		t.Fatalf("Snapshot() error: %v", err)
++	}
++
++	// Verify the remote branch exists before cleanup.
++	out := runGit(t, worktree, "ls-remote", "origin", result.Ref)
++	if out == "" {
++		t.Fatal("expected remote branch to exist before cleanup")
++	}
++
++	if err := Cleanup(worktree, result.Ref, false); err != nil {
++		t.Fatalf("Cleanup() error: %v", err)
++	}
++
++	// Verify the remote branch no longer exists.
++	out = runGit(t, worktree, "ls-remote", "origin", result.Ref)
++	if out != "" {
++		t.Errorf("expected remote branch to be deleted, got %q", out)
++	}
++}
++
++func TestCleanup_AlreadyDeleted(t *testing.T) {
++	worktree := initTestRepo(t)
++
++	preflightID := uuid.MustParse("00000000-0000-0000-0000-000000000011")
++	result, err := Snapshot(worktree, preflightID)
++	if err != nil {
++		t.Fatalf("Snapshot() error: %v", err)
++	}
++
++	// Delete the branch manually first.
++	runGit(t, worktree, "push", "origin", "--delete", result.Ref)
++
++	// Cleanup should succeed even though the branch is already gone.
++	if err := Cleanup(worktree, result.Ref, false); err != nil {
++		t.Fatalf("Cleanup() should succeed when branch already deleted, got: %v", err)
++	}
++}
+diff --git a/internal/preflight/screen.go b/internal/preflight/screen.go
+new file mode 100644
+index 0000000..1a28eda
+--- /dev/null
++++ b/internal/preflight/screen.go
+@@ -0,0 +1,164 @@
++package preflight
++
++import (
++	"fmt"
++	"os"
++	"sync"
++)
++
++const (
++	ansiCursorUp    = "\033[A"
++	ansiClearLine   = "\033[2K"
++	ansiCursorStart = "\r"
++)
++
++// Screen manages multiple named regions on a terminal, each independently
++// rewritable. Regions are rendered top-to-bottom in insertion order.
++//
++// Usage:
++//
++//	s := NewScreen(os.Stdout)
++//	completed := s.AddRegion("completed")
++//	jobs := s.AddRegion("jobs")
++//	status := s.AddRegion("status")
++//
++//	jobs.SetLines([]string{"  ● lint  running", "  ● test  running"})
++//	status.SetLines([]string{"  ⠋ Watching…"})
++//
++//	// Promote a completed job:
++//	completed.AppendLine("  ✓ lint  passed")
++//
++//	// Update active jobs:
++//	jobs.SetLines([]string{"  ● test  running"})
++type Screen struct {
++	mu      sync.Mutex
++	w       *os.File
++	regions []*Region
++	total   int // total lines currently on screen
++}
++
++// Region is a named section of a Screen that can be independently updated.
++// All methods are safe for concurrent use.
++type Region struct {
++	screen *Screen
++	idx    int
++	id     string
++	lines  []string
++}
++
++// NewScreen creates a Screen that writes to the given file (typically
++// os.Stdout).
++func NewScreen(w *os.File) *Screen {
++	return &Screen{w: w}
++}
++
++// AddRegion appends a new named region to the bottom of the screen and returns
++// it. Regions render in insertion order. Must be called before any updates.
++func (s *Screen) AddRegion(id string) *Region {
++	s.mu.Lock()
++	defer s.mu.Unlock()
++
++	r := &Region{
++		screen: s,
++		idx:    len(s.regions),
++		id:     id,
++	}
++	s.regions = append(s.regions, r)
++	return r
++}
++
++// Flush resets all tracking. After Flush, the screen will not overwrite any
++// previously rendered lines.
++func (s *Screen) Flush() {
++	s.mu.Lock()
++	defer s.mu.Unlock()
++
++	for _, r := range s.regions {
++		r.lines = nil
++	}
++	s.total = 0
++}
++
++// SetLines replaces the content of this region and redraws from this region
++// downward. Regions above are untouched.
++func (r *Region) SetLines(lines []string) {
++	s := r.screen
++	s.mu.Lock()
++	defer s.mu.Unlock()
++
++	oldCount := s.regionOldCount(r.idx)
++	r.lines = lines
++
++	s.redrawFrom(r.idx, oldCount)
++}
++
++// AppendLine adds a line to this region and redraws from this region downward.
++func (r *Region) AppendLine(line string) {
++	s := r.screen
++	s.mu.Lock()
++	defer s.mu.Unlock()
++
++	oldCount := len(r.lines)
++	r.lines = append(r.lines, line)
++
++	s.redrawFrom(r.idx, oldCount)
++}
++
++// redrawFrom redraws all regions from idx onward, given the old line count
++// of the target region before mutation. Caller must hold mu.
++func (s *Screen) redrawFrom(idx int, oldCount int) {
++	// Calculate how many lines exist from this region onward (using old count
++	// for the target region, current count for regions below).
++	linesFromHere := oldCount
++	for i := idx + 1; i < len(s.regions); i++ {
++		linesFromHere += len(s.regions[i].lines)
++	}
++
++	// Cursor up to the start of the target region.
++	for i := 0; i < linesFromHere; i++ {
++		fmt.Fprint(s.w, ansiCursorUp)
++	}
++
++	// Rewrite from the target region downward.
++	newTotal := s.linesAbove(idx)
++	for i := idx; i < len(s.regions); i++ {
++		for _, line := range s.regions[i].lines {
++			fmt.Fprint(s.w, ansiCursorStart+ansiClearLine+line+"\n")
++			newTotal++
++		}
++	}
++
++	// Clear leftover rows if the new total is smaller.
++	for i := newTotal; i < s.total; i++ {
++		fmt.Fprint(s.w, ansiCursorStart+ansiClearLine+"\n")
++	}
++	for i := newTotal; i < s.total; i++ {
++		fmt.Fprint(s.w, ansiCursorUp)
++	}
++
++	s.total = newTotal
++}
++
++// linesAbove returns the total line count of all regions above idx.
++func (s *Screen) linesAbove(idx int) int {
++	n := 0
++	for i := 0; i < idx; i++ {
++		n += len(s.regions[i].lines)
++	}
++	return n
++}
++
++// regionOldCount returns the current on-screen line count for a region by
++// subtracting all other regions from the total.
++func (s *Screen) regionOldCount(idx int) int {
++	above := s.linesAbove(idx)
++	below := 0
++	for i := idx + 1; i < len(s.regions); i++ {
++		below += len(s.regions[i].lines)
++	}
++	old := s.total - above - below
++	if old < 0 {
++		old = 0
++	}
++	return old
++}
+diff --git a/internal/preflight/screen_test.go b/internal/preflight/screen_test.go
+new file mode 100644
+index 0000000..e59d34c
+--- /dev/null
++++ b/internal/preflight/screen_test.go
+@@ -0,0 +1,171 @@
++package preflight
++
++import (
++	"os"
++	"strings"
++	"testing"
++)
++
++// captureScreen runs fn with a Screen wired to a temp file, then returns what
++// was written.
++func captureScreen(t *testing.T, fn func(s *Screen)) string {
++	t.Helper()
++
++	f, err := os.CreateTemp(t.TempDir(), "screen-*")
++	if err != nil {
++		t.Fatal(err)
++	}
++
++	s := NewScreen(f)
++	fn(s)
++
++	f.Close()
++
++	out, err := os.ReadFile(f.Name())
++	if err != nil {
++		t.Fatal(err)
++	}
++	return string(out)
++}
++
++// stripANSI removes cursor movement and clear-line sequences so we can check
++// visible text content.
++func stripANSI(s string) string {
++	s = strings.ReplaceAll(s, ansiCursorUp, "")
++	s = strings.ReplaceAll(s, ansiClearLine, "")
++	s = strings.ReplaceAll(s, ansiCursorStart, "")
++	return s
++}
++
++// visibleLines returns non-empty lines after stripping ANSI.
++func visibleLines(raw string) []string {
++	stripped := stripANSI(raw)
++	var result []string
++	for _, line := range strings.Split(stripped, "\n") {
++		if line != "" {
++			result = append(result, line)
++		}
++	}
++	return result
++}
++
++func TestScreen_InitialRender(t *testing.T) {
++	raw := captureScreen(t, func(s *Screen) {
++		header := s.AddRegion("header")
++		body := s.AddRegion("body")
++		footer := s.AddRegion("footer")
++
++		header.SetLines([]string{"=== Build #42 ==="})
++		body.SetLines([]string{"  ● job1 running", "  ● job2 running"})
++		footer.SetLines([]string{"Watching…"})
++	})
++
++	lines := visibleLines(raw)
++
++	expected := []string{
++		"=== Build #42 ===",
++		"  ● job1 running",
++		"  ● job2 running",
++		"Watching…",
++	}
++	if len(lines) < len(expected) {
++		t.Fatalf("got %d visible lines, want at least %d:\n%s", len(lines), len(expected), raw)
++	}
++	for i, want := range expected {
++		if lines[i] != want {
++			t.Errorf("line %d = %q, want %q", i, lines[i], want)
++		}
++	}
++}
++
++func TestScreen_UpdateMiddleRegion(t *testing.T) {
++	raw := captureScreen(t, func(s *Screen) {
++		header := s.AddRegion("header")
++		body := s.AddRegion("body")
++		footer := s.AddRegion("footer")
++
++		header.SetLines([]string{"Header"})
++		body.SetLines([]string{"old1", "old2"})
++		footer.SetLines([]string{"Footer"})
++
++		// Update just the body — header and footer should be unchanged.
++		body.SetLines([]string{"new1", "new2"})
++	})
++
++	lines := visibleLines(raw)
++
++	// After the update, the last visible occurrence of "new1" and "new2" should
++	// appear between "Header" and "Footer".
++	last := lines[len(lines)-3:]
++	if last[0] != "new1" || last[1] != "new2" || last[2] != "Footer" {
++		t.Errorf("final visible lines = %v, want [new1, new2, Footer]", last)
++	}
++}
++
++func TestScreen_RegionGrows(t *testing.T) {
++	raw := captureScreen(t, func(s *Screen) {
++		top := s.AddRegion("top")
++		bottom := s.AddRegion("bottom")
++
++		top.SetLines([]string{"A"})
++		bottom.SetLines([]string{"Z"})
++
++		// Grow the top region.
++		top.SetLines([]string{"A", "B", "C"})
++	})
++
++	lines := visibleLines(raw)
++
++	// The final state should end with A, B, C, Z.
++	tail := lines[len(lines)-4:]
++	want := []string{"A", "B", "C", "Z"}
++	for i, w := range want {
++		if tail[i] != w {
++			t.Errorf("tail[%d] = %q, want %q", i, tail[i], w)
++		}
++	}
++}
++
++func TestScreen_RegionShrinks(t *testing.T) {
++	raw := captureScreen(t, func(s *Screen) {
++		top := s.AddRegion("top")
++		bottom := s.AddRegion("bottom")
++
++		top.SetLines([]string{"A", "B", "C"})
++		bottom.SetLines([]string{"Z"})
++
++		// Shrink the top region.
++		top.SetLines([]string{"A"})
++	})
++
++	lines := visibleLines(raw)
++
++	// Final visible state should end with A, Z (extra lines cleared).
++	tail := lines[len(lines)-2:]
++	if tail[0] != "A" || tail[1] != "Z" {
++		t.Errorf("tail = %v, want [A, Z]", tail)
++	}
++}
++
++func TestScreen_AppendLine(t *testing.T) {
++	raw := captureScreen(t, func(s *Screen) {
++		log := s.AddRegion("log")
++		status := s.AddRegion("status")
++
++		log.SetLines([]string{"line1"})
++		status.SetLines([]string{"watching…"})
++
++		log.AppendLine("line2")
++	})
++
++	lines := visibleLines(raw)
++
++	// Should end with line1, line2, watching…
++	tail := lines[len(lines)-3:]
++	want := []string{"line1", "line2", "watching…"}
++	for i, w := range want {
++		if tail[i] != w {
++			t.Errorf("tail[%d] = %q, want %q", i, tail[i], w)
++		}
++	}
++}
+diff --git a/internal/preflight/snapshot.go b/internal/preflight/snapshot.go
+index 92fb226..75bff22 100644
+--- a/internal/preflight/snapshot.go
++++ b/internal/preflight/snapshot.go
+@@ -18,6 +18,7 @@ type FileChange struct {
+ type SnapshotResult struct {
+ 	Commit string
+ 	Ref    string
++	Branch string
+ 	Files  []FileChange
+ }
+ 
+@@ -91,7 +92,8 @@ func Snapshot(dir string, preflightID uuid.UUID, opts ...SnapshotOption) (*Snaps
+ 		return nil, err
+ 	}
+ 
+-	ref := fmt.Sprintf("refs/heads/bk/preflight/%s", preflightID.String())
++	branch := fmt.Sprintf("bk/preflight/%s", preflightID.String())
++	ref := fmt.Sprintf("refs/heads/%s", branch)
+ 	commit := head
+ 
+ 	if len(files) > 0 {
+@@ -118,6 +120,7 @@ func Snapshot(dir string, preflightID uuid.UUID, opts ...SnapshotOption) (*Snaps
+ 	return &SnapshotResult{
+ 		Commit: commit,
+ 		Ref:    ref,
++		Branch: branch,
+ 		Files:  files,
+ 	}, nil
+ }

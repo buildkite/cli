@@ -153,15 +153,17 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 				dur := watch.JobDuration(j)
 				durStr := ""
 				if dur > 0 {
-					durStr = " " + dur.String()
+					durStr = "\033[2m " + dur.String() + "\033[0m"
 				}
-				lines = append(lines, fmt.Sprintf("  \033[36m●\033[0m %s  \033[36mrunning\033[0m%s", watch.JobDisplayName(j), durStr))
+				lines = append(lines, fmt.Sprintf("  \033[36m●\033[0m %-50s \033[36mrunning\033[0m%s", watch.JobDisplayName(j), durStr))
 			}
 			if status.TotalRunning > len(status.Running) {
 				lines = append(lines, fmt.Sprintf("  \033[90m… and %d more running\033[0m", status.TotalRunning-len(status.Running)))
 			}
 			lines = append(lines, formatSummaryLine(status.Summary))
-			lines = append(lines, fmt.Sprintf("  Watching build #%d…", b.Number))
+			lines = append(lines, "")
+			lines = append(lines, fmt.Sprintf("  %s Watching build #%d…", spinner(), b.Number))
+			lines = append(lines, "\033[90m  Use `bk log view <job-id>` to view logs\033[0m")
 			jobsRegion.SetLines(lines)
 		} else {
 			for _, fj := range status.NewlyFailed {
@@ -235,23 +237,28 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	return fmt.Errorf("preflight build %s", finalBuild.State)
 }
 
-func formatFailedJob(fj watch.FailedJob) string {
-	var parts []string
-	parts = append(parts, fmt.Sprintf("  \033[31m✗\033[0m %s", fj.Name))
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
+func spinner() string {
+	idx := int(time.Now().UnixMilli()/80) % len(spinnerFrames)
+	return "\033[36m" + spinnerFrames[idx] + "\033[0m"
+}
+
+func formatFailedJob(fj watch.FailedJob) string {
+	stateLabel := fmt.Sprintf("\033[31m%s\033[0m", fj.State)
 	if fj.SoftFailed {
-		parts = append(parts, " \033[33msoft failed\033[0m")
-	} else {
-		parts = append(parts, fmt.Sprintf("  \033[31m%s\033[0m", fj.State))
+		stateLabel = "\033[33msoft failed\033[0m"
 	}
-	if fj.ExitStatus != nil && *fj.ExitStatus != 0 {
-		parts = append(parts, fmt.Sprintf("  \033[31mexit %d\033[0m", *fj.ExitStatus))
-	}
+	dur := ""
 	if fj.Duration > 0 {
-		parts = append(parts, fmt.Sprintf("  \033[2m(%s)\033[0m", fj.Duration))
+		dur = fmt.Sprintf("\033[2m (%s)\033[0m", fj.Duration)
 	}
-	parts = append(parts, fmt.Sprintf("  \033[2m%s\033[0m", fj.ID))
-	return strings.Join(parts, "")
+	exit := ""
+	if fj.ExitStatus != nil && *fj.ExitStatus != 0 {
+		exit = fmt.Sprintf("\033[31m exit %d\033[0m", *fj.ExitStatus)
+	}
+	return fmt.Sprintf("  \033[31m✗\033[0m %-50s %s%s%s \033[2m%s\033[0m",
+		fj.Name, stateLabel, dur, exit, fj.ID)
 }
 
 func formatSummaryLine(s watch.JobSummary) string {
