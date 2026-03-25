@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 	"unicode/utf8"
 
@@ -67,7 +69,8 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		return bkErrors.NewValidationError(fmt.Errorf("interval must be greater than 0"), "invalid polling interval")
 	}
 	// Resolve the pipeline to create a build against.
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	resolvers := resolver.NewAggregateResolver(
 		resolver.ResolveFromFlag(c.Pipeline, f.Config),
 		resolver.ResolveFromConfig(f.Config, resolver.PickOneWithFactory(f)),
@@ -148,6 +151,13 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	if tty {
 		fmt.Println()
 	}
+
+	if !c.NoCleanup {
+		if cleanupErr := preflight.Cleanup(wt.Filesystem.Root(), result.Ref, globals.EnableDebug()); cleanupErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to delete remote branch %s: %v\n", result.Ref, cleanupErr)
+		}
+	}
+
 	if errors.Is(err, context.Canceled) {
 		return nil
 	}
@@ -156,12 +166,6 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			"Buildkite API may be unavailable or your network may be unstable",
 			"Retry the preflight command once connectivity is restored",
 		)
-	}
-
-	if !c.NoCleanup {
-		if cleanupErr := preflight.Cleanup(wt.Filesystem.Root(), result.Ref, globals.EnableDebug()); cleanupErr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to delete remote branch %s: %v\n", result.Ref, cleanupErr)
-		}
 	}
 
 	fmt.Println()
