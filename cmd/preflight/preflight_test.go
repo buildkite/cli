@@ -103,7 +103,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: false}
+		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: false, Interval: 2}
 		err := cmd.Run(nil, stubGlobals{})
 		if err != nil {
 			t.Fatalf("expected no error, got: %v", err)
@@ -270,7 +270,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline"}
+		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Interval: 2}
 		err := cmd.Run(nil, stubGlobals{})
 		if err == nil {
 			t.Fatal("expected error, got nil")
