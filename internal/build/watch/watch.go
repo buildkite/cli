@@ -20,6 +20,15 @@ const (
 // StatusFunc is called on each successful poll with the latest build state.
 type StatusFunc func(b buildkite.Build)
 
+func isTerminalBuildState(state string) bool {
+	switch state {
+	case "passed", "failed", "failing", "blocked", "canceled", "canceling", "skipped", "not_run":
+		return true
+	default:
+		return false
+	}
+}
+
 // WatchBuild polls a build until it reaches a terminal state (FinishedAt != nil).
 // It calls onStatus after each successful poll so callers can render progress.
 func WatchBuild(
@@ -50,7 +59,7 @@ func WatchBuild(
 			consecutiveErrors = 0
 			onStatus(b)
 
-			if b.FinishedAt != nil {
+			if b.FinishedAt != nil || isTerminalBuildState(b.State) {
 				return b, nil
 			}
 		}

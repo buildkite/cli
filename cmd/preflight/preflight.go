@@ -116,6 +116,10 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		return nil
 	}
 
+	if c.Interval <= 0 {
+		return bkErrors.NewValidationError(fmt.Errorf("interval must be greater than 0"), "invalid polling interval")
+	}
+
 	fmt.Println()
 
 	tty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
@@ -123,7 +127,10 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	var lastLine string
 	var lastWidth int
 	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) {
-		line := fmt.Sprintf("Build #%d %s — %s", b.Number, b.State, watch.Summarize(b))
+		line := fmt.Sprintf("Build #%d %s", b.Number, b.State)
+		if summary := watch.Summarize(b).String(); summary != "" {
+			line += " — " + summary
+		}
 		if tty {
 			display := fmt.Sprintf("[%s] %s", time.Now().Format(time.TimeOnly), line)
 			width := utf8.RuneCountInString(display)
