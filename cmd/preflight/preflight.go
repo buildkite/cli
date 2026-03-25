@@ -62,6 +62,9 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		return bkErrors.NewInternalError(err, "UUIDv7 generation failed")
 	}
 
+	if c.Interval <= 0 {
+		return bkErrors.NewValidationError(fmt.Errorf("interval must be greater than 0"), "invalid polling interval")
+	}
 	// Resolve the pipeline to create a build against.
 	ctx := context.Background()
 	resolvers := resolver.NewAggregateResolver(
@@ -114,10 +117,6 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 
 	if !c.Watch {
 		return nil
-	}
-
-	if c.Interval <= 0 {
-		return bkErrors.NewValidationError(fmt.Errorf("interval must be greater than 0"), "invalid polling interval")
 	}
 
 	fmt.Println()
