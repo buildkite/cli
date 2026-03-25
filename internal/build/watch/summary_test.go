@@ -51,11 +51,18 @@ func TestSummarize(t *testing.T) {
 			want: JobSummary{Running: 3},
 		},
 		{
-			name: "counts canceled",
+			name: "counts canceled as failed",
 			jobs: []buildkite.Job{
 				{Type: "script", State: "canceled"},
 			},
-			want: JobSummary{Canceled: 1},
+			want: JobSummary{Failed: 1},
+		},
+		{
+			name: "counts expired as failed",
+			jobs: []buildkite.Job{
+				{Type: "script", State: "expired"},
+			},
+			want: JobSummary{Failed: 1},
 		},
 		{
 			name: "counts skipped and broken",
@@ -93,9 +100,8 @@ func TestSummarize(t *testing.T) {
 				{Type: "script", State: "limiting"},
 				{Type: "script", State: "platform_limited"},
 				{Type: "script", State: "platform_limiting"},
-				{Type: "script", State: "expired"},
 			},
-			want: JobSummary{Waiting: 8},
+			want: JobSummary{Waiting: 7},
 		},
 		{
 			name: "ignores unknown states",
@@ -151,8 +157,8 @@ func TestJobSummary_String(t *testing.T) {
 		},
 		{
 			name:    "all fields",
-			summary: JobSummary{Passed: 1, Failed: 2, Canceled: 3, Running: 4, Scheduled: 5, Blocked: 6, Skipped: 7, Waiting: 8},
-			want:    "1 passed, 2 failed, 3 canceled, 4 running, 5 scheduled, 6 blocked, 7 skipped, 8 waiting",
+			summary: JobSummary{Passed: 1, Failed: 2, Running: 3, Scheduled: 4, Blocked: 5, Skipped: 6, Waiting: 7},
+			want:    "1 passed, 2 failed, 3 running, 4 scheduled, 5 blocked, 6 skipped, 7 waiting",
 		},
 	}
 

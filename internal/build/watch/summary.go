@@ -11,7 +11,6 @@ import (
 type JobSummary struct {
 	Passed    int
 	Failed    int
-	Canceled  int
 	Running   int
 	Scheduled int
 	Blocked   int
@@ -29,7 +28,6 @@ func (s JobSummary) String() string {
 	entries := []entry{
 		{s.Passed, "passed"},
 		{s.Failed, "failed"},
-		{s.Canceled, "canceled"},
 		{s.Running, "running"},
 		{s.Scheduled, "scheduled"},
 		{s.Blocked, "blocked"},
@@ -57,10 +55,8 @@ func Summarize(b buildkite.Build) JobSummary {
 			s.Running++
 		case "passed":
 			s.Passed++
-		case "failed", "timed_out":
+		case "failed", "timed_out", "canceled", "expired":
 			s.Failed++
-		case "canceled":
-			s.Canceled++
 		case "skipped", "broken":
 			s.Skipped++
 		case "blocked", "blocked_failed":
@@ -69,8 +65,7 @@ func Summarize(b buildkite.Build) JobSummary {
 			s.Scheduled++
 		case "waiting", "waiting_failed",
 			"pending", "limited", "limiting",
-			"platform_limited", "platform_limiting",
-			"expired":
+			"platform_limited", "platform_limiting":
 			s.Waiting++
 		}
 	}

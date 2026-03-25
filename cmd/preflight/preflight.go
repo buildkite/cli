@@ -221,13 +221,8 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		if finalStatus.Summary.Failed > 0 {
 			fmt.Println()
 			fmt.Printf("Failed jobs (%d):\n", finalStatus.Summary.Failed)
-			for _, j := range finalBuild.Jobs {
-				if j.Type != "script" {
-					continue
-				}
-				if j.State == "failed" || j.State == "timed_out" || j.SoftFailed {
-					fmt.Printf("  ✗ %s  %s  %s\n", watch.JobDisplayName(j), j.State, j.ID)
-				}
+			for _, fj := range finalStatus.NewlyFailed {
+				fmt.Printf("  ✗ %s  %s  %s\n", fj.Name, fj.State, fj.ID)
 			}
 		}
 	}
