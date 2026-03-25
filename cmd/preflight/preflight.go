@@ -62,6 +62,21 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		return bkErrors.NewInternalError(err, "UUIDv7 generation failed")
 	}
 
+	// Resolve the pipeline to create a build against.
+	ctx := context.Background()
+	resolvers := resolver.NewAggregateResolver(
+		resolver.ResolveFromFlag(c.Pipeline, f.Config),
+		resolver.ResolveFromConfig(f.Config, resolver.PickOneWithFactory(f)),
+		resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOneWithFactory(f))),
+	)
+
+	resolvedPipeline, err := resolvers.Resolve(ctx)
+	if err != nil {
+		return bkErrors.NewValidationError(err, "could not resolve a pipeline",
+			"Specify a pipeline in .bk.yaml or link your repository to a pipeline",
+		)
+	}
+
 	var opts []preflight.SnapshotOption
 	if globals.EnableDebug() {
 		opts = append(opts, preflight.WithDebug())
@@ -83,21 +98,6 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		for _, file := range result.Files {
 			fmt.Printf("  %s %s\n", file.StatusSymbol(), file.Path)
 		}
-	}
-
-	// Resolve the pipeline to create a build against.
-	ctx := context.Background()
-	resolvers := resolver.NewAggregateResolver(
-		resolver.ResolveFromFlag(c.Pipeline, f.Config),
-		resolver.ResolveFromConfig(f.Config, resolver.PickOneWithFactory(f)),
-		resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOneWithFactory(f))),
-	)
-
-	resolvedPipeline, err := resolvers.Resolve(ctx)
-	if err != nil {
-		return bkErrors.NewValidationError(err, "could not resolve a pipeline",
-			"Specify a pipeline in .bk.yaml or link your repository to a pipeline",
-		)
 	}
 
 	fmt.Printf("Creating build on %s/%s...\n", resolvedPipeline.Org, resolvedPipeline.Name)
