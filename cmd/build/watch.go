@@ -110,7 +110,7 @@ func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	interval := time.Duration(c.Interval) * time.Second
 
-	_, err = watch.WatchBuild(ctx, f.RestAPIClient, bld.Organization, bld.Pipeline, bld.BuildNumber, interval, func(b buildkite.Build) {
+	_, err = watch.WatchBuild(ctx, f.RestAPIClient, bld.Organization, bld.Pipeline, bld.BuildNumber, interval, func(b buildkite.Build) error {
 		summary := shared.BuildSummaryWithJobs(&b, bld.Organization, bld.Pipeline)
 		if tty {
 			fmt.Print("\033[H\033[2J")
@@ -118,6 +118,7 @@ func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		} else {
 			fmt.Printf("[%s] %s\n", time.Now().Format(time.RFC3339), summary)
 		}
+		return nil
 	})
 	if errors.Is(err, context.Canceled) {
 		return nil
