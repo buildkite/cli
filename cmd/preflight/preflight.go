@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
 
+	buildstate "github.com/buildkite/cli/v3/internal/build/state"
 	"github.com/buildkite/cli/v3/internal/build/watch"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
@@ -97,14 +98,13 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	}
 
 	tty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
-	renderer := newRenderer(os.Stdout, tty, resolvedPipeline.Name)
+	snapshotLines := []string{"Creating snapshot of working tree..."}
 
 	var opts []preflight.SnapshotOption
 	if globals.EnableDebug() {
 		opts = append(opts, preflight.WithDebug())
 	}
 
-	renderer.appendSnapshotLine("Creating snapshot of working tree...")
 	result, err := preflight.Snapshot(wt.Filesystem.Root(), preflightID, opts...)
 	if err != nil {
 		return bkErrors.NewSnapshotError(err, "failed to create preflight snapshot",
@@ -112,11 +112,9 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			"Ensure you have push access to the remote repository",
 		)
 	}
-
-	renderer.setSnapshot(result)
-
-	renderer.appendSnapshotLine("")
-	renderer.appendSnapshotLine(fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name))
+	snapshotLines = append(snapshotLines, snapshotLinesForResult(result)...)
+	snapshotLines = append(snapshotLines, "")
+	snapshotLines = append(snapshotLines, fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name))
 	build, _, err := f.RestAPIClient.Builds.Create(ctx, resolvedPipeline.Org, resolvedPipeline.Name, buildkite.CreateBuild{
 		Message: fmt.Sprintf("Preflight %s", preflightID),
 		Commit:  result.Commit,
@@ -129,6 +127,10 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		return bkErrors.WrapAPIError(err, "creating preflight build")
 	}
 
+	renderer := newRenderer(os.Stdout, tty, resolvedPipeline.Name, build.Number)
+	for _, line := range snapshotLines {
+		renderer.appendSnapshotLine(line)
+	}
 	renderer.appendSnapshotLine(fmt.Sprintf("Build:  %s", build.WebURL))
 
 	if !c.Watch {
@@ -139,7 +141,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	tracker := watch.NewJobTracker()
 
 	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) error {
-		if err := renderer.renderStatus(tracker.Update(b), b); err != nil {
+		if err := renderer.renderStatus(tracker.Update(b), b.State); err != nil {
 			return renderStatusError{err: err}
 		}
 		return nil
@@ -161,7 +163,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	}
 
 	if errors.Is(err, context.Canceled) {
-		if finalBuild.FinishedAt == nil && !watch.IsTerminalBuildState(finalBuild.State) {
+		if finalBuild.FinishedAt == nil && !buildstate.IsTerminal(buildstate.State(finalBuild.State)) {
 			cancelCtx, cancelStop := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancelStop()
 			if _, cancelErr := f.RestAPIClient.Builds.Cancel(cancelCtx, resolvedPipeline.Org, resolvedPipeline.Name, strconv.Itoa(build.Number)); cancelErr != nil {
@@ -189,11 +191,9 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	// Flush the screen so final output is not overwritten.
 	renderer.flush()
 
-	renderer.renderFinalFailures(tracker.AllFailed())
+	failedJobs := tracker.FailedJobs()
+	renderer.renderFinalFailures(failedJobs)
 
-	renderer.setResult(finalBuild.State)
-	if finalBuild.State == "passed" {
-		return nil
-	}
-	return fmt.Errorf("preflight build %s", finalBuild.State)
+	buildResult := NewResult(finalBuild, failedJobs.Hard)
+	return buildResult.Error()
 }

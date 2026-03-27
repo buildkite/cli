@@ -249,6 +249,21 @@ func TestHandler(t *testing.T) {
 				err:          NewResourceNotFoundError(nil, ""),
 				expectedCode: ExitCodeNotFoundError,
 			},
+			{
+				name:         "preflight completed failure",
+				err:          NewPreflightCompletedFailureError(fmt.Errorf("failed"), ""),
+				expectedCode: ExitCodePreflightCompletedFailure,
+			},
+			{
+				name:         "preflight active failure",
+				err:          NewPreflightIncompleteFailureError(fmt.Errorf("failed"), ""),
+				expectedCode: ExitCodePreflightActiveFailure,
+			},
+			{
+				name:         "preflight unknown result",
+				err:          NewPreflightUnknownError(fmt.Errorf("unknown"), ""),
+				expectedCode: ExitCodePreflightUnknown,
+			},
 		}
 
 		for _, tc := range testCases {

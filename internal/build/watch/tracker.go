@@ -60,6 +60,12 @@ type BuildStatus struct {
 	Build        buildkite.Build
 }
 
+// FailedJobs separates terminal failures by whether they are soft-failed.
+type FailedJobs struct {
+	Hard []buildkite.Job
+	Soft []buildkite.Job
+}
+
 // JobTracker tracks job state changes across polls.
 type JobTracker struct {
 	jobs map[string]*trackedJob
@@ -112,13 +118,17 @@ func (t *JobTracker) Update(b buildkite.Build) BuildStatus {
 	return status
 }
 
-// AllFailed returns all failed jobs.
-func (t *JobTracker) AllFailed() []buildkite.Job {
-	var result []buildkite.Job
+// FailedJobs returns all failed jobs separated into hard and soft failures.
+func (t *JobTracker) FailedJobs() FailedJobs {
+	var result FailedJobs
 	for _, tj := range t.jobs {
 		job := NewFormattedJob(tj.Job)
 		if job.IsFailed() {
-			result = append(result, tj.Job)
+			if job.IsSoftFailed() {
+				result.Soft = append(result.Soft, tj.Job)
+				continue
+			}
+			result.Hard = append(result.Hard, tj.Job)
 		}
 	}
 	return result

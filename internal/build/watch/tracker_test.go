@@ -237,8 +237,8 @@ func TestJobTracker_Update(t *testing.T) {
 	})
 }
 
-func TestJobTracker_AllFailed(t *testing.T) {
-	t.Run("returns all failed jobs across updates", func(t *testing.T) {
+func TestJobTracker_FailedJobs(t *testing.T) {
+	t.Run("returns hard and soft failed jobs across updates", func(t *testing.T) {
 		tracker := NewJobTracker()
 		tracker.Update(buildkite.Build{
 			Jobs: []buildkite.Job{
@@ -250,21 +250,22 @@ func TestJobTracker_AllFailed(t *testing.T) {
 		tracker.Update(buildkite.Build{
 			Jobs: []buildkite.Job{
 				{ID: "1", Type: "script", State: "failed"},
-				{ID: "2", Type: "script", State: "failed"},
+				{ID: "2", Type: "script", State: "failed", SoftFailed: true},
 			},
 		})
 
-		allFailed := tracker.AllFailed()
-		if len(allFailed) != 2 {
-			t.Fatalf("expected 2 failed, got %d", len(allFailed))
+		failedJobs := tracker.FailedJobs()
+		if len(failedJobs.Hard) != 1 {
+			t.Fatalf("expected 1 hard failed job, got %d", len(failedJobs.Hard))
 		}
-
-		ids := map[string]bool{}
-		for _, fj := range allFailed {
-			ids[fj.ID] = true
+		if len(failedJobs.Soft) != 1 {
+			t.Fatalf("expected 1 soft failed job, got %d", len(failedJobs.Soft))
 		}
-		if !ids["1"] || !ids["2"] {
-			t.Errorf("expected jobs 1 and 2, got %v", ids)
+		if failedJobs.Hard[0].ID != "1" {
+			t.Errorf("expected hard failed job 1, got %s", failedJobs.Hard[0].ID)
+		}
+		if failedJobs.Soft[0].ID != "2" {
+			t.Errorf("expected soft failed job 2, got %s", failedJobs.Soft[0].ID)
 		}
 	})
 
@@ -275,15 +276,22 @@ func TestJobTracker_AllFailed(t *testing.T) {
 				{ID: "1", Type: "waiter", State: "failed"},
 				{ID: "2", Type: "script", State: "broken"},
 				{ID: "3", Type: "script", State: "failed"},
+				{ID: "4", Type: "script", State: "failed", SoftFailed: true},
 			},
 		})
 
-		allFailed := tracker.AllFailed()
-		if len(allFailed) != 1 {
-			t.Fatalf("expected 1 failed, got %d", len(allFailed))
+		failedJobs := tracker.FailedJobs()
+		if len(failedJobs.Hard) != 1 {
+			t.Fatalf("expected 1 hard failed job, got %d", len(failedJobs.Hard))
 		}
-		if allFailed[0].ID != "3" {
-			t.Errorf("expected job 3, got %s", allFailed[0].ID)
+		if len(failedJobs.Soft) != 1 {
+			t.Fatalf("expected 1 soft failed job, got %d", len(failedJobs.Soft))
+		}
+		if failedJobs.Hard[0].ID != "3" {
+			t.Errorf("expected hard failed job 3, got %s", failedJobs.Hard[0].ID)
+		}
+		if failedJobs.Soft[0].ID != "4" {
+			t.Errorf("expected soft failed job 4, got %s", failedJobs.Soft[0].ID)
 		}
 	})
 }
