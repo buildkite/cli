@@ -18,7 +18,8 @@ const (
 )
 
 // StatusFunc is called on each successful poll with the latest build state.
-type StatusFunc func(b buildkite.Build)
+// Returning an error aborts the watch loop and propagates that error to the caller.
+type StatusFunc func(b buildkite.Build) error
 
 // IsTerminalBuildState returns true if the build state is a terminal state.
 func IsTerminalBuildState(state string) bool {
@@ -63,7 +64,9 @@ func WatchBuild(
 			consecutiveErrors = 0
 			lastBuild = b
 			if onStatus != nil {
-				onStatus(b)
+				if err := onStatus(b); err != nil {
+					return b, err
+				}
 			}
 
 			if b.FinishedAt != nil || IsTerminalBuildState(b.State) {
