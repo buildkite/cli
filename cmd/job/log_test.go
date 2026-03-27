@@ -75,6 +75,11 @@ func TestLogCmdValidateFlags(t *testing.T) {
 			wantErr: "--since/--until and --seek are mutually exclusive",
 		},
 		{
+			name:    "seek and group conflict",
+			cmd:     LogCmd{Seek: 100, Group: "tests"},
+			wantErr: "--seek and --group are mutually exclusive",
+		},
+		{
 			name:    "follow and until conflict",
 			cmd:     LogCmd{Follow: true, Until: "5m", Seek: -1},
 			wantErr: "--follow and --until cannot be used together",
@@ -247,7 +252,7 @@ func TestLogCmdHelp(t *testing.T) {
 	t.Parallel()
 	cmd := &LogCmd{}
 	help := cmd.Help()
-	if !strings.Contains(help, "bk job log") {
+	if !strings.Contains(help, "bk logs") {
 		t.Error("help text should contain usage examples")
 	}
 	if !strings.Contains(help, "-f") {
@@ -733,7 +738,7 @@ func TestWriteEntryEdgeCases(t *testing.T) {
 		t.Parallel()
 		cmd := LogCmd{JSON: true}
 		entry := buildkitelogs.ParquetLogEntry{
-			Content:   "hello",
+			Content:   "\x1b[31merror: something failed\x1b[0m",
 			Timestamp: 1000,
 			RowNumber: 0,
 		}
@@ -744,9 +749,11 @@ func TestWriteEntryEdgeCases(t *testing.T) {
 		if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 			t.Fatalf("failed to unmarshal JSON: %v", err)
 		}
-		// CleanContent(true) strips ANSI, so no escape codes should remain
 		if strings.Contains(result.Content, "\x1b") {
 			t.Error("JSON content should not contain ANSI escape codes")
+		}
+		if !strings.Contains(result.Content, "error: something failed") {
+			t.Errorf("content should preserve text after stripping ANSI, got %q", result.Content)
 		}
 	})
 
@@ -809,19 +816,12 @@ func TestWriteEntryEdgeCases(t *testing.T) {
 func TestBuildJobLabelsParallelIndex(t *testing.T) {
 	t.Parallel()
 
-	idx0, idx1, idx2 := 0, 1, 2
 	jobs := []cmdJob{
 		{id: "aaa11111-long", label: "rspec #0", state: "failed"},
 		{id: "bbb22222-long", label: "rspec #1", state: "passed"},
 		{id: "ccc33333-long", label: "rspec #2", state: "passed"},
 	}
 	labels := buildJobLabels(jobs)
-
-	// All have the same base "rspec #N (state)" pattern but different labels, so they shouldn't
-	// need disambiguation UNLESS the full label+state string matches
-	_ = idx0
-	_ = idx1
-	_ = idx2
 
 	if len(labels) != 3 {
 		t.Fatalf("expected 3 labels, got %d", len(labels))

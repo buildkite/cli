@@ -63,7 +63,7 @@ func (c *LogCmd) Help() string {
 	return `
 Examples:
   # Get a job's full log
-  $ bk job log 0190046e-e199-453b-a302-a21a4d649d31 -p my-pipeline -b 123
+  $ bk logs 0190046e-e199-453b-a302-a21a4d649d31 -p my-pipeline -b 123
 
   # Get logs from a Buildkite URL (copy-paste from web UI or Slack)
   $ bk logs https://buildkite.com/my-org/my-pipeline/builds/123#0190046e-e199-453b-a302-a21a4d649d31
@@ -72,43 +72,43 @@ Examples:
   $ bk logs https://buildkite.com/my-org/my-pipeline/builds/123
 
   # Get logs by step key (from pipeline.yml)
-  $ bk job log -p my-pipeline -b 123 --step "test-suite"
+  $ bk logs -p my-pipeline -b 123 --step "test-suite"
 
   # Interactive job picker (omit job ID)
-  $ bk job log -p my-pipeline -b 123
+  $ bk logs -p my-pipeline -b 123
 
   # Show last 50 lines
-  $ bk job log JOB_ID -b 123 -n 50
+  $ bk logs JOB_ID -b 123 -n 50
 
   # Follow a running job's log output
-  $ bk job log JOB_ID -b 123 -f
+  $ bk logs JOB_ID -b 123 -f
 
   # Follow and search for errors (pipe to grep)
-  $ bk job log JOB_ID -b 123 -f | grep -i "error\|panic"
+  $ bk logs JOB_ID -b 123 -f | grep -i "error\|panic"
 
   # Search with context (pipe to grep)
-  $ bk job log JOB_ID -b 123 | grep -C 3 "error\|failed"
+  $ bk logs JOB_ID -b 123 | grep -C 3 "error\|failed"
 
   # Show logs from the last 10 minutes
-  $ bk job log JOB_ID -b 123 --since 10m
+  $ bk logs JOB_ID -b 123 --since 10m
 
   # Show logs between two timestamps
-  $ bk job log JOB_ID -b 123 --since 2024-01-15T10:00:00Z --until 2024-01-15T10:05:00Z
+  $ bk logs JOB_ID -b 123 --since 2024-01-15T10:00:00Z --until 2024-01-15T10:05:00Z
 
   # Show human-readable timestamps
-  $ bk job log JOB_ID -b 123 -t
+  $ bk logs JOB_ID -b 123 -t
 
   # Filter to a specific group/section
-  $ bk job log JOB_ID -b 123 -G "Running tests"
+  $ bk logs JOB_ID -b 123 -G "Running tests"
 
   # Output as JSON lines (for piping to jq)
-  $ bk job log JOB_ID -b 123 --json | jq '.content'
+  $ bk logs JOB_ID -b 123 --json | jq '.content'
 
   # Paginated read (rows 100-200)
-  $ bk job log JOB_ID -b 123 --seek 100 --limit 100
+  $ bk logs JOB_ID -b 123 --seek 100 --limit 100
 
   # Add line numbers (pipe to nl or cat -n)
-  $ bk job log JOB_ID -b 123 | cat -n
+  $ bk logs JOB_ID -b 123 | cat -n
 `
 }
 
@@ -270,6 +270,12 @@ func (c *LogCmd) validateFlags() error {
 		return bkErrors.NewValidationError(
 			fmt.Errorf("--since/--until and --seek are mutually exclusive"),
 			"use time-based filtering or row-based seeking, not both",
+		)
+	}
+	if c.Seek >= 0 && c.Group != "" {
+		return bkErrors.NewValidationError(
+			fmt.Errorf("--seek and --group are mutually exclusive"),
+			"use --seek for row-based reading, or --group for section filtering",
 		)
 	}
 	if c.Follow && c.Until != "" {
@@ -749,7 +755,11 @@ func (c *LogCmd) writeEntryJSON(w io.Writer, entry *buildkitelogs.ParquetLogEntr
 		Content:   strings.TrimRight(entry.CleanContent(true), "\n"),
 		Group:     entry.Group,
 	}
-	data, _ := json.Marshal(obj)
+	data, err := json.Marshal(obj)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to marshal log entry: %v\n", err)
+		return
+	}
 	fmt.Fprintf(w, "%s\n", data)
 }
 
