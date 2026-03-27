@@ -19,9 +19,118 @@ import (
 
 const (
 	DefaultHost = "buildkite.com"
-	// DefaultScopes are the default OAuth scopes to request
-	DefaultScopes = "read_user read_organizations read_pipelines read_builds write_builds read_agents read_artifacts read_clusters read_teams"
 )
+
+// AllScopes is the complete set of Buildkite API token scopes. When no --scopes
+// flag is provided, the CLI requests all of these and Buildkite grants only the
+// ones the user actually has permission for.
+//
+// Reference: https://buildkite.com/docs/apis/managing-api-tokens
+var AllScopes = []string{
+	// CI/CD
+	"read_agents",
+	"read_artifacts",
+	"read_build_logs",
+	"read_builds",
+	"read_clusters",
+	"read_job_env",
+	"read_pipeline_templates",
+	"read_pipelines",
+	"read_rules",
+	"write_agents",
+	"write_artifacts",
+	"write_build_logs",
+	"write_builds",
+	"write_clusters",
+	"write_pipeline_templates",
+	"write_pipelines",
+	"write_rules",
+
+	// Organization and Users
+	"read_organizations",
+	"read_teams",
+	"read_user",
+	"write_teams",
+
+	// Security
+	"read_secrets_details",
+	"write_secrets",
+
+	// Test Engine
+	"read_suites",
+	"read_test_plan",
+	"write_suites",
+	"write_test_plan",
+
+	// Packages
+	"delete_packages",
+	"delete_registries",
+	"read_packages",
+	"read_registries",
+	"write_packages",
+	"write_registries",
+
+	// Portals
+	"read_portals",
+	"write_portals",
+}
+
+// ScopeGroups defines named groups of scopes that can be used with --scopes.
+// For example, --scopes "read_only" expands to all read_* scopes.
+var ScopeGroups = map[string][]string{
+	"read_only": {
+		"read_agents",
+		"read_artifacts",
+		"read_build_logs",
+		"read_builds",
+		"read_clusters",
+		"read_job_env",
+		"read_organizations",
+		"read_packages",
+		"read_pipeline_templates",
+		"read_pipelines",
+		"read_portals",
+		"read_registries",
+		"read_rules",
+		"read_secrets_details",
+		"read_suites",
+		"read_teams",
+		"read_test_plan",
+		"read_user",
+	},
+}
+
+// ResolveScopes expands scope group names (e.g., "read_only") into their
+// individual scopes. Unknown tokens are passed through as literal scopes.
+// Multiple groups and individual scopes can be mixed:
+//
+//	"read_only write_builds" → "read_agents read_artifacts ... write_builds"
+func ResolveScopes(input string) string {
+	if input == "" {
+		return ""
+	}
+
+	seen := make(map[string]bool)
+	var resolved []string
+
+	for _, token := range strings.Fields(input) {
+		if group, ok := ScopeGroups[token]; ok {
+			for _, s := range group {
+				if !seen[s] {
+					seen[s] = true
+					resolved = append(resolved, s)
+				}
+			}
+		} else {
+			if !seen[token] {
+				seen[token] = true
+				resolved = append(resolved, token)
+			}
+		}
+	}
+
+	return strings.Join(resolved, " ")
+}
 
 // DefaultClientID is the OAuth client ID for the Buildkite CLI
 // This can be overridden with ldflags
@@ -75,7 +184,7 @@ func NewFlow(cfg *Config) (*Flow, error) {
 		cfg.ClientID = DefaultClientID
 	}
 	if cfg.Scopes == "" {
-		cfg.Scopes = DefaultScopes
+		cfg.Scopes = strings.Join(AllScopes, " ")
 	}
 
 	// Generate PKCE verifier and state
