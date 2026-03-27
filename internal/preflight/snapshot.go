@@ -3,6 +3,7 @@ package preflight
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
@@ -63,13 +64,31 @@ func Snapshot(dir string, preflightID uuid.UUID, opts ...SnapshotOption) (*Snaps
 	tmp.Close()
 	defer os.Remove(tmpIndex)
 
+	tmpObjects, err := os.MkdirTemp("", "git-objects-*")
+	if err != nil {
+		return nil, fmt.Errorf("create temp object directory: %w", err)
+	}
+	defer os.RemoveAll(tmpObjects)
+
+	objectsDir, err := gitOutput(dir, nil, cfg.debug, "rev-parse", "--git-path", "objects")
+	if err != nil {
+		return nil, err
+	}
+	if !filepath.IsAbs(objectsDir) {
+		objectsDir = filepath.Join(dir, objectsDir)
+	}
+
 	var env []string
 	for _, e := range os.Environ() {
-		if !strings.HasPrefix(e, "GIT_INDEX_FILE=") {
+		if !strings.HasPrefix(e, "GIT_INDEX_FILE=") &&
+			!strings.HasPrefix(e, "GIT_OBJECT_DIRECTORY=") &&
+			!strings.HasPrefix(e, "GIT_ALTERNATE_OBJECT_DIRECTORIES=") {
 			env = append(env, e)
 		}
 	}
 	env = append(env, fmt.Sprintf("GIT_INDEX_FILE=%s", tmpIndex))
+	env = append(env, fmt.Sprintf("GIT_OBJECT_DIRECTORY=%s", tmpObjects))
+	env = append(env, fmt.Sprintf("GIT_ALTERNATE_OBJECT_DIRECTORIES=%s", objectsDir))
 
 	// Seed the temp index from HEAD.
 	if err := gitRun(dir, env, cfg.debug, "read-tree", "HEAD"); err != nil {

@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -56,6 +57,11 @@ func runGit(t *testing.T, dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
+func runGitDir(t *testing.T, gitDir string, args ...string) string {
+	t.Helper()
+	return runGit(t, "", append([]string{"--git-dir", gitDir}, args...)...)
+}
+
 func TestSnapshot_CommittedChanges(t *testing.T) {
 
 	worktree := initTestRepo(t)
@@ -75,11 +81,13 @@ func TestSnapshot_CommittedChanges(t *testing.T) {
 		t.Errorf("expected 40-char SHA, got %q (len %d)", result.Commit, len(result.Commit))
 	}
 
-	// The commit should exist in the repo.
-	runGit(t, worktree, "cat-file", "-t", result.Commit)
+	bare := runGit(t, worktree, "remote", "get-url", "origin")
+
+	// The commit should exist in the remote snapshot store.
+	runGitDir(t, bare, "cat-file", "-t", result.Commit)
 
 	// The snapshot tree should contain the updated content.
-	content := runGit(t, worktree, "show", result.Commit+":README.md")
+	content := runGitDir(t, bare, "show", result.Commit+":README.md")
 	if content != "# updated" {
 		t.Errorf("snapshot content = %q, want %q", content, "# updated")
 	}
@@ -106,8 +114,10 @@ func TestSnapshot_UntrackedFiles(t *testing.T) {
 		t.Fatalf("Snapshot() error: %v", err)
 	}
 
+	bare := runGit(t, worktree, "remote", "get-url", "origin")
+
 	// The snapshot should include the untracked file.
-	content := runGit(t, worktree, "show", result.Commit+":new-file.txt")
+	content := runGitDir(t, bare, "show", result.Commit+":new-file.txt")
 	if content != "hello" {
 		t.Errorf("untracked file content = %q, want %q", content, "hello")
 	}
@@ -134,6 +144,53 @@ func TestSnapshot_DoesNotModifyRealIndex(t *testing.T) {
 	statusAfter := runGit(t, worktree, "status", "--porcelain")
 	if statusBefore != statusAfter {
 		t.Errorf("git status changed after Snapshot:\nbefore: %q\nafter:  %q", statusBefore, statusAfter)
+	}
+}
+
+func TestSnapshot_ReadOnlyGitIndexAndObjects(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("chmod-based permissions test is not reliable on Windows")
+	}
+
+	worktree := initTestRepo(t)
+
+	if err := os.WriteFile(filepath.Join(worktree, "README.md"), []byte("# sandboxed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	gitDir := filepath.Join(worktree, ".git")
+	indexPath := filepath.Join(gitDir, "index")
+	objectsPath := filepath.Join(gitDir, "objects")
+
+	indexInfo, err := os.Stat(indexPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	objectsInfo, err := os.Stat(objectsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Chmod(indexPath, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(indexPath, indexInfo.Mode()) })
+
+	if err := os.Chmod(objectsPath, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(objectsPath, objectsInfo.Mode()) })
+
+	preflightID := uuid.MustParse("00000000-0000-0000-0000-000000000012")
+	result, err := Snapshot(worktree, preflightID)
+	if err != nil {
+		t.Fatalf("Snapshot() error with read-only git dir state: %v", err)
+	}
+
+	bare := runGit(t, worktree, "remote", "get-url", "origin")
+	content := runGitDir(t, bare, "show", result.Commit+":README.md")
+	if content != "# sandboxed" {
+		t.Errorf("snapshot content = %q, want %q", content, "# sandboxed")
 	}
 }
 
