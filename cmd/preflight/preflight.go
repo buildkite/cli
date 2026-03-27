@@ -114,6 +114,9 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		Message: fmt.Sprintf("Preflight %s", preflightID),
 		Commit:  result.Commit,
 		Branch:  result.Branch,
+		Env: map[string]string{
+			"BUILDKITE_PREFLIGHT": "true",
+		},
 	})
 	if err != nil {
 		return bkErrors.WrapAPIError(err, "creating preflight build")
