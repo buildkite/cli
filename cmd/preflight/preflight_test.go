@@ -118,6 +118,9 @@ func TestPreflightCmd_Run(t *testing.T) {
 		if !strings.HasPrefix(gotReq.Message, "Preflight ") {
 			t.Errorf("expected message starting with 'Preflight ', got %q", gotReq.Message)
 		}
+		if gotReq.Env["BUILDKITE_PREFLIGHT"] != "true" {
+			t.Errorf("expected BUILDKITE_PREFLIGHT=true, got %#v", gotReq.Env)
+		}
 	})
 
 	t.Run("watches build until completion and cleans up remote branch", func(t *testing.T) {
