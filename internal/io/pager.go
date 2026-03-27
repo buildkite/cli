@@ -18,7 +18,7 @@ import (
 func Pager(noPager bool, pagerCmd ...string) (w io.Writer, cleanup func() error) {
 	cleanup = func() error { return nil }
 
-	if noPager || !isTTY() {
+	if noPager || !IsTTY() {
 		return os.Stdout, cleanup
 	}
 
@@ -84,7 +84,8 @@ func Pager(noPager bool, pagerCmd ...string) (w io.Writer, cleanup func() error)
 	return stdin, cleanup
 }
 
-func isTTY() bool {
+// IsTTY reports whether stdout is connected to a terminal.
+func IsTTY() bool {
 	if isatty.IsTerminal(os.Stdout.Fd()) {
 		return true
 	}
