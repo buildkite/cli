@@ -98,7 +98,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	}
 
 	tty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
-	snapshotLines := []string{"Creating snapshot of working tree..."}
+	snapshotOutput := []string{"Creating snapshot of working tree..."}
 
 	var opts []preflight.SnapshotOption
 	if globals.EnableDebug() {
@@ -112,9 +112,9 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			"Ensure you have push access to the remote repository",
 		)
 	}
-	snapshotLines = append(snapshotLines, snapshotLinesForResult(result)...)
-	snapshotLines = append(snapshotLines, "")
-	snapshotLines = append(snapshotLines, fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name))
+	snapshotOutput = append(snapshotOutput, snapshotLines(result)...)
+	snapshotOutput = append(snapshotOutput, "")
+	snapshotOutput = append(snapshotOutput, fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name))
 	build, _, err := f.RestAPIClient.Builds.Create(ctx, resolvedPipeline.Org, resolvedPipeline.Name, buildkite.CreateBuild{
 		Message: fmt.Sprintf("Preflight %s", preflightID),
 		Commit:  result.Commit,
@@ -128,7 +128,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	}
 
 	renderer := newRenderer(os.Stdout, tty, resolvedPipeline.Name, build.Number)
-	for _, line := range snapshotLines {
+	for _, line := range snapshotOutput {
 		renderer.appendSnapshotLine(line)
 	}
 	renderer.appendSnapshotLine(fmt.Sprintf("Build:  %s", build.WebURL))

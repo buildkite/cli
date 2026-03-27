@@ -56,7 +56,7 @@ func (r *ttyRenderer) appendSnapshotLine(line string) {
 }
 
 func (r *ttyRenderer) setSnapshot(result *internalpreflight.SnapshotResult) {
-	r.snapshotRegion.SetLines(snapshotLinesForResult(result))
+	r.snapshotRegion.SetLines(snapshotLines(result))
 }
 
 func (r *ttyRenderer) renderStatus(status watch.BuildStatus, buildState string) error {
@@ -108,7 +108,7 @@ func (r *plainRenderer) appendSnapshotLine(line string) {
 }
 
 func (r *plainRenderer) setSnapshot(result *internalpreflight.SnapshotResult) {
-	for _, line := range snapshotLinesForResult(result) {
+	for _, line := range snapshotLines(result) {
 		fmt.Fprintln(r.stdout, line)
 	}
 }
@@ -156,7 +156,7 @@ func (r *plainRenderer) renderFinalFailures(failedJobs watch.FailedJobs) {
 	}
 }
 
-func snapshotLinesForResult(result *internalpreflight.SnapshotResult) []string {
+func snapshotLines(result *internalpreflight.SnapshotResult) []string {
 	lines := []string{
 		fmt.Sprintf("Commit: %s", result.Commit[:10]),
 		fmt.Sprintf("Ref:    %s", result.Ref),
