@@ -42,17 +42,21 @@ func NewResult(build buildkite.Build, hardFailedJobs []buildkite.Job) Result {
 
 func (r Result) Error() error {
 	switch r.kind {
+	case resultCompletedPass:
+		return nil
 	case resultCompletedFailure:
 		return bkErrors.NewPreflightCompletedFailureError(nil, fmt.Sprintf("preflight build %s", r.buildState))
 	case resultActiveFailure:
 		return bkErrors.NewPreflightIncompleteFailureError(nil, "preflight build has active failures")
 	case resultUnknown:
 		return bkErrors.NewPreflightUnknownError(nil,
-			fmt.Sprintf("unknown preflight build state %q", r.buildState),
+			fmt.Sprintf("preflight build is %qs", r.buildState),
+		)
+	default:
+		return bkErrors.NewInternalError(nil,
+			fmt.Sprintf("unknown preflight result type %d", r.kind),
 			"This is likely a bug",
 			"Report to Buildkite",
 		)
-	default:
-		return nil
 	}
 }

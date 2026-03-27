@@ -1,6 +1,7 @@
 package preflight
 
 import (
+	"strings"
 	"testing"
 
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
@@ -58,11 +59,13 @@ func TestResultError(t *testing.T) {
 		result   Result
 		wantCode int
 		wantErr  bool
+		wantText string
 	}{
 		{name: "clean pass", result: Result{kind: resultCompletedPass, buildState: "passed"}, wantCode: bkErrors.ExitCodeSuccess},
 		{name: "completed failure", result: Result{kind: resultCompletedFailure, buildState: "failed"}, wantCode: bkErrors.ExitCodePreflightCompletedFailure, wantErr: true},
 		{name: "active failure", result: Result{kind: resultActiveFailure, buildState: "running"}, wantCode: bkErrors.ExitCodePreflightActiveFailure, wantErr: true},
-		{name: "unknown state", result: Result{kind: resultUnknown, buildState: "mystery"}, wantCode: bkErrors.ExitCodePreflightUnknown, wantErr: true},
+		{name: "unknown state", result: Result{kind: resultUnknown, buildState: "passing"}, wantCode: bkErrors.ExitCodePreflightUnknown, wantErr: true, wantText: `preflight build is passing`},
+		{name: "unknown result kind", result: Result{kind: resultKind(99), buildState: "passed"}, wantCode: bkErrors.ExitCodeInternalError, wantErr: true, wantText: "unknown preflight result type 99"},
 	}
 
 	for _, tt := range tests {
@@ -76,6 +79,9 @@ func TestResultError(t *testing.T) {
 			}
 			if code := bkErrors.GetExitCodeForError(err); code != tt.wantCode {
 				t.Fatalf("Result.Error() exit code = %d, want %d", code, tt.wantCode)
+			}
+			if tt.wantText != "" && !strings.Contains(err.Error(), tt.wantText) {
+				t.Fatalf("Result.Error() text = %q, want substring %q", err.Error(), tt.wantText)
 			}
 		})
 	}
