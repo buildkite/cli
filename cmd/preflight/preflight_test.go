@@ -1,6 +1,7 @@
 package preflight
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -259,8 +261,72 @@ func TestPreflightCmd_Run(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
-		if !strings.Contains(err.Error(), "preflight build failed") {
-			t.Errorf("expected 'preflight build failed', got: %v", err)
+		if !strings.Contains(err.Error(), "preflight completed with failure: build is failed") {
+			t.Errorf("expected completed failure error, got: %v", err)
+		}
+	})
+
+	t.Run("returns user aborted error when interrupted while watching", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		originalNotifyContext := notifyContext
+		t.Cleanup(func() { notifyContext = originalNotifyContext })
+
+		watchCtx, cancelWatch := context.WithCancel(context.Background())
+		notifyContext = func(context.Context, ...os.Signal) (context.Context, context.CancelFunc) {
+			return watchCtx, cancelWatch
+		}
+
+		var buildCancelRequests atomic.Int32
+		var pollCount atomic.Int32
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			switch {
+			case r.Method == "PUT" && strings.Contains(r.URL.Path, "/builds/1/cancel"):
+				buildCancelRequests.Add(1)
+				json.NewEncoder(w).Encode(buildkite.Build{Number: 1, State: "canceling"})
+				return
+			case r.Method == "POST" && strings.Contains(r.URL.Path, "/builds"):
+				json.NewEncoder(w).Encode(buildkite.Build{
+					Number: 1,
+					State:  "scheduled",
+					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
+				})
+				return
+			case r.Method == "GET" && strings.Contains(r.URL.Path, "/builds/1"):
+				if pollCount.Add(1) == 1 {
+					cancelWatch()
+				}
+				json.NewEncoder(w).Encode(buildkite.Build{Number: 1, State: "running"})
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01}
+		err := cmd.Run(nil, stubGlobals{})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !bkErrors.IsUserAborted(err) {
+			t.Fatalf("expected user aborted error, got %T: %v", err, err)
+		}
+		if code := bkErrors.GetExitCodeForError(err); code != bkErrors.ExitCodeUserAbortedError {
+			t.Fatalf("expected exit code %d, got %d", bkErrors.ExitCodeUserAbortedError, code)
+		}
+		if pollCount.Load() == 0 {
+			t.Fatal("expected at least one build poll before interrupt")
+		}
+		if buildCancelRequests.Load() != 1 {
+			t.Fatalf("expected one build cancel request, got %d", buildCancelRequests.Load())
 		}
 	})
 

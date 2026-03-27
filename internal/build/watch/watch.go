@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	buildstate "github.com/buildkite/cli/v3/internal/build/state"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
@@ -20,16 +21,6 @@ const (
 // StatusFunc is called on each successful poll with the latest build state.
 // Returning an error aborts the watch loop and propagates that error to the caller.
 type StatusFunc func(b buildkite.Build) error
-
-// IsTerminalBuildState returns true if the build state is a terminal state.
-func IsTerminalBuildState(state string) bool {
-	switch state {
-	case "passed", "failed", "canceled", "skipped", "not_run":
-		return true
-	default:
-		return false
-	}
-}
 
 // WatchBuild polls a build until it reaches a terminal state (FinishedAt != nil).
 // It calls onStatus after each successful poll so callers can render progress.
@@ -69,7 +60,7 @@ func WatchBuild(
 				}
 			}
 
-			if b.FinishedAt != nil || IsTerminalBuildState(b.State) {
+			if b.FinishedAt != nil || buildstate.IsTerminal(buildstate.State(b.State)) {
 				return b, nil
 			}
 		}

@@ -34,6 +34,18 @@ var (
 
 	// ErrUserAborted indicates the user has canceled an operation
 	ErrUserAborted = errors.New("user aborted")
+
+	// ErrPreflightCompletedFailure indicates a preflight build reached a terminal failed outcome.
+	ErrPreflightCompletedFailure = errors.New("preflight completed with failure")
+
+	// ErrPreflightIncompleteFailure indicates a preflight build has observed failures but is not terminal yet.
+	ErrPreflightIncompleteFailure = errors.New("preflight incomplete (failing)")
+
+	// ErrPreflightIncomplete indicates a preflight build is still in progress.
+	ErrPreflightIncomplete = errors.New("preflight incomplete")
+
+	// ErrPreflightUnknown indicates a preflight build returned an unknown result.
+	ErrPreflightUnknown = errors.New("preflight result unknown")
 )
 
 // Error represents a CLI error with context
@@ -209,6 +221,26 @@ func NewUserAbortedError(err error, details string, suggestions ...string) error
 	return NewError(err, ErrUserAborted, details, suggestions...)
 }
 
+// NewPreflightCompletedFailureError creates a new completed preflight failure error.
+func NewPreflightCompletedFailureError(err error, details string, suggestions ...string) error {
+	return NewError(err, ErrPreflightCompletedFailure, details, suggestions...)
+}
+
+// NewPreflightIncompleteFailureError creates a new active preflight failure error.
+func NewPreflightIncompleteFailureError(err error, details string, suggestions ...string) error {
+	return NewError(err, ErrPreflightIncompleteFailure, details, suggestions...)
+}
+
+// NewPreflightIncompleteError creates a new incomplete preflight error.
+func NewPreflightIncompleteError(err error, details string, suggestions ...string) error {
+	return NewError(err, ErrPreflightIncomplete, details, suggestions...)
+}
+
+// NewPreflightUnknownError creates a new unknown preflight result error.
+func NewPreflightUnknownError(err error, details string, suggestions ...string) error {
+	return NewError(err, ErrPreflightUnknown, details, suggestions...)
+}
+
 // IsNotFound returns true if the error indicates a resource was not found
 func IsNotFound(err error) bool {
 	return errors.Is(err, ErrResourceNotFound)
@@ -237,6 +269,26 @@ func IsPermissionDeniedError(err error) bool {
 // IsConfigurationError returns true if the error indicates a configuration issue
 func IsConfigurationError(err error) bool {
 	return errors.Is(err, ErrConfiguration)
+}
+
+// IsPreflightCompletedFailure returns true if the error indicates a terminal preflight failure.
+func IsPreflightCompletedFailure(err error) bool {
+	return errors.Is(err, ErrPreflightCompletedFailure)
+}
+
+// IsPreflightIncompleteFailure returns true if the error indicates an incomplete preflight failure.
+func IsPreflightIncompleteFailure(err error) bool {
+	return errors.Is(err, ErrPreflightIncompleteFailure)
+}
+
+// IsPreflightIncomplete returns true if the error indicates an incomplete preflight build.
+func IsPreflightIncomplete(err error) bool {
+	return errors.Is(err, ErrPreflightIncomplete)
+}
+
+// IsPreflightUnknown returns true if the error indicates an unknown preflight result.
+func IsPreflightUnknown(err error) bool {
+	return errors.Is(err, ErrPreflightUnknown)
 }
 
 // IsUserAborted returns true if the error indicates the user aborted the operation
