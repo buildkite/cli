@@ -95,8 +95,11 @@ type (
 		Watch    build.WatchCmd    `cmd:"" help:"Watch a build's progress in real-time."`
 	}
 	ClusterCmd struct {
-		List cluster.ListCmd `cmd:"" help:"List clusters." aliases:"ls"`
-		View cluster.ViewCmd `cmd:"" help:"View cluster information."`
+		List   cluster.ListCmd   `cmd:"" help:"List clusters." aliases:"ls"`
+		View   cluster.ViewCmd   `cmd:"" help:"View cluster information."`
+		Create cluster.CreateCmd `cmd:"" help:"Create a new cluster."`
+		Update cluster.UpdateCmd `cmd:"" help:"Update a cluster."`
+		Delete cluster.DeleteCmd `cmd:"" help:"Delete a cluster." aliases:"rm"`
 	}
 	SecretCmd struct {
 		List   secret.ListCmd   `cmd:"" help:"List secrets for a cluster." aliases:"ls"`
