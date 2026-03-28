@@ -6,10 +6,12 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"maps"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -17,9 +19,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/pkg/keyring"
+	"github.com/buildkite/cli/v3/pkg/oauth"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	git "github.com/go-git/go-git/v5"
 	"github.com/goccy/go-yaml"
@@ -139,8 +143,14 @@ func (conf *Config) APITokenForOrg(org string) string {
 
 	kr := keyring.New()
 	if kr.IsAvailable() {
-		if token, err := kr.Get(org); err == nil && token != "" {
-			return token
+		if session, err := kr.GetSession(org); err == nil && session != nil && session.AccessToken != "" {
+			refreshedSession, refreshErr := conf.refreshOAuthSession(org, kr, session)
+			if refreshedSession != nil && refreshedSession.AccessToken != "" {
+				if refreshErr != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to refresh OAuth token for %q: %v\n", org, refreshErr)
+				}
+				return refreshedSession.AccessToken
+			}
 		}
 	}
 
@@ -215,10 +225,31 @@ func (conf *Config) GetGraphQLEndpoint() string {
 func (conf *Config) RESTAPIEndpoint() string {
 	value := os.Getenv("BUILDKITE_REST_API_ENDPOINT")
 	if value != "" {
-		return value
+		return normaliseRESTAPIEndpoint(value)
 	}
 
 	return buildkite.DefaultBaseURL
+}
+
+func normaliseRESTAPIEndpoint(value string) string {
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return value
+	}
+
+	trimmedPath := strings.TrimRight(parsed.Path, "/")
+	if !strings.HasSuffix(trimmedPath, "/v2") {
+		return value
+	}
+
+	parsed.Path = strings.TrimSuffix(trimmedPath, "/v2")
+	if parsed.Path == "" {
+		parsed.Path = "/"
+	} else {
+		parsed.Path += "/"
+	}
+
+	return parsed.String()
 }
 
 func (conf *Config) PagerDisabled() bool {
@@ -543,4 +574,25 @@ func (conf *Config) writeUser() error {
 
 func (conf *Config) writeLocal() error {
 	return writeFileConfig(conf.fs, conf.localPath, conf.local)
+}
+
+func (conf *Config) refreshOAuthSession(org string, kr *keyring.Keyring, session *oauth.Session) (*oauth.Session, error) {
+	if session == nil || session.AccessToken == "" {
+		return nil, nil
+	}
+	if !session.NeedsRefresh(time.Now()) {
+		return session, nil
+	}
+
+	refreshedToken, err := oauth.RefreshAccessToken(context.Background(), &oauth.Config{Host: session.Host}, session.RefreshToken, session.Scope)
+	if err != nil {
+		return session, err
+	}
+
+	refreshedSession := session.Update(refreshedToken, time.Now())
+	if err := kr.SetSession(org, refreshedSession); err != nil {
+		return refreshedSession, err
+	}
+
+	return refreshedSession, nil
 }

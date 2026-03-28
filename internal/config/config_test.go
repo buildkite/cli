@@ -1,10 +1,14 @@
 package config
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 
+	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/spf13/afero"
 )
 
@@ -107,6 +111,33 @@ func TestConfig(t *testing.T) {
 		}
 		if conf.APITokenForOrg("nonexistent") != "" {
 			t.Errorf("expected empty token for nonexistent org, got %s", conf.APITokenForOrg("nonexistent"))
+		}
+	})
+
+	t.Run("RESTAPIEndpoint strips version suffix from env override", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/v2/organizations" {
+				t.Fatalf("request path = %q, want /v2/organizations", r.URL.Path)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[]`))
+		}))
+		defer server.Close()
+
+		setEnv(t, "BUILDKITE_REST_API_ENDPOINT", server.URL+"/v2")
+
+		conf := New(afero.NewMemMapFs(), nil)
+		client, err := buildkite.NewOpts(
+			buildkite.WithBaseURL(conf.RESTAPIEndpoint()),
+			buildkite.WithTokenAuth("bkua_test_token"),
+		)
+		if err != nil {
+			t.Fatalf("NewOpts returned error: %v", err)
+		}
+
+		if _, _, err := client.Organizations.List(context.Background(), nil); err != nil {
+			t.Fatalf("Organizations.List returned error: %v", err)
 		}
 	})
 

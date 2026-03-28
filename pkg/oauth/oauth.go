@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -19,6 +20,10 @@ import (
 
 const (
 	DefaultHost = "buildkite.com"
+	EnvClientID = "BUILDKITE_CLI_CLIENT_ID"
+	// LegacyEnvClientID preserves the older runtime override while builds migrate.
+	LegacyEnvClientID = "BUILDKITE_OAUTH_CLIENT_ID"
+	SessionVersion    = 1
 )
 
 // AllScopes is the complete set of Buildkite API token scopes. When no --scopes
@@ -155,11 +160,76 @@ type CallbackResult struct {
 
 // TokenResponse holds the token exchange response
 type TokenResponse struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	Scope       string `json:"scope"`
-	Error       string `json:"error,omitempty"`
-	ErrorDesc   string `json:"error_description,omitempty"`
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token,omitempty"`
+	TokenType    string `json:"token_type"`
+	Scope        string `json:"scope"`
+	ExpiresIn    int    `json:"expires_in,omitempty"`
+	Error        string `json:"error,omitempty"`
+	ErrorDesc    string `json:"error_description,omitempty"`
+}
+
+// Session holds a refreshable OAuth session persisted in the keychain.
+type Session struct {
+	Version      int       `json:"version"`
+	Host         string    `json:"host,omitempty"`
+	AccessToken  string    `json:"access_token"`
+	RefreshToken string    `json:"refresh_token,omitempty"`
+	TokenType    string    `json:"token_type,omitempty"`
+	Scope        string    `json:"scope,omitempty"`
+	ExpiresAt    time.Time `json:"expires_at,omitempty"`
+}
+
+// Session converts a token response into a persisted session.
+func (r *TokenResponse) Session(host string, now time.Time) *Session {
+	session := &Session{
+		Version:      SessionVersion,
+		Host:         host,
+		AccessToken:  r.AccessToken,
+		RefreshToken: r.RefreshToken,
+		TokenType:    r.TokenType,
+		Scope:        r.Scope,
+	}
+	if r.ExpiresIn > 0 {
+		session.ExpiresAt = now.UTC().Add(time.Duration(r.ExpiresIn) * time.Second)
+	}
+	return session
+}
+
+// Update returns a new session with the latest token response applied.
+func (s *Session) Update(tokenResp *TokenResponse, now time.Time) *Session {
+	refreshToken := s.RefreshToken
+	if tokenResp.RefreshToken != "" {
+		refreshToken = tokenResp.RefreshToken
+	}
+
+	updated := &Session{
+		Version:      SessionVersion,
+		Host:         s.Host,
+		AccessToken:  tokenResp.AccessToken,
+		RefreshToken: refreshToken,
+		TokenType:    tokenResp.TokenType,
+		Scope:        tokenResp.Scope,
+	}
+	if tokenResp.ExpiresIn > 0 {
+		updated.ExpiresAt = now.UTC().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
+	}
+	return updated
+}
+
+// CanRefresh reports whether the session has enough information to perform a refresh grant.
+func (s *Session) CanRefresh() bool {
+	return s != nil && s.RefreshToken != "" && !s.ExpiresAt.IsZero()
+}
+
+// NeedsRefresh reports whether the access token should be refreshed before use.
+func (s *Session) NeedsRefresh(now time.Time) bool {
+	if !s.CanRefresh() {
+		return false
+	}
+
+	// Refresh slightly early so commands don't race against expiry mid-request.
+	return !now.Before(s.ExpiresAt.Add(-time.Minute))
 }
 
 // Flow manages an OAuth authentication flow
@@ -172,17 +242,13 @@ type Flow struct {
 
 // NewFlow creates a new OAuth flow
 func NewFlow(cfg *Config) (*Flow, error) {
-	if cfg.Host == "" {
-		// Allow override via environment variable for local development
-		if envHost := os.Getenv("BUILDKITE_HOST"); envHost != "" {
-			cfg.Host = envHost
-		} else {
-			cfg.Host = DefaultHost
-		}
+	cfg.Host = resolveHost(cfg.Host)
+
+	clientID, err := resolveClientID(cfg.ClientID)
+	if err != nil {
+		return nil, err
 	}
-	if cfg.ClientID == "" {
-		cfg.ClientID = DefaultClientID
-	}
+	cfg.ClientID = clientID
 	if cfg.Scopes == "" {
 		cfg.Scopes = strings.Join(AllScopes, " ")
 	}
@@ -236,7 +302,7 @@ func (f *Flow) AuthorizationURL() string {
 		params.Set("organization_uuid", f.config.OrgUUID)
 	}
 
-	return fmt.Sprintf("https://%s/oauth/authorize?%s", f.config.Host, params.Encode())
+	return fmt.Sprintf("%s/oauth/authorize?%s", baseURL(f.config.Host), params.Encode())
 }
 
 // WaitForCallback waits for the OAuth callback and returns the authorization code
@@ -320,8 +386,6 @@ func (f *Flow) WaitForCallback(ctx context.Context) (*CallbackResult, error) {
 
 // ExchangeCode exchanges the authorization code for an access token
 func (f *Flow) ExchangeCode(ctx context.Context, code string) (*TokenResponse, error) {
-	tokenURL := fmt.Sprintf("https://%s/oauth/token", f.config.Host)
-
 	data := url.Values{
 		"grant_type":    {"authorization_code"},
 		"code":          {code},
@@ -329,6 +393,36 @@ func (f *Flow) ExchangeCode(ctx context.Context, code string) (*TokenResponse, e
 		"redirect_uri":  {f.config.CallbackURL},
 		"code_verifier": {f.codeVerifier},
 	}
+
+	return exchangeToken(ctx, f.config, data)
+}
+
+// RefreshAccessToken exchanges a refresh token for a new access token.
+func RefreshAccessToken(ctx context.Context, cfg *Config, refreshToken, scope string) (*TokenResponse, error) {
+	resolvedHost := resolveHost(cfg.Host)
+	clientID, err := resolveClientID(cfg.ClientID)
+	if err != nil {
+		return nil, err
+	}
+
+	data := url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {refreshToken},
+		"client_id":     {clientID},
+	}
+	if scope != "" {
+		data.Set("scope", scope)
+	}
+
+	requestCfg := *cfg
+	requestCfg.Host = resolvedHost
+	requestCfg.ClientID = clientID
+
+	return exchangeToken(ctx, &requestCfg, data)
+}
+
+func exchangeToken(ctx context.Context, cfg *Config, data url.Values) (*TokenResponse, error) {
+	tokenURL := fmt.Sprintf("%s/oauth/token", baseURL(cfg.Host))
 
 	req, err := http.NewRequestWithContext(ctx, "POST", tokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
@@ -364,6 +458,43 @@ func (f *Flow) ExchangeCode(ctx context.Context, code string) (*TokenResponse, e
 	}
 
 	return &tokenResp, nil
+}
+
+func resolveHost(host string) string {
+	if host != "" {
+		return host
+	}
+
+	if envHost := os.Getenv("BUILDKITE_HOST"); envHost != "" {
+		return envHost
+	}
+
+	return DefaultHost
+}
+
+func resolveClientID(explicit string) (string, error) {
+	if explicit != "" {
+		return explicit, nil
+	}
+	if envClientID := os.Getenv(EnvClientID); envClientID != "" {
+		return envClientID, nil
+	}
+	if legacyEnvClientID := os.Getenv(LegacyEnvClientID); legacyEnvClientID != "" {
+		return legacyEnvClientID, nil
+	}
+	if DefaultClientID != "" {
+		return DefaultClientID, nil
+	}
+
+	return "", errors.New("oauth client ID is not configured")
+}
+
+func baseURL(host string) string {
+	if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
+		return strings.TrimRight(host, "/")
+	}
+
+	return "https://" + host
 }
 
 // Close cleans up the OAuth flow resources
