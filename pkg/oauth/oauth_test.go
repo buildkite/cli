@@ -76,7 +76,6 @@ func TestNewFlow_DefaultsToAllScopes(t *testing.T) {
 		t.Fatal("expected scope parameter in URL")
 	}
 
-	// Verify all scopes are present
 	for _, s := range AllScopes {
 		if !strings.Contains(authURL, s) {
 			t.Errorf("expected scope %q in URL, got: %s", s, authURL)
@@ -101,8 +100,106 @@ func TestAuthorizationURL_UsesProvidedScopes(t *testing.T) {
 	if !strings.Contains(authURL, "scope=") {
 		t.Fatal("expected scope parameter in URL")
 	}
-	// Should use the provided scopes, not all scopes
 	if strings.Contains(authURL, "write_builds") {
 		t.Errorf("expected only provided scopes, but found write_builds in URL: %s", authURL)
+	}
+}
+
+func TestNewFlowUsesExplicitClientID(t *testing.T) {
+	t.Setenv(EnvClientID, "env-client")
+	t.Setenv(LegacyEnvClientID, "legacy-client")
+
+	flow, err := NewFlow(&Config{
+		ClientID:    "explicit-client",
+		CallbackURL: "http://127.0.0.1/callback",
+	})
+	if err != nil {
+		t.Fatalf("NewFlow returned error: %v", err)
+	}
+
+	if flow.config.ClientID != "explicit-client" {
+		t.Fatalf("expected explicit client ID, got %q", flow.config.ClientID)
+	}
+}
+
+func TestNewFlowUsesRuntimeClientIDOverride(t *testing.T) {
+	originalDefault := DefaultClientID
+	DefaultClientID = ""
+	t.Cleanup(func() {
+		DefaultClientID = originalDefault
+	})
+
+	t.Setenv(EnvClientID, "env-client")
+
+	flow, err := NewFlow(&Config{
+		CallbackURL: "http://127.0.0.1/callback",
+	})
+	if err != nil {
+		t.Fatalf("NewFlow returned error: %v", err)
+	}
+
+	if flow.config.ClientID != "env-client" {
+		t.Fatalf("expected runtime client ID override, got %q", flow.config.ClientID)
+	}
+}
+
+func TestNewFlowUsesLegacyRuntimeClientIDFallback(t *testing.T) {
+	originalDefault := DefaultClientID
+	DefaultClientID = ""
+	t.Cleanup(func() {
+		DefaultClientID = originalDefault
+	})
+
+	t.Setenv(EnvClientID, "")
+	t.Setenv(LegacyEnvClientID, "legacy-client")
+
+	flow, err := NewFlow(&Config{
+		CallbackURL: "http://127.0.0.1/callback",
+	})
+	if err != nil {
+		t.Fatalf("NewFlow returned error: %v", err)
+	}
+
+	if flow.config.ClientID != "legacy-client" {
+		t.Fatalf("expected legacy runtime client ID fallback, got %q", flow.config.ClientID)
+	}
+}
+
+func TestNewFlowUsesLinkerInjectedDefaultClientID(t *testing.T) {
+	originalDefault := DefaultClientID
+	DefaultClientID = "linked-client"
+	t.Cleanup(func() {
+		DefaultClientID = originalDefault
+	})
+
+	t.Setenv(EnvClientID, "")
+	t.Setenv(LegacyEnvClientID, "")
+
+	flow, err := NewFlow(&Config{
+		CallbackURL: "http://127.0.0.1/callback",
+	})
+	if err != nil {
+		t.Fatalf("NewFlow returned error: %v", err)
+	}
+
+	if flow.config.ClientID != "linked-client" {
+		t.Fatalf("expected linker-injected client ID, got %q", flow.config.ClientID)
+	}
+}
+
+func TestNewFlowErrorsWhenNoClientIDIsConfigured(t *testing.T) {
+	originalDefault := DefaultClientID
+	DefaultClientID = ""
+	t.Cleanup(func() {
+		DefaultClientID = originalDefault
+	})
+
+	t.Setenv(EnvClientID, "")
+	t.Setenv(LegacyEnvClientID, "")
+
+	if _, err := NewFlow(&Config{
+		CallbackURL: "http://127.0.0.1/callback",
+	}); err == nil {
+		t.Fatal("expected error when client ID is not configured")
 	}
 }
