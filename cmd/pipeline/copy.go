@@ -306,7 +306,7 @@ func (c *CopyCmd) runCopy(kongCtx *kong.Context, f *factory.Factory, source *bui
 
 // getClientForOrg creates a Buildkite client authenticated for the specified organization
 func (c *CopyCmd) getClientForOrg(f *factory.Factory, org string) (*buildkite.Client, error) {
-	token := f.Config.APITokenForOrg(org)
+	token := f.Config.RefreshedAPITokenForOrg(org)
 	if token == "" {
 		return nil, fmt.Errorf("no API token configured for organization %q. Run 'bk configure' to add it", org)
 	}

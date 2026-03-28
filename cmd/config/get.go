@@ -36,7 +36,7 @@ func (c *GetCmd) Run() error {
 		return err
 	}
 
-	f, err := factory.New()
+	f, err := factory.New(factory.WithoutAPIClients())
 	if err != nil {
 		return err
 	}

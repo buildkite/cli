@@ -7,6 +7,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/keyring"
+	"github.com/buildkite/cli/v3/pkg/oauth"
 )
 
 type LogoutCmd struct {
@@ -15,7 +16,7 @@ type LogoutCmd struct {
 }
 
 func (c *LogoutCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
+	f, err := factory.New(factory.WithDebug(globals.EnableDebug()), factory.WithoutAPIClients())
 	if err != nil {
 		return err
 	}
@@ -59,13 +60,41 @@ func (c *LogoutCmd) logoutOrg(f *factory.Factory) error {
 
 	kr := keyring.New()
 	if kr.IsAvailable() {
+		var currentSession *oauth.Session
+		currentSession, _ = kr.GetSession(org)
 		if err := kr.Delete(org); err != nil {
 			fmt.Printf("Warning: could not remove token from keychain: %v\n", err)
 		} else {
+			c.deleteSiblingOAuthSessions(f, kr, org, currentSession)
 			fmt.Println("Token removed from system keychain.")
 		}
 	}
 
 	fmt.Printf("Logged out of organization %q\n", org)
 	return nil
+}
+
+func (c *LogoutCmd) deleteSiblingOAuthSessions(f *factory.Factory, kr *keyring.Keyring, org string, session *oauth.Session) {
+	if session == nil || session.RefreshToken == "" {
+		return
+	}
+
+	for _, sibling := range f.Config.ConfiguredOrganizations() {
+		if sibling == "" || sibling == org {
+			continue
+		}
+
+		siblingSession, err := kr.GetSession(sibling)
+		if err != nil || siblingSession == nil {
+			continue
+		}
+		if siblingSession.Host != session.Host || siblingSession.ClientID != session.ClientID {
+			continue
+		}
+		if siblingSession.RefreshToken != session.RefreshToken || siblingSession.AccessToken != session.AccessToken {
+			continue
+		}
+
+		_ = kr.Delete(sibling)
+	}
 }
