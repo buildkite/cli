@@ -126,14 +126,32 @@ func (conf *Config) SelectOrganization(org string, inGitRepo bool) error {
 }
 
 // APIToken gets the API token configured for the currently selected organization.
-// Precedence: environment variable > keyring > config file (legacy, read-only with warning)
+// Precedence: environment variable > keyring > config file (legacy, read-only with warning).
+// This is a side-effect-free lookup and does not refresh OAuth sessions.
 func (conf *Config) APIToken() string {
-	return conf.APITokenForOrg(conf.OrganizationSlug())
+	return conf.apiTokenForOrg(conf.OrganizationSlug(), false)
 }
 
 // APITokenForOrg gets the API token for a specific organization.
-// Precedence: environment variable > keyring > config file (legacy, read-only with warning)
+// Precedence: environment variable > keyring > config file (legacy, read-only with warning).
+// This is a side-effect-free lookup and does not refresh OAuth sessions.
 func (conf *Config) APITokenForOrg(org string) string {
+	return conf.apiTokenForOrg(org, false)
+}
+
+// RefreshedAPIToken gets the API token for the currently selected organization,
+// refreshing an OAuth session first when needed.
+func (conf *Config) RefreshedAPIToken() string {
+	return conf.apiTokenForOrg(conf.OrganizationSlug(), true)
+}
+
+// RefreshedAPITokenForOrg gets the API token for a specific organization,
+// refreshing an OAuth session first when needed.
+func (conf *Config) RefreshedAPITokenForOrg(org string) string {
+	return conf.apiTokenForOrg(org, true)
+}
+
+func (conf *Config) apiTokenForOrg(org string, refresh bool) string {
 	if token := os.Getenv("BUILDKITE_API_TOKEN"); token != "" {
 		envTokenWarningOnce.Do(func() {
 			fmt.Fprintln(os.Stderr, "Warning: using BUILDKITE_API_TOKEN environment variable for authentication.")
@@ -144,12 +162,27 @@ func (conf *Config) APITokenForOrg(org string) string {
 	kr := keyring.New()
 	if kr.IsAvailable() {
 		if session, err := kr.GetSession(org); err == nil && session != nil && session.AccessToken != "" {
-			refreshedSession, refreshErr := conf.refreshOAuthSession(org, kr, session)
-			if refreshedSession != nil && refreshedSession.AccessToken != "" {
-				if refreshErr != nil {
-					fmt.Fprintf(os.Stderr, "Warning: failed to refresh OAuth token for %q: %v\n", org, refreshErr)
+			if refresh {
+				now := time.Now()
+				if !session.CanRefresh() {
+					if !session.ExpiresAt.IsZero() && !now.Before(session.ExpiresAt) {
+						return ""
+					}
+					return session.AccessToken
 				}
-				return refreshedSession.AccessToken
+				refreshedSession, refreshErr := conf.refreshOAuthSession(org, kr, session, now)
+				if refreshedSession != nil && refreshedSession.AccessToken != "" {
+					if refreshErr != nil {
+						fmt.Fprintf(os.Stderr, "Warning: failed to refresh OAuth token for %q: %v\n", org, refreshErr)
+					}
+					return refreshedSession.AccessToken
+				}
+			} else {
+				now := time.Now()
+				if !session.ExpiresAt.IsZero() && !now.Before(session.ExpiresAt) {
+					return ""
+				}
+				return session.AccessToken
 			}
 		}
 	}
@@ -166,6 +199,14 @@ func (conf *Config) APITokenForOrg(org string) string {
 	}
 
 	return ""
+}
+
+func (conf *Config) ShouldFallbackToSelectedOrg(org string) bool {
+	if org == "" || org == conf.OrganizationSlug() {
+		return false
+	}
+
+	return conf.APITokenForOrg(org) == ""
 }
 
 // HasStoredTokenForOrg reports whether a token is stored for org in keyring
@@ -576,23 +617,48 @@ func (conf *Config) writeLocal() error {
 	return writeFileConfig(conf.fs, conf.localPath, conf.local)
 }
 
-func (conf *Config) refreshOAuthSession(org string, kr *keyring.Keyring, session *oauth.Session) (*oauth.Session, error) {
+func (conf *Config) refreshOAuthSession(org string, kr *keyring.Keyring, session *oauth.Session, now time.Time) (*oauth.Session, error) {
 	if session == nil || session.AccessToken == "" {
 		return nil, nil
 	}
-	if !session.NeedsRefresh(time.Now()) {
+	if !session.NeedsRefresh(now) {
 		return session, nil
 	}
 
-	refreshedToken, err := oauth.RefreshAccessToken(context.Background(), &oauth.Config{Host: session.Host}, session.RefreshToken, session.Scope)
+	refreshedToken, err := oauth.RefreshAccessToken(context.Background(), &oauth.Config{Host: session.Host, ClientID: session.ClientID}, session.RefreshToken, session.Scope)
 	if err != nil {
+		if !session.ExpiresAt.IsZero() && !now.Before(session.ExpiresAt) {
+			return nil, err
+		}
 		return session, err
 	}
 
-	refreshedSession := session.Update(refreshedToken, time.Now())
+	refreshedSession := session.Update(refreshedToken, now)
 	if err := kr.SetSession(org, refreshedSession); err != nil {
 		return refreshedSession, err
 	}
+	conf.propagateOAuthSessionUpdate(kr, org, session, refreshedSession)
 
 	return refreshedSession, nil
+}
+
+func (conf *Config) propagateOAuthSessionUpdate(kr *keyring.Keyring, sourceOrg string, previous, updated *oauth.Session) {
+	for _, org := range conf.ConfiguredOrganizations() {
+		if org == "" || org == sourceOrg {
+			continue
+		}
+
+		sibling, err := kr.GetSession(org)
+		if err != nil || sibling == nil {
+			continue
+		}
+		if sibling.Host != previous.Host || sibling.ClientID != previous.ClientID {
+			continue
+		}
+		if sibling.RefreshToken != previous.RefreshToken || sibling.AccessToken != previous.AccessToken {
+			continue
+		}
+
+		_ = kr.SetSession(org, updated)
+	}
 }

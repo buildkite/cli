@@ -26,30 +26,30 @@ func ValidateConfigurationForOrg(conf *config.Config, commandPath, org string) e
 }
 
 func validateConfiguration(conf *config.Config, commandPath, orgOverride string) error {
+	// Skip token checks for configure commands before consulting auth state.
+	if strings.HasPrefix(commandPath, "configure") {
+		return nil
+	}
+
+	// Skip token checks for commands that don't need it.
+	for _, exemptCmd := range CommandsNotRequiringToken {
+		if strings.HasSuffix(commandPath, exemptCmd) {
+			return nil
+		}
+	}
+
 	org := conf.OrganizationSlug()
 	token := conf.APIToken()
 	if orgOverride != "" {
 		org = orgOverride
-		if t := conf.APITokenForOrg(org); t != "" {
-			token = t
+		token = conf.APITokenForOrg(org)
+		if token == "" && conf.ShouldFallbackToSelectedOrg(org) {
+			token = conf.APIToken()
 		}
 	}
 
 	missingToken := token == ""
 	missingOrg := org == ""
-
-	// Skip token check for all configure commands
-	if strings.HasPrefix(commandPath, "configure") {
-		return nil
-	}
-
-	// Skip token check for commands that don't need it
-	for _, exemptCmd := range CommandsNotRequiringToken {
-		// Check if the command path ends with the exempt command pattern
-		if strings.HasSuffix(commandPath, exemptCmd) {
-			return nil // Skip validation for exempt commands
-		}
-	}
 
 	switch {
 	case missingToken && missingOrg:

@@ -24,7 +24,7 @@ Examples:
 }
 
 func (c *ListCmd) Run() error {
-	f, err := factory.New()
+	f, err := factory.New(factory.WithoutAPIClients())
 	if err != nil {
 		return err
 	}
