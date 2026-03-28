@@ -3,6 +3,7 @@ package oauth
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestResolveScopes(t *testing.T) {
@@ -201,5 +202,77 @@ func TestNewFlowErrorsWhenNoClientIDIsConfigured(t *testing.T) {
 		CallbackURL: "http://127.0.0.1/callback",
 	}); err == nil {
 		t.Fatal("expected error when client ID is not configured")
+	}
+}
+
+func TestTokenResponseSessionPersistsClientID(t *testing.T) {
+	now := time.Date(2026, time.March, 28, 12, 0, 0, 0, time.UTC)
+
+	session := (&TokenResponse{
+		AccessToken:  "bkua_access",
+		RefreshToken: "bkrt_refresh",
+		TokenType:    "Bearer",
+		Scope:        "read_user",
+		ExpiresIn:    3600,
+	}).Session("buildkite.localhost", "buildkite-cli", now)
+
+	if session.ClientID != "buildkite-cli" {
+		t.Fatalf("ClientID = %q, want buildkite-cli", session.ClientID)
+	}
+	if got, want := session.ExpiresAt, now.Add(time.Hour); !got.Equal(want) {
+		t.Fatalf("ExpiresAt = %s, want %s", got, want)
+	}
+}
+
+func TestSessionUpdateKeepsSessionRefreshableWhenExpiresInIsOmitted(t *testing.T) {
+	now := time.Date(2026, time.March, 28, 12, 0, 0, 0, time.UTC)
+	originalExpiry := now.Add(-2 * time.Hour)
+
+	updated := (&Session{
+		Version:      SessionVersion,
+		Host:         "buildkite.localhost",
+		ClientID:     "buildkite-cli",
+		AccessToken:  "bkua_old_access",
+		RefreshToken: "bkrt_old_refresh",
+		TokenType:    "Bearer",
+		Scope:        "read_user",
+		ExpiresAt:    originalExpiry,
+	}).Update(&TokenResponse{
+		AccessToken: "bkua_new_access",
+	}, now)
+
+	if updated.ClientID != "buildkite-cli" {
+		t.Fatalf("ClientID = %q, want buildkite-cli", updated.ClientID)
+	}
+	if updated.RefreshToken != "bkrt_old_refresh" {
+		t.Fatalf("RefreshToken = %q, want bkrt_old_refresh", updated.RefreshToken)
+	}
+	if updated.Scope != "read_user" {
+		t.Fatalf("Scope = %q, want read_user", updated.Scope)
+	}
+	if updated.TokenType != "Bearer" {
+		t.Fatalf("TokenType = %q, want Bearer", updated.TokenType)
+	}
+	if !updated.ExpiresAt.IsZero() {
+		t.Fatalf("ExpiresAt = %s, want zero value when expires_in is omitted", updated.ExpiresAt)
+	}
+	if !updated.CanRefresh() {
+		t.Fatal("expected updated session to remain refreshable")
+	}
+	if !updated.NeedsRefresh(now) {
+		t.Fatal("expected updated session to refresh again when expiry is unknown")
+	}
+}
+
+func TestSessionWithoutExpiryStillRefreshes(t *testing.T) {
+	session := &Session{
+		RefreshToken: "bkrt_refresh",
+	}
+
+	if !session.CanRefresh() {
+		t.Fatal("expected session with refresh token to be refreshable")
+	}
+	if !session.NeedsRefresh(time.Now()) {
+		t.Fatal("expected session without expiry to refresh before use")
 	}
 }

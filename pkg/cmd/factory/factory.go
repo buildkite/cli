@@ -21,6 +21,7 @@ var userAgent string
 type Factory struct {
 	Config        *config.Config
 	GitRepository *git.Repository
+	Token         string
 	GraphQLClient graphql.Client
 	RestAPIClient *buildkite.Client
 	Version       string
@@ -35,8 +36,9 @@ type Factory struct {
 type FactoryOpt func(*factoryConfig)
 
 type factoryConfig struct {
-	debug       bool
-	orgOverride string
+	debug            bool
+	orgOverride      string
+	withoutAPIClient bool
 }
 
 // WithDebug enables debug output for REST API calls
@@ -52,6 +54,14 @@ func WithDebug(debug bool) FactoryOpt {
 func WithOrgOverride(org string) FactoryOpt {
 	return func(c *factoryConfig) {
 		c.orgOverride = org
+	}
+}
+
+// WithoutAPIClients skips token lookup and API client construction.
+// Use this for commands that only need local config or repository context.
+func WithoutAPIClients() FactoryOpt {
+	return func(c *factoryConfig) {
+		c.withoutAPIClient = true
 	}
 }
 
@@ -148,12 +158,26 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 	}
 
 	conf := config.New(nil, repo)
+	if cfg.withoutAPIClient {
+		return &Factory{
+			Config:        conf,
+			GitRepository: repo,
+			Version:       version.Version,
+			NoPager:       conf.PagerDisabled(),
+			Quiet:         conf.Quiet(),
+			NoInput:       conf.NoInput(),
+			Debug:         cfg.debug,
+		}, nil
+	}
 
-	token := conf.APIToken()
+	token := ""
 	if cfg.orgOverride != "" {
-		if t := conf.APITokenForOrg(cfg.orgOverride); t != "" {
-			token = t
+		token = conf.RefreshedAPITokenForOrg(cfg.orgOverride)
+		if token == "" && conf.ShouldFallbackToSelectedOrg(cfg.orgOverride) {
+			token = conf.RefreshedAPIToken()
 		}
+	} else {
+		token = conf.RefreshedAPIToken()
 	}
 
 	// Build client options
@@ -183,6 +207,7 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 	return &Factory{
 		Config:        conf,
 		GitRepository: repo,
+		Token:         token,
 		GraphQLClient: graphql.NewClient(conf.GetGraphQLEndpoint(), graphqlHTTPClient),
 		RestAPIClient: buildkiteClient,
 		Version:       version.Version,

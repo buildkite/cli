@@ -57,7 +57,7 @@ func (c *SetCmd) Run() error {
 		return fmt.Errorf("%s can only be set in user config (not --local)", key)
 	}
 
-	f, err := factory.New()
+	f, err := factory.New(factory.WithoutAPIClients())
 	if err != nil {
 		return err
 	}

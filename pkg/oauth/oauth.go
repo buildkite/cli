@@ -32,6 +32,8 @@ const (
 //
 // Reference: https://buildkite.com/docs/apis/managing-api-tokens
 var AllScopes = []string{
+	"graphql",
+
 	// CI/CD
 	"read_agents",
 	"read_artifacts",
@@ -39,6 +41,7 @@ var AllScopes = []string{
 	"read_builds",
 	"read_clusters",
 	"read_job_env",
+	"read_notification_services",
 	"read_pipeline_templates",
 	"read_pipelines",
 	"read_rules",
@@ -47,6 +50,7 @@ var AllScopes = []string{
 	"write_build_logs",
 	"write_builds",
 	"write_clusters",
+	"write_notification_services",
 	"write_pipeline_templates",
 	"write_pipelines",
 	"write_rules",
@@ -173,6 +177,7 @@ type TokenResponse struct {
 type Session struct {
 	Version      int       `json:"version"`
 	Host         string    `json:"host,omitempty"`
+	ClientID     string    `json:"client_id,omitempty"`
 	AccessToken  string    `json:"access_token"`
 	RefreshToken string    `json:"refresh_token,omitempty"`
 	TokenType    string    `json:"token_type,omitempty"`
@@ -181,10 +186,11 @@ type Session struct {
 }
 
 // Session converts a token response into a persisted session.
-func (r *TokenResponse) Session(host string, now time.Time) *Session {
+func (r *TokenResponse) Session(host, clientID string, now time.Time) *Session {
 	session := &Session{
 		Version:      SessionVersion,
 		Host:         host,
+		ClientID:     clientID,
 		AccessToken:  r.AccessToken,
 		RefreshToken: r.RefreshToken,
 		TokenType:    r.TokenType,
@@ -206,10 +212,11 @@ func (s *Session) Update(tokenResp *TokenResponse, now time.Time) *Session {
 	updated := &Session{
 		Version:      SessionVersion,
 		Host:         s.Host,
+		ClientID:     s.ClientID,
 		AccessToken:  tokenResp.AccessToken,
 		RefreshToken: refreshToken,
-		TokenType:    tokenResp.TokenType,
-		Scope:        tokenResp.Scope,
+		TokenType:    firstNonEmpty(tokenResp.TokenType, s.TokenType),
+		Scope:        firstNonEmpty(tokenResp.Scope, s.Scope),
 	}
 	if tokenResp.ExpiresIn > 0 {
 		updated.ExpiresAt = now.UTC().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
@@ -219,13 +226,16 @@ func (s *Session) Update(tokenResp *TokenResponse, now time.Time) *Session {
 
 // CanRefresh reports whether the session has enough information to perform a refresh grant.
 func (s *Session) CanRefresh() bool {
-	return s != nil && s.RefreshToken != "" && !s.ExpiresAt.IsZero()
+	return s != nil && s.RefreshToken != ""
 }
 
 // NeedsRefresh reports whether the access token should be refreshed before use.
 func (s *Session) NeedsRefresh(now time.Time) bool {
 	if !s.CanRefresh() {
 		return false
+	}
+	if s.ExpiresAt.IsZero() {
+		return true
 	}
 
 	// Refresh slightly early so commands don't race against expiry mid-request.
@@ -495,6 +505,16 @@ func baseURL(host string) string {
 	}
 
 	return "https://" + host
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+
+	return ""
 }
 
 // Close cleans up the OAuth flow resources
