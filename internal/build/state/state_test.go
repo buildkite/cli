@@ -36,7 +36,7 @@ func TestIsIncomplete(t *testing.T) {
 		state State
 		want  bool
 	}{
-		{name: "scheduled", state: Scheduled, want: false},
+		{name: "scheduled", state: Scheduled, want: true},
 		{name: "running", state: Running, want: true},
 		{name: "blocked", state: Blocked, want: true},
 		{name: "canceling", state: Canceling, want: true},

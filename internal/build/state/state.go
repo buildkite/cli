@@ -26,7 +26,7 @@ func IsTerminal(state State) bool {
 
 func IsIncomplete(state State) bool {
 	switch state {
-	case Running, Blocked, Canceling:
+	case Scheduled, Running, Blocked, Canceling:
 		return true
 	default:
 		return false

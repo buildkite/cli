@@ -43,6 +43,11 @@ func TestResult(t *testing.T) {
 			want:  Result{kind: resultIncomplete, buildState: "running"},
 		},
 		{
+			name:  "scheduled build is incomplete",
+			build: buildkite.Build{State: "scheduled"},
+			want:  Result{kind: resultIncomplete, buildState: "scheduled"},
+		},
+		{
 			name:  "blocked build is incomplete",
 			build: buildkite.Build{State: "blocked"},
 			want:  Result{kind: resultIncomplete, buildState: "blocked"},
