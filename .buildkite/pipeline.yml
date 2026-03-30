@@ -18,7 +18,7 @@ steps:
       - go run github.com/nikolaydubina/go-cover-treemap@latest -coverprofile cover.out > cover-tree.svg
       - echo '<details><summary>Coverage tree map</summary><img src="artifact://cover-tree.svg" alt="Test coverage tree map" width="70%"></details>' | buildkite-agent annotate --style "info"
     plugins:
-      -  docker-compose#v5.12.1:
+      - docker-compose#v5.12.1:
           config: .buildkite/docker-compose.yaml
           run: golangci-lint
           tty: true
@@ -28,9 +28,9 @@ steps:
 
   - label: ":terminal: build ({{matrix}})"
     matrix:
-          - "darwin"
-          - "linux"
-          - "windows"
+      - "darwin"
+      - "linux"
+      - "windows"
     artifact_paths:
       - dist/**/*
     secrets:

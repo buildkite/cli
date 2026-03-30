@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -26,10 +28,11 @@ import (
 )
 
 type PreflightCmd struct {
-	Pipeline  string  `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
-	Watch     bool    `help:"Watch the build until completion." default:"true" negatable:""`
-	Interval  float64 `help:"Polling interval in seconds when watching." default:"2"`
-	NoCleanup bool    `help:"Skip deleting the remote preflight branch after the build finishes."`
+	Pipeline  string   `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
+	Env       []string `help:"Set environment variables for the build (KEY=VALUE)" short:"e" sep:"none"`
+	Watch     bool     `help:"Watch the build until completion." default:"true" negatable:""`
+	Interval  float64  `help:"Polling interval in seconds when watching." default:"2"`
+	NoCleanup bool     `help:"Skip deleting the remote preflight branch after the build finishes."`
 }
 
 type renderStatusError struct {
@@ -49,7 +52,13 @@ func (c *PreflightCmd) Help() string {
 }
 
 func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
+	var factoryOpts []factory.FactoryOpt
+	factoryOpts = append(factoryOpts, factory.WithDebug(globals.EnableDebug()))
+	if org := pipelineOrgOverride(c.Pipeline); org != "" {
+		factoryOpts = append(factoryOpts, factory.WithOrgOverride(org))
+	}
+
+	f, err := factory.New(factoryOpts...)
 	if err != nil {
 		return bkErrors.NewInternalError(err, "failed to initialize CLI", "This is likely a bug", "Report to Buildkite")
 	}
@@ -115,13 +124,18 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	snapshotOutput = append(snapshotOutput, snapshotLines(result)...)
 	snapshotOutput = append(snapshotOutput, "")
 	snapshotOutput = append(snapshotOutput, fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name))
+	env := make(map[string]string, len(c.Env)+1)
+	for _, e := range c.Env {
+		key, value, _ := strings.Cut(e, "=")
+		env[key] = value
+	}
+	env["BUILDKITE_PREFLIGHT"] = "true"
+
 	build, _, err := f.RestAPIClient.Builds.Create(ctx, resolvedPipeline.Org, resolvedPipeline.Name, buildkite.CreateBuild{
 		Message: fmt.Sprintf("Preflight %s", preflightID),
 		Commit:  result.Commit,
 		Branch:  result.Branch,
-		Env: map[string]string{
-			"BUILDKITE_PREFLIGHT": "true",
-		},
+		Env:     env,
 	})
 	if err != nil {
 		return bkErrors.WrapAPIError(err, "creating preflight build")
@@ -196,4 +210,28 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 
 	buildResult := NewResult(finalBuild)
 	return buildResult.Error()
+}
+
+func pipelineOrgOverride(arg string) string {
+	if arg == "" {
+		return ""
+	}
+
+	if strings.Contains(arg, ":") {
+		parsedURL, err := url.Parse(arg)
+		if err != nil {
+			return ""
+		}
+		parts := strings.Split(parsedURL.Path, "/")
+		if len(parts) < 3 {
+			return ""
+		}
+		return parts[1]
+	}
+
+	org, _, ok := strings.Cut(arg, "/")
+	if !ok {
+		return ""
+	}
+	return org
 }

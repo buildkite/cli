@@ -103,7 +103,16 @@ func TestPreflightCmd_Run(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: false, Interval: 2}
+		cmd := &PreflightCmd{
+			Pipeline: "test-org/test-pipeline",
+			Env: []string{
+				"PREFLIGHT_SCENARIO=passed",
+				"FOO=BAR",
+				"BUILDKITE_PREFLIGHT=false",
+			},
+			Watch:    false,
+			Interval: 2,
+		}
 		err := cmd.Run(nil, stubGlobals{})
 		if err != nil {
 			t.Fatalf("expected no error, got: %v", err)
@@ -120,6 +129,62 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 		if gotReq.Env["BUILDKITE_PREFLIGHT"] != "true" {
 			t.Errorf("expected BUILDKITE_PREFLIGHT=true, got %#v", gotReq.Env)
+		}
+		if gotReq.Env["PREFLIGHT_SCENARIO"] != "passed" {
+			t.Errorf("expected PREFLIGHT_SCENARIO=passed, got %#v", gotReq.Env)
+		}
+		if gotReq.Env["FOO"] != "BAR" {
+			t.Errorf("expected FOO=BAR, got %#v", gotReq.Env)
+		}
+	})
+
+	t.Run("uses token for pipeline org when pipeline flag includes org slug", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		configDir := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", configDir)
+		if err := os.WriteFile(filepath.Join(configDir, "bk.yaml"), []byte(strings.TrimSpace(`
+selected_org: buildkite
+organizations:
+  buildkite:
+    api_token: buildkite-token
+  personal-plan-matt:
+    api_token: personal-token
+`)+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		var authHeader string
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == "POST" && strings.Contains(r.URL.Path, "/builds") {
+				authHeader = r.Header.Get("Authorization")
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(buildkite.Build{
+					ID:     "build-id-123",
+					Number: 1,
+					State:  "scheduled",
+					WebURL: "https://buildkite.com/personal-plan-matt/preflight-exit-code-examples/builds/1",
+				})
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		cmd := &PreflightCmd{Pipeline: "personal-plan-matt/preflight-exit-code-examples", Watch: false, Interval: 2}
+		if err := cmd.Run(nil, stubGlobals{}); err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		if authHeader != "Bearer personal-token" {
+			t.Fatalf("expected personal org token, got %q", authHeader)
 		}
 	})
 
