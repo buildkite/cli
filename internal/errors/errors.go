@@ -41,6 +41,9 @@ var (
 	// ErrPreflightActiveFailure indicates a preflight build has observed failures but is not terminal yet.
 	ErrPreflightActiveFailure = errors.New("preflight active with failure")
 
+	// ErrPreflightIncomplete indicates a preflight build is still in progress.
+	ErrPreflightIncomplete = errors.New("preflight incomplete")
+
 	// ErrPreflightUnknown indicates a preflight build returned an unknown result.
 	ErrPreflightUnknown = errors.New("preflight result unknown")
 )
@@ -228,6 +231,11 @@ func NewPreflightIncompleteFailureError(err error, details string, suggestions .
 	return NewError(err, ErrPreflightActiveFailure, details, suggestions...)
 }
 
+// NewPreflightIncompleteError creates a new incomplete preflight error.
+func NewPreflightIncompleteError(err error, details string, suggestions ...string) error {
+	return NewError(err, ErrPreflightIncomplete, details, suggestions...)
+}
+
 // NewPreflightUnknownError creates a new unknown preflight result error.
 func NewPreflightUnknownError(err error, details string, suggestions ...string) error {
 	return NewError(err, ErrPreflightUnknown, details, suggestions...)
@@ -271,6 +279,11 @@ func IsPreflightCompletedFailure(err error) bool {
 // IsPreflightActiveFailure returns true if the error indicates an active preflight failure.
 func IsPreflightActiveFailure(err error) bool {
 	return errors.Is(err, ErrPreflightActiveFailure)
+}
+
+// IsPreflightIncomplete returns true if the error indicates an incomplete preflight build.
+func IsPreflightIncomplete(err error) bool {
+	return errors.Is(err, ErrPreflightIncomplete)
 }
 
 // IsPreflightUnknown returns true if the error indicates an unknown preflight result.

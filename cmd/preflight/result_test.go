@@ -38,6 +38,21 @@ func TestResult(t *testing.T) {
 			want:       Result{kind: resultActiveFailure, buildState: "running"},
 		},
 		{
+			name:  "running build is incomplete",
+			build: buildkite.Build{State: "running"},
+			want:  Result{kind: resultIncomplete, buildState: "running"},
+		},
+		{
+			name:  "blocked build is incomplete",
+			build: buildkite.Build{State: "blocked"},
+			want:  Result{kind: resultIncomplete, buildState: "blocked"},
+		},
+		{
+			name:  "canceling build is incomplete",
+			build: buildkite.Build{State: "canceling"},
+			want:  Result{kind: resultIncomplete, buildState: "canceling"},
+		},
+		{
 			name:  "unknown state is unknown result",
 			build: buildkite.Build{State: "mystery"},
 			want:  Result{kind: resultUnknown, buildState: "mystery"},
@@ -64,6 +79,7 @@ func TestResultError(t *testing.T) {
 		{name: "clean pass", result: Result{kind: resultCompletedPass, buildState: "passed"}, wantCode: bkErrors.ExitCodeSuccess},
 		{name: "completed failure", result: Result{kind: resultCompletedFailure, buildState: "failed"}, wantCode: bkErrors.ExitCodePreflightCompletedFailure, wantErr: true},
 		{name: "active failure", result: Result{kind: resultActiveFailure, buildState: "running"}, wantCode: bkErrors.ExitCodePreflightActiveFailure, wantErr: true},
+		{name: "incomplete", result: Result{kind: resultIncomplete, buildState: "blocked"}, wantCode: bkErrors.ExitCodePreflightIncomplete, wantErr: true, wantText: `preflight build is blocked`},
 		{name: "unknown state", result: Result{kind: resultUnknown, buildState: "passing"}, wantCode: bkErrors.ExitCodePreflightUnknown, wantErr: true, wantText: `preflight build is passing`},
 		{name: "unknown result kind", result: Result{kind: resultKind(99), buildState: "passed"}, wantCode: bkErrors.ExitCodeInternalError, wantErr: true, wantText: "unknown preflight result type 99"},
 	}

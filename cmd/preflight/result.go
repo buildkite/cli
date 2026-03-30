@@ -14,6 +14,7 @@ const (
 	resultCompletedPass resultKind = iota
 	resultCompletedFailure
 	resultActiveFailure
+	resultIncomplete
 	resultUnknown
 )
 
@@ -37,6 +38,10 @@ func NewResult(build buildkite.Build, hardFailedJobs []buildkite.Job) Result {
 		return Result{kind: resultActiveFailure, buildState: build.State}
 	}
 
+	if buildstate.IsIncomplete(state) {
+		return Result{kind: resultIncomplete, buildState: build.State}
+	}
+
 	return Result{kind: resultUnknown, buildState: build.State}
 }
 
@@ -48,9 +53,11 @@ func (r Result) Error() error {
 		return bkErrors.NewPreflightCompletedFailureError(nil, fmt.Sprintf("preflight build %s", r.buildState))
 	case resultActiveFailure:
 		return bkErrors.NewPreflightIncompleteFailureError(nil, "preflight build has active failures")
+	case resultIncomplete:
+		return bkErrors.NewPreflightIncompleteError(nil, fmt.Sprintf("preflight build is %s", r.buildState))
 	case resultUnknown:
 		return bkErrors.NewPreflightUnknownError(nil,
-			fmt.Sprintf("preflight build is %qs", r.buildState),
+			fmt.Sprintf("preflight build is %s", r.buildState),
 		)
 	default:
 		return bkErrors.NewInternalError(nil,

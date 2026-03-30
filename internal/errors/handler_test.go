@@ -260,6 +260,11 @@ func TestHandler(t *testing.T) {
 				expectedCode: ExitCodePreflightActiveFailure,
 			},
 			{
+				name:         "preflight incomplete",
+				err:          NewPreflightIncompleteError(fmt.Errorf("incomplete"), ""),
+				expectedCode: ExitCodePreflightIncomplete,
+			},
+			{
 				name:         "preflight unknown result",
 				err:          NewPreflightUnknownError(fmt.Errorf("unknown"), ""),
 				expectedCode: ExitCodePreflightUnknown,

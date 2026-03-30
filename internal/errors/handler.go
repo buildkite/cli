@@ -22,7 +22,8 @@ const (
 	ExitCodeInternalError             = 8
 	ExitCodePreflightCompletedFailure = 9
 	ExitCodePreflightActiveFailure    = 10
-	ExitCodePreflightUnknown          = 11
+	ExitCodePreflightIncomplete       = 11
+	ExitCodePreflightUnknown          = 12
 	ExitCodeUserAbortedError          = 130 // Same as Ctrl+C in bash
 )
 
@@ -103,6 +104,8 @@ func (h *Handler) getExitCode(err error) int {
 		return ExitCodePreflightCompletedFailure
 	case IsPreflightActiveFailure(err):
 		return ExitCodePreflightActiveFailure
+	case IsPreflightIncomplete(err):
+		return ExitCodePreflightIncomplete
 	case IsPreflightUnknown(err):
 		return ExitCodePreflightUnknown
 	case IsUserAborted(err):
@@ -164,6 +167,8 @@ func (h *Handler) getCategoryPrefix(category error) string {
 		return "Preflight Failure:"
 	case ErrPreflightActiveFailure:
 		return "Preflight Active Failure:"
+	case ErrPreflightIncomplete:
+		return "Preflight Incomplete:"
 	case ErrPreflightUnknown:
 		return "Preflight Unknown Result:"
 	case ErrUserAborted:
