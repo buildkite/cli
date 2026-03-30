@@ -31,8 +31,8 @@ github.com/bmatcuk/doublestar/v4 v4.6.1 h1:FH9SifrbvJhnlQpztAx++wlkk70QBf0iBWDwN
 github.com/bmatcuk/doublestar/v4 v4.6.1/go.mod h1:xBQ8jztBU6kakFMg+8WGxn0c6z1fTSPVIjEY1Wr7jzc=
 github.com/bradleyjkemp/cupaloy/v2 v2.6.0 h1:knToPYa2xtfg42U3I6punFEjaGFKWQRXJwj0JTv4mTs=
 github.com/bradleyjkemp/cupaloy/v2 v2.6.0/go.mod h1:bm7JXdkRd4BHJk9HpwqAI8BoAY1lps46Enkdqw6aRX0=
-github.com/buildkite/go-buildkite/v4 v4.16.0 h1:uRZmOg6zfZOCpak1tizzlv9pq8Syt7WmeEb0Ov7r1NE=
-github.com/buildkite/go-buildkite/v4 v4.16.0/go.mod h1:8+7GiWBKwEPAWoZnRU/kpNCt46j1iVH8kFMMbD4YDfc=
+github.com/buildkite/go-buildkite/v4 v4.17.0 h1:OYy9PG5A15K4Up2dkZgvXP7esAqzQskA0VGXvciRUNQ=
+github.com/buildkite/go-buildkite/v4 v4.17.0/go.mod h1:8+7GiWBKwEPAWoZnRU/kpNCt46j1iVH8kFMMbD4YDfc=
 github.com/buildkite/roko v1.4.0 h1:DxixoCdpNqxu4/1lXrXbfsKbJSd7r1qoxtef/TT2J80=
 github.com/buildkite/roko v1.4.0/go.mod h1:0vbODqUFEcVf4v2xVXRfZZRsqJVsCCHTG/TBRByGK4E=
 github.com/cenkalti/backoff v2.2.1+incompatible h1:tNowT99t7UNflLxfYYSlKYsBpXdEet03Pg2g16Swow4=
