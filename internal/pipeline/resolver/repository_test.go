@@ -10,6 +10,7 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	git "github.com/go-git/go-git/v5"
+	gitconfig "github.com/go-git/go-git/v5/config"
 	"github.com/spf13/afero"
 )
 
@@ -24,7 +25,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		s := mockHTTPServer(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/test.git"}]`)
 		t.Cleanup(s.Close)
 
-		f := testFactory(t, s.URL, testOrg, testRepository())
+		f := testFactory(t, s.URL, testOrg, testRepository(t, "https://github.com/buildkite/cli.git"))
 		pipelines, err := resolveFromRepository(ctx, f, testOrg)
 		if err != nil {
 			t.Errorf("Error: %s", err)
@@ -40,7 +41,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		s := mockHTTPServer(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/cli.git"}]`)
 		t.Cleanup(s.Close)
 
-		f := testFactory(t, s.URL, testOrg, testRepository())
+		f := testFactory(t, s.URL, testOrg, testRepository(t, "https://github.com/buildkite/cli.git"))
 		pipelines, err := resolveFromRepository(ctx, f, testOrg)
 		if err != nil {
 			t.Errorf("Error: %s", err)
@@ -56,7 +57,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		s := mockHTTPServer(`[{"slug": "my-pipeline", "repository": "git@github.com:buildkite/cli.git"}, {"slug": "my-pipeline-2", "repository": "git@github.com:buildkite/cli.git"}]`)
 		t.Cleanup(s.Close)
 
-		f := testFactory(t, s.URL, testOrg, testRepository())
+		f := testFactory(t, s.URL, testOrg, testRepository(t, "https://github.com/buildkite/cli.git"))
 		pipelines, err := resolveFromRepository(ctx, f, testOrg)
 		if err != nil {
 			t.Errorf("Error: %s", err)
@@ -84,7 +85,7 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 		s := mockHTTPServer(`[{"slug": "", "repository": ""}]`)
 		t.Cleanup(s.Close)
 
-		f := testFactory(t, s.URL, testOrg, testRepository())
+		f := testFactory(t, s.URL, testOrg, testRepository(t))
 		pipelines, err := resolveFromRepository(ctx, f, testOrg)
 		if pipelines != nil {
 			t.Errorf("Expected nil, got %v", pipelines)
@@ -95,8 +96,22 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	})
 }
 
-func testRepository() *git.Repository {
-	repo, _ := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{DetectDotGit: true, EnableDotGitCommonDir: true})
+func testRepository(t *testing.T, remoteURLs ...string) *git.Repository {
+	t.Helper()
+
+	repo, err := git.PlainInit(t.TempDir(), false)
+	if err != nil {
+		t.Fatalf("PlainInit returned error: %v", err)
+	}
+	if len(remoteURLs) == 0 {
+		return repo
+	}
+
+	_, err = repo.CreateRemote(&gitconfig.RemoteConfig{Name: "origin", URLs: remoteURLs})
+	if err != nil {
+		t.Fatalf("CreateRemote returned error: %v", err)
+	}
+
 	return repo
 }
 
