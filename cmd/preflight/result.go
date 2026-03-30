@@ -23,7 +23,7 @@ type Result struct {
 	buildState string
 }
 
-func NewResult(build buildkite.Build, hardFailedJobs []buildkite.Job) Result {
+func NewResult(build buildkite.Build) Result {
 	state := buildstate.State(build.State)
 
 	if state == buildstate.Passed {
@@ -34,7 +34,7 @@ func NewResult(build buildkite.Build, hardFailedJobs []buildkite.Job) Result {
 		return Result{kind: resultCompletedFailure, buildState: build.State}
 	}
 
-	if state == buildstate.Failing || len(hardFailedJobs) > 0 {
+	if state == buildstate.Failing {
 		return Result{kind: resultActiveFailure, buildState: build.State}
 	}
 

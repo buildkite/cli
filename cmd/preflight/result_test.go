@@ -10,10 +10,9 @@ import (
 
 func TestResult(t *testing.T) {
 	tests := []struct {
-		name       string
-		build      buildkite.Build
-		failedJobs []buildkite.Job
-		want       Result
+		name  string
+		build buildkite.Build
+		want  Result
 	}{
 		{
 			name:  "clean pass",
@@ -21,21 +20,14 @@ func TestResult(t *testing.T) {
 			want:  Result{kind: resultCompletedPass, buildState: "passed"},
 		},
 		{
-			name:       "passed with failed jobs exits clean",
-			build:      buildkite.Build{State: "passed"},
-			failedJobs: []buildkite.Job{{ID: "job-1", State: "failed"}},
-			want:       Result{kind: resultCompletedPass, buildState: "passed"},
-		},
-		{
 			name:  "terminal failed build is completed failure",
 			build: buildkite.Build{State: "failed"},
 			want:  Result{kind: resultCompletedFailure, buildState: "failed"},
 		},
 		{
-			name:       "active build with failures is active failure",
-			build:      buildkite.Build{State: "running"},
-			failedJobs: []buildkite.Job{{ID: "job-1", State: "failed"}},
-			want:       Result{kind: resultActiveFailure, buildState: "running"},
+			name:  "failing build is active failure",
+			build: buildkite.Build{State: "failing"},
+			want:  Result{kind: resultActiveFailure, buildState: "failing"},
 		},
 		{
 			name:  "running build is incomplete",
@@ -66,7 +58,7 @@ func TestResult(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := NewResult(tt.build, tt.failedJobs); got != tt.want {
+			if got := NewResult(tt.build); got != tt.want {
 				t.Fatalf("NewResult() = %+v, want %+v", got, tt.want)
 			}
 		})
@@ -83,7 +75,7 @@ func TestResultError(t *testing.T) {
 	}{
 		{name: "clean pass", result: Result{kind: resultCompletedPass, buildState: "passed"}, wantCode: bkErrors.ExitCodeSuccess},
 		{name: "completed failure", result: Result{kind: resultCompletedFailure, buildState: "failed"}, wantCode: bkErrors.ExitCodePreflightCompletedFailure, wantErr: true},
-		{name: "active failure", result: Result{kind: resultActiveFailure, buildState: "running"}, wantCode: bkErrors.ExitCodePreflightActiveFailure, wantErr: true},
+		{name: "active failure", result: Result{kind: resultActiveFailure, buildState: "failing"}, wantCode: bkErrors.ExitCodePreflightActiveFailure, wantErr: true},
 		{name: "incomplete", result: Result{kind: resultIncomplete, buildState: "blocked"}, wantCode: bkErrors.ExitCodePreflightIncomplete, wantErr: true, wantText: `preflight build is blocked`},
 		{name: "unknown state", result: Result{kind: resultUnknown, buildState: "passing"}, wantCode: bkErrors.ExitCodePreflightUnknown, wantErr: true, wantText: `preflight build is passing`},
 		{name: "unknown result kind", result: Result{kind: resultKind(99), buildState: "passed"}, wantCode: bkErrors.ExitCodeInternalError, wantErr: true, wantText: "unknown preflight result type 99"},

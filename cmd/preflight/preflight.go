@@ -194,6 +194,6 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	failedJobs := tracker.FailedJobs()
 	renderer.renderFinalFailures(failedJobs)
 
-	buildResult := NewResult(finalBuild, failedJobs.Hard)
+	buildResult := NewResult(finalBuild)
 	return buildResult.Error()
 }
