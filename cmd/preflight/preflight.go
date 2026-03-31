@@ -163,7 +163,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	finalErr := buildResult.Error()
 	renderer.renderFinalFailures(buildResult, failedJobs)
 
-	if !c.NoCleanup {
+	if !c.NoCleanup && !result.PushSkipped {
 		fmt.Fprintf(os.Stderr, "Cleaning up remote branch %s...\n", result.Branch)
 		if cleanupErr := preflight.Cleanup(wt.Filesystem.Root(), result.Ref, globals.EnableDebug()); cleanupErr != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to delete remote branch %s: %v\n", result.Ref, cleanupErr)

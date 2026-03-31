@@ -192,6 +192,9 @@ func snapshotLines(result *internalpreflight.SnapshotResult) []string {
 			lines = append(lines, fmt.Sprintf("  %s %s", file.StatusSymbol(), file.Path))
 		}
 	}
+	if result.PushSkipped {
+		lines = append(lines, "Warning: no remote \"origin\" found; push skipped")
+	}
 	return lines
 }
 
