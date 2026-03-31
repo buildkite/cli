@@ -91,12 +91,13 @@ func TestTTYRenderer_RenderStatus_RunningAndFailingJobs(t *testing.T) {
 	})
 
 	assertLineContains(t, lines, "Watching build #183663…", "jobs:", "3 running", "2 failed", "1 soft failed")
-	assertNoLineContains(t, lines, "ECR Vulnerabilities Scan")
-	assertNoLineContains(t, lines, "Bundle Audit")
-	assertNoLineContains(t, lines, "Yarn Audit")
+	assertLineContains(t, lines, "ECR Vulnerabilities Scan", "failed-1")
+	assertLineContains(t, lines, "Bundle Audit", "soft failed", "failed-2")
+	assertLineContains(t, lines, "Yarn Audit", "exit 14", "failed-3")
 	assertNoLineContains(t, lines, "RSpec 1")
 	assertNoLineContains(t, lines, "RSpec 2")
 	assertNoLineContains(t, lines, "RSpec 3")
+	assertLineOrder(t, lines, "Yarn Audit", "Watching build #183663…")
 }
 
 func TestTTYRenderer_RenderStatus_CombinedSummaryLine(t *testing.T) {
@@ -117,6 +118,40 @@ func TestTTYRenderer_RenderStatus_CombinedSummaryLine(t *testing.T) {
 	assertLineContains(t, lines, "Watching build #2567…", "jobs: 2 running, 1 passed, 3 waiting, 1 skipped")
 }
 
+func TestTTYRenderer_RenderStatus_KeepsFailuresAboveWatchingLine(t *testing.T) {
+	startedAt := buildkite.Timestamp{Time: time.Now().Add(-90 * time.Second)}
+	finishedAt := buildkite.Timestamp{Time: time.Now().Add(-15 * time.Second)}
+	exitStatus := 1
+
+	lines := captureTTYLines(t, func(r *ttyRenderer) {
+		err := r.renderStatus(watch.BuildStatus{
+			NewlyFailed: []buildkite.Job{
+				scriptJob("failed-1", "Bundle Audit", "failed", false, &startedAt, &finishedAt, &exitStatus),
+			},
+			Summary: watch.JobSummary{
+				Failed: 1,
+			},
+		}, buildkite.Build{Number: 2567, State: "running"})
+		if err != nil {
+			t.Fatalf("renderStatus returned error: %v", err)
+		}
+
+		err = r.renderStatus(watch.BuildStatus{
+			Summary: watch.JobSummary{
+				Running: 2,
+				Failed:  1,
+			},
+		}, buildkite.Build{Number: 2567, State: "running"})
+		if err != nil {
+			t.Fatalf("renderStatus returned error: %v", err)
+		}
+	})
+
+	assertLineContains(t, lines, "Bundle Audit", "failed-1")
+	assertLineContains(t, lines, "Watching build #2567…", "jobs: 2 running, 1 failed")
+	assertLineOrder(t, lines, "Bundle Audit", "Watching build #2567…")
+}
+
 func TestTTYRenderer_SetCompletedBuild(t *testing.T) {
 	lines := captureTTYLines(t, func(r *ttyRenderer) {
 		r.setResult("passed")
@@ -134,7 +169,7 @@ func captureTTYLines(t *testing.T, fn func(r *ttyRenderer)) []string {
 	}
 	defer f.Close()
 
-	r := newTTYRenderer(f)
+	r := newTTYRenderer(f, "buildkite")
 	fn(r)
 
 	if err := f.Sync(); err != nil {
@@ -216,6 +251,28 @@ func assertNoLineContains(t *testing.T, got []string, part string) {
 		if strings.Contains(line, part) {
 			t.Fatalf("unexpected line containing %q:\n%s", part, strings.Join(got, "\n"))
 		}
+	}
+}
+
+func assertLineOrder(t *testing.T, got []string, firstPart string, secondPart string) {
+	t.Helper()
+
+	firstIndex := -1
+	secondIndex := -1
+	for i, line := range got {
+		if firstIndex == -1 && strings.Contains(line, firstPart) {
+			firstIndex = i
+		}
+		if secondIndex == -1 && strings.Contains(line, secondPart) {
+			secondIndex = i
+		}
+	}
+
+	if firstIndex == -1 || secondIndex == -1 {
+		t.Fatalf("could not find lines containing %q and %q:\n%s", firstPart, secondPart, strings.Join(got, "\n"))
+	}
+	if firstIndex >= secondIndex {
+		t.Fatalf("expected line containing %q to appear before %q:\n%s", firstPart, secondPart, strings.Join(got, "\n"))
 	}
 }
 

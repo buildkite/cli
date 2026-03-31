@@ -23,23 +23,27 @@ type renderer interface {
 
 func newRenderer(stdout *os.File, tty bool, pipeline string) renderer {
 	if tty {
-		return newTTYRenderer(stdout)
+		return newTTYRenderer(stdout, pipeline)
 	}
 	return newPlainRenderer(stdout, pipeline)
 }
 
 type ttyRenderer struct {
+	pipeline       string
 	screen         *internalpreflight.Screen
 	snapshotRegion *internalpreflight.Region
+	failuresRegion *internalpreflight.Region
 	titleRegion    *internalpreflight.Region
 	resultRegion   *internalpreflight.Region
 }
 
-func newTTYRenderer(stdout *os.File) *ttyRenderer {
+func newTTYRenderer(stdout *os.File, pipeline string) *ttyRenderer {
 	screen := internalpreflight.NewScreen(stdout)
 	return &ttyRenderer{
+		pipeline:       pipeline,
 		screen:         screen,
 		snapshotRegion: screen.AddRegion("snapshot"),
+		failuresRegion: screen.AddRegion("failures"),
 		titleRegion:    screen.AddRegion("title"),
 		resultRegion:   screen.AddRegion("result"),
 	}
@@ -54,6 +58,11 @@ func (r *ttyRenderer) setSnapshot(result *internalpreflight.SnapshotResult) {
 }
 
 func (r *ttyRenderer) renderStatus(status watch.BuildStatus, b buildkite.Build) error {
+	presenter := ttyJobPresenter{pipeline: r.pipeline, buildNumber: b.Number}
+	for _, failed := range status.NewlyFailed {
+		r.failuresRegion.AppendLine(presenter.Line(failed))
+	}
+
 	line := fmt.Sprintf("  %s Watching build #%d…", spinner(), b.Number)
 	if summary := formatSummaryLine(status.Summary); summary != "" {
 		line += " " + summary
