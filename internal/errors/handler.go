@@ -9,16 +9,22 @@ import (
 
 // Exit codes for different error types
 const (
-	ExitCodeSuccess          = 0
-	ExitCodeGenericError     = 1
-	ExitCodeValidationError  = 2
-	ExitCodeAPIError         = 3
-	ExitCodeNotFoundError    = 4
-	ExitCodePermissionError  = 5
-	ExitCodeConfigError      = 6
-	ExitCodeAuthError        = 7
-	ExitCodeInternalError    = 8
-	ExitCodeUserAbortedError = 130 // Same as Ctrl+C in bash
+	ExitCodeSuccess = 0
+
+	ExitCodeGenericError = 1
+
+	ExitCodeValidationError            = 2
+	ExitCodeAPIError                   = 3
+	ExitCodeNotFoundError              = 4
+	ExitCodePermissionError            = 5
+	ExitCodeConfigError                = 6
+	ExitCodeAuthError                  = 7
+	ExitCodeInternalError              = 8
+	ExitCodePreflightCompletedFailure  = 9
+	ExitCodePreflightIncompleteFailure = 10
+	ExitCodePreflightIncomplete        = 11
+	ExitCodePreflightUnknown           = 12
+	ExitCodeUserAbortedError           = 130 // Same as Ctrl+C in bash
 )
 
 // Handler processes errors from commands and formats them appropriately
@@ -94,6 +100,14 @@ func (h *Handler) getExitCode(err error) int {
 		return ExitCodeConfigError
 	case IsAuthenticationError(err):
 		return ExitCodeAuthError
+	case IsPreflightCompletedFailure(err):
+		return ExitCodePreflightCompletedFailure
+	case IsPreflightIncompleteFailure(err):
+		return ExitCodePreflightIncompleteFailure
+	case IsPreflightIncomplete(err):
+		return ExitCodePreflightIncomplete
+	case IsPreflightUnknown(err):
+		return ExitCodePreflightUnknown
 	case IsUserAborted(err):
 		return ExitCodeUserAbortedError
 	case errors.Is(err, ErrInternal):
@@ -149,6 +163,14 @@ func (h *Handler) getCategoryPrefix(category error) string {
 		return "Configuration Error:"
 	case ErrAuthentication:
 		return "Authentication Error:"
+	case ErrPreflightCompletedFailure:
+		return "Preflight Failure:"
+	case ErrPreflightIncompleteFailure:
+		return "Preflight Failing:"
+	case ErrPreflightIncomplete:
+		return "Preflight Incomplete:"
+	case ErrPreflightUnknown:
+		return "Preflight Unknown Result:"
 	case ErrUserAborted:
 		return "Aborted:"
 	case ErrInternal:

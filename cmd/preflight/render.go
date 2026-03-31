@@ -9,7 +9,6 @@ import (
 
 	"github.com/buildkite/cli/v3/internal/build/watch"
 	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
-	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
 const maxTTYRunningJobs = 10
@@ -17,17 +16,16 @@ const maxTTYRunningJobs = 10
 type renderer interface {
 	appendSnapshotLine(string)
 	setSnapshot(*internalpreflight.SnapshotResult)
-	renderStatus(watch.BuildStatus, buildkite.Build) error
+	renderStatus(watch.BuildStatus, string) error
 	flush()
-	renderFinalFailures([]buildkite.Job)
-	setResult(string)
+	renderFinalFailures(Result, watch.FailedJobs)
 }
 
-func newRenderer(stdout *os.File, tty bool, pipeline string) renderer {
+func newRenderer(stdout *os.File, tty bool, pipeline string, buildNumber int) renderer {
 	if tty {
-		return newTTYRenderer(stdout, pipeline)
+		return newTTYRenderer(stdout, pipeline, buildNumber)
 	}
-	return newPlainRenderer(stdout, pipeline)
+	return newPlainRenderer(stdout, pipeline, buildNumber)
 }
 
 type ttyRenderer struct {
@@ -41,10 +39,11 @@ type ttyRenderer struct {
 	resultRegion   *internalpreflight.Region
 }
 
-func newTTYRenderer(stdout *os.File, pipeline string) *ttyRenderer {
+func newTTYRenderer(stdout *os.File, pipeline string, buildNumber int) *ttyRenderer {
 	screen := internalpreflight.NewScreen(stdout)
 	return &ttyRenderer{
 		pipeline:       pipeline,
+		buildNumber:    buildNumber,
 		screen:         screen,
 		snapshotRegion: screen.AddRegion("snapshot"),
 		titleRegion:    screen.AddRegion("title"),
@@ -62,12 +61,15 @@ func (r *ttyRenderer) setSnapshot(result *internalpreflight.SnapshotResult) {
 	r.snapshotRegion.SetLines(snapshotLines(result))
 }
 
-func (r *ttyRenderer) renderStatus(status watch.BuildStatus, b buildkite.Build) error {
-	r.buildNumber = b.Number
+func (r *ttyRenderer) renderStatus(status watch.BuildStatus, buildState string) error {
 	var presenter jobPresenter = ttyJobPresenter{pipeline: r.pipeline, buildNumber: r.buildNumber}
+	title := fmt.Sprintf("  %s Watching build #%d…", spinner(), r.buildNumber)
+	if buildState != "" {
+		title += " (" + buildState + ")"
+	}
 	r.titleRegion.SetLines([]string{
 		"",
-		fmt.Sprintf("  %s Watching build #%d…", spinner(), b.Number),
+		title,
 		"",
 	})
 	for _, failed := range status.NewlyFailed {
@@ -94,14 +96,9 @@ func (r *ttyRenderer) flush() {
 	r.screen.Flush()
 }
 
-func (r *ttyRenderer) renderFinalFailures(_ []buildkite.Job) {}
-
-func (r *ttyRenderer) setResult(state string) {
-	if state == "passed" {
-		r.resultRegion.SetLines([]string{"", "✅ Preflight passed!"})
-		return
-	}
-	r.resultRegion.SetLines([]string{"", fmt.Sprintf("❌ Preflight %s", state)})
+func (r *ttyRenderer) renderFinalFailures(result Result, failedJobs watch.FailedJobs) {
+	var presenter jobPresenter = ttyJobPresenter{pipeline: r.pipeline, buildNumber: r.buildNumber}
+	r.resultRegion.SetLines(finalResultLines(result, failedJobs, presenter))
 }
 
 type plainRenderer struct {
@@ -111,8 +108,8 @@ type plainRenderer struct {
 	lastLine    string
 }
 
-func newPlainRenderer(stdout io.Writer, pipeline string) *plainRenderer {
-	return &plainRenderer{stdout: stdout, pipeline: pipeline}
+func newPlainRenderer(stdout io.Writer, pipeline string, buildNumber int) *plainRenderer {
+	return &plainRenderer{stdout: stdout, pipeline: pipeline, buildNumber: buildNumber}
 }
 
 func (r *plainRenderer) appendSnapshotLine(line string) {
@@ -125,8 +122,7 @@ func (r *plainRenderer) setSnapshot(result *internalpreflight.SnapshotResult) {
 	}
 }
 
-func (r *plainRenderer) renderStatus(status watch.BuildStatus, b buildkite.Build) error {
-	r.buildNumber = b.Number
+func (r *plainRenderer) renderStatus(status watch.BuildStatus, buildState string) error {
 	var presenter jobPresenter = plainJobPresenter{pipeline: r.pipeline, buildNumber: r.buildNumber}
 	for _, failed := range status.NewlyFailed {
 		if _, err := fmt.Fprintf(r.stdout, "%s\n", presenter.Line(failed)); err != nil {
@@ -134,7 +130,7 @@ func (r *plainRenderer) renderStatus(status watch.BuildStatus, b buildkite.Build
 		}
 	}
 
-	line := fmt.Sprintf("Build #%d %s", b.Number, b.State)
+	line := fmt.Sprintf("Build #%d %s", r.buildNumber, buildState)
 	if summary := status.Summary.String(); summary != "" {
 		line += " — " + summary
 	}
@@ -149,41 +145,40 @@ func (r *plainRenderer) renderStatus(status watch.BuildStatus, b buildkite.Build
 
 func (r *plainRenderer) flush() {}
 
-func (r *plainRenderer) renderFinalFailures(allFailed []buildkite.Job) {
-	var hardFailed, softFailed []buildkite.Job
+func (r *plainRenderer) renderFinalFailures(result Result, failedJobs watch.FailedJobs) {
 	var presenter jobPresenter = plainJobPresenter{pipeline: r.pipeline, buildNumber: r.buildNumber, final: true}
-	for _, rawJob := range allFailed {
-		job := watch.NewFormattedJob(rawJob)
-		if job.IsSoftFailed() {
-			softFailed = append(softFailed, rawJob)
-		} else {
-			hardFailed = append(hardFailed, rawJob)
-		}
-	}
-
-	if len(hardFailed) > 0 {
-		fmt.Fprintln(r.stdout)
-		fmt.Fprintf(r.stdout, "Failed jobs (%d):\n", len(hardFailed))
-		for _, rawJob := range hardFailed {
-			fmt.Fprintf(r.stdout, "%s\n", presenter.Line(rawJob))
-		}
-	}
-
-	if len(softFailed) > 0 {
-		fmt.Fprintln(r.stdout)
-		fmt.Fprintf(r.stdout, "Soft failed jobs (%d):\n", len(softFailed))
-		for _, rawJob := range softFailed {
-			fmt.Fprintf(r.stdout, "%s\n", presenter.Line(rawJob))
-		}
+	for _, line := range finalResultLines(result, failedJobs, presenter) {
+		fmt.Fprintln(r.stdout, line)
 	}
 }
 
-func (r *plainRenderer) setResult(state string) {
-	if state == "passed" {
-		fmt.Fprintln(r.stdout, "✅ Preflight passed!")
-		return
+func finalResultLines(result Result, failedJobs watch.FailedJobs, presenter jobPresenter) []string {
+	lines := []string{"", resultStatusLine(result)}
+
+	if len(failedJobs.Hard) > 0 {
+		lines = append(lines, "", fmt.Sprintf("Failed jobs (%d):", len(failedJobs.Hard)))
+		for _, rawJob := range failedJobs.Hard {
+			lines = append(lines, presenter.Line(rawJob))
+		}
 	}
-	fmt.Fprintf(r.stdout, "❌ Preflight %s\n", state)
+
+	if len(failedJobs.Soft) > 0 {
+		lines = append(lines, "", fmt.Sprintf("Soft failed jobs (%d):", len(failedJobs.Soft)))
+		for _, rawJob := range failedJobs.Soft {
+			lines = append(lines, presenter.Line(rawJob))
+		}
+	}
+
+	lines = append(lines, "")
+
+	return lines
+}
+
+func resultStatusLine(result Result) string {
+	if result.kind == resultCompletedPass {
+		return "✅ Preflight build passed."
+	}
+	return fmt.Sprintf("❌ Preflight build %s.", result.buildState)
 }
 
 func snapshotLines(result *internalpreflight.SnapshotResult) []string {

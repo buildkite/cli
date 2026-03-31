@@ -1,6 +1,7 @@
 package preflight
 
 import (
+	"bytes"
 	"os"
 	"regexp"
 	"strings"
@@ -15,7 +16,7 @@ import (
 var renderANSIPattern = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]`)
 
 func TestTTYRenderer_SetSnapshot(t *testing.T) {
-	lines := captureTTYLines(t, func(r *ttyRenderer) {
+	lines := captureTTYLines(t, 42, func(r *ttyRenderer) {
 		r.setSnapshot(&internalpreflight.SnapshotResult{
 			Commit: "1234567890abcdef",
 			Ref:    "refs/heads/bk/preflight/abc123",
@@ -37,7 +38,7 @@ func TestTTYRenderer_SetSnapshot(t *testing.T) {
 
 func TestTTYRenderer_RenderStatus_AllRunningJobs(t *testing.T) {
 	startedAt := buildkite.Timestamp{Time: time.Now().Add(-2 * time.Minute)}
-	lines := captureTTYLines(t, func(r *ttyRenderer) {
+	lines := captureTTYLines(t, 42, func(r *ttyRenderer) {
 		err := r.renderStatus(watch.BuildStatus{
 			Running: []buildkite.Job{
 				scriptJob("job-1", "Lint", "running", false, &startedAt, nil, nil),
@@ -48,13 +49,13 @@ func TestTTYRenderer_RenderStatus_AllRunningJobs(t *testing.T) {
 			Summary: watch.JobSummary{
 				Running: 3,
 			},
-		}, buildkite.Build{Number: 42, State: "running"})
+		}, "running")
 		if err != nil {
 			t.Fatalf("renderStatus returned error: %v", err)
 		}
 	})
 
-	assertLineContains(t, lines, "Watching build #42…")
+	assertLineContains(t, lines, "Watching build #42…", "(running)")
 	assertLineContains(t, lines, "● Lint", "running")
 	assertLineContains(t, lines, "● Unit Tests", "running")
 	assertLineContains(t, lines, "● Integration Tests", "running")
@@ -67,7 +68,7 @@ func TestTTYRenderer_RenderStatus_RunningAndFailingJobs(t *testing.T) {
 	exitOne := 1
 	exitFourteen := 14
 
-	lines := captureTTYLines(t, func(r *ttyRenderer) {
+	lines := captureTTYLines(t, 183663, func(r *ttyRenderer) {
 		err := r.renderStatus(watch.BuildStatus{
 			NewlyFailed: []buildkite.Job{
 				scriptJob("failed-1", "ECR Vulnerabilities Scan", "failed", false, &startedAt, &finishedAt, &exitOne),
@@ -85,31 +86,86 @@ func TestTTYRenderer_RenderStatus_RunningAndFailingJobs(t *testing.T) {
 				SoftFailed: 1,
 				Running:    3,
 			},
-		}, buildkite.Build{Number: 183663, State: "running"})
+		}, "running")
 		if err != nil {
 			t.Fatalf("renderStatus returned error: %v", err)
 		}
 	})
 
-	assertLineContains(t, lines, "Watching build #183663…")
+	assertLineContains(t, lines, "Watching build #183663…", "(running)")
 	assertLineContains(t, lines, "✗ ECR Vulnerabilities Scan", "failed-1")
 	assertLineContains(t, lines, "✗ Bundle Audit", "soft failed", "failed-2")
 	assertLineContains(t, lines, "✗ Yarn Audit", "exit 14", "failed-3")
 	assertLineContains(t, lines, "● RSpec 1", "running")
 	assertLineContains(t, lines, "● RSpec 2", "running")
 	assertLineContains(t, lines, "● RSpec 3", "running")
-	assertLineContains(t, lines, "2 failed", "1 soft failed")
+	assertLineEquals(t, lines, "  … 2 failed, 1 soft failed")
 }
 
-func TestTTYRenderer_SetCompletedBuild(t *testing.T) {
-	lines := captureTTYLines(t, func(r *ttyRenderer) {
-		r.setResult("passed")
+func TestTTYRenderer_RenderFinalFailures(t *testing.T) {
+	startedAt := buildkite.Timestamp{Time: time.Now().Add(-90 * time.Second)}
+	finishedAt := buildkite.Timestamp{Time: time.Now().Add(-15 * time.Second)}
+	exitOne := 1
+
+	lines := captureTTYLines(t, 183663, func(r *ttyRenderer) {
+		err := r.renderStatus(watch.BuildStatus{
+			Summary: watch.JobSummary{Failed: 1, SoftFailed: 1},
+		}, "failed")
+		if err != nil {
+			t.Fatalf("renderStatus returned error: %v", err)
+		}
+
+		r.flush()
+		r.renderFinalFailures(Result{kind: resultCompletedFailure, buildState: "failed"}, watch.FailedJobs{
+			Hard: []buildkite.Job{
+				scriptJob("failed-1", "ECR Vulnerabilities Scan", "failed", false, &startedAt, &finishedAt, &exitOne),
+			},
+			Soft: []buildkite.Job{
+				scriptJob("failed-2", "Bundle Audit", "failed", true, &startedAt, &finishedAt, &exitOne),
+			},
+		})
 	})
 
-	assertTail(t, lines, []string{"✅ Preflight passed!"})
+	assertLinesContainInOrder(t, lines,
+		[]string{"❌ Preflight build failed."},
+		[]string{"Failed jobs (1):"},
+		[]string{"ECR Vulnerabilities Scan", "failed-1"},
+		[]string{"Soft failed jobs (1):"},
+		[]string{"Bundle Audit", "soft failed", "failed-2"},
+	)
 }
 
-func captureTTYLines(t *testing.T, fn func(r *ttyRenderer)) []string {
+func TestPlainRenderer_RenderFinalFailures(t *testing.T) {
+	startedAt := buildkite.Timestamp{Time: time.Now().Add(-90 * time.Second)}
+	finishedAt := buildkite.Timestamp{Time: time.Now().Add(-15 * time.Second)}
+	exitOne := 1
+
+	var out bytes.Buffer
+	r := newPlainRenderer(&out, "buildkite", 42)
+	r.renderFinalFailures(Result{kind: resultCompletedFailure, buildState: "failed"}, watch.FailedJobs{
+		Hard: []buildkite.Job{
+			scriptJob("failed-1", "ECR Vulnerabilities Scan", "failed", false, &startedAt, &finishedAt, &exitOne),
+		},
+		Soft: []buildkite.Job{
+			scriptJob("failed-2", "Bundle Audit", "failed", true, &startedAt, &finishedAt, &exitOne),
+		},
+	})
+
+	lines := visibleRenderLines(out.String())
+	assertLinesContainInOrder(t, lines,
+		[]string{"❌ Preflight build failed."},
+		[]string{"Failed jobs (1):"},
+		[]string{"ECR Vulnerabilities Scan", "failed", "failed-1"},
+		[]string{"Soft failed jobs (1):"},
+		[]string{"Bundle Audit", "failed-2"},
+	)
+
+	if !strings.HasSuffix(out.String(), "\n\n") {
+		t.Fatalf("expected final result output to end with a blank separator line, got %q", out.String())
+	}
+}
+
+func captureTTYLines(t *testing.T, buildNumber int, fn func(r *ttyRenderer)) []string {
 	t.Helper()
 
 	f, err := os.CreateTemp(t.TempDir(), "tty-render-*")
@@ -118,7 +174,7 @@ func captureTTYLines(t *testing.T, fn func(r *ttyRenderer)) []string {
 	}
 	defer f.Close()
 
-	r := newTTYRenderer(f, "buildkite")
+	r := newTTYRenderer(f, "buildkite", buildNumber)
 	fn(r)
 
 	if err := f.Sync(); err != nil {
@@ -145,21 +201,6 @@ func visibleRenderLines(raw string) []string {
 		lines = append(lines, line)
 	}
 	return lines
-}
-
-func assertTail(t *testing.T, got []string, want []string) {
-	t.Helper()
-
-	if len(got) < len(want) {
-		t.Fatalf("got %d lines, want at least %d: %v", len(got), len(want), got)
-	}
-
-	tail := got[len(got)-len(want):]
-	for i := range want {
-		if tail[i] != want[i] {
-			t.Fatalf("tail[%d] = %q, want %q; full=%v", i, tail[i], want[i], got)
-		}
-	}
 }
 
 func assertLineEquals(t *testing.T, got []string, want string) {
@@ -191,6 +232,35 @@ func assertLineContains(t *testing.T, got []string, parts ...string) {
 	}
 
 	t.Fatalf("no line contained all parts %v:\n%s", parts, strings.Join(got, "\n"))
+}
+
+func assertLinesContainInOrder(t *testing.T, got []string, want ...[]string) {
+	t.Helper()
+
+	idx := 0
+	for _, parts := range want {
+		found := false
+		for idx < len(got) {
+			line := got[idx]
+			idx++
+
+			matched := true
+			for _, part := range parts {
+				if !strings.Contains(line, part) {
+					matched = false
+					break
+				}
+			}
+			if matched {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			t.Fatalf("did not find ordered line containing %v:\n%s", parts, strings.Join(got, "\n"))
+		}
+	}
 }
 
 func scriptJob(id, name, state string, softFailed bool, startedAt, finishedAt *buildkite.Timestamp, exitStatus *int) buildkite.Job {
