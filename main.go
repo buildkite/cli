@@ -71,6 +71,7 @@ type (
 		Logout auth.LogoutCmd `cmd:"" help:"Logout and remove stored credentials"`
 		Status auth.StatusCmd `cmd:"" help:"Print the current user auth status"`
 		Switch auth.SwitchCmd `cmd:"" help:"Switch to a different organization" aliases:"use"`
+		Token  auth.TokenCmd  `cmd:"" help:"Print the stored API token for the current organization"`
 	}
 	AgentCmd struct {
 		Install agent.InstallCmd `cmd:"" help:"Install the buildkite-agent binary locally."`
