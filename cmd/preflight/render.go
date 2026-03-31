@@ -12,8 +12,6 @@ import (
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
-const maxTTYRunningJobs = 10
-
 type renderer interface {
 	appendSnapshotLine(string)
 	setSnapshot(*internalpreflight.SnapshotResult)
@@ -25,31 +23,24 @@ type renderer interface {
 
 func newRenderer(stdout *os.File, tty bool, pipeline string) renderer {
 	if tty {
-		return newTTYRenderer(stdout, pipeline)
+		return newTTYRenderer(stdout)
 	}
 	return newPlainRenderer(stdout, pipeline)
 }
 
 type ttyRenderer struct {
-	pipeline       string
-	buildNumber    int
 	screen         *internalpreflight.Screen
 	snapshotRegion *internalpreflight.Region
 	titleRegion    *internalpreflight.Region
-	failedRegion   *internalpreflight.Region
-	jobsRegion     *internalpreflight.Region
 	resultRegion   *internalpreflight.Region
 }
 
-func newTTYRenderer(stdout *os.File, pipeline string) *ttyRenderer {
+func newTTYRenderer(stdout *os.File) *ttyRenderer {
 	screen := internalpreflight.NewScreen(stdout)
 	return &ttyRenderer{
-		pipeline:       pipeline,
 		screen:         screen,
 		snapshotRegion: screen.AddRegion("snapshot"),
 		titleRegion:    screen.AddRegion("title"),
-		failedRegion:   screen.AddRegion("failed"),
-		jobsRegion:     screen.AddRegion("jobs"),
 		resultRegion:   screen.AddRegion("result"),
 	}
 }
@@ -63,30 +54,16 @@ func (r *ttyRenderer) setSnapshot(result *internalpreflight.SnapshotResult) {
 }
 
 func (r *ttyRenderer) renderStatus(status watch.BuildStatus, b buildkite.Build) error {
-	r.buildNumber = b.Number
-	var presenter jobPresenter = ttyJobPresenter{pipeline: r.pipeline, buildNumber: r.buildNumber}
-	r.titleRegion.SetLines([]string{
-		"",
-		fmt.Sprintf("  %s Watching build #%d…", spinner(), b.Number),
-		"",
-	})
-	for _, failed := range status.NewlyFailed {
-		r.failedRegion.AppendLine(presenter.Line(failed))
+	line := fmt.Sprintf("  %s Watching build #%d…", spinner(), b.Number)
+	if summary := formatSummaryLine(status.Summary); summary != "" {
+		line += " " + summary
 	}
 
-	var lines []string
-	runningJobs := status.Running
-	if len(runningJobs) > maxTTYRunningJobs {
-		runningJobs = runningJobs[:maxTTYRunningJobs]
-	}
-	for _, running := range runningJobs {
-		lines = append(lines, presenter.Line(running))
-	}
-	if status.TotalRunning > len(runningJobs) {
-		lines = append(lines, fmt.Sprintf("  \033[90m… and %d more running\033[0m", status.TotalRunning-len(runningJobs)))
-	}
-	lines = append(lines, formatSummaryLine(status.Summary))
-	r.jobsRegion.SetLines(lines)
+	r.titleRegion.SetLines([]string{
+		"",
+		line,
+		"",
+	})
 	return nil
 }
 
@@ -213,6 +190,9 @@ func jobLogCommand(pipeline string, buildNumber int, jobID string) string {
 
 func formatSummaryLine(s watch.JobSummary) string {
 	var parts []string
+	if s.Running > 0 {
+		parts = append(parts, fmt.Sprintf("\033[36m%d running\033[0m", s.Running))
+	}
 	if s.Passed > 0 {
 		parts = append(parts, fmt.Sprintf("\033[32m%d passed\033[0m", s.Passed))
 	}
@@ -228,8 +208,14 @@ func formatSummaryLine(s watch.JobSummary) string {
 	if s.Waiting > 0 {
 		parts = append(parts, fmt.Sprintf("%d waiting", s.Waiting))
 	}
+	if s.Blocked > 0 {
+		parts = append(parts, fmt.Sprintf("%d blocked", s.Blocked))
+	}
+	if s.Skipped > 0 {
+		parts = append(parts, fmt.Sprintf("%d skipped", s.Skipped))
+	}
 	if len(parts) == 0 {
 		return ""
 	}
-	return fmt.Sprintf("  … %s", strings.Join(parts, ", "))
+	return fmt.Sprintf("jobs: %s", strings.Join(parts, ", "))
 }
