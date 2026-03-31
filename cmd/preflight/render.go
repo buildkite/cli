@@ -169,6 +169,8 @@ func finalResultLines(result Result, failedJobs watch.FailedJobs, presenter jobP
 		}
 	}
 
+	lines = append(lines, "")
+
 	return lines
 }
 

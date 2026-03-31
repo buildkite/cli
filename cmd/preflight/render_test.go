@@ -159,6 +159,10 @@ func TestPlainRenderer_RenderFinalFailures(t *testing.T) {
 		[]string{"Soft failed jobs (1):"},
 		[]string{"Bundle Audit", "failed-2"},
 	)
+
+	if !strings.HasSuffix(out.String(), "\n\n") {
+		t.Fatalf("expected final result output to end with a blank separator line, got %q", out.String())
+	}
 }
 
 func captureTTYLines(t *testing.T, buildNumber int, fn func(r *ttyRenderer)) []string {

@@ -155,6 +155,14 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		}
 	}
 
+	// Flush the screen so final output is not overwritten.
+	renderer.flush()
+
+	buildResult := NewResult(finalBuild)
+	failedJobs := tracker.FailedJobs()
+	finalErr := buildResult.Error()
+	renderer.renderFinalFailures(buildResult, failedJobs)
+
 	if !c.NoCleanup {
 		fmt.Fprintf(os.Stderr, "Cleaning up remote branch %s...\n", result.Branch)
 		if cleanupErr := preflight.Cleanup(wt.Filesystem.Root(), result.Ref, globals.EnableDebug()); cleanupErr != nil {
@@ -190,12 +198,5 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		)
 	}
 
-	// Flush the screen so final output is not overwritten.
-	renderer.flush()
-
-	buildResult := NewResult(finalBuild)
-	failedJobs := tracker.FailedJobs()
-	renderer.renderFinalFailures(buildResult, failedJobs)
-
-	return buildResult.Error()
+	return finalErr
 }
