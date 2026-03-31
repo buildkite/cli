@@ -176,9 +176,9 @@ func finalResultLines(result Result, failedJobs watch.FailedJobs, presenter jobP
 
 func resultStatusLine(result Result) string {
 	if result.kind == resultCompletedPass {
-		return "✅ Preflight passed!"
+		return "✅ Preflight build passed."
 	}
-	return fmt.Sprintf("❌ Preflight %s", result.buildState)
+	return fmt.Sprintf("❌ Preflight build %s.", result.buildState)
 }
 
 func snapshotLines(result *internalpreflight.SnapshotResult) []string {
