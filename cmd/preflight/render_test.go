@@ -99,7 +99,7 @@ func TestTTYRenderer_RenderStatus_RunningAndFailingJobs(t *testing.T) {
 	assertLineContains(t, lines, "● RSpec 1", "running")
 	assertLineContains(t, lines, "● RSpec 2", "running")
 	assertLineContains(t, lines, "● RSpec 3", "running")
-	assertLineContains(t, lines, "2 failed", "1 soft failed")
+	assertLineEquals(t, lines, "  … 2 failed, 1 soft failed")
 }
 
 func TestTTYRenderer_RenderFinalFailures(t *testing.T) {
@@ -127,7 +127,7 @@ func TestTTYRenderer_RenderFinalFailures(t *testing.T) {
 	})
 
 	assertLinesContainInOrder(t, lines,
-		[]string{"❌ Preflight failed"},
+		[]string{"❌ Preflight build failed."},
 		[]string{"Failed jobs (1):"},
 		[]string{"ECR Vulnerabilities Scan", "failed-1"},
 		[]string{"Soft failed jobs (1):"},
@@ -153,7 +153,7 @@ func TestPlainRenderer_RenderFinalFailures(t *testing.T) {
 
 	lines := visibleRenderLines(out.String())
 	assertLinesContainInOrder(t, lines,
-		[]string{"❌ Preflight failed"},
+		[]string{"❌ Preflight build failed."},
 		[]string{"Failed jobs (1):"},
 		[]string{"ECR Vulnerabilities Scan", "failed", "failed-1"},
 		[]string{"Soft failed jobs (1):"},
