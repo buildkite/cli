@@ -14,7 +14,32 @@ Full documentation is available at [buildkite.com/docs/platform/cli](https://bui
 brew tap buildkite/buildkite && brew install buildkite/buildkite/bk
 ```
 
-Or download a binary from the [releases page](https://github.com/buildkite/cli/releases).
+Or install a specific release from the [releases page](https://github.com/buildkite/cli/releases):
+
+```sh
+VERSION=3.33.0
+ASSET="bk_${VERSION}_macOS_arm64.zip"
+
+curl -L -o "/tmp/${ASSET}" \
+  "https://github.com/buildkite/cli/releases/download/v${VERSION}/${ASSET}"
+curl -L -o "/tmp/bk_${VERSION}_checksums.txt" \
+  "https://github.com/buildkite/cli/releases/download/v${VERSION}/bk_${VERSION}_checksums.txt"
+
+grep "${ASSET}" "/tmp/bk_${VERSION}_checksums.txt" | shasum -a 256 -c
+unzip -oq "/tmp/${ASSET}" -d /tmp
+install -m 0755 "/tmp/bk_${VERSION}_macOS_arm64/bk" "$HOME/bin/bk"
+
+bk version
+```
+
+If you're not on Apple Silicon, replace `bk_${VERSION}_macOS_arm64.zip` with the asset for your platform, such as `bk_${VERSION}_macOS_amd64.zip`, `bk_${VERSION}_linux_arm64.tar.gz`, or `bk_${VERSION}_linux_amd64.tar.gz`.
+
+To opt into `preflight` after installing `v3.33.0`:
+
+```sh
+bk config set experiments preflight
+bk preflight --pipeline buildkite/buildkite-cli
+```
 
 ### Authenticate
 

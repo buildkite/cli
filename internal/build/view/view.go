@@ -106,66 +106,11 @@ func (v *BuildView) Render() string {
 }
 
 func buildSummary(b *buildkite.Build, organization, pipeline string) string {
-	if b == nil {
-		return fmt.Sprintf("Build %s/%s (no data available)\n", output.ValueOrDash(organization), output.ValueOrDash(pipeline))
-	}
 
-	var sb strings.Builder
-
-	fmt.Fprintf(&sb, "Build %s/%s #%d (%s)\n\n", output.ValueOrDash(organization), output.ValueOrDash(pipeline), b.Number, b.State)
-
-	summary := output.Table(
-		[]string{"Field", "Value"},
-		[][]string{
-			{"Message", output.ValueOrDash(truncateText(b.Message, 140))},
-			{"Source", output.ValueOrDash(b.Source)},
-			{"Creator", creatorName(b)},
-			{"Branch", output.ValueOrDash(b.Branch)},
-			{"Commit", shortenCommit(b.Commit)},
-			{"URL", output.ValueOrDash(b.WebURL)},
-		},
-		map[string]string{"field": "bold", "value": "dim"},
-	)
-
-	sb.WriteString(summary)
-
-	return sb.String()
 }
 
 func renderJobs(jobs []buildkite.Job) string {
-	scriptJobs := filterScriptJobs(jobs)
-	if len(scriptJobs) == 0 {
-		return ""
-	}
 
-	headers := []string{"State", "Name", "Duration"}
-	rows := make([][]string, 0, len(scriptJobs))
-	for _, job := range scriptJobs {
-		name := job.Name
-		if name == "" {
-			name = job.Label
-		}
-		if name == "" {
-			parts := strings.Split(job.Command, "\n")
-			if len(parts) > 0 {
-				name = parts[0]
-			}
-		}
-		if name == "" {
-			name = "-"
-		}
-		name = truncateText(name, 72)
-
-		rows = append(rows, []string{
-			job.State,
-			name,
-			formatJobDuration(job),
-		})
-	}
-
-	table := output.Table(headers, rows, map[string]string{"state": "bold", "name": "italic", "duration": "dim"})
-
-	return fmt.Sprintf("Jobs (%d)\n\n%s", len(scriptJobs), table)
 }
 
 func renderArtifacts(artifacts []buildkite.Artifact) string {
