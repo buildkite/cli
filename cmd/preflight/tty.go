@@ -81,6 +81,19 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// final frame when the program quits via Close().
 			m.summary = &msg
 			return m, nil
+
+		case EventTestFailure:
+			if len(msg.TestFailures) > 0 {
+				var cmds []tea.Cmd
+				for _, t := range msg.TestFailures {
+					line := fmt.Sprintf("  %s  %s",
+						ttyDimStyle.Render(msg.Time.Format("15:04:05")),
+						formatTestFailureLine(t),
+					)
+					cmds = append(cmds, tea.Printf("%s", line))
+				}
+				return m, tea.Batch(cmds...)
+			}
 		}
 
 	case tea.WindowSizeMsg:
