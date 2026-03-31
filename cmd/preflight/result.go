@@ -61,7 +61,7 @@ func (r Result) Error() error {
 		)
 	default:
 		return bkErrors.NewInternalError(nil,
-			fmt.Sprintf("build is %d, unable to coerce to preflight result", r.kind),
+			fmt.Sprintf("unexpected result kind %d for build state '%s', unable to coerce to error", r.kind, r.buildState),
 			"This is likely a bug",
 			"Report to Buildkite",
 		)

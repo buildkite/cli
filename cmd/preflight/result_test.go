@@ -78,7 +78,7 @@ func TestResultError(t *testing.T) {
 		{name: "incomplete failure", result: Result{kind: resultIncompleteFailure, buildState: "failing"}, wantCode: bkErrors.ExitCodePreflightIncompleteFailure, wantErr: true, wantText: `preflight incomplete (failing): build is failing`},
 		{name: "incomplete", result: Result{kind: resultIncomplete, buildState: "blocked"}, wantCode: bkErrors.ExitCodePreflightIncomplete, wantErr: true, wantText: `preflight incomplete: build is blocked`},
 		{name: "unknown state", result: Result{kind: resultUnknown, buildState: "passing"}, wantCode: bkErrors.ExitCodePreflightUnknown, wantErr: true, wantText: `preflight result unknown: build is passing`},
-		{name: "unknown result kind", result: Result{kind: resultKind(99), buildState: "passed"}, wantCode: bkErrors.ExitCodeInternalError, wantErr: true, wantText: "build is 99, unable to coerce to preflight result"},
+		{name: "unknown result kind", result: Result{kind: resultKind(99), buildState: "passed"}, wantCode: bkErrors.ExitCodeInternalError, wantErr: true, wantText: `unexpected result kind 99 for build state 'passed', unable to coerce to error`},
 	}
 
 	for _, tt := range tests {
