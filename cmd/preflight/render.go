@@ -18,7 +18,7 @@ type renderer interface {
 	setSnapshot(*internalpreflight.SnapshotResult)
 	renderStatus(watch.BuildStatus, string) error
 	flush()
-	renderFinalFailures(watch.FailedJobs)
+	renderFinalFailures(Result, watch.FailedJobs)
 }
 
 func newRenderer(stdout *os.File, tty bool, pipeline string, buildNumber int) renderer {
@@ -36,6 +36,7 @@ type ttyRenderer struct {
 	titleRegion    *internalpreflight.Region
 	failedRegion   *internalpreflight.Region
 	jobsRegion     *internalpreflight.Region
+	resultRegion   *internalpreflight.Region
 }
 
 func newTTYRenderer(stdout *os.File, pipeline string, buildNumber int) *ttyRenderer {
@@ -48,6 +49,7 @@ func newTTYRenderer(stdout *os.File, pipeline string, buildNumber int) *ttyRende
 		titleRegion:    screen.AddRegion("title"),
 		failedRegion:   screen.AddRegion("failed"),
 		jobsRegion:     screen.AddRegion("jobs"),
+		resultRegion:   screen.AddRegion("result"),
 	}
 }
 
@@ -94,7 +96,10 @@ func (r *ttyRenderer) flush() {
 	r.screen.Flush()
 }
 
-func (r *ttyRenderer) renderFinalFailures(_ watch.FailedJobs) {}
+func (r *ttyRenderer) renderFinalFailures(result Result, failedJobs watch.FailedJobs) {
+	var presenter jobPresenter = ttyJobPresenter{pipeline: r.pipeline, buildNumber: r.buildNumber}
+	r.resultRegion.SetLines(finalResultLines(result, failedJobs, presenter))
+}
 
 type plainRenderer struct {
 	pipeline    string
@@ -140,24 +145,38 @@ func (r *plainRenderer) renderStatus(status watch.BuildStatus, buildState string
 
 func (r *plainRenderer) flush() {}
 
-func (r *plainRenderer) renderFinalFailures(failedJobs watch.FailedJobs) {
+func (r *plainRenderer) renderFinalFailures(result Result, failedJobs watch.FailedJobs) {
 	var presenter jobPresenter = plainJobPresenter{pipeline: r.pipeline, buildNumber: r.buildNumber, final: true}
+	for _, line := range finalResultLines(result, failedJobs, presenter) {
+		fmt.Fprintln(r.stdout, line)
+	}
+}
+
+func finalResultLines(result Result, failedJobs watch.FailedJobs, presenter jobPresenter) []string {
+	lines := []string{"", resultStatusLine(result)}
 
 	if len(failedJobs.Hard) > 0 {
-		fmt.Fprintln(r.stdout)
-		fmt.Fprintf(r.stdout, "Failed jobs (%d):\n", len(failedJobs.Hard))
+		lines = append(lines, "", fmt.Sprintf("Failed jobs (%d):", len(failedJobs.Hard)))
 		for _, rawJob := range failedJobs.Hard {
-			fmt.Fprintf(r.stdout, "%s\n", presenter.Line(rawJob))
+			lines = append(lines, presenter.Line(rawJob))
 		}
 	}
 
 	if len(failedJobs.Soft) > 0 {
-		fmt.Fprintln(r.stdout)
-		fmt.Fprintf(r.stdout, "Soft failed jobs (%d):\n", len(failedJobs.Soft))
+		lines = append(lines, "", fmt.Sprintf("Soft failed jobs (%d):", len(failedJobs.Soft)))
 		for _, rawJob := range failedJobs.Soft {
-			fmt.Fprintf(r.stdout, "%s\n", presenter.Line(rawJob))
+			lines = append(lines, presenter.Line(rawJob))
 		}
 	}
+
+	return lines
+}
+
+func resultStatusLine(result Result) string {
+	if result.kind == resultCompletedPass {
+		return "✅ Preflight passed!"
+	}
+	return fmt.Sprintf("❌ Preflight %s", result.buildState)
 }
 
 func snapshotLines(result *internalpreflight.SnapshotResult) []string {

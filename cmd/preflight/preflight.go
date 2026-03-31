@@ -193,9 +193,9 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	// Flush the screen so final output is not overwritten.
 	renderer.flush()
 
-	failedJobs := tracker.FailedJobs()
-	renderer.renderFinalFailures(failedJobs)
-
 	buildResult := NewResult(finalBuild)
+	failedJobs := tracker.FailedJobs()
+	renderer.renderFinalFailures(buildResult, failedJobs)
+
 	return buildResult.Error()
 }

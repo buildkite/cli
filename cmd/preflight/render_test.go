@@ -1,6 +1,7 @@
 package preflight
 
 import (
+	"bytes"
 	"os"
 	"regexp"
 	"strings"
@@ -100,6 +101,66 @@ func TestTTYRenderer_RenderStatus_RunningAndFailingJobs(t *testing.T) {
 	assertLineContains(t, lines, "● RSpec 3", "running")
 	assertLineContains(t, lines, "2 failed", "1 soft failed")
 }
+
+func TestTTYRenderer_RenderFinalFailures(t *testing.T) {
+	startedAt := buildkite.Timestamp{Time: time.Now().Add(-90 * time.Second)}
+	finishedAt := buildkite.Timestamp{Time: time.Now().Add(-15 * time.Second)}
+	exitOne := 1
+
+	lines := captureTTYLines(t, 183663, func(r *ttyRenderer) {
+		err := r.renderStatus(watch.BuildStatus{
+			Summary: watch.JobSummary{Failed: 1, SoftFailed: 1},
+		}, "failed")
+		if err != nil {
+			t.Fatalf("renderStatus returned error: %v", err)
+		}
+
+		r.flush()
+		r.renderFinalFailures(Result{kind: resultCompletedFailure, buildState: "failed"}, watch.FailedJobs{
+			Hard: []buildkite.Job{
+				scriptJob("failed-1", "ECR Vulnerabilities Scan", "failed", false, &startedAt, &finishedAt, &exitOne),
+			},
+			Soft: []buildkite.Job{
+				scriptJob("failed-2", "Bundle Audit", "failed", true, &startedAt, &finishedAt, &exitOne),
+			},
+		})
+	})
+
+	assertLinesContainInOrder(t, lines,
+		[]string{"❌ Preflight failed"},
+		[]string{"Failed jobs (1):"},
+		[]string{"ECR Vulnerabilities Scan", "failed-1"},
+		[]string{"Soft failed jobs (1):"},
+		[]string{"Bundle Audit", "soft failed", "failed-2"},
+	)
+}
+
+func TestPlainRenderer_RenderFinalFailures(t *testing.T) {
+	startedAt := buildkite.Timestamp{Time: time.Now().Add(-90 * time.Second)}
+	finishedAt := buildkite.Timestamp{Time: time.Now().Add(-15 * time.Second)}
+	exitOne := 1
+
+	var out bytes.Buffer
+	r := newPlainRenderer(&out, "buildkite", 42)
+	r.renderFinalFailures(Result{kind: resultCompletedFailure, buildState: "failed"}, watch.FailedJobs{
+		Hard: []buildkite.Job{
+			scriptJob("failed-1", "ECR Vulnerabilities Scan", "failed", false, &startedAt, &finishedAt, &exitOne),
+		},
+		Soft: []buildkite.Job{
+			scriptJob("failed-2", "Bundle Audit", "failed", true, &startedAt, &finishedAt, &exitOne),
+		},
+	})
+
+	lines := visibleRenderLines(out.String())
+	assertLinesContainInOrder(t, lines,
+		[]string{"❌ Preflight failed"},
+		[]string{"Failed jobs (1):"},
+		[]string{"ECR Vulnerabilities Scan", "failed", "failed-1"},
+		[]string{"Soft failed jobs (1):"},
+		[]string{"Bundle Audit", "failed-2"},
+	)
+}
+
 func captureTTYLines(t *testing.T, buildNumber int, fn func(r *ttyRenderer)) []string {
 	t.Helper()
 
@@ -167,6 +228,35 @@ func assertLineContains(t *testing.T, got []string, parts ...string) {
 	}
 
 	t.Fatalf("no line contained all parts %v:\n%s", parts, strings.Join(got, "\n"))
+}
+
+func assertLinesContainInOrder(t *testing.T, got []string, want ...[]string) {
+	t.Helper()
+
+	idx := 0
+	for _, parts := range want {
+		found := false
+		for idx < len(got) {
+			line := got[idx]
+			idx++
+
+			matched := true
+			for _, part := range parts {
+				if !strings.Contains(line, part) {
+					matched = false
+					break
+				}
+			}
+			if matched {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			t.Fatalf("did not find ordered line containing %v:\n%s", parts, strings.Join(got, "\n"))
+		}
+	}
 }
 
 func scriptJob(id, name, state string, softFailed bool, startedAt, finishedAt *buildkite.Timestamp, exitStatus *int) buildkite.Job {
