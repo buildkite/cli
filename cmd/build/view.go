@@ -21,11 +21,11 @@ import (
 )
 
 type ViewCmd struct {
-	BuildNumber string `arg:"" optional:"" help:"Build number to view (omit for most recent build)"`
-	Pipeline    string `help:"The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
-	Branch      string `help:"Filter builds to this branch." short:"b"`
-	User        string `help:"Filter builds to this user. You can use name or email." short:"u" xor:"userfilter"`
-	Mine        bool   `help:"Filter builds to only my user." xor:"userfilter"`
+	BuildNumber string   `arg:"" optional:"" help:"Build number to view (omit for most recent build)"`
+	Pipeline    string   `help:"The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
+	Branch      string   `help:"Filter builds to this branch." short:"b"`
+	User        string   `help:"Filter builds to this user. You can use name or email." short:"u" xor:"userfilter"`
+	Mine        bool     `help:"Filter builds to only my user." xor:"userfilter"`
 	JobStates   []string `help:"Filter jobs by state. Valid states: running, scheduled, passed, failed, canceled, skipped, not_run, broken." short:"s" sep:","`
 	Web         bool     `help:"Open the build in a web browser." short:"w"`
 	output.OutputFlags
@@ -62,6 +62,13 @@ Examples:
   # You can combine most of these flags
   # To view most recent build by greg on the deploy-pipeline
   $ bk build view -p deploy-pipeline -u "greg"`
+}
+
+func (c *ViewCmd) buildGetOptions() *buildkite.BuildGetOptions {
+	if len(c.JobStates) > 0 {
+		return &buildkite.BuildGetOptions{JobStates: c.JobStates}
+	}
+	return nil
 }
 
 func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
@@ -149,16 +156,12 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		go func() {
 			defer wg.Done()
 			var apiErr error
-			var getOpts *buildkite.BuildGetOptions
-			if len(c.JobStates) > 0 {
-				getOpts = &buildkite.BuildGetOptions{JobStates: c.JobStates}
-			}
 			build, _, apiErr = f.RestAPIClient.Builds.Get(
 				ctx,
 				opts.Organization,
 				opts.Pipeline,
 				fmt.Sprint(opts.BuildNumber),
-				getOpts,
+				c.buildGetOptions(),
 			)
 			if apiErr != nil {
 				mu.Lock()
