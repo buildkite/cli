@@ -14,6 +14,7 @@ const (
 	EventOperation   EventType = "operation"
 	EventBuildStatus EventType = "build_status"
 	EventJobFailure  EventType = "job_failure"
+	EventTestFailure EventType = "test_failure"
 )
 
 // Event is the single data model emitted by a preflight run.
@@ -39,4 +40,7 @@ type Event struct {
 
 	// Job is set for job_failure events.
 	Job *buildkite.Job `json:"job,omitempty"`
+
+	// TestFailures is set for test_failure events.
+	TestFailures []buildkite.BuildTest `json:"test_failures,omitempty"`
 }
