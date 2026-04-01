@@ -11,9 +11,11 @@ import (
 )
 
 var (
-	ttyDimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	ttyStatusStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
-	ttyBorderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
+	ttyDimStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	ttyStatusStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
+	ttyBorderStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
+	ttyFailureStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+	ttySoftFailureStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
 )
 
 type ttyModel struct {
@@ -67,7 +69,7 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				presenter := jobPresenter{pipeline: msg.Pipeline, buildNumber: msg.BuildNumber}
 				line := fmt.Sprintf("  %s  %s",
 					ttyDimStyle.Render(msg.Time.Format("15:04:05")),
-					presenter.Line(*msg.Job),
+					presenter.ColoredLine(*msg.Job),
 				)
 				return m, tea.Printf("%s", line)
 			}
@@ -108,10 +110,10 @@ func (m ttyModel) View() string {
 		parts = append(parts, fmt.Sprintf("%d passed", m.latest.Jobs.Passed))
 	}
 	if m.latest.Jobs.Failed > 0 {
-		parts = append(parts, fmt.Sprintf("%d failed", m.latest.Jobs.Failed))
+		parts = append(parts, ttyFailureStyle.Render(fmt.Sprintf("%d failed", m.latest.Jobs.Failed)))
 	}
 	if m.latest.Jobs.SoftFailed > 0 {
-		parts = append(parts, fmt.Sprintf("%d soft failed", m.latest.Jobs.SoftFailed))
+		parts = append(parts, ttySoftFailureStyle.Render(fmt.Sprintf("%d soft failed", m.latest.Jobs.SoftFailed)))
 	}
 	if m.latest.Jobs.Running > 0 {
 		parts = append(parts, fmt.Sprintf("%d running", m.latest.Jobs.Running))

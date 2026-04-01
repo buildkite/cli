@@ -52,6 +52,31 @@ func TestPlainRenderer_Render_OperationWithDetail(t *testing.T) {
 	}
 }
 
+func TestPlainRenderer_Render_OperationWithMultiLineDetail(t *testing.T) {
+	var out bytes.Buffer
+	r := newPlainRenderer(&out)
+
+	now := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
+	r.Render(Event{
+		Type:  EventOperation,
+		Time:  now,
+		Title: "Created snapshot of working tree...",
+		Detail: "Commit: abc1234567\nRef:    refs/heads/bk/preflight/abc123\nFiles:  2 changed\n" +
+			"  ~ app/controllers/jobs_controller.rb\n  ~ db/structure.sql",
+	})
+
+	got := out.String()
+	expected := "[10:30:00] Created snapshot of working tree...:\n" +
+		"Commit: abc1234567\n" +
+		"Ref:    refs/heads/bk/preflight/abc123\n" +
+		"Files:  2 changed\n" +
+		"  ~ app/controllers/jobs_controller.rb\n" +
+		"  ~ db/structure.sql\n"
+	if got != expected {
+		t.Fatalf("expected:\n%s\ngot:\n%s", expected, got)
+	}
+}
+
 func TestPlainRenderer_Render_BuildStatus(t *testing.T) {
 	var out bytes.Buffer
 	r := newPlainRenderer(&out)
