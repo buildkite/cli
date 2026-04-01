@@ -8,16 +8,16 @@ import (
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
-func TestEvent_StatusWithOperation(t *testing.T) {
+func TestEvent_Operation(t *testing.T) {
 	e := Event{
-		Type:        EventStatus,
+		Type:        EventOperation,
 		Time:        time.Now(),
 		PreflightID: "preflight-123",
 		Operation:   "Creating snapshot of working tree...",
 	}
 
-	if e.Type != EventStatus {
-		t.Fatalf("expected EventStatus, got %q", e.Type)
+	if e.Type != EventOperation {
+		t.Fatalf("expected EventOperation, got %q", e.Type)
 	}
 	if e.Operation == "" {
 		t.Fatal("expected Operation to be set")
@@ -27,9 +27,9 @@ func TestEvent_StatusWithOperation(t *testing.T) {
 	}
 }
 
-func TestEvent_StatusWithBuildState(t *testing.T) {
+func TestEvent_BuildStatus(t *testing.T) {
 	e := Event{
-		Type:        EventStatus,
+		Type:        EventBuildStatus,
 		Time:        time.Now(),
 		PreflightID: "preflight-123",
 		Pipeline:    "buildkite/cli",
@@ -42,8 +42,8 @@ func TestEvent_StatusWithBuildState(t *testing.T) {
 		},
 	}
 
-	if e.Type != EventStatus {
-		t.Fatalf("expected EventStatus, got %q", e.Type)
+	if e.Type != EventBuildStatus {
+		t.Fatalf("expected EventBuildStatus, got %q", e.Type)
 	}
 	if e.BuildNumber != 42 {
 		t.Fatalf("expected BuildNumber 42, got %d", e.BuildNumber)

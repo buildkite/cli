@@ -90,7 +90,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 
 	renderer := newRenderer(os.Stdout, c.JSON, c.Text, stop)
 
-	renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: "Creating snapshot of working tree..."})
+	renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Operation: "Creating snapshot of working tree..."})
 
 	var opts []preflight.SnapshotOption
 	if globals.EnableDebug() {
@@ -105,16 +105,16 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		)
 	}
 
-	renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Commit: %s", result.Commit[:10])})
-	renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Ref:    %s", result.Ref)})
+	renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Commit: %s", result.Commit[:10])})
+	renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Ref:    %s", result.Ref)})
 	if len(result.Files) > 0 {
-		renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Files:  %d changed", len(result.Files))})
+		renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Files:  %d changed", len(result.Files))})
 		for _, file := range result.Files {
-			renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("  %s %s", file.StatusSymbol(), file.Path)})
+			renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("  %s %s", file.StatusSymbol(), file.Path)})
 		}
 	}
 
-	renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name)})
+	renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name)})
 
 	build, _, err := f.RestAPIClient.Builds.Create(ctx, resolvedPipeline.Org, resolvedPipeline.Name, buildkite.CreateBuild{
 		Message: fmt.Sprintf("Preflight %s", preflightID),
@@ -129,7 +129,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	}
 
 	pipelineName := fmt.Sprintf("%s/%s", resolvedPipeline.Org, resolvedPipeline.Name)
-	renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Build:  %s", build.WebURL)})
+	renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Build:  %s", build.WebURL)})
 
 	if !c.Watch {
 		renderer.Close()
@@ -154,7 +154,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			}
 		}
 		return renderer.Render(Event{
-			Type:        EventStatus,
+			Type:        EventBuildStatus,
 			Time:        time.Now(),
 			PreflightID: preflightID.String(),
 			Pipeline:    pipelineName,
@@ -169,11 +169,11 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	finalErr := buildResult.Error()
 
 	if !c.NoCleanup {
-		renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Cleaning up remote branch %s...", result.Branch)})
+		renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Cleaning up remote branch %s...", result.Branch)})
 		if cleanupErr := preflight.Cleanup(wt.Filesystem.Root(), result.Ref, globals.EnableDebug()); cleanupErr != nil {
-			renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Warning: failed to delete remote branch %s: %v", result.Ref, cleanupErr)})
+			renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Warning: failed to delete remote branch %s: %v", result.Ref, cleanupErr)})
 		} else {
-			renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Deleted remote branch %s", result.Branch)})
+			renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Deleted remote branch %s", result.Branch)})
 		}
 	}
 
@@ -185,13 +185,13 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 				var apiErr *buildkite.ErrorResponse
 				if errors.As(cancelErr, &apiErr) && apiErr.Response.StatusCode == http.StatusUnprocessableEntity && apiErr.Message == "Build can't be canceled because it's already finished." {
 					if globals.EnableDebug() {
-						renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Debug: build #%d already finished, skipping cancel", build.Number)})
+						renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Debug: build #%d already finished, skipping cancel", build.Number)})
 					}
 				} else {
-					renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Warning: failed to cancel build #%d: %v", build.Number, cancelErr)})
+					renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Warning: failed to cancel build #%d: %v", build.Number, cancelErr)})
 				}
 			} else {
-				renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Cancelled build #%d", build.Number)})
+				renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Cancelled build #%d", build.Number)})
 			}
 		}
 		renderer.Close()
