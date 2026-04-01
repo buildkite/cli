@@ -48,9 +48,13 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case EventOperation:
 			m.latest = msg
+			text := msg.Title
+			if msg.Detail != "" {
+				text = msg.Detail
+			}
 			line := fmt.Sprintf("  %s  %s",
 				ttyDimStyle.Render(msg.Time.Format("15:04:05")),
-				msg.Operation,
+				text,
 			)
 			return m, tea.Printf("%s", line)
 
@@ -80,8 +84,8 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m ttyModel) statusText() string {
 	switch {
-	case m.latest.Operation != "":
-		return m.latest.Operation
+	case m.latest.Title != "":
+		return m.latest.Title
 	case m.latest.BuildState != "":
 		return fmt.Sprintf("Watching build #%d (%s)", m.latest.BuildNumber, m.latest.BuildState)
 	default:
