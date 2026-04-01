@@ -81,7 +81,7 @@ func (c *UnblockCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	ctx := context.Background()
 	var result *bkGraphQL.UnblockJobResponse
-	err = bkIO.SpinWhile(f, "Unblocking job", func() {
+	_ = bkIO.SpinWhile(f, "Unblocking job", func() {
 		result, err = bkGraphQL.UnblockJob(ctx, f.GraphQLClient, graphqlID, fields)
 	})
 	if err != nil {
