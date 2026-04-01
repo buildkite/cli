@@ -105,14 +105,14 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		)
 	}
 
-	renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: "Creating snapshot of working tree...", Detail: fmt.Sprintf("Commit: %s", result.Commit[:10])})
-	renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: "Creating snapshot of working tree...", Detail: fmt.Sprintf("Ref:    %s", result.Ref)})
+	snapshotDetail := fmt.Sprintf("Commit: %s\nRef:    %s", result.Commit[:10], result.Ref)
 	if len(result.Files) > 0 {
-		renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: "Creating snapshot of working tree...", Detail: fmt.Sprintf("Files:  %d changed", len(result.Files))})
+		snapshotDetail += fmt.Sprintf("\nFiles:  %d changed", len(result.Files))
 		for _, file := range result.Files {
-			renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: "Creating snapshot of working tree...", Detail: fmt.Sprintf("  %s %s", file.StatusSymbol(), file.Path)})
+			snapshotDetail += fmt.Sprintf("\n  %s %s", file.StatusSymbol(), file.Path)
 		}
 	}
+	renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: "Created snapshot of working tree...", Detail: snapshotDetail})
 
 	renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name)})
 
