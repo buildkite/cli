@@ -132,8 +132,9 @@ func newTTYRenderer(cancel context.CancelFunc) *ttyRenderer {
 	return r
 }
 
-func (r *ttyRenderer) Render(e Event) {
+func (r *ttyRenderer) Render(e Event) error {
 	r.program.Send(e)
+	return nil
 }
 
 func (r *ttyRenderer) Close() {
