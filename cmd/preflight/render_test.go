@@ -11,13 +11,13 @@ import (
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
-func TestPlainRenderer_Render_StatusOperation(t *testing.T) {
+func TestPlainRenderer_Render_Operation(t *testing.T) {
 	var out bytes.Buffer
 	r := newPlainRenderer(&out)
 
 	now := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
 	r.Render(Event{
-		Type:      EventStatus,
+		Type:      EventOperation,
 		Time:      now,
 		Operation: "Creating snapshot of working tree...",
 	})
@@ -31,13 +31,13 @@ func TestPlainRenderer_Render_StatusOperation(t *testing.T) {
 	}
 }
 
-func TestPlainRenderer_Render_StatusBuildState(t *testing.T) {
+func TestPlainRenderer_Render_BuildStatus(t *testing.T) {
 	var out bytes.Buffer
 	r := newPlainRenderer(&out)
 
 	now := time.Date(2025, 1, 15, 10, 30, 5, 0, time.UTC)
 	r.Render(Event{
-		Type:        EventStatus,
+		Type:        EventBuildStatus,
 		Time:        now,
 		BuildNumber: 42,
 		BuildState:  "running",
@@ -53,13 +53,13 @@ func TestPlainRenderer_Render_StatusBuildState(t *testing.T) {
 	}
 }
 
-func TestPlainRenderer_Render_StatusDeduplicates(t *testing.T) {
+func TestPlainRenderer_Render_BuildStatusDeduplicates(t *testing.T) {
 	var out bytes.Buffer
 	r := newPlainRenderer(&out)
 
 	now := time.Date(2025, 1, 15, 10, 30, 5, 0, time.UTC)
 	e := Event{
-		Type:        EventStatus,
+		Type:        EventBuildStatus,
 		Time:        now,
 		BuildNumber: 42,
 		BuildState:  "running",
@@ -105,13 +105,13 @@ func TestPlainRenderer_Render_JobFailure(t *testing.T) {
 	}
 }
 
-func TestJSONRenderer_Render_StatusOperation(t *testing.T) {
+func TestJSONRenderer_Render_Operation(t *testing.T) {
 	var out bytes.Buffer
 	r := newJSONRenderer(&out)
 
 	now := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
 	r.Render(Event{
-		Type:        EventStatus,
+		Type:        EventOperation,
 		Time:        now,
 		PreflightID: "pfid-123",
 		Operation:   "Creating snapshot of working tree...",
@@ -121,8 +121,8 @@ func TestJSONRenderer_Render_StatusOperation(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
 	}
-	if got.Type != EventStatus {
-		t.Fatalf("expected type %q, got %q", EventStatus, got.Type)
+	if got.Type != EventOperation {
+		t.Fatalf("expected type %q, got %q", EventOperation, got.Type)
 	}
 	if got.Operation != "Creating snapshot of working tree..." {
 		t.Fatalf("expected operation text, got %q", got.Operation)
@@ -132,13 +132,13 @@ func TestJSONRenderer_Render_StatusOperation(t *testing.T) {
 	}
 }
 
-func TestJSONRenderer_Render_StatusBuildState(t *testing.T) {
+func TestJSONRenderer_Render_BuildStatus(t *testing.T) {
 	var out bytes.Buffer
 	r := newJSONRenderer(&out)
 
 	now := time.Date(2025, 1, 15, 10, 30, 5, 0, time.UTC)
 	r.Render(Event{
-		Type:        EventStatus,
+		Type:        EventBuildStatus,
 		Time:        now,
 		PreflightID: "pfid-123",
 		Pipeline:    "buildkite/cli",
@@ -209,8 +209,8 @@ func TestJSONRenderer_Render_MultipleEvents_JSONL(t *testing.T) {
 	r := newJSONRenderer(&out)
 
 	now := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
-	r.Render(Event{Type: EventStatus, Time: now, Operation: "step 1"})
-	r.Render(Event{Type: EventStatus, Time: now, Operation: "step 2"})
+	r.Render(Event{Type: EventOperation, Time: now, Operation: "step 1"})
+	r.Render(Event{Type: EventOperation, Time: now, Operation: "step 2"})
 
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
 	if len(lines) != 2 {

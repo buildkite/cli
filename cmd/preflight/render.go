@@ -37,11 +37,11 @@ func newPlainRenderer(stdout io.Writer) *plainRenderer {
 
 func (r *plainRenderer) Render(e Event) error {
 	switch e.Type {
-	case EventStatus:
-		if e.Operation != "" {
-			_, err := fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), e.Operation)
-			return err
-		}
+	case EventOperation:
+		_, err := fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), e.Operation)
+		return err
+
+	case EventBuildStatus:
 		line := fmt.Sprintf("Build #%d %s", e.BuildNumber, e.BuildState)
 		if e.Jobs != nil {
 			if summary := e.Jobs.String(); summary != "" {

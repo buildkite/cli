@@ -11,8 +11,9 @@ import (
 type EventType string
 
 const (
-	EventStatus     EventType = "status"
-	EventJobFailure EventType = "job_failure"
+	EventOperation   EventType = "operation"
+	EventBuildStatus EventType = "build_status"
+	EventJobFailure  EventType = "job_failure"
 )
 
 // Event is the single data model emitted by a preflight run.
