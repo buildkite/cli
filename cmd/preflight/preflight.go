@@ -30,6 +30,7 @@ type PreflightCmd struct {
 	Interval  float64 `help:"Polling interval in seconds when watching." default:"2"`
 	NoCleanup bool    `help:"Skip deleting the remote preflight branch after the build finishes."`
 	Text      bool    `help:"Use plain text output instead of interactive terminal UI." default:"true"`
+	JSON      bool    `help:"Emit one JSON object per event (JSONL)." json:"json"`
 }
 
 var notifyContext = signal.NotifyContext
@@ -153,7 +154,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			BuildNumber: build.Number,
 			BuildURL:    build.WebURL,
 			BuildState:  b.State,
-			Jobs:        status.Summary,
+			Jobs:        &status.Summary,
 		})
 		return nil
 	})
