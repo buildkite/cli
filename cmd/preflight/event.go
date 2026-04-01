@@ -24,8 +24,11 @@ type Event struct {
 
 	PreflightID string `json:"preflight_id,omitempty"`
 
-	// Operation is set for pre-build status events (e.g. "Creating snapshot…").
-	Operation string `json:"operation,omitempty"`
+	// Title is the primary status text shown in the TTY dynamic area.
+	Title string `json:"title,omitempty"`
+
+	// Detail is supplementary information printed to the scrollback log.
+	Detail string `json:"detail,omitempty"`
 
 	Pipeline    string `json:"pipeline,omitempty"`
 	BuildNumber int    `json:"build_number,omitempty"`

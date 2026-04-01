@@ -19,7 +19,7 @@ func TestPlainRenderer_Render_Operation(t *testing.T) {
 	r.Render(Event{
 		Type:      EventOperation,
 		Time:      now,
-		Operation: "Creating snapshot of working tree...",
+		Title: "Creating snapshot of working tree...",
 	})
 
 	got := out.String()
@@ -27,7 +27,28 @@ func TestPlainRenderer_Render_Operation(t *testing.T) {
 		t.Fatalf("expected timestamp, got %q", got)
 	}
 	if !strings.Contains(got, "Creating snapshot of working tree...") {
-		t.Fatalf("expected operation text, got %q", got)
+		t.Fatalf("expected title text, got %q", got)
+	}
+}
+
+func TestPlainRenderer_Render_OperationWithDetail(t *testing.T) {
+	var out bytes.Buffer
+	r := newPlainRenderer(&out)
+
+	now := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
+	r.Render(Event{
+		Type:   EventOperation,
+		Time:   now,
+		Title:  "Creating snapshot of working tree...",
+		Detail: "Commit: abc1234567",
+	})
+
+	got := out.String()
+	if !strings.Contains(got, "Creating snapshot of working tree...") {
+		t.Fatalf("expected title text, got %q", got)
+	}
+	if !strings.Contains(got, "Commit: abc1234567") {
+		t.Fatalf("expected detail text, got %q", got)
 	}
 }
 
@@ -114,7 +135,7 @@ func TestJSONRenderer_Render_Operation(t *testing.T) {
 		Type:        EventOperation,
 		Time:        now,
 		PreflightID: "pfid-123",
-		Operation:   "Creating snapshot of working tree...",
+		Title: "Creating snapshot of working tree...",
 	})
 
 	var got Event
@@ -124,8 +145,8 @@ func TestJSONRenderer_Render_Operation(t *testing.T) {
 	if got.Type != EventOperation {
 		t.Fatalf("expected type %q, got %q", EventOperation, got.Type)
 	}
-	if got.Operation != "Creating snapshot of working tree..." {
-		t.Fatalf("expected operation text, got %q", got.Operation)
+	if got.Title != "Creating snapshot of working tree..." {
+		t.Fatalf("expected title text, got %q", got.Title)
 	}
 	if got.PreflightID != "pfid-123" {
 		t.Fatalf("expected preflight ID, got %q", got.PreflightID)
@@ -209,8 +230,8 @@ func TestJSONRenderer_Render_MultipleEvents_JSONL(t *testing.T) {
 	r := newJSONRenderer(&out)
 
 	now := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
-	r.Render(Event{Type: EventOperation, Time: now, Operation: "step 1"})
-	r.Render(Event{Type: EventOperation, Time: now, Operation: "step 2"})
+	r.Render(Event{Type: EventOperation, Time: now, Title: "step 1"})
+	r.Render(Event{Type: EventOperation, Time: now, Title: "step 2"})
 
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
 	if len(lines) != 2 {

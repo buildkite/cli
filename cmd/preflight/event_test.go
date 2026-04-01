@@ -13,14 +13,14 @@ func TestEvent_Operation(t *testing.T) {
 		Type:        EventOperation,
 		Time:        time.Now(),
 		PreflightID: "preflight-123",
-		Operation:   "Creating snapshot of working tree...",
+		Title: "Creating snapshot of working tree...",
 	}
 
 	if e.Type != EventOperation {
 		t.Fatalf("expected EventOperation, got %q", e.Type)
 	}
-	if e.Operation == "" {
-		t.Fatal("expected Operation to be set")
+	if e.Title == "" {
+		t.Fatal("expected Title to be set")
 	}
 	if e.BuildState != "" {
 		t.Fatal("expected BuildState to be empty for operation event")
