@@ -17,8 +17,8 @@ func TestPlainRenderer_Render_Operation(t *testing.T) {
 
 	now := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
 	r.Render(Event{
-		Type:      EventOperation,
-		Time:      now,
+		Type:  EventOperation,
+		Time:  now,
 		Title: "Creating snapshot of working tree...",
 	})
 
@@ -160,7 +160,7 @@ func TestJSONRenderer_Render_Operation(t *testing.T) {
 		Type:        EventOperation,
 		Time:        now,
 		PreflightID: "pfid-123",
-		Title: "Creating snapshot of working tree...",
+		Title:       "Creating snapshot of working tree...",
 	})
 
 	var got Event

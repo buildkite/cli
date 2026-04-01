@@ -136,6 +136,7 @@ func (m ttyModel) View() string {
 type ttyRenderer struct {
 	program *tea.Program
 	done    chan struct{}
+	err     error
 }
 
 func newTTYRenderer(cancel context.CancelFunc) *ttyRenderer {
@@ -144,7 +145,9 @@ func newTTYRenderer(cancel context.CancelFunc) *ttyRenderer {
 	p := tea.NewProgram(model)
 	r := &ttyRenderer{program: p, done: make(chan struct{})}
 	go func() {
-		p.Run()
+		if _, err := p.Run(); err != nil {
+			r.err = err
+		}
 		close(r.done)
 	}()
 	return r
@@ -155,7 +158,8 @@ func (r *ttyRenderer) Render(e Event) error {
 	return nil
 }
 
-func (r *ttyRenderer) Close() {
+func (r *ttyRenderer) Close() error {
 	r.program.Quit()
 	<-r.done
+	return r.err
 }

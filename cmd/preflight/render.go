@@ -14,7 +14,7 @@ import (
 
 type renderer interface {
 	Render(Event) error
-	Close()
+	Close() error
 }
 
 func newRenderer(stdout io.Writer, jsonMode bool, textMode bool, cancel context.CancelFunc) renderer {
@@ -73,7 +73,7 @@ func (r *plainRenderer) Render(e Event) error {
 	return nil
 }
 
-func (r *plainRenderer) Close() {}
+func (r *plainRenderer) Close() error { return nil }
 
 type jsonRenderer struct {
 	encoder *json.Encoder
@@ -89,7 +89,7 @@ func (r *jsonRenderer) Render(e Event) error {
 	return r.encoder.Encode(e)
 }
 
-func (r *jsonRenderer) Close() {}
+func (r *jsonRenderer) Close() error { return nil }
 
 func jobLogCommand(pipeline string, buildNumber int, jobID string) string {
 	return fmt.Sprintf("bk job log -b %d -p %s %s", buildNumber, pipeline, jobID)

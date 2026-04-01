@@ -13,7 +13,7 @@ func TestEvent_Operation(t *testing.T) {
 		Type:        EventOperation,
 		Time:        time.Now(),
 		PreflightID: "preflight-123",
-		Title: "Creating snapshot of working tree...",
+		Title:       "Creating snapshot of working tree...",
 	}
 
 	if e.Type != EventOperation {
