@@ -1,6 +1,7 @@
 package preflight
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -13,24 +14,23 @@ type renderer interface {
 	Close()
 }
 
-func newRenderer(stdout io.Writer, pipeline string, buildNumber int) renderer {
-	return newPlainRenderer(stdout, pipeline, buildNumber)
+func newRenderer(stdout io.Writer, jsonMode bool) renderer {
+	if jsonMode {
+		return newJSONRenderer(stdout)
+	}
+	return newPlainRenderer(stdout)
 }
 
 type plainRenderer struct {
-	pipeline    string
-	buildNumber int
-	stdout      io.Writer
-	lastLine    string
+	stdout   io.Writer
+	lastLine string
 }
 
-func newPlainRenderer(stdout io.Writer, pipeline string, buildNumber int) *plainRenderer {
-	return &plainRenderer{stdout: stdout, pipeline: pipeline, buildNumber: buildNumber}
+func newPlainRenderer(stdout io.Writer) *plainRenderer {
+	return &plainRenderer{stdout: stdout}
 }
 
 func (r *plainRenderer) Render(e Event) {
-	presenter := plainJobPresenter{pipeline: r.pipeline, buildNumber: r.buildNumber}
-
 	switch e.Type {
 	case EventStatus:
 		if e.Operation != "" {
@@ -38,8 +38,10 @@ func (r *plainRenderer) Render(e Event) {
 			return
 		}
 		line := fmt.Sprintf("Build #%d %s", e.BuildNumber, e.BuildState)
-		if summary := e.Jobs.String(); summary != "" {
-			line += " — " + summary
+		if e.Jobs != nil {
+			if summary := e.Jobs.String(); summary != "" {
+				line += " — " + summary
+			}
 		}
 		if line != r.lastLine {
 			fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), line)
@@ -48,12 +50,29 @@ func (r *plainRenderer) Render(e Event) {
 
 	case EventJobFailure:
 		if e.Job != nil {
+			presenter := plainJobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
 			fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), presenter.Line(*e.Job))
 		}
 	}
 }
 
 func (r *plainRenderer) Close() {}
+
+type jsonRenderer struct {
+	encoder *json.Encoder
+}
+
+func newJSONRenderer(stdout io.Writer) *jsonRenderer {
+	enc := json.NewEncoder(stdout)
+	enc.SetEscapeHTML(false)
+	return &jsonRenderer{encoder: enc}
+}
+
+func (r *jsonRenderer) Render(e Event) {
+	r.encoder.Encode(e)
+}
+
+func (r *jsonRenderer) Close() {}
 
 func snapshotLines(result *internalpreflight.SnapshotResult) []string {
 	lines := []string{

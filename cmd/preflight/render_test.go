@@ -2,6 +2,7 @@ package preflight
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -12,7 +13,7 @@ import (
 
 func TestPlainRenderer_Render_StatusOperation(t *testing.T) {
 	var out bytes.Buffer
-	r := newPlainRenderer(&out, "buildkite/cli", 42)
+	r := newPlainRenderer(&out)
 
 	now := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
 	r.Render(Event{
@@ -32,7 +33,7 @@ func TestPlainRenderer_Render_StatusOperation(t *testing.T) {
 
 func TestPlainRenderer_Render_StatusBuildState(t *testing.T) {
 	var out bytes.Buffer
-	r := newPlainRenderer(&out, "buildkite/cli", 42)
+	r := newPlainRenderer(&out)
 
 	now := time.Date(2025, 1, 15, 10, 30, 5, 0, time.UTC)
 	r.Render(Event{
@@ -40,7 +41,7 @@ func TestPlainRenderer_Render_StatusBuildState(t *testing.T) {
 		Time:        now,
 		BuildNumber: 42,
 		BuildState:  "running",
-		Jobs:        watch.JobSummary{Passed: 8, Running: 3},
+		Jobs:        &watch.JobSummary{Passed: 8, Running: 3},
 	})
 
 	got := out.String()
@@ -54,7 +55,7 @@ func TestPlainRenderer_Render_StatusBuildState(t *testing.T) {
 
 func TestPlainRenderer_Render_StatusDeduplicates(t *testing.T) {
 	var out bytes.Buffer
-	r := newPlainRenderer(&out, "buildkite/cli", 42)
+	r := newPlainRenderer(&out)
 
 	now := time.Date(2025, 1, 15, 10, 30, 5, 0, time.UTC)
 	e := Event{
@@ -62,7 +63,7 @@ func TestPlainRenderer_Render_StatusDeduplicates(t *testing.T) {
 		Time:        now,
 		BuildNumber: 42,
 		BuildState:  "running",
-		Jobs:        watch.JobSummary{Running: 3},
+		Jobs:        &watch.JobSummary{Running: 3},
 	}
 
 	r.Render(e)
@@ -76,7 +77,7 @@ func TestPlainRenderer_Render_StatusDeduplicates(t *testing.T) {
 
 func TestPlainRenderer_Render_JobFailure(t *testing.T) {
 	var out bytes.Buffer
-	r := newPlainRenderer(&out, "buildkite/cli", 42)
+	r := newPlainRenderer(&out)
 
 	now := time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)
 	exitOne := 1
@@ -101,6 +102,125 @@ func TestPlainRenderer_Render_JobFailure(t *testing.T) {
 	}
 	if !strings.Contains(got, "job-1") {
 		t.Fatalf("expected job ID, got %q", got)
+	}
+}
+
+func TestJSONRenderer_Render_StatusOperation(t *testing.T) {
+	var out bytes.Buffer
+	r := newJSONRenderer(&out)
+
+	now := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
+	r.Render(Event{
+		Type:        EventStatus,
+		Time:        now,
+		PreflightID: "pfid-123",
+		Operation:   "Creating snapshot of working tree...",
+	})
+
+	var got Event
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
+	}
+	if got.Type != EventStatus {
+		t.Fatalf("expected type %q, got %q", EventStatus, got.Type)
+	}
+	if got.Operation != "Creating snapshot of working tree..." {
+		t.Fatalf("expected operation text, got %q", got.Operation)
+	}
+	if got.PreflightID != "pfid-123" {
+		t.Fatalf("expected preflight ID, got %q", got.PreflightID)
+	}
+}
+
+func TestJSONRenderer_Render_StatusBuildState(t *testing.T) {
+	var out bytes.Buffer
+	r := newJSONRenderer(&out)
+
+	now := time.Date(2025, 1, 15, 10, 30, 5, 0, time.UTC)
+	r.Render(Event{
+		Type:        EventStatus,
+		Time:        now,
+		PreflightID: "pfid-123",
+		Pipeline:    "buildkite/cli",
+		BuildNumber: 42,
+		BuildURL:    "https://buildkite.com/buildkite/cli/builds/42",
+		BuildState:  "running",
+		Jobs:        &watch.JobSummary{Passed: 8, Running: 3},
+	})
+
+	var got Event
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if got.BuildNumber != 42 {
+		t.Fatalf("expected build number 42, got %d", got.BuildNumber)
+	}
+	if got.BuildState != "running" {
+		t.Fatalf("expected build state running, got %q", got.BuildState)
+	}
+	if got.Jobs.Passed != 8 {
+		t.Fatalf("expected 8 passed, got %d", got.Jobs.Passed)
+	}
+}
+
+func TestJSONRenderer_Render_JobFailure(t *testing.T) {
+	var out bytes.Buffer
+	r := newJSONRenderer(&out)
+
+	now := time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)
+	exitOne := 1
+	r.Render(Event{
+		Type:        EventJobFailure,
+		Time:        now,
+		PreflightID: "pfid-123",
+		Pipeline:    "buildkite/cli",
+		BuildNumber: 42,
+		Job: &buildkite.Job{
+			ID:         "job-1",
+			Name:       "Lint",
+			State:      "failed",
+			ExitStatus: &exitOne,
+		},
+	})
+
+	var got Event
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if got.Type != EventJobFailure {
+		t.Fatalf("expected type %q, got %q", EventJobFailure, got.Type)
+	}
+	if got.Job == nil {
+		t.Fatal("expected job to be present")
+	}
+	if got.Job.ID != "job-1" {
+		t.Fatalf("expected job ID job-1, got %q", got.Job.ID)
+	}
+	if got.Job.Name != "Lint" {
+		t.Fatalf("expected job name Lint, got %q", got.Job.Name)
+	}
+	if got.Job.ExitStatus == nil || *got.Job.ExitStatus != 1 {
+		t.Fatalf("expected exit status 1, got %v", got.Job.ExitStatus)
+	}
+}
+
+func TestJSONRenderer_Render_MultipleEvents_JSONL(t *testing.T) {
+	var out bytes.Buffer
+	r := newJSONRenderer(&out)
+
+	now := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
+	r.Render(Event{Type: EventStatus, Time: now, Operation: "step 1"})
+	r.Render(Event{Type: EventStatus, Time: now, Operation: "step 2"})
+
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 JSONL lines, got %d", len(lines))
+	}
+	for i, line := range lines {
+		var e Event
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatalf("line %d: invalid JSON: %v", i, err)
+		}
 	}
 }
 
