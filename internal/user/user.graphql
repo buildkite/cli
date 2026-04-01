@@ -8,7 +8,7 @@ mutation InviteUser($organization: ID!, $emails: [String!]!) {
 
 query FindUserByEmail($organization: ID!, $email: String!) {
   organization(slug: $organization) {
-    members(first: 1, search: $email) {
+    members(first: 1, email: $email) {
       edges {
         node {
           user {
