@@ -100,3 +100,15 @@ func (c *UnblockCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	fmt.Println("Successfully unblocked job")
 	return nil
 }
+
+func validateUnblockResponse(result *bkGraphQL.UnblockJobResponse) error {
+	if result == nil || result.JobTypeBlockUnblock == nil {
+		return fmt.Errorf("failed to unblock job")
+	}
+
+	if result.JobTypeBlockUnblock.JobTypeBlock.State != bkGraphQL.JobStatesUnblocked {
+		return fmt.Errorf("failed to unblock job: job is in state %s", result.JobTypeBlockUnblock.JobTypeBlock.State)
+	}
+
+	return nil
+}
