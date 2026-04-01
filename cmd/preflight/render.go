@@ -11,8 +11,6 @@ import (
 	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
 )
 
-const maxTTYRunningJobs = 10
-
 type renderer interface {
 	appendSnapshotLine(string)
 	setSnapshot(*internalpreflight.SnapshotResult)
@@ -77,16 +75,6 @@ func (r *ttyRenderer) renderStatus(status watch.BuildStatus, buildState string) 
 	}
 
 	var lines []string
-	runningJobs := status.Running
-	if len(runningJobs) > maxTTYRunningJobs {
-		runningJobs = runningJobs[:maxTTYRunningJobs]
-	}
-	for _, running := range runningJobs {
-		lines = append(lines, presenter.Line(running))
-	}
-	if status.TotalRunning > len(runningJobs) {
-		lines = append(lines, fmt.Sprintf("  \033[90m… and %d more running\033[0m", status.TotalRunning-len(runningJobs)))
-	}
 	lines = append(lines, formatSummaryLine(status.Summary))
 	r.jobsRegion.SetLines(lines)
 	return nil
@@ -144,6 +132,33 @@ func (r *plainRenderer) renderStatus(status watch.BuildStatus, buildState string
 }
 
 func (r *plainRenderer) flush() {}
+
+func (r *plainRenderer) Render(e Event) {
+	presenter := plainJobPresenter{pipeline: r.pipeline, buildNumber: r.buildNumber}
+
+	switch e.Type {
+	case EventStatus:
+		if e.Operation != "" {
+			fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), e.Operation)
+			return
+		}
+		line := fmt.Sprintf("Build #%d %s", e.BuildNumber, e.BuildState)
+		if summary := e.Jobs.String(); summary != "" {
+			line += " — " + summary
+		}
+		if line != r.lastLine {
+			fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), line)
+			r.lastLine = line
+		}
+
+	case EventJobFailure:
+		if e.Job != nil {
+			fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), presenter.Line(*e.Job))
+		}
+	}
+}
+
+func (r *plainRenderer) Close() {}
 
 func (r *plainRenderer) renderFinalFailures(result Result, failedJobs watch.FailedJobs) {
 	var presenter jobPresenter = plainJobPresenter{pipeline: r.pipeline, buildNumber: r.buildNumber, final: true}
