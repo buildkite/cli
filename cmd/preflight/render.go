@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"time"
+
+	"github.com/mattn/go-isatty"
 
 	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
 )
@@ -18,10 +21,10 @@ func newRenderer(stdout io.Writer, jsonMode bool, textMode bool) renderer {
 	if jsonMode {
 		return newJSONRenderer(stdout)
 	}
-	if !textMode {
-		return newTTYRenderer()
+	if textMode || !isatty.IsTerminal(os.Stdout.Fd()) {
+		return newPlainRenderer(stdout)
 	}
-	return newPlainRenderer(stdout)
+	return newTTYRenderer()
 }
 
 type plainRenderer struct {
