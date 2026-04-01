@@ -13,7 +13,6 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/google/uuid"
-	"github.com/mattn/go-isatty"
 
 	buildstate "github.com/buildkite/cli/v3/internal/build/state"
 	"github.com/buildkite/cli/v3/internal/build/watch"
@@ -30,21 +29,10 @@ type PreflightCmd struct {
 	Watch     bool    `help:"Watch the build until completion." default:"true" negatable:""`
 	Interval  float64 `help:"Polling interval in seconds when watching." default:"2"`
 	NoCleanup bool    `help:"Skip deleting the remote preflight branch after the build finishes."`
-}
-
-type renderStatusError struct {
-	err error
+	Text      bool    `help:"Use plain text output instead of interactive terminal UI." default:"true"`
 }
 
 var notifyContext = signal.NotifyContext
-
-func (e renderStatusError) Error() string {
-	return e.err.Error()
-}
-
-func (e renderStatusError) Unwrap() error {
-	return e.err
-}
 
 func (c *PreflightCmd) Help() string {
 	return `Snapshots your working tree (uncommitted, staged, and untracked changes) and pushes it to a bk/preflight/<id> branch. If there are no local changes, pushes HEAD directly.`
@@ -99,8 +87,9 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		)
 	}
 
-	tty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
-	snapshotOutput := []string{"Creating snapshot of working tree..."}
+	renderer := newRenderer(os.Stdout, resolvedPipeline.Name, 0)
+
+	renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: "Creating snapshot of working tree..."})
 
 	var opts []preflight.SnapshotOption
 	if globals.EnableDebug() {
@@ -114,9 +103,13 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			"Ensure you have push access to the remote repository",
 		)
 	}
-	snapshotOutput = append(snapshotOutput, snapshotLines(result)...)
-	snapshotOutput = append(snapshotOutput, "")
-	snapshotOutput = append(snapshotOutput, fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name))
+
+	for _, line := range snapshotLines(result) {
+		renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: line})
+	}
+
+	renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name)})
+
 	build, _, err := f.RestAPIClient.Builds.Create(ctx, resolvedPipeline.Org, resolvedPipeline.Name, buildkite.CreateBuild{
 		Message: fmt.Sprintf("Preflight %s", preflightID),
 		Commit:  result.Commit,
@@ -129,13 +122,11 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		return bkErrors.WrapAPIError(err, "creating preflight build")
 	}
 
-	renderer := newRenderer(os.Stdout, tty, resolvedPipeline.Name, build.Number)
-	for _, line := range snapshotOutput {
-		renderer.appendSnapshotLine(line)
-	}
-	renderer.appendSnapshotLine(fmt.Sprintf("Build:  %s", build.WebURL))
+	pipelineName := fmt.Sprintf("%s/%s", resolvedPipeline.Org, resolvedPipeline.Name)
+	renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Build:  %s", build.WebURL)})
 
 	if !c.Watch {
+		renderer.Close()
 		return nil
 	}
 
@@ -143,25 +134,34 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	tracker := watch.NewJobTracker()
 
 	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) error {
-		if err := renderer.renderStatus(tracker.Update(b), b.State); err != nil {
-			return renderStatusError{err: err}
+		status := tracker.Update(b)
+		for _, failed := range status.NewlyFailed {
+			renderer.Render(Event{
+				Type:        EventJobFailure,
+				Time:        time.Now(),
+				PreflightID: preflightID.String(),
+				Pipeline:    pipelineName,
+				BuildNumber: build.Number,
+				Job:         &failed,
+			})
 		}
+		renderer.Render(Event{
+			Type:        EventStatus,
+			Time:        time.Now(),
+			PreflightID: preflightID.String(),
+			Pipeline:    pipelineName,
+			BuildNumber: build.Number,
+			BuildURL:    build.WebURL,
+			BuildState:  b.State,
+			Jobs:        status.Summary,
+		})
 		return nil
 	})
-	if err != nil {
-		var renderErr renderStatusError
-		if errors.As(err, &renderErr) {
-			return bkErrors.NewInternalError(renderErr.err, "rendering build status failed")
-		}
-	}
 
-	// Flush the screen so final output is not overwritten.
-	renderer.flush()
+	renderer.Close()
 
 	buildResult := NewResult(finalBuild)
-	failedJobs := tracker.FailedJobs()
 	finalErr := buildResult.Error()
-	renderer.renderFinalFailures(buildResult, failedJobs)
 
 	if !c.NoCleanup {
 		fmt.Fprintf(os.Stderr, "Cleaning up remote branch %s...\n", result.Branch)
