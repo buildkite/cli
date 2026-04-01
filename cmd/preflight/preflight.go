@@ -29,7 +29,7 @@ type PreflightCmd struct {
 	Watch     bool    `help:"Watch the build until completion." default:"true" negatable:""`
 	Interval  float64 `help:"Polling interval in seconds when watching." default:"2"`
 	NoCleanup bool    `help:"Skip deleting the remote preflight branch after the build finishes."`
-	Text      bool    `help:"Use plain text output instead of interactive terminal UI." default:"true"`
+	Text      bool    `help:"Use plain text output instead of interactive terminal UI." default:"false"`
 	JSON      bool    `help:"Emit one JSON object per event (JSONL)." json:"json"`
 }
 
@@ -159,17 +159,15 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		return nil
 	})
 
-	renderer.Close()
-
 	buildResult := NewResult(finalBuild)
 	finalErr := buildResult.Error()
 
 	if !c.NoCleanup {
-		fmt.Fprintf(os.Stderr, "Cleaning up remote branch %s...\n", result.Branch)
+		renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Cleaning up remote branch %s...", result.Branch)})
 		if cleanupErr := preflight.Cleanup(wt.Filesystem.Root(), result.Ref, globals.EnableDebug()); cleanupErr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to delete remote branch %s: %v\n", result.Ref, cleanupErr)
+			renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Warning: failed to delete remote branch %s: %v", result.Ref, cleanupErr)})
 		} else {
-			fmt.Printf("Deleted remote branch %s\n", result.Branch)
+			renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Deleted remote branch %s", result.Branch)})
 		}
 	}
 
@@ -181,17 +179,20 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 				var apiErr *buildkite.ErrorResponse
 				if errors.As(cancelErr, &apiErr) && apiErr.Response.StatusCode == http.StatusUnprocessableEntity && apiErr.Message == "Build can't be canceled because it's already finished." {
 					if globals.EnableDebug() {
-						fmt.Fprintf(os.Stderr, "Debug: build #%d already finished, skipping cancel\n", build.Number)
+						renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Debug: build #%d already finished, skipping cancel", build.Number)})
 					}
 				} else {
-					fmt.Fprintf(os.Stderr, "Warning: failed to cancel build #%d: %v\n", build.Number, cancelErr)
+					renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Warning: failed to cancel build #%d: %v", build.Number, cancelErr)})
 				}
 			} else {
-				fmt.Fprintf(os.Stderr, "Cancelled build #%d\n", build.Number)
+				renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Cancelled build #%d", build.Number)})
 			}
 		}
+		renderer.Close()
 		return bkErrors.NewUserAbortedError(context.Canceled, "preflight canceled by user")
 	}
+	renderer.Close()
+
 	if err != nil {
 		return bkErrors.NewInternalError(err, "watching build failed",
 			"Buildkite API may be unavailable or your network may be unstable",
