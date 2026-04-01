@@ -122,7 +122,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	if c.Creator != "" && isValidEmail(c.Creator) {
 		originalEmail := c.Creator
-		err = bkIO.SpinWhile(f, "Looking up user", func() {
+		_ = bkIO.SpinWhile(f, "Looking up user", func() {
 			c.Creator, err = resolveCreatorEmailToUserID(ctx, f, originalEmail)
 		})
 		if err != nil {

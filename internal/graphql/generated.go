@@ -4009,7 +4009,7 @@ func FindQueuesForCluster(
 const FindUserByEmail_Operation = `
 query FindUserByEmail ($organization: ID!, $email: String!) {
 	organization(slug: $organization) {
-		members(first: 1, search: $email) {
+		members(first: 1, email: $email) {
 			edges {
 				node {
 					user {
