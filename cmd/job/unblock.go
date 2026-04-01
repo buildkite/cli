@@ -111,9 +111,5 @@ func validateUnblockResponse(result *bkGraphQL.UnblockJobResponse) error {
 		return fmt.Errorf("failed to unblock job")
 	}
 
-	if result.JobTypeBlockUnblock.JobTypeBlock.State != bkGraphQL.JobStatesUnblocked {
-		return fmt.Errorf("failed to unblock job: job is in state %s", result.JobTypeBlockUnblock.JobTypeBlock.State)
-	}
-
 	return nil
 }

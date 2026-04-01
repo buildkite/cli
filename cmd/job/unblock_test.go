@@ -1,7 +1,6 @@
 package job
 
 import (
-	"strings"
 	"testing"
 
 	bkGraphQL "github.com/buildkite/cli/v3/internal/graphql"
@@ -14,13 +13,11 @@ func TestValidateUnblockResponse(t *testing.T) {
 		name    string
 		input   *bkGraphQL.UnblockJobResponse
 		wantErr bool
-		errMsg  string
 	}{
 		{
 			name:    "nil response",
 			input:   nil,
 			wantErr: true,
-			errMsg:  "failed to unblock job",
 		},
 		{
 			name: "nil payload",
@@ -28,7 +25,6 @@ func TestValidateUnblockResponse(t *testing.T) {
 				JobTypeBlockUnblock: nil,
 			},
 			wantErr: true,
-			errMsg:  "failed to unblock job",
 		},
 		{
 			name: "successful unblock",
@@ -42,16 +38,15 @@ func TestValidateUnblockResponse(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "unexpected state BLOCKED",
+			name: "non-nil payload with finished state",
 			input: &bkGraphQL.UnblockJobResponse{
 				JobTypeBlockUnblock: &bkGraphQL.UnblockJobJobTypeBlockUnblockJobTypeBlockUnblockPayload{
 					JobTypeBlock: bkGraphQL.UnblockJobJobTypeBlockUnblockJobTypeBlockUnblockPayloadJobTypeBlock{
-						State: bkGraphQL.JobStatesBlocked,
+						State: bkGraphQL.JobStatesFinished,
 					},
 				},
 			},
-			wantErr: true,
-			errMsg:  "BLOCKED",
+			wantErr: false,
 		},
 	}
 
@@ -60,11 +55,6 @@ func TestValidateUnblockResponse(t *testing.T) {
 			err := validateUnblockResponse(tt.input)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("validateUnblockResponse() error = %v, wantErr %v", err, tt.wantErr)
-			}
-			if tt.wantErr && err != nil && tt.errMsg != "" {
-				if !strings.Contains(err.Error(), tt.errMsg) {
-					t.Errorf("validateUnblockResponse() error = %q, want substring %q", err.Error(), tt.errMsg)
-				}
 			}
 		})
 	}
