@@ -88,7 +88,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		)
 	}
 
-	renderer := newRenderer(os.Stdout, resolvedPipeline.Name, 0)
+	renderer := newRenderer(os.Stdout, c.JSON)
 
 	renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: "Creating snapshot of working tree..."})
 
