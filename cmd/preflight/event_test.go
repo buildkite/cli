@@ -1,0 +1,80 @@
+package preflight
+
+import (
+	"testing"
+	"time"
+
+	"github.com/buildkite/cli/v3/internal/build/watch"
+	buildkite "github.com/buildkite/go-buildkite/v4"
+)
+
+func TestEvent_StatusWithOperation(t *testing.T) {
+	e := Event{
+		Type:        EventStatus,
+		Time:        time.Now(),
+		PreflightID: "preflight-123",
+		Operation:   "Creating snapshot of working tree...",
+	}
+
+	if e.Type != EventStatus {
+		t.Fatalf("expected EventStatus, got %q", e.Type)
+	}
+	if e.Operation == "" {
+		t.Fatal("expected Operation to be set")
+	}
+	if e.BuildState != "" {
+		t.Fatal("expected BuildState to be empty for operation event")
+	}
+}
+
+func TestEvent_StatusWithBuildState(t *testing.T) {
+	e := Event{
+		Type:        EventStatus,
+		Time:        time.Now(),
+		PreflightID: "preflight-123",
+		Pipeline:    "buildkite/cli",
+		BuildNumber: 42,
+		BuildURL:    "https://buildkite.com/buildkite/cli/builds/42",
+		BuildState:  "running",
+		Jobs: watch.JobSummary{
+			Passed:  8,
+			Running: 3,
+		},
+	}
+
+	if e.Type != EventStatus {
+		t.Fatalf("expected EventStatus, got %q", e.Type)
+	}
+	if e.BuildNumber != 42 {
+		t.Fatalf("expected BuildNumber 42, got %d", e.BuildNumber)
+	}
+	if e.Jobs.Passed != 8 {
+		t.Fatalf("expected 8 passed, got %d", e.Jobs.Passed)
+	}
+}
+
+func TestEvent_JobFailure(t *testing.T) {
+	e := Event{
+		Type:        EventJobFailure,
+		Time:        time.Now(),
+		PreflightID: "preflight-123",
+		Pipeline:    "buildkite/cli",
+		BuildNumber: 42,
+		BuildState:  "failing",
+		Job: &buildkite.Job{
+			ID:    "job-1",
+			Name:  "Lint",
+			State: "failed",
+		},
+	}
+
+	if e.Type != EventJobFailure {
+		t.Fatalf("expected EventJobFailure, got %q", e.Type)
+	}
+	if e.Job == nil {
+		t.Fatal("expected Job to be set")
+	}
+	if e.Job.ID != "job-1" {
+		t.Fatalf("expected job ID job-1, got %q", e.Job.ID)
+	}
+}
