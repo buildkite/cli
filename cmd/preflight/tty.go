@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/buildkite/termoji"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -22,13 +23,21 @@ type ttyModel struct {
 	spinner    spinner.Model
 	latest     Event
 	cancelFunc context.CancelFunc
+	emoji      *termoji.Renderer
 }
 
-func newTTYModel() ttyModel {
+func newTTYModel(emoji *termoji.Renderer) ttyModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	return ttyModel{spinner: s}
+	return ttyModel{spinner: s, emoji: emoji}
+}
+
+func (m ttyModel) renderEmoji(s string) string {
+	if m.emoji != nil {
+		return m.emoji.Render(s)
+	}
+	return s
 }
 
 func (m ttyModel) Init() tea.Cmd {
@@ -56,7 +65,7 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			line := fmt.Sprintf("  %s  %s",
 				ttyDimStyle.Render(msg.Time.Format("15:04:05")),
-				text,
+				m.renderEmoji(text),
 			)
 			return m, tea.Printf("%s", line)
 
@@ -69,7 +78,7 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				presenter := jobPresenter{pipeline: msg.Pipeline, buildNumber: msg.BuildNumber}
 				line := fmt.Sprintf("  %s  %s",
 					ttyDimStyle.Render(msg.Time.Format("15:04:05")),
-					presenter.ColoredLine(*msg.Job),
+					m.renderEmoji(presenter.ColoredLine(*msg.Job)),
 				)
 				return m, tea.Printf("%s", line)
 			}
@@ -87,7 +96,7 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m ttyModel) statusText() string {
 	switch {
 	case m.latest.Title != "":
-		return m.latest.Title
+		return m.renderEmoji(m.latest.Title)
 	case m.latest.BuildState != "":
 		link := fmt.Sprintf("\033]8;;%s\033\\build #%d\033]8;;\033\\", m.latest.BuildURL, m.latest.BuildNumber)
 		return fmt.Sprintf("Watching %s (%s)", link, m.latest.BuildState)
@@ -140,7 +149,8 @@ type ttyRenderer struct {
 }
 
 func newTTYRenderer(cancel context.CancelFunc) *ttyRenderer {
-	model := newTTYModel()
+	emoji, _ := termoji.New(termoji.Options{})
+	model := newTTYModel(emoji)
 	model.cancelFunc = cancel
 	p := tea.NewProgram(model)
 	r := &ttyRenderer{program: p, done: make(chan struct{})}
