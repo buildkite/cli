@@ -1,6 +1,7 @@
 package job
 
 import (
+	"strings"
 	"testing"
 
 	bkGraphQL "github.com/buildkite/cli/v3/internal/graphql"
@@ -61,10 +62,8 @@ func TestValidateUnblockResponse(t *testing.T) {
 				t.Errorf("validateUnblockResponse() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if tt.wantErr && err != nil && tt.errMsg != "" {
-				// Check that the error message contains the expected substring
-				if err.Error() == "" || (tt.errMsg != "" && len(err.Error()) > 0) {
-					// Just verify error exists if we expected one
-					return
+				if !strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("validateUnblockResponse() error = %q, want substring %q", err.Error(), tt.errMsg)
 				}
 			}
 		})
