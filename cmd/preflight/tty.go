@@ -13,7 +13,6 @@ var (
 	ttyDimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	ttyStatusStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
 	ttyBorderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
-	ttyFailStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Bold(true)
 )
 
 type ttyModel struct {

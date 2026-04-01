@@ -105,8 +105,13 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		)
 	}
 
-	for _, line := range snapshotLines(result) {
-		renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: line})
+	renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Commit: %s", result.Commit[:10])})
+	renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Ref:    %s", result.Ref)})
+	if len(result.Files) > 0 {
+		renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Files:  %d changed", len(result.Files))})
+		for _, file := range result.Files {
+			renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("  %s %s", file.StatusSymbol(), file.Path)})
+		}
 	}
 
 	renderer.Render(Event{Type: EventStatus, Time: time.Now(), PreflightID: preflightID.String(), Operation: fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name)})

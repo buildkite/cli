@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/mattn/go-isatty"
-
-	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
 )
 
 type renderer interface {
@@ -79,20 +77,6 @@ func (r *jsonRenderer) Render(e Event) {
 }
 
 func (r *jsonRenderer) Close() {}
-
-func snapshotLines(result *internalpreflight.SnapshotResult) []string {
-	lines := []string{
-		fmt.Sprintf("Commit: %s", result.Commit[:10]),
-		fmt.Sprintf("Ref:    %s", result.Ref),
-	}
-	if len(result.Files) > 0 {
-		lines = append(lines, fmt.Sprintf("Files:  %d changed", len(result.Files)))
-		for _, file := range result.Files {
-			lines = append(lines, fmt.Sprintf("  %s %s", file.StatusSymbol(), file.Path))
-		}
-	}
-	return lines
-}
 
 func jobLogCommand(pipeline string, buildNumber int, jobID string) string {
 	return fmt.Sprintf("bk job log -b %d -p %s %s", buildNumber, pipeline, jobID)
