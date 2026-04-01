@@ -14,9 +14,12 @@ type renderer interface {
 	Close()
 }
 
-func newRenderer(stdout io.Writer, jsonMode bool) renderer {
+func newRenderer(stdout io.Writer, jsonMode bool, textMode bool) renderer {
 	if jsonMode {
 		return newJSONRenderer(stdout)
+	}
+	if !textMode {
+		return newTTYRenderer()
 	}
 	return newPlainRenderer(stdout)
 }
