@@ -224,6 +224,14 @@ func TestJSONRenderer_Render_MultipleEvents_JSONL(t *testing.T) {
 	}
 }
 
+func TestNewRenderer_DefaultsToPlainWhenNotTTY(t *testing.T) {
+	var out bytes.Buffer
+	r := newRenderer(&out, false, false)
+	if _, ok := r.(*plainRenderer); !ok {
+		t.Fatalf("expected *plainRenderer when stdout is not a TTY, got %T", r)
+	}
+}
+
 func scriptJob(id, name, state string, softFailed bool, startedAt, finishedAt *buildkite.Timestamp, exitStatus *int) buildkite.Job {
 	return buildkite.Job{
 		ID:         id,
