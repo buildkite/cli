@@ -16,14 +16,14 @@ type trackedJob struct {
 
 // JobSummary aggregates job counts by high-level state.
 type JobSummary struct {
-	Passed     int
-	Failed     int
-	SoftFailed int
-	Running    int
-	Scheduled  int
-	Blocked    int
-	Skipped    int
-	Waiting    int
+	Passed     int `json:"passed"`
+	Failed     int `json:"failed"`
+	SoftFailed int `json:"soft_failed"`
+	Running    int `json:"running"`
+	Scheduled  int `json:"scheduled"`
+	Blocked    int `json:"blocked"`
+	Skipped    int `json:"skipped"`
+	Waiting    int `json:"waiting"`
 }
 
 // String returns a human-readable summary of non-zero job counts.

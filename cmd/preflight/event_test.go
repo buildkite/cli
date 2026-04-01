@@ -36,7 +36,7 @@ func TestEvent_StatusWithBuildState(t *testing.T) {
 		BuildNumber: 42,
 		BuildURL:    "https://buildkite.com/buildkite/cli/builds/42",
 		BuildState:  "running",
-		Jobs: watch.JobSummary{
+		Jobs: &watch.JobSummary{
 			Passed:  8,
 			Running: 3,
 		},
