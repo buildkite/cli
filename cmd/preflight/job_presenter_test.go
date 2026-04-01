@@ -1,7 +1,6 @@
 package preflight
 
 import (
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -9,40 +8,28 @@ import (
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
-var presenterANSIPattern = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]`)
-
-func TestTTYJobPresenter_RunningLine(t *testing.T) {
-	startedAt := buildkite.Timestamp{Time: time.Now().Add(-2 * time.Minute)}
-
-	line := stripPresenterANSI(ttyJobPresenter{}.Line(scriptJob("job-1", "Lint", "running", false, &startedAt, nil, nil)))
-
-	assertStringContainsAll(t, line, []string{"● Lint", "running"})
-}
-
-func TestTTYJobPresenter_FailedLine(t *testing.T) {
+func TestJobPresenter_FailedLine(t *testing.T) {
 	startedAt := buildkite.Timestamp{Time: time.Now().Add(-90 * time.Second)}
 	finishedAt := buildkite.Timestamp{Time: time.Now().Add(-15 * time.Second)}
-	exitStatus := 14
+	exitStatus := 1
 
-	line := stripPresenterANSI(ttyJobPresenter{
-		pipeline:    "buildkite",
+	line := jobPresenter{
+		pipeline:    "buildkite/cli",
 		buildNumber: 183663,
-	}.Line(scriptJob("failed-3", "Yarn Audit", "failed", false, &startedAt, &finishedAt, &exitStatus)))
+	}.Line(scriptJob("failed-windows-smoke-tests", "Windows smoke tests", "failed", false, &startedAt, &finishedAt, &exitStatus))
 
 	assertStringContainsAll(t, line, []string{
-		"✗ Yarn Audit",
-		"failed",
-		"exit 14",
-		"failed-3",
-		"bk job log -b 183663 -p buildkite failed-3",
+		"✗ Windows smoke tests",
+		"failed with exit 1",
+		"— bk job log -b 183663 -p buildkite/cli failed-windows-smoke-tests",
 	})
 }
 
-func TestPlainJobPresenter_Line(t *testing.T) {
+func TestJobPresenter_SoftFailedLine(t *testing.T) {
 	startedAt := buildkite.Timestamp{Time: time.Now().Add(-90 * time.Second)}
 	finishedAt := buildkite.Timestamp{Time: time.Now().Add(-15 * time.Second)}
 
-	line := plainJobPresenter{
+	line := jobPresenter{
 		pipeline:    "buildkite",
 		buildNumber: 183663,
 	}.Line(scriptJob("failed-2", "Bundle Audit", "failed", true, &startedAt, &finishedAt, nil))
@@ -50,33 +37,27 @@ func TestPlainJobPresenter_Line(t *testing.T) {
 	assertStringContainsAll(t, line, []string{
 		"⚠ Bundle Audit",
 		"soft failed",
-		"failed-2",
-		"bk job log -b 183663 -p buildkite failed-2",
+		"— bk job log -b 183663 -p buildkite failed-2",
 	})
 }
 
-func TestPlainJobPresenter_FinalLine(t *testing.T) {
+func TestJobPresenter_FailedNoExit(t *testing.T) {
 	startedAt := buildkite.Timestamp{Time: time.Now().Add(-90 * time.Second)}
 	finishedAt := buildkite.Timestamp{Time: time.Now().Add(-15 * time.Second)}
 
-	line := plainJobPresenter{
-		pipeline:    "buildkite",
-		buildNumber: 183663,
-		final:       true,
-	}.Line(scriptJob("failed-2", "Bundle Audit", "failed", true, &startedAt, &finishedAt, nil))
+	line := jobPresenter{
+		pipeline:    "buildkite/cli",
+		buildNumber: 42,
+	}.Line(scriptJob("job-1", "Lint", "failed", false, &startedAt, &finishedAt, nil))
 
 	assertStringContainsAll(t, line, []string{
-		"⚠ Bundle Audit",
-		"failed-2",
-		"bk job log -b 183663 -p buildkite failed-2",
+		"✗ Lint",
+		"failed",
+		"— bk job log -b 42 -p buildkite/cli job-1",
 	})
-	if strings.Contains(line, "soft failed") {
-		t.Fatalf("did not expect soft failed label in final failure line: %q", line)
+	if strings.Contains(line, "with exit") {
+		t.Fatalf("did not expect exit status when nil: %q", line)
 	}
-}
-
-func stripPresenterANSI(s string) string {
-	return presenterANSIPattern.ReplaceAllString(s, "")
 }
 
 func assertStringContainsAll(t *testing.T, got string, want []string) {

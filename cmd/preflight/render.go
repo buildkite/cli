@@ -60,7 +60,7 @@ func (r *plainRenderer) Render(e Event) error {
 
 	case EventJobFailure:
 		if e.Job != nil {
-			presenter := plainJobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
+			presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
 			_, err := fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), presenter.Line(*e.Job))
 			return err
 		}

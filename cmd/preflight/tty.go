@@ -64,7 +64,7 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case EventJobFailure:
 			if msg.Job != nil {
-				presenter := ttyJobPresenter{pipeline: msg.Pipeline, buildNumber: msg.BuildNumber}
+				presenter := jobPresenter{pipeline: msg.Pipeline, buildNumber: msg.BuildNumber}
 				line := fmt.Sprintf("  %s  %s",
 					ttyDimStyle.Render(msg.Time.Format("15:04:05")),
 					presenter.Line(*msg.Job),
