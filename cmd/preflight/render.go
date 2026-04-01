@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/mattn/go-isatty"
@@ -39,7 +40,11 @@ func (r *plainRenderer) Render(e Event) error {
 	switch e.Type {
 	case EventOperation:
 		if e.Detail != "" {
-			_, err := fmt.Fprintf(r.stdout, "[%s] %s: %s\n", e.Time.Format(time.TimeOnly), e.Title, e.Detail)
+			sep := " "
+			if strings.Contains(e.Detail, "\n") {
+				sep = "\n"
+			}
+			_, err := fmt.Fprintf(r.stdout, "[%s] %s:%s%s\n", e.Time.Format(time.TimeOnly), e.Title, sep, e.Detail)
 			return err
 		}
 		_, err := fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), e.Title)

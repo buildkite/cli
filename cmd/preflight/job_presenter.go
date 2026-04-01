@@ -5,6 +5,7 @@ import (
 
 	"github.com/buildkite/cli/v3/internal/build/watch"
 	buildkite "github.com/buildkite/go-buildkite/v4"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type jobPresenter struct {
@@ -34,4 +35,14 @@ func (p jobPresenter) Line(j buildkite.Job) string {
 	}
 
 	return fmt.Sprintf("%s %s %s — %s", symbol, name, status, jobLogCommand(p.pipeline, p.buildNumber, j.ID))
+}
+
+func (p jobPresenter) ColoredLine(j buildkite.Job) string {
+	line := p.Line(j)
+	job := watch.NewFormattedJob(j)
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+	if job.IsSoftFailed() {
+		style = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
+	}
+	return style.Render(line)
 }
