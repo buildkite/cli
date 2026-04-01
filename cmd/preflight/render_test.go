@@ -226,7 +226,7 @@ func TestJSONRenderer_Render_MultipleEvents_JSONL(t *testing.T) {
 
 func TestNewRenderer_DefaultsToPlainWhenNotTTY(t *testing.T) {
 	var out bytes.Buffer
-	r := newRenderer(&out, false, false)
+	r := newRenderer(&out, false, false, func() {})
 	if _, ok := r.(*plainRenderer); !ok {
 		t.Fatalf("expected *plainRenderer when stdout is not a TTY, got %T", r)
 	}

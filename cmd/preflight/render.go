@@ -1,6 +1,7 @@
 package preflight
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,14 +16,14 @@ type renderer interface {
 	Close()
 }
 
-func newRenderer(stdout io.Writer, jsonMode bool, textMode bool) renderer {
+func newRenderer(stdout io.Writer, jsonMode bool, textMode bool, cancel context.CancelFunc) renderer {
 	if jsonMode {
 		return newJSONRenderer(stdout)
 	}
 	if textMode || !isatty.IsTerminal(os.Stdout.Fd()) {
 		return newPlainRenderer(stdout)
 	}
-	return newTTYRenderer()
+	return newTTYRenderer(cancel)
 }
 
 type plainRenderer struct {

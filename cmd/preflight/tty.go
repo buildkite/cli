@@ -1,6 +1,7 @@
 package preflight
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -16,8 +17,9 @@ var (
 )
 
 type ttyModel struct {
-	spinner spinner.Model
-	latest  Event
+	spinner    spinner.Model
+	latest     Event
+	cancelFunc context.CancelFunc
 }
 
 func newTTYModel() ttyModel {
@@ -36,6 +38,9 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
+			if m.cancelFunc != nil {
+				m.cancelFunc()
+			}
 			return m, tea.Quit
 		}
 
@@ -115,8 +120,10 @@ type ttyRenderer struct {
 	done    chan struct{}
 }
 
-func newTTYRenderer() *ttyRenderer {
-	p := tea.NewProgram(newTTYModel())
+func newTTYRenderer(cancel context.CancelFunc) *ttyRenderer {
+	model := newTTYModel()
+	model.cancelFunc = cancel
+	p := tea.NewProgram(model)
 	r := &ttyRenderer{program: p, done: make(chan struct{})}
 	go func() {
 		p.Run()
