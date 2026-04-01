@@ -87,7 +87,8 @@ func (m ttyModel) statusText() string {
 	case m.latest.Title != "":
 		return m.latest.Title
 	case m.latest.BuildState != "":
-		return fmt.Sprintf("Watching build #%d (%s)", m.latest.BuildNumber, m.latest.BuildState)
+		link := fmt.Sprintf("\033]8;;%s\033\\build #%d\033]8;;\033\\", m.latest.BuildURL, m.latest.BuildNumber)
+		return fmt.Sprintf("Watching %s (%s)", link, m.latest.BuildState)
 	default:
 		return "Starting..."
 	}
