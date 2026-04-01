@@ -142,16 +142,18 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) error {
 		status := tracker.Update(b)
 		for _, failed := range status.NewlyFailed {
-			renderer.Render(Event{
+			if err := renderer.Render(Event{
 				Type:        EventJobFailure,
 				Time:        time.Now(),
 				PreflightID: preflightID.String(),
 				Pipeline:    pipelineName,
 				BuildNumber: build.Number,
 				Job:         &failed,
-			})
+			}); err != nil {
+				return err
+			}
 		}
-		renderer.Render(Event{
+		return renderer.Render(Event{
 			Type:        EventStatus,
 			Time:        time.Now(),
 			PreflightID: preflightID.String(),
@@ -161,7 +163,6 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			BuildState:  b.State,
 			Jobs:        &status.Summary,
 		})
-		return nil
 	})
 
 	buildResult := NewResult(finalBuild)

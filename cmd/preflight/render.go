@@ -12,7 +12,7 @@ import (
 )
 
 type renderer interface {
-	Render(Event)
+	Render(Event) error
 	Close()
 }
 
@@ -35,12 +35,12 @@ func newPlainRenderer(stdout io.Writer) *plainRenderer {
 	return &plainRenderer{stdout: stdout}
 }
 
-func (r *plainRenderer) Render(e Event) {
+func (r *plainRenderer) Render(e Event) error {
 	switch e.Type {
 	case EventStatus:
 		if e.Operation != "" {
-			fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), e.Operation)
-			return
+			_, err := fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), e.Operation)
+			return err
 		}
 		line := fmt.Sprintf("Build #%d %s", e.BuildNumber, e.BuildState)
 		if e.Jobs != nil {
@@ -49,16 +49,19 @@ func (r *plainRenderer) Render(e Event) {
 			}
 		}
 		if line != r.lastLine {
-			fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), line)
+			_, err := fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), line)
 			r.lastLine = line
+			return err
 		}
 
 	case EventJobFailure:
 		if e.Job != nil {
 			presenter := plainJobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
-			fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), presenter.Line(*e.Job))
+			_, err := fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), presenter.Line(*e.Job))
+			return err
 		}
 	}
+	return nil
 }
 
 func (r *plainRenderer) Close() {}
@@ -73,8 +76,8 @@ func newJSONRenderer(stdout io.Writer) *jsonRenderer {
 	return &jsonRenderer{encoder: enc}
 }
 
-func (r *jsonRenderer) Render(e Event) {
-	r.encoder.Encode(e)
+func (r *jsonRenderer) Render(e Event) error {
+	return r.encoder.Encode(e)
 }
 
 func (r *jsonRenderer) Close() {}
