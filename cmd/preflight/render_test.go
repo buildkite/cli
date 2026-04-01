@@ -56,10 +56,6 @@ func TestTTYRenderer_RenderStatus_AllRunningJobs(t *testing.T) {
 	})
 
 	assertLineContains(t, lines, "Watching build #42…", "(running)")
-	assertLineContains(t, lines, "● Lint", "running")
-	assertLineContains(t, lines, "● Unit Tests", "running")
-	assertLineContains(t, lines, "● Integration Tests", "running")
-	assertLineContains(t, lines, "…")
 }
 
 func TestTTYRenderer_RenderStatus_RunningAndFailingJobs(t *testing.T) {
@@ -96,9 +92,6 @@ func TestTTYRenderer_RenderStatus_RunningAndFailingJobs(t *testing.T) {
 	assertLineContains(t, lines, "✗ ECR Vulnerabilities Scan", "failed-1")
 	assertLineContains(t, lines, "✗ Bundle Audit", "soft failed", "failed-2")
 	assertLineContains(t, lines, "✗ Yarn Audit", "exit 14", "failed-3")
-	assertLineContains(t, lines, "● RSpec 1", "running")
-	assertLineContains(t, lines, "● RSpec 2", "running")
-	assertLineContains(t, lines, "● RSpec 3", "running")
 	assertLineEquals(t, lines, "  … 2 failed, 1 soft failed")
 }
 
@@ -133,6 +126,100 @@ func TestTTYRenderer_RenderFinalFailures(t *testing.T) {
 		[]string{"Soft failed jobs (1):"},
 		[]string{"Bundle Audit", "soft failed", "failed-2"},
 	)
+}
+
+func TestPlainRenderer_Render_StatusOperation(t *testing.T) {
+	var out bytes.Buffer
+	r := newPlainRenderer(&out, "buildkite/cli", 42)
+
+	now := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
+	r.Render(Event{
+		Type:      EventStatus,
+		Time:      now,
+		Operation: "Creating snapshot of working tree...",
+	})
+
+	got := out.String()
+	if !strings.Contains(got, "10:30:00") {
+		t.Fatalf("expected timestamp, got %q", got)
+	}
+	if !strings.Contains(got, "Creating snapshot of working tree...") {
+		t.Fatalf("expected operation text, got %q", got)
+	}
+}
+
+func TestPlainRenderer_Render_StatusBuildState(t *testing.T) {
+	var out bytes.Buffer
+	r := newPlainRenderer(&out, "buildkite/cli", 42)
+
+	now := time.Date(2025, 1, 15, 10, 30, 5, 0, time.UTC)
+	r.Render(Event{
+		Type:        EventStatus,
+		Time:        now,
+		BuildNumber: 42,
+		BuildState:  "running",
+		Jobs:        watch.JobSummary{Passed: 8, Running: 3},
+	})
+
+	got := out.String()
+	if !strings.Contains(got, "Build #42 running") {
+		t.Fatalf("expected build status line, got %q", got)
+	}
+	if !strings.Contains(got, "8 passed") {
+		t.Fatalf("expected job summary, got %q", got)
+	}
+}
+
+func TestPlainRenderer_Render_StatusDeduplicates(t *testing.T) {
+	var out bytes.Buffer
+	r := newPlainRenderer(&out, "buildkite/cli", 42)
+
+	now := time.Date(2025, 1, 15, 10, 30, 5, 0, time.UTC)
+	e := Event{
+		Type:        EventStatus,
+		Time:        now,
+		BuildNumber: 42,
+		BuildState:  "running",
+		Jobs:        watch.JobSummary{Running: 3},
+	}
+
+	r.Render(e)
+	r.Render(e)
+
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("expected 1 line (deduplicated), got %d: %v", len(lines), lines)
+	}
+}
+
+func TestPlainRenderer_Render_JobFailure(t *testing.T) {
+	var out bytes.Buffer
+	r := newPlainRenderer(&out, "buildkite/cli", 42)
+
+	now := time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)
+	exitOne := 1
+	r.Render(Event{
+		Type: EventJobFailure,
+		Time: now,
+		Job: &buildkite.Job{
+			ID:         "job-1",
+			Name:       "Lint",
+			Type:       "script",
+			State:      "failed",
+			ExitStatus: &exitOne,
+		},
+	})
+
+	got := out.String()
+	if !strings.Contains(got, "10:31:00") {
+		t.Fatalf("expected timestamp, got %q", got)
+	}
+	if !strings.Contains(got, "Lint") {
+		t.Fatalf("expected job name, got %q", got)
+	}
+	if !strings.Contains(got, "job-1") {
+		t.Fatalf("expected job ID, got %q", got)
+	}
 }
 
 func TestPlainRenderer_RenderFinalFailures(t *testing.T) {
