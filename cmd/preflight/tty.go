@@ -41,12 +41,20 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cancelFunc != nil {
 				m.cancelFunc()
 			}
-			return m, tea.Quit
+			return m, nil
 		}
 
 	case Event:
 		switch msg.Type {
-		case EventStatus:
+		case EventOperation:
+			m.latest = msg
+			line := fmt.Sprintf("  %s  %s",
+				ttyDimStyle.Render(msg.Time.Format("15:04:05")),
+				msg.Operation,
+			)
+			return m, tea.Printf("%s", line)
+
+		case EventBuildStatus:
 			m.latest = msg
 			return m, nil
 
@@ -70,18 +78,21 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m ttyModel) statusText() string {
+	switch {
+	case m.latest.Operation != "":
+		return m.latest.Operation
+	case m.latest.BuildState != "":
+		return fmt.Sprintf("Watching build #%d (%s)", m.latest.BuildNumber, m.latest.BuildState)
+	default:
+		return "Starting..."
+	}
+}
+
 func (m ttyModel) View() string {
 	separator := ttyBorderStyle.Render("─────────────────────────────────────────────")
 
-	statusText := m.latest.Operation
-	if m.latest.BuildState != "" {
-		statusText = fmt.Sprintf("Watching build #%d (%s)", m.latest.BuildNumber, m.latest.BuildState)
-	}
-	if statusText == "" {
-		statusText = "Starting..."
-	}
-
-	statusLine := fmt.Sprintf("  %s %s", m.spinner.View(), ttyStatusStyle.Render(statusText))
+	statusLine := fmt.Sprintf("  %s %s", m.spinner.View(), ttyStatusStyle.Render(m.statusText()))
 
 	if m.latest.Jobs == nil {
 		return separator + "\n" + statusLine
