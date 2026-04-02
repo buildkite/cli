@@ -59,6 +59,25 @@ func TestCheckForUpdate_DevVersion(t *testing.T) {
 	}
 }
 
+func TestCheckForUpdate_NonReleaseVersionSkipsLookup(t *testing.T) {
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		fmt.Fprint(w, `{"tag_name": "v9.9.9"}`)
+	}))
+	defer server.Close()
+
+	releaseURL = server.URL
+
+	_, hasUpdate := CheckForUpdate("v3.1.0-12-gabc1234")
+	if hasUpdate {
+		t.Fatal("expected hasUpdate to be false for non-release version")
+	}
+	if requestCount != 0 {
+		t.Fatalf("expected no release lookup for non-release version, got %d requests", requestCount)
+	}
+}
+
 func TestCheckForUpdate_ServerError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
