@@ -29,7 +29,7 @@ type PreflightCmd struct {
 	Watch     bool    `help:"Watch the build until completion." default:"true" negatable:""`
 	Interval  float64 `help:"Polling interval in seconds when watching." default:"2"`
 	NoCleanup bool    `help:"Skip deleting the remote preflight branch after the build finishes."`
-	Text      bool    `help:"Use plain text output instead of interactive terminal UI." default:"false" xor:"output"`
+	Text      bool    `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
 	JSON      bool    `help:"Emit one JSON object per event (JSONL)." xor:"output"`
 }
 
