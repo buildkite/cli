@@ -13,7 +13,6 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/google/uuid"
-	"github.com/mattn/go-isatty"
 
 	buildstate "github.com/buildkite/cli/v3/internal/build/state"
 	"github.com/buildkite/cli/v3/internal/build/watch"
@@ -30,21 +29,11 @@ type PreflightCmd struct {
 	Watch     bool    `help:"Watch the build until completion." default:"true" negatable:""`
 	Interval  float64 `help:"Polling interval in seconds when watching." default:"2"`
 	NoCleanup bool    `help:"Skip deleting the remote preflight branch after the build finishes."`
-}
-
-type renderStatusError struct {
-	err error
+	Text      bool    `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
+	JSON      bool    `help:"Emit one JSON object per event (JSONL)." xor:"output"`
 }
 
 var notifyContext = signal.NotifyContext
-
-func (e renderStatusError) Error() string {
-	return e.err.Error()
-}
-
-func (e renderStatusError) Unwrap() error {
-	return e.err
-}
 
 func (c *PreflightCmd) Help() string {
 	return `Snapshots your working tree (uncommitted, staged, and untracked changes) and pushes it to a bk/preflight/<id> branch. If there are no local changes, pushes HEAD directly.`
@@ -99,8 +88,9 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		)
 	}
 
-	tty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
-	snapshotOutput := []string{"Creating snapshot of working tree..."}
+	renderer := newRenderer(os.Stdout, c.JSON, c.Text, stop)
+
+	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: "Pushing snapshot of working tree..."})
 
 	var opts []preflight.SnapshotOption
 	if globals.EnableDebug() {
@@ -114,9 +104,18 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			"Ensure you have push access to the remote repository",
 		)
 	}
-	snapshotOutput = append(snapshotOutput, snapshotLines(result)...)
-	snapshotOutput = append(snapshotOutput, "")
-	snapshotOutput = append(snapshotOutput, fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name))
+
+	snapshotDetail := fmt.Sprintf("Commit: %s\nRef: %s", result.ShortCommit(), result.Ref)
+	if len(result.Files) > 0 {
+		snapshotDetail += fmt.Sprintf("\nFiles:  %d changed", len(result.Files))
+		for _, file := range result.Files {
+			snapshotDetail += fmt.Sprintf("\n %s %s", file.StatusSymbol(), file.Path)
+		}
+	}
+	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: "Pushed snapshot of working tree...", Detail: snapshotDetail})
+
+	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name)})
+
 	build, _, err := f.RestAPIClient.Builds.Create(ctx, resolvedPipeline.Org, resolvedPipeline.Name, buildkite.CreateBuild{
 		Message: fmt.Sprintf("Preflight %s", preflightID),
 		Commit:  result.Commit,
@@ -129,13 +128,11 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		return bkErrors.WrapAPIError(err, "creating preflight build")
 	}
 
-	renderer := newRenderer(os.Stdout, tty, resolvedPipeline.Name, build.Number)
-	for _, line := range snapshotOutput {
-		renderer.appendSnapshotLine(line)
-	}
-	renderer.appendSnapshotLine(fmt.Sprintf("Build:  %s", build.WebURL))
+	pipelineName := fmt.Sprintf("%s/%s", resolvedPipeline.Org, resolvedPipeline.Name)
+	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Created build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name), Detail: fmt.Sprintf("Build:  %s", build.WebURL)})
 
 	if !c.Watch {
+		_ = renderer.Close()
 		return nil
 	}
 
@@ -143,32 +140,40 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	tracker := watch.NewJobTracker()
 
 	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) error {
-		if err := renderer.renderStatus(tracker.Update(b), b.State); err != nil {
-			return renderStatusError{err: err}
+		status := tracker.Update(b)
+		for _, failed := range status.NewlyFailed {
+			if err := renderer.Render(Event{
+				Type:        EventJobFailure,
+				Time:        time.Now(),
+				PreflightID: preflightID.String(),
+				Pipeline:    pipelineName,
+				BuildNumber: build.Number,
+				Job:         &failed,
+			}); err != nil {
+				return err
+			}
 		}
-		return nil
+		return renderer.Render(Event{
+			Type:        EventBuildStatus,
+			Time:        time.Now(),
+			PreflightID: preflightID.String(),
+			Pipeline:    pipelineName,
+			BuildNumber: build.Number,
+			BuildURL:    build.WebURL,
+			BuildState:  b.State,
+			Jobs:        &status.Summary,
+		})
 	})
-	if err != nil {
-		var renderErr renderStatusError
-		if errors.As(err, &renderErr) {
-			return bkErrors.NewInternalError(renderErr.err, "rendering build status failed")
-		}
-	}
-
-	// Flush the screen so final output is not overwritten.
-	renderer.flush()
 
 	buildResult := NewResult(finalBuild)
-	failedJobs := tracker.FailedJobs()
 	finalErr := buildResult.Error()
-	renderer.renderFinalFailures(buildResult, failedJobs)
 
 	if !c.NoCleanup {
-		fmt.Fprintf(os.Stderr, "Cleaning up remote branch %s...\n", result.Branch)
+		_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Cleaning up remote branch %s...", result.Branch)})
 		if cleanupErr := preflight.Cleanup(wt.Filesystem.Root(), result.Ref, globals.EnableDebug()); cleanupErr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to delete remote branch %s: %v\n", result.Ref, cleanupErr)
+			_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Warning: failed to delete remote branch %s: %v", result.Ref, cleanupErr)})
 		} else {
-			fmt.Printf("Deleted remote branch %s\n", result.Branch)
+			_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Deleted remote branch %s", result.Branch)})
 		}
 	}
 
@@ -180,17 +185,20 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 				var apiErr *buildkite.ErrorResponse
 				if errors.As(cancelErr, &apiErr) && apiErr.Response.StatusCode == http.StatusUnprocessableEntity && apiErr.Message == "Build can't be canceled because it's already finished." {
 					if globals.EnableDebug() {
-						fmt.Fprintf(os.Stderr, "Debug: build #%d already finished, skipping cancel\n", build.Number)
+						_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Debug: build #%d already finished, skipping cancel", build.Number)})
 					}
 				} else {
-					fmt.Fprintf(os.Stderr, "Warning: failed to cancel build #%d: %v\n", build.Number, cancelErr)
+					_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Warning: failed to cancel build #%d: %v", build.Number, cancelErr)})
 				}
 			} else {
-				fmt.Fprintf(os.Stderr, "Cancelled build #%d\n", build.Number)
+				_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Cancelled build #%d", build.Number)})
 			}
 		}
+		_ = renderer.Close()
 		return bkErrors.NewUserAbortedError(context.Canceled, "preflight canceled by user")
 	}
+	_ = renderer.Close()
+
 	if err != nil {
 		return bkErrors.NewInternalError(err, "watching build failed",
 			"Buildkite API may be unavailable or your network may be unstable",
