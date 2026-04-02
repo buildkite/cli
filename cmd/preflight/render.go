@@ -102,3 +102,16 @@ func (r *jsonRenderer) Close() error { return nil }
 func jobLogCommand(pipeline string, buildNumber int, jobID string) string {
 	return fmt.Sprintf("bk job log -b %d -p %s %s", buildNumber, pipeline, jobID)
 }
+
+func indentContinuationLines(text string, indentWidth int) string {
+	lines := strings.Split(text, "\n")
+	if len(lines) < 2 {
+		return text
+	}
+
+	indent := strings.Repeat(" ", indentWidth)
+	for i := 1; i < len(lines); i++ {
+		lines[i] = indent + lines[i]
+	}
+	return strings.Join(lines, "\n")
+}
