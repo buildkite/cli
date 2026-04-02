@@ -9,6 +9,7 @@ import (
 
 	"github.com/buildkite/cli/v3/internal/build/watch"
 	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
+	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
 const maxTTYRunningJobs = 10
@@ -17,6 +18,7 @@ type renderer interface {
 	appendSnapshotLine(string)
 	setSnapshot(*internalpreflight.SnapshotResult)
 	renderStatus(watch.BuildStatus, string) error
+	renderTestFailures([]buildkite.BuildTest) error
 	flush()
 	renderFinalFailures(Result, watch.FailedJobs)
 }
@@ -92,6 +94,14 @@ func (r *ttyRenderer) renderStatus(status watch.BuildStatus, buildState string) 
 	return nil
 }
 
+func (r *ttyRenderer) renderTestFailures(tests []buildkite.BuildTest) error {
+	for _, t := range tests {
+		line := formatTestFailureLine(t)
+		r.failedRegion.AppendLine(line)
+	}
+	return nil
+}
+
 func (r *ttyRenderer) flush() {
 	r.screen.Flush()
 }
@@ -120,6 +130,15 @@ func (r *plainRenderer) setSnapshot(result *internalpreflight.SnapshotResult) {
 	for _, line := range snapshotLines(result) {
 		fmt.Fprintln(r.stdout, line)
 	}
+}
+
+func (r *plainRenderer) renderTestFailures(tests []buildkite.BuildTest) error {
+	for _, t := range tests {
+		if _, err := fmt.Fprintf(r.stdout, "%s\n", formatTestFailureLine(t)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *plainRenderer) renderStatus(status watch.BuildStatus, buildState string) error {
@@ -204,6 +223,32 @@ func spinner() string {
 
 func jobLogCommand(pipeline string, buildNumber int, jobID string) string {
 	return fmt.Sprintf("bk job log -b %d -p %s %s", buildNumber, pipeline, jobID)
+}
+
+func formatTestFailureLine(t buildkite.BuildTest) string {
+	name := t.Name
+	if t.Scope != "" {
+		name = t.Scope + " " + name
+	}
+	line := fmt.Sprintf("  \033[31m✗\033[0m \033[33mtest:\033[0m %s", name)
+	if t.Location != "" {
+		line += fmt.Sprintf(" \033[2m%s\033[0m", t.Location)
+	}
+	if t.LatestFail == nil {
+		return line
+	}
+	if t.LatestFail.FailureReason != "" {
+		line += fmt.Sprintf("\n    \033[2m%s\033[0m", t.LatestFail.FailureReason)
+	}
+	for _, fe := range t.LatestFail.FailureExpanded {
+		for _, exp := range fe.Expanded {
+			line += fmt.Sprintf("\n    \033[2m%s\033[0m", exp)
+		}
+		for _, bt := range fe.Backtrace {
+			line += fmt.Sprintf("\n    \033[2m%s\033[0m", bt)
+		}
+	}
+	return line
 }
 
 func formatSummaryLine(s watch.JobSummary) string {

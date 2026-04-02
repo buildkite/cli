@@ -147,7 +147,12 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			return renderStatusError{err: err}
 		}
 		return nil
-	})
+	}, watch.WithTestTracking(func(newFailures []buildkite.BuildTest) error {
+		if err := renderer.renderTestFailures(newFailures); err != nil {
+			return renderStatusError{err: err}
+		}
+		return nil
+	}))
 	if err != nil {
 		var renderErr renderStatusError
 		if errors.As(err, &renderErr) {
