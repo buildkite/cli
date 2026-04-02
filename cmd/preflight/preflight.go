@@ -109,7 +109,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	if len(result.Files) > 0 {
 		snapshotDetail += fmt.Sprintf("\nFiles:  %d changed", len(result.Files))
 		for _, file := range result.Files {
-			snapshotDetail += fmt.Sprintf("\n %s %s", file.StatusSymbol(), file.Path)
+			snapshotDetail += fmt.Sprintf("\n%s %s", file.StatusSymbol(), file.Path)
 		}
 	}
 	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: "Pushed snapshot of working tree...", Detail: snapshotDetail})
