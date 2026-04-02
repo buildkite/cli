@@ -22,6 +22,13 @@ type SnapshotResult struct {
 	Files  []FileChange
 }
 
+func (r SnapshotResult) ShortCommit() string {
+	if len(r.Commit) >= 10 {
+		return r.Commit[:10]
+	}
+	return r.Commit
+}
+
 // StatusSymbol returns a human-readable symbol for the file change status.
 func (f FileChange) StatusSymbol() string {
 	switch f.Status {

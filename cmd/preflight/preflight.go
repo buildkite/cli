@@ -105,7 +105,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		)
 	}
 
-	snapshotDetail := fmt.Sprintf("Commit: %s\nRef: %s", result.Commit[:10], result.Ref)
+	snapshotDetail := fmt.Sprintf("Commit: %s\nRef: %s", result.ShortCommit(), result.Ref)
 	if len(result.Files) > 0 {
 		snapshotDetail += fmt.Sprintf("\nFiles:  %d changed", len(result.Files))
 		for _, file := range result.Files {

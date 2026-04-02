@@ -169,6 +169,44 @@ func TestSnapshot_UniquePreflightIDs(t *testing.T) {
 	}
 }
 
+func TestSnapshotResult_ShortCommit(t *testing.T) {
+	tests := []struct {
+		name   string
+		commit string
+		want   string
+	}{
+		{
+			name:   "full SHA is truncated to 10 chars",
+			commit: "abc123def456789000aabbccddeeff0011223344",
+			want:   "abc123def4",
+		},
+		{
+			name:   "exactly 10 chars",
+			commit: "abc123def4",
+			want:   "abc123def4",
+		},
+		{
+			name:   "short commit returned as-is",
+			commit: "abc",
+			want:   "abc",
+		},
+		{
+			name:   "empty commit",
+			commit: "",
+			want:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := SnapshotResult{Commit: tt.commit}
+			if got := r.ShortCommit(); got != tt.want {
+				t.Errorf("ShortCommit() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // setupDiffEnv creates a temp git index seeded from HEAD and returns the env
 // slice for use with diffFiles. The caller can stage changes into this index
 // using git commands with the returned env.
