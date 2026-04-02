@@ -270,11 +270,27 @@ func TestJSONRenderer_Render_MultipleEvents_JSONL(t *testing.T) {
 	}
 }
 
-func TestNewRenderer_DefaultsToPlainWhenNotTTY(t *testing.T) {
+func TestNewRenderer_NonFileWriterDefaultsToPlain(t *testing.T) {
 	var out bytes.Buffer
 	r := newRenderer(&out, false, false, func() {})
 	if _, ok := r.(*plainRenderer); !ok {
-		t.Fatalf("expected *plainRenderer when stdout is not a TTY, got %T", r)
+		t.Fatalf("expected *plainRenderer when stdout is a non-file io.Writer, got %T", r)
+	}
+}
+
+func TestNewRenderer_TextModeForcesPlain(t *testing.T) {
+	var out bytes.Buffer
+	r := newRenderer(&out, false, true, func() {})
+	if _, ok := r.(*plainRenderer); !ok {
+		t.Fatalf("expected *plainRenderer when --text is set, got %T", r)
+	}
+}
+
+func TestNewRenderer_JSONModeReturnsJSON(t *testing.T) {
+	var out bytes.Buffer
+	r := newRenderer(&out, true, false, func() {})
+	if _, ok := r.(*jsonRenderer); !ok {
+		t.Fatalf("expected *jsonRenderer when --json is set, got %T", r)
 	}
 }
 

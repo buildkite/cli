@@ -21,7 +21,11 @@ func newRenderer(stdout io.Writer, jsonMode bool, textMode bool, cancel context.
 	if jsonMode {
 		return newJSONRenderer(stdout)
 	}
-	if textMode || !isatty.IsTerminal(os.Stdout.Fd()) {
+	isTTY := false
+	if f, ok := stdout.(*os.File); ok {
+		isTTY = isatty.IsTerminal(f.Fd())
+	}
+	if textMode || !isTTY {
 		return newPlainRenderer(stdout)
 	}
 	return newTTYRenderer(cancel)

@@ -12,7 +12,7 @@ import (
 
 var (
 	ttyDimStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	ttyStatusStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
+	ttyStatusStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFBA03")).Bold(true)
 	ttyBorderStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 	ttyFailureStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
 	ttySoftFailureStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
@@ -27,7 +27,7 @@ type ttyModel struct {
 func newTTYModel() ttyModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#DE8F0C"))
 	return ttyModel{spinner: s}
 }
 
