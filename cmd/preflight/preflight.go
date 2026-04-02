@@ -90,7 +90,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 
 	renderer := newRenderer(os.Stdout, c.JSON, c.Text, stop)
 
-	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: "Creating snapshot of working tree..."})
+	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: "Pushing snapshot of working tree..."})
 
 	var opts []preflight.SnapshotOption
 	if globals.EnableDebug() {
@@ -105,11 +105,11 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		)
 	}
 
-	snapshotDetail := fmt.Sprintf("Commit: %s\nRef:    %s", result.Commit[:10], result.Ref)
+	snapshotDetail := fmt.Sprintf("Commit: %s\nRef: %s", result.Commit[:10], result.Ref)
 	if len(result.Files) > 0 {
 		snapshotDetail += fmt.Sprintf("\nFiles:  %d changed", len(result.Files))
 		for _, file := range result.Files {
-			snapshotDetail += fmt.Sprintf("\n  %s %s", file.StatusSymbol(), file.Path)
+			snapshotDetail += fmt.Sprintf("\n %s %s", file.StatusSymbol(), file.Path)
 		}
 	}
 	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: "Created snapshot of working tree...", Detail: snapshotDetail})
