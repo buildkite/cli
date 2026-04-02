@@ -80,8 +80,9 @@ func (c *UnblockCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	ctx := context.Background()
-	err = bkIO.SpinWhile(f, "Unblocking job", func() {
-		_, err = bkGraphQL.UnblockJob(ctx, f.GraphQLClient, graphqlID, fields)
+	var result *bkGraphQL.UnblockJobResponse
+	_ = bkIO.SpinWhile(f, "Unblocking job", func() {
+		result, err = bkGraphQL.UnblockJob(ctx, f.GraphQLClient, graphqlID, fields)
 	})
 	if err != nil {
 		// Handle a "graphql error" if the job is already unblocked
@@ -97,6 +98,18 @@ func (c *UnblockCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
+	if err := validateUnblockResponse(result); err != nil {
+		return err
+	}
+
 	fmt.Println("Successfully unblocked job")
+	return nil
+}
+
+func validateUnblockResponse(result *bkGraphQL.UnblockJobResponse) error {
+	if result == nil || result.JobTypeBlockUnblock == nil {
+		return fmt.Errorf("failed to unblock job")
+	}
+
 	return nil
 }
