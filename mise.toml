@@ -11,6 +11,20 @@ lefthook = "2.1.4"
 description = "Format Go files with gofumpt"
 run = "gofumpt -w ."
 
+[tasks.build]
+description = "Build a local bk binary into dist/"
+run = "VERSION=\"$(git describe --tags --dirty --always 2>/dev/null || echo DEV)\"; mkdir -p dist && go build -ldflags \"-X github.com/buildkite/cli/v3/cmd/version.Version=$VERSION\" -o dist/bk ."
+
+[tasks.install]
+description = "Install the local bk binary into the active Go bin directory"
+depends = ["build"]
+run = "BIN_DIR=\"$(go env GOBIN)\"; if [ -z \"$BIN_DIR\" ]; then BIN_DIR=\"$(go env GOPATH)/bin\"; fi; mkdir -p \"$BIN_DIR\"; install -m 0755 dist/bk \"$BIN_DIR/bk\""
+
+[tasks."install:global"]
+description = "Install the local bk binary into ~/bin"
+depends = ["build"]
+run = "mkdir -p \"$HOME/bin\"; install -m 0755 dist/bk \"$HOME/bin/bk\""
+
 [tasks.lint]
 description = "Run golangci-lint with the repository configuration"
 run = "golangci-lint run --verbose --timeout 3m"

@@ -19,7 +19,8 @@ type githubRelease struct {
 // version string and whether it is newer than currentVersion.
 // Returns ("", false) silently on any error or if no update is available.
 func CheckForUpdate(currentVersion string) (string, bool) {
-	if currentVersion == "DEV" {
+	current := strings.TrimPrefix(currentVersion, "v")
+	if parseVersion(current) == nil {
 		return "", false
 	}
 
@@ -40,7 +41,6 @@ func CheckForUpdate(currentVersion string) (string, bool) {
 	}
 
 	latest := strings.TrimPrefix(release.TagName, "v")
-	current := strings.TrimPrefix(currentVersion, "v")
 
 	if isNewer(latest, current) {
 		return latest, true
