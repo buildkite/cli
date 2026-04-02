@@ -50,7 +50,7 @@ func (r *plainRenderer) Render(e Event) error {
 			}
 			detail := e.Detail
 			if sep == "\n" {
-				detail = indentContinuationLines(detail, len("["+time.TimeOnly+"] "))
+				detail = indentAllLines(detail, len("["+time.TimeOnly+"] "))
 			}
 			_, err := fmt.Fprintf(r.stdout, "[%s] %s:%s%s\n", e.Time.Format(time.TimeOnly), e.Title, sep, detail)
 			return err
@@ -103,14 +103,10 @@ func jobLogCommand(pipeline string, buildNumber int, jobID string) string {
 	return fmt.Sprintf("bk job log -b %d -p %s %s", buildNumber, pipeline, jobID)
 }
 
-func indentContinuationLines(text string, indentWidth int) string {
+func indentAllLines(text string, indentWidth int) string {
 	lines := strings.Split(text, "\n")
-	if len(lines) < 2 {
-		return text
-	}
-
 	indent := strings.Repeat(" ", indentWidth)
-	for i := 1; i < len(lines); i++ {
+	for i := range lines {
 		lines[i] = indent + lines[i]
 	}
 	return strings.Join(lines, "\n")
