@@ -54,10 +54,16 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.Detail != "" {
 				text = msg.Detail
 			}
-			line := fmt.Sprintf("  %s  %s",
-				ttyDimStyle.Render(msg.Time.Format("15:04:05")),
-				text,
-			)
+			timestamp := ttyDimStyle.Render(msg.Time.Format("15:04:05"))
+			prefix := "  " + timestamp + " "
+			if lines := strings.Split(text, "\n"); len(lines) > 1 {
+				indent := strings.Repeat(" ", 12) // len("  HH:MM:SS")
+				for i := 1; i < len(lines); i++ {
+					lines[i] = indent + lines[i]
+				}
+				text = strings.Join(lines, "\n")
+			}
+			line := prefix + text
 			return m, tea.Printf("%s", line)
 
 		case EventBuildStatus:
