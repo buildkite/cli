@@ -206,7 +206,7 @@ func (conf *Config) ShouldFallbackToSelectedOrg(org string) bool {
 		return false
 	}
 
-	return conf.APITokenForOrg(org) == ""
+	return !conf.HasStoredTokenForOrg(org)
 }
 
 // HasStoredTokenForOrg reports whether a token is stored for org in keyring

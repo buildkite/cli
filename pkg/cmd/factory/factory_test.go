@@ -281,3 +281,39 @@ func TestNewWithOrgOverrideRefreshesOnlyOverrideOrg(t *testing.T) {
 		t.Fatalf("override-org refresh requests = %d, want 1", overrideRequests)
 	}
 }
+
+func TestNewWithOrgOverrideDoesNotFallbackWhenOverrideOrgCredentialsAreExpired(t *testing.T) {
+	keyring.MockForTesting()
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "current-org")
+	t.Setenv("BUILDKITE_API_TOKEN", "")
+
+	kr := keyring.New()
+	if err := kr.SetSession("current-org", &oauth.Session{
+		Version:     oauth.SessionVersion,
+		Host:        "buildkite.localhost",
+		AccessToken: "bkua_current_access",
+		TokenType:   "Bearer",
+		ExpiresAt:   time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("SetSession current-org returned error: %v", err)
+	}
+	if err := kr.SetSession("override-org", &oauth.Session{
+		Version:     oauth.SessionVersion,
+		Host:        "buildkite.localhost",
+		AccessToken: "bkua_expired_override_access",
+		TokenType:   "Bearer",
+		ExpiresAt:   time.Now().Add(-time.Minute),
+	}); err != nil {
+		t.Fatalf("SetSession override-org returned error: %v", err)
+	}
+
+	f, err := New(WithOrgOverride("override-org"))
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+	if f.Token != "" {
+		t.Fatalf("Factory token = %q, want empty token for expired override credentials", f.Token)
+	}
+}
