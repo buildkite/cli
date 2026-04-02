@@ -44,11 +44,11 @@ func TestPlainRenderer_Render_OperationWithDetail(t *testing.T) {
 	})
 
 	got := out.String()
-	if !strings.Contains(got, "Creating snapshot of working tree...") {
-		t.Fatalf("expected title text, got %q", got)
-	}
-	if !strings.Contains(got, "Commit: abc1234567") {
-		t.Fatalf("expected detail text, got %q", got)
+	indent := strings.Repeat(" ", len("[10:30:00] "))
+	expected := "[10:30:00] Creating snapshot of working tree...:\n" +
+		indent + "Commit: abc1234567\n"
+	if got != expected {
+		t.Fatalf("expected:\n%s\ngot:\n%s", expected, got)
 	}
 }
 

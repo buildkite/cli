@@ -129,7 +129,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	}
 
 	pipelineName := fmt.Sprintf("%s/%s", resolvedPipeline.Org, resolvedPipeline.Name)
-	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name), Detail: fmt.Sprintf("Build:  %s", build.WebURL)})
+	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Created build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name), Detail: fmt.Sprintf("Build:  %s", build.WebURL)})
 
 	if !c.Watch {
 		_ = renderer.Close()

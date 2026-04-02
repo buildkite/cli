@@ -44,14 +44,8 @@ func (r *plainRenderer) Render(e Event) error {
 	switch e.Type {
 	case EventOperation:
 		if e.Detail != "" {
-			sep := " "
-			if strings.Contains(e.Detail, "\n") {
-				sep = "\n"
-			}
-			detail := e.Detail
-			if sep == "\n" {
-				detail = indentAllLines(detail, len("["+time.TimeOnly+"] "))
-			}
+			sep := "\n"
+			detail := indentAllLines(e.Detail, len("["+time.TimeOnly+"] "))
 			_, err := fmt.Fprintf(r.stdout, "[%s] %s:%s%s\n", e.Time.Format(time.TimeOnly), e.Title, sep, detail)
 			return err
 		}
