@@ -48,7 +48,11 @@ func (r *plainRenderer) Render(e Event) error {
 			if strings.Contains(e.Detail, "\n") {
 				sep = "\n"
 			}
-			_, err := fmt.Fprintf(r.stdout, "[%s] %s:%s%s\n", e.Time.Format(time.TimeOnly), e.Title, sep, e.Detail)
+			detail := e.Detail
+			if sep == "\n" {
+				detail = indentContinuationLines(detail, len("["+time.TimeOnly+"] "))
+			}
+			_, err := fmt.Fprintf(r.stdout, "[%s] %s:%s%s\n", e.Time.Format(time.TimeOnly), e.Title, sep, detail)
 			return err
 		}
 		_, err := fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), e.Title)
