@@ -36,6 +36,18 @@ func TestTTYRenderer_SetSnapshot(t *testing.T) {
 	assertLineEquals(t, lines, "  - old/file.txt")
 }
 
+func TestTTYRenderer_SetSnapshot_WithWarning(t *testing.T) {
+	lines := captureTTYLines(t, func(r *ttyRenderer) {
+		r.setSnapshot(&internalpreflight.SnapshotResult{
+			Commit:      "1234567890abcdef",
+			Ref:         "refs/heads/bk/preflight/abc123",
+			PushSkipped: true,
+		})
+	})
+
+	assertLineContains(t, lines, "Warning:", "push skipped")
+}
+
 func TestTTYRenderer_RenderStatus_AllRunningJobs(t *testing.T) {
 	startedAt := buildkite.Timestamp{Time: time.Now().Add(-2 * time.Minute)}
 	lines := captureTTYLines(t, 42, func(r *ttyRenderer) {
