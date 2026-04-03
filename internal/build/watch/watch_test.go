@@ -208,6 +208,56 @@ func TestWatchBuild(t *testing.T) {
 	})
 }
 
+func TestPollTestFailures(t *testing.T) {
+	t.Run("follows pagination", func(t *testing.T) {
+		var requestedPages []string
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+
+			if r.Method != "GET" || !strings.Contains(r.URL.Path, "/builds/build-123/tests") {
+				http.NotFound(w, r)
+				return
+			}
+
+			requestedPages = append(requestedPages, r.URL.Query().Get("page"))
+			switch r.URL.Query().Get("page") {
+			case "1":
+				w.Header().Set("Link", "</v2/analytics/organizations/org/builds/build-123/tests?page=2&per_page=10>; rel=\"next\"")
+				json.NewEncoder(w).Encode([]buildkite.BuildTest{
+					{ID: "test-1", Name: "first-page failure", LatestFail: &buildkite.BuildTestLatestFail{ID: "exec-1"}},
+				})
+			case "2":
+				json.NewEncoder(w).Encode([]buildkite.BuildTest{
+					{ID: "test-2", Name: "second-page failure", LatestFail: &buildkite.BuildTestLatestFail{ID: "exec-2"}},
+				})
+			default:
+				t.Fatalf("unexpected page %q", r.URL.Query().Get("page"))
+			}
+		}))
+		defer s.Close()
+
+		client := newTestClient(t, s.URL)
+		var reported []buildkite.BuildTest
+		err := pollTestFailures(context.Background(), client, "org", "build-123", NewTestTracker(), func(newFailures []buildkite.BuildTest) error {
+			reported = append(reported, newFailures...)
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if got, want := requestedPages, []string{"1", "2"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+			t.Fatalf("requested pages = %v, want %v", got, want)
+		}
+		if got, want := len(reported), 2; got != want {
+			t.Fatalf("reported %d failures, want %d", got, want)
+		}
+		if got, want := reported[1].Name, "second-page failure"; got != want {
+			t.Fatalf("reported second page failure %q, want %q", got, want)
+		}
+	})
+}
+
 func newTestClient(t *testing.T, baseURL string) *buildkite.Client {
 	t.Helper()
 	client, err := buildkite.NewOpts(

@@ -110,20 +110,31 @@ func WatchBuild(
 }
 
 func pollTestFailures(ctx context.Context, client *buildkite.Client, org, buildID string, tracker *TestTracker, onTestStatus TestStatusFunc) error {
-	reqCtx, cancel := context.WithTimeout(ctx, DefaultRequestTimeout)
-	defer cancel()
-
-	tests, _, err := client.BuildTests.List(reqCtx, org, buildID, &buildkite.BuildTestsListOptions{
-		Result:  "^failed",
-		State:   "enabled",
-		Include: "latest_fail",
-	})
-	if err != nil {
-		// Test data may not be available yet; don't treat as fatal.
-		return nil
+	opts := &buildkite.BuildTestsListOptions{
+		ListOptions: buildkite.ListOptions{Page: 1, PerPage: 100},
+		Result:      "^failed",
+		State:       "enabled",
+		Include:     "latest_fail",
 	}
 
-	newFailures := tracker.Update(tests)
+	var newFailures []buildkite.BuildTest
+	for {
+		reqCtx, cancel := context.WithTimeout(ctx, DefaultRequestTimeout)
+		tests, resp, err := client.BuildTests.List(reqCtx, org, buildID, opts)
+		cancel()
+		if err != nil {
+			// Test data may not be available yet; don't treat as fatal.
+			break
+		}
+
+		newFailures = append(newFailures, tracker.Update(tests)...)
+		if resp == nil || resp.NextPage == 0 {
+			break
+		}
+
+		opts.Page = resp.NextPage
+	}
+
 	if len(newFailures) > 0 {
 		return onTestStatus(newFailures)
 	}
