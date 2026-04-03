@@ -3,31 +3,46 @@ package artifacts
 import (
 	"context"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 
 	"github.com/alecthomas/kong"
+	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
+	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
-	bkGraphQL "github.com/buildkite/cli/v3/internal/graphql"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
+	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
+	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
 type DownloadCmd struct {
-	ArtifactID string `arg:"" help:"Artifact UUID to download"`
+	ArtifactID  string `arg:"" help:"Artifact ID to download (use 'bk artifacts list' to find IDs)"`
+	BuildNumber string `help:"Build number containing the artifact. If omitted, the most recent build on the current branch will be used." short:"b" name:"build"`
+	Pipeline    string `help:"The pipeline containing the artifact. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}. If omitted, it will be resolved using the current directory." short:"p"`
+	Job         string `help:"The job containing the artifact." short:"j"`
 }
 
 func (c *DownloadCmd) Help() string {
 	return `
-Use this command to download a specific artifact.
+Use this command to download a specific artifact from a build.
+
+The artifact ID can be found using "bk artifacts list".
 
 Examples:
-  # Download an artifact by UUID
+  # Download an artifact from the most recent build on the current branch
   $ bk artifacts download 0191727d-b5ce-4576-b37d-477ae0ca830c
+
+  # Download an artifact from a specific build
+  $ bk artifacts download 0191727d-b5ce-4576-b37d-477ae0ca830c --build 429
+
+  # Download an artifact from a specific job
+  $ bk artifacts download 0191727d-b5ce-4576-b37d-477ae0ca830c --build 429 --job 0193903e-ecd9-4c51-9156-0738da987e87
+
+  # Specify the pipeline explicitly
+  $ bk artifacts download 0191727d-b5ce-4576-b37d-477ae0ca830c --build 429 -p monolith
 `
 }
 
@@ -45,11 +60,43 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 		return err
 	}
 
+	pipelineRes := pipelineResolver.NewAggregateResolver(
+		pipelineResolver.ResolveFromFlag(c.Pipeline, f.Config),
+		pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOneWithFactory(f)),
+		pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOneWithFactory(f))),
+	)
+
+	optionsResolver := options.AggregateResolver{
+		options.ResolveBranchFromFlag(""),
+		options.ResolveBranchFromRepository(f.GitRepository),
+	}
+
+	var buildResolvers []buildResolver.BuildResolverFn
+	if c.BuildNumber != "" {
+		buildResolvers = append(buildResolvers, buildResolver.ResolveFromPositionalArgument([]string{c.BuildNumber}, 0, pipelineRes.Resolve, f.Config))
+	}
+	buildResolvers = append(buildResolvers, buildResolver.ResolveBuildWithOpts(f, pipelineRes.Resolve, optionsResolver...))
+
+	buildRes := buildResolver.NewAggregateResolver(buildResolvers...)
+
 	ctx := context.Background()
+	bld, err := buildRes.Resolve(ctx)
+	if err != nil {
+		return err
+	}
+	if bld == nil {
+		return bkErrors.NewResourceNotFoundError(nil, "no build found")
+	}
+
+	build := fmt.Sprint(bld.BuildNumber)
 	var downloadDir string
 
 	if err = bkIO.SpinWhile(f, "Downloading artifact", func() error {
-		downloadDir, err = download(ctx, f, c.ArtifactID)
+		artifact, findErr := findArtifact(ctx, f, bld.Organization, bld.Pipeline, build, c.ArtifactID, c.Job)
+		if findErr != nil {
+			return findErr
+		}
+		downloadDir, err = downloadArtifact(ctx, f, artifact, c.ArtifactID)
 		return err
 	}); err != nil {
 		return err
@@ -59,37 +106,42 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 	return nil
 }
 
-func download(ctx context.Context, f *factory.Factory, artifactID string) (string, error) {
-	resp, err := bkGraphQL.GetArtifacts(ctx, f.GraphQLClient, artifactID)
+func findArtifact(ctx context.Context, f *factory.Factory, org, pipeline, build, artifactID, jobID string) (*buildkite.Artifact, error) {
+	var artifacts []buildkite.Artifact
+	var err error
+
+	if jobID != "" {
+		artifacts, _, err = f.RestAPIClient.Artifacts.ListByJob(ctx, org, pipeline, build, jobID, nil)
+	} else {
+		artifacts, _, err = f.RestAPIClient.Artifacts.ListByBuild(ctx, org, pipeline, build, nil)
+	}
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	if resp == nil || resp.Artifact == nil {
-		return "", bkErrors.NewResourceNotFoundError(nil, fmt.Sprintf("no artifact found with ID: %s", artifactID))
+	for i := range artifacts {
+		if artifacts[i].ID == artifactID {
+			return &artifacts[i], nil
+		}
 	}
 
+	return nil, bkErrors.NewResourceNotFoundError(nil, fmt.Sprintf("no artifact found with ID %s in build #%s", artifactID, build))
+}
+
+func downloadArtifact(ctx context.Context, f *factory.Factory, artifact *buildkite.Artifact, artifactID string) (string, error) {
 	directory := fmt.Sprintf("artifact-%s", artifactID)
-	err = os.MkdirAll(directory, os.ModePerm)
-	if err != nil {
+	if err := os.MkdirAll(directory, os.ModePerm); err != nil {
 		return "", err
 	}
 
-	filename := filepath.Base(resp.Artifact.Path)
-	out, fileErr := os.Create(filepath.Join(directory, filename))
-	if fileErr != nil {
-		return "", fileErr
+	filename := filepath.Base(artifact.Path)
+	out, err := os.Create(filepath.Join(directory, filename))
+	if err != nil {
+		return "", err
 	}
 	defer out.Close()
 
-	apiResp, apiErr := http.Get(resp.Artifact.DownloadURL)
-	if apiErr != nil {
-		return "", apiErr
-	}
-	defer apiResp.Body.Close()
-
-	// Writer the body to file
-	_, err = io.Copy(out, apiResp.Body)
+	_, err = f.RestAPIClient.Artifacts.DownloadArtifactByURL(ctx, artifact.DownloadURL, out)
 	if err != nil {
 		return "", err
 	}
