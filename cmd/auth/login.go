@@ -83,8 +83,37 @@ func LoginWithToken(f *factory.Factory, org, token string) error {
 	return nil
 }
 
+// LoginWithSession stores an OAuth session for an organization in the system keychain.
+func LoginWithSession(f *factory.Factory, org string, session *oauth.Session) error {
+	if org == "" {
+		return errors.New("organization cannot be empty")
+	}
+	if session == nil || session.AccessToken == "" {
+		return errors.New("oauth session must include an access token")
+	}
+
+	kr := keyring.New()
+	if !kr.IsAvailable() {
+		return errors.New("system keychain is not available; cannot store token")
+	}
+	if err := kr.SetSession(org, session); err != nil {
+		return fmt.Errorf("failed to store token in keychain: %w", err)
+	}
+	fmt.Println("Token stored securely in system keychain.")
+
+	if err := f.Config.EnsureOrganization(org); err != nil {
+		return fmt.Errorf("failed to register organization in config: %w", err)
+	}
+
+	if err := f.Config.SelectOrganization(org, f.GitRepository != nil); err != nil {
+		return fmt.Errorf("failed to select organization: %w", err)
+	}
+
+	return nil
+}
+
 func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
+	f, err := factory.New(factory.WithDebug(globals.EnableDebug()), factory.WithoutAPIClients())
 	if err != nil {
 		return err
 	}
@@ -102,16 +131,15 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return errors.New("--org requires --token. Use `bk auth login` for OAuth or `bk auth login --org <org> --token <token>` for token login")
 	}
 
-	// Resolve scope groups (e.g., "read_only" → individual read_* scopes).
-	// When --scopes is empty, no scope parameter is sent and the token
-	// inherits the user's full Buildkite permissions.
+	// Resolve scope groups (e.g. "read_only" to individual read_* scopes).
+	// When --scopes is empty, NewFlow defaults to requesting the full known
+	// scope set and Buildkite grants the subset the user can actually use.
 	resolvedScopes := oauth.ResolveScopes(c.Scopes)
 
 	// Create OAuth flow
 	cfg := &oauth.Config{
 		// Host default handled via NewFlow, omitted to allow usage of BUILDKITE_HOST
-		ClientID: oauth.DefaultClientID,
-		Scopes:   resolvedScopes,
+		Scopes: resolvedScopes,
 	}
 
 	flow, err := oauth.NewFlow(cfg)
@@ -150,28 +178,89 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return fmt.Errorf("token exchange failed: %w", err)
 	}
 
-	// Resolve org from the API using the new token
-	client, err := buildkite.NewOpts(buildkite.WithTokenAuth(tokenResp.AccessToken))
+	orgs, err := resolveOrganizationsFromToken(ctx, f.Config.RESTAPIEndpoint(), tokenResp.AccessToken)
 	if err != nil {
-		return fmt.Errorf("failed to create API client: %w", err)
-	}
-
-	orgs, _, err := client.Organizations.List(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to list organizations: %w", err)
-	}
-	if len(orgs) == 0 {
-		return fmt.Errorf("no organizations found for this token")
-	}
-
-	org := orgs[0]
-
-	if err := LoginWithToken(f, org.Slug, tokenResp.AccessToken); err != nil {
 		return err
 	}
 
-	fmt.Printf("\n✅ Successfully authenticated with organization %q\n", org.Slug)
+	session := tokenResp.Session(cfg.Host, cfg.ClientID, time.Now())
+	if err := storeSessionForOrganizations(f, orgs, session); err != nil {
+		return err
+	}
+
+	fmt.Printf("\n✅ Successfully authenticated with organization %q\n", orgs[0].Slug)
 	fmt.Printf("  Scopes: %s\n", tokenResp.Scope)
+
+	return nil
+}
+
+func resolveOrganizationsFromToken(ctx context.Context, baseURL, token string) ([]buildkite.Organization, error) {
+	client, err := buildkite.NewOpts(
+		buildkite.WithBaseURL(baseURL),
+		buildkite.WithTokenAuth(token),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create API client: %w", err)
+	}
+
+	var allOrgs []buildkite.Organization
+	page := 1
+	for {
+		orgs, resp, err := client.Organizations.List(ctx, &buildkite.OrganizationListOptions{
+			ListOptions: buildkite.ListOptions{Page: page},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to list organizations: %w", err)
+		}
+		allOrgs = append(allOrgs, orgs...)
+		if resp == nil || resp.NextPage == 0 {
+			break
+		}
+		page = resp.NextPage
+	}
+
+	if len(allOrgs) == 0 {
+		return nil, fmt.Errorf("no organizations found for this token")
+	}
+
+	return allOrgs, nil
+}
+
+func resolveOrganizationFromToken(ctx context.Context, baseURL, token string) (*buildkite.Organization, error) {
+	orgs, err := resolveOrganizationsFromToken(ctx, baseURL, token)
+	if err != nil {
+		return nil, err
+	}
+
+	return &orgs[0], nil
+}
+
+func storeSessionForOrganizations(f *factory.Factory, orgs []buildkite.Organization, session *oauth.Session) error {
+	if len(orgs) == 0 {
+		return errors.New("no organizations found for this token")
+	}
+	if err := LoginWithSession(f, orgs[0].Slug, session); err != nil {
+		return err
+	}
+
+	kr := keyring.New()
+	seen := map[string]struct{}{orgs[0].Slug: {}}
+	for _, org := range orgs[1:] {
+		if org.Slug == "" {
+			continue
+		}
+		if _, exists := seen[org.Slug]; exists {
+			continue
+		}
+		seen[org.Slug] = struct{}{}
+
+		if err := kr.SetSession(org.Slug, session); err != nil {
+			return fmt.Errorf("failed to store token in keychain: %w", err)
+		}
+		if err := f.Config.EnsureOrganization(org.Slug); err != nil {
+			return fmt.Errorf("failed to register organization in config: %w", err)
+		}
+	}
 
 	return nil
 }

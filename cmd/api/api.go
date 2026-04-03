@@ -116,7 +116,7 @@ func (c *ApiCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	// Create an HTTP client with appropriate configuration
 	client := httpClient.NewClient(
-		f.Config.APIToken(),
+		f.Token,
 		httpClient.WithBaseURL(f.RestAPIClient.BaseURL.String()),
 		httpClient.WithMaxRetries(3),
 		httpClient.WithMaxRetryDelay(60*time.Second),

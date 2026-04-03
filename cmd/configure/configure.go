@@ -50,7 +50,7 @@ Examples:
 }
 
 func (c *ConfigureCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
+	f, err := factory.New(factory.WithDebug(globals.EnableDebug()), factory.WithoutAPIClients())
 	if err != nil {
 		return err
 	}
@@ -68,7 +68,7 @@ func (c *ConfigureCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		if targetOrg == "" {
 			targetOrg = f.Config.OrganizationSlug()
 		}
-		if !c.Force && targetOrg != "" && f.Config.APITokenForOrg(targetOrg) != "" {
+		if !c.Force && targetOrg != "" && hasStoredCredentialsForOrg(f, targetOrg) {
 			return fmt.Errorf("API token already configured for organization %q. Use --force to overwrite", targetOrg)
 		}
 	}
@@ -99,8 +99,7 @@ func ConfigureRun(f *factory.Factory, org string) error {
 	}
 	// Check if token already exists for this organization.
 	// Use resolved token lookup so keychain-backed entries are detected.
-	existingToken := getTokenForOrg(f, org)
-	if existingToken != "" {
+	if hasStoredCredentialsForOrg(f, org) {
 		fmt.Printf("Using existing API token for organization: %s\n", org)
 		return f.Config.SelectOrganization(org, f.GitRepository != nil)
 	}
@@ -121,6 +120,10 @@ func ConfigureRun(f *factory.Factory, org string) error {
 // getTokenForOrg retrieves the resolved token for a specific organization.
 func getTokenForOrg(f *factory.Factory, org string) string {
 	return f.Config.APITokenForOrg(org)
+}
+
+func hasStoredCredentialsForOrg(f *factory.Factory, org string) bool {
+	return f.Config.HasStoredTokenForOrg(org)
 }
 
 // promptForInput handles terminal input with optional password masking

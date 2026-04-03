@@ -1,11 +1,12 @@
 // Package keyring provides secure credential storage using the OS keychain.
-// It falls back to file-based storage when the keychain is unavailable (e.g., in CI environments).
 package keyring
 
 import (
+	"encoding/json"
 	"os"
 	"sync"
 
+	"github.com/buildkite/cli/v3/pkg/oauth"
 	"github.com/zalando/go-keyring"
 )
 
@@ -18,7 +19,7 @@ var (
 	keyringAvailable     bool
 )
 
-// Keyring provides secure credential storage with fallback support
+// Keyring provides secure credential storage.
 type Keyring struct {
 	useKeyring bool
 }
@@ -34,17 +35,59 @@ func New() *Keyring {
 // Set stores a token for the given organization
 func (k *Keyring) Set(org, token string) error {
 	if !k.useKeyring {
-		return nil // Fallback handled by config file
+		return nil
 	}
 	return keyring.Set(serviceName, org, token)
 }
 
 // Get retrieves a token for the given organization
 func (k *Keyring) Get(org string) (string, error) {
-	if !k.useKeyring {
-		return "", keyring.ErrNotFound
+	session, err := k.GetSession(org)
+	if err != nil {
+		return "", err
 	}
-	return keyring.Get(serviceName, org)
+	return session.AccessToken, nil
+}
+
+// SetSession stores an OAuth session for the given organization.
+func (k *Keyring) SetSession(org string, session *oauth.Session) error {
+	if !k.useKeyring {
+		return nil
+	}
+
+	encoded, err := json.Marshal(session)
+	if err != nil {
+		return err
+	}
+
+	return keyring.Set(serviceName, org, string(encoded))
+}
+
+// GetSession retrieves an OAuth session for the given organization.
+// Legacy plaintext tokens are returned as access-token-only sessions.
+func (k *Keyring) GetSession(org string) (*oauth.Session, error) {
+	if !k.useKeyring {
+		return nil, keyring.ErrNotFound
+	}
+
+	stored, err := keyring.Get(serviceName, org)
+	if err != nil {
+		return nil, err
+	}
+
+	var session oauth.Session
+	if err := json.Unmarshal([]byte(stored), &session); err == nil && session.AccessToken != "" {
+		if session.Version == 0 {
+			session.Version = oauth.SessionVersion
+		}
+		return &session, nil
+	}
+
+	return &oauth.Session{
+		Version:     oauth.SessionVersion,
+		AccessToken: stored,
+		TokenType:   "Bearer",
+	}, nil
 }
 
 // Delete removes a token for the given organization
