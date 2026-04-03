@@ -154,7 +154,7 @@ func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) (*bu
 	var pipeline buildkite.Pipeline
 	var resp *buildkite.Response
 
-	spinErr := bkIO.SpinWhile(f, fmt.Sprintf("Creating pipeline %s", c.Name), func() {
+	if err = bkIO.SpinWhile(f, fmt.Sprintf("Creating pipeline %s", c.Name), func() error {
 		createPipeline := buildkite.CreatePipeline{
 			Name:          c.Name,
 			Repository:    repoURL,
@@ -164,13 +164,8 @@ func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) (*bu
 		}
 
 		pipeline, resp, err = f.RestAPIClient.Pipelines.Create(ctx, c.orgSlug(f.Config), createPipeline)
-	})
-
-	if spinErr != nil {
-		return nil, spinErr
-	}
-
-	if err != nil {
+		return err
+	}); err != nil {
 		// Check if this is a 422 error (validation failed)
 		if resp != nil && resp.StatusCode == http.StatusUnprocessableEntity {
 			// Try to find an existing pipeline with the same name
@@ -503,12 +498,8 @@ func getRepositoryURL(f *factory.Factory, repoFlag string) string {
 }
 
 func createWebhook(ctx context.Context, f *factory.Factory, pipelineGraphQLID string) error {
-	var err error
-	spinErr := bkIO.SpinWhile(f, "Creating webhook", func() {
-		_, err = graphql.PipelineCreateWebhook(ctx, f.GraphQLClient, pipelineGraphQLID)
+	return bkIO.SpinWhile(f, "Creating webhook", func() error {
+		_, err := graphql.PipelineCreateWebhook(ctx, f.GraphQLClient, pipelineGraphQLID)
+		return err
 	})
-	if spinErr != nil {
-		return spinErr
-	}
-	return err
 }

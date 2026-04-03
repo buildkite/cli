@@ -167,26 +167,23 @@ func parseAuthor(author string) buildkite.Author {
 }
 
 func createBuild(ctx context.Context, org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool, env map[string]string, metaData map[string]string, ignoreBranchFilters bool, author string) error {
-	var actionErr error
 	var build buildkite.Build
-	spinErr := bkIO.SpinWhile(f, fmt.Sprintf("Starting new build for %s", pipeline), func() {
+	if err := bkIO.SpinWhile(f, fmt.Sprintf("Starting new build for %s", pipeline), func() error {
 		branch = strings.TrimSpace(branch)
 		if len(branch) == 0 {
 			p, _, err := f.RestAPIClient.Pipelines.Get(ctx, org, pipeline)
 			if err != nil {
-				actionErr = bkErrors.WrapAPIError(err, "fetching pipeline information")
-				return
+				return bkErrors.WrapAPIError(err, "fetching pipeline information")
 			}
 
 			// Check if the pipeline has a default branch set
 			if p.DefaultBranch == "" {
-				actionErr = bkErrors.NewValidationError(
+				return bkErrors.NewValidationError(
 					nil,
 					fmt.Sprintf("No default branch set for pipeline %s", pipeline),
 					"Please specify a branch using --branch (-b)",
 					"Set a default branch in your pipeline settings on Buildkite",
 				)
-				return
 			}
 			branch = p.DefaultBranch
 		}
@@ -204,16 +201,11 @@ func createBuild(ctx context.Context, org string, pipeline string, f *factory.Fa
 		var err error
 		build, _, err = f.RestAPIClient.Builds.Create(ctx, org, pipeline, newBuild)
 		if err != nil {
-			actionErr = bkErrors.WrapAPIError(err, "creating build")
-			return
+			return bkErrors.WrapAPIError(err, "creating build")
 		}
-	})
-	if spinErr != nil {
-		return bkErrors.NewInternalError(spinErr, "error in spinner UI")
-	}
-
-	if actionErr != nil {
-		return actionErr
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	if build.WebURL == "" {

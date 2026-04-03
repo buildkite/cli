@@ -69,13 +69,11 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	var agentData buildkite.Agent
-	spinErr := bkIO.SpinWhile(f, "Loading agent", func() {
-		agentData, _, err = f.RestAPIClient.Agents.Get(ctx, org, id)
-	})
-	if spinErr != nil {
-		return spinErr
-	}
-	if err != nil {
+	if err = bkIO.SpinWhile(f, "Loading agent", func() error {
+		var apiErr error
+		agentData, _, apiErr = f.RestAPIClient.Agents.Get(ctx, org, id)
+		return apiErr
+	}); err != nil {
 		return err
 	}
 

@@ -27,15 +27,12 @@ func ResolveFromRepositoryInOrg(f *factory.Factory, picker PipelinePicker, org s
 
 func resolveFromRepositoryWithOrg(f *factory.Factory, picker PipelinePicker, org string) PipelineResolverFn {
 	return func(ctx context.Context) (*pipeline.Pipeline, error) {
-		var err error
 		var pipelines []pipeline.Pipeline
-		spinErr := bkIO.SpinWhile(f, "Resolving pipeline", func() {
-			pipelines, err = resolveFromRepository(ctx, f, org)
-		})
-		if spinErr != nil {
-			return nil, spinErr
-		}
-		if err != nil {
+		if err := bkIO.SpinWhile(f, "Resolving pipeline", func() error {
+			var apiErr error
+			pipelines, apiErr = resolveFromRepository(ctx, f, org)
+			return apiErr
+		}); err != nil {
 			return nil, err
 		}
 		if len(pipelines) == 0 {

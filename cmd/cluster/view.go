@@ -57,13 +57,11 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	defer stop()
 
 	var cluster buildkite.Cluster
-	spinErr := bkIO.SpinWhile(f, "Loading cluster information", func() {
-		cluster, _, err = f.RestAPIClient.Clusters.Get(ctx, f.Config.OrganizationSlug(), c.ClusterUUID)
-	})
-	if spinErr != nil {
-		return spinErr
-	}
-	if err != nil {
+	if err = bkIO.SpinWhile(f, "Loading cluster information", func() error {
+		var apiErr error
+		cluster, _, apiErr = f.RestAPIClient.Clusters.Get(ctx, f.Config.OrganizationSlug(), c.ClusterUUID)
+		return apiErr
+	}); err != nil {
 		return err
 	}
 

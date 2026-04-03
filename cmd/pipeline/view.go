@@ -108,13 +108,11 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 
 	var p buildkite.Pipeline
-	spinErr := bkIO.SpinWhile(f, "Loading pipeline information", func() {
-		p, _, err = f.RestAPIClient.Pipelines.Get(ctx, pipeline.Org, pipeline.Name)
-	})
-	if spinErr != nil {
-		return spinErr
-	}
-	if err != nil {
+	if err = bkIO.SpinWhile(f, "Loading pipeline information", func() error {
+		var apiErr error
+		p, _, apiErr = f.RestAPIClient.Pipelines.Get(ctx, pipeline.Org, pipeline.Name)
+		return apiErr
+	}); err != nil {
 		return err
 	}
 

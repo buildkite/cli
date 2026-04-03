@@ -226,15 +226,10 @@ func (c *CopyCmd) fetchSourcePipeline(ctx context.Context, f *factory.Factory, o
 	var resp *buildkite.Response
 	var err error
 
-	spinErr := bkIO.SpinWhile(f, fmt.Sprintf("Fetching pipeline %s/%s", org, slug), func() {
+	if err = bkIO.SpinWhile(f, fmt.Sprintf("Fetching pipeline %s/%s", org, slug), func() error {
 		pipeline, resp, err = f.RestAPIClient.Pipelines.Get(ctx, org, slug)
-	})
-
-	if spinErr != nil {
-		return nil, spinErr
-	}
-
-	if err != nil {
+		return err
+	}); err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
 			return nil, fmt.Errorf("pipeline %s/%s not found", org, slug)
 		}
@@ -278,15 +273,10 @@ func (c *CopyCmd) runCopy(kongCtx *kong.Context, f *factory.Factory, source *bui
 	var resp *buildkite.Response
 	var err error
 
-	spinErr := bkIO.SpinWhile(f, fmt.Sprintf("Creating pipeline %s/%s", target.Org, target.Name), func() {
+	if err = bkIO.SpinWhile(f, fmt.Sprintf("Creating pipeline %s/%s", target.Org, target.Name), func() error {
 		newPipeline, resp, err = targetClient.Pipelines.Create(ctx, target.Org, createReq)
-	})
-
-	if spinErr != nil {
-		return spinErr
-	}
-
-	if err != nil {
+		return err
+	}); err != nil {
 		if resp != nil && resp.StatusCode == http.StatusUnprocessableEntity {
 			// Check if a pipeline with this name already exists and error out if it does (not fussed with adding -1, -2 etc)
 			if existing := c.findPipelineByName(ctx, targetClient, target); existing != nil {

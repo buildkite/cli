@@ -60,13 +60,10 @@ func (c *DeleteCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return nil
 	}
 
-	spinErr := bkIO.SpinWhile(f, "Deleting secret", func() {
+	if err = bkIO.SpinWhile(f, "Deleting secret", func() error {
 		_, err = f.RestAPIClient.ClusterSecrets.Delete(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, c.SecretID)
-	})
-	if spinErr != nil {
-		return spinErr
-	}
-	if err != nil {
+		return err
+	}); err != nil {
 		return fmt.Errorf("error deleting secret: %v", err)
 	}
 

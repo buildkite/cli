@@ -12,8 +12,9 @@ func TestSpinWhileWithoutTTY(t *testing.T) {
 	// Test that SpinWhile works without TTY
 	actionCalled := false
 	f := &factory.Factory{}
-	err := SpinWhile(f, "Test action", func() {
+	err := SpinWhile(f, "Test action", func() error {
 		actionCalled = true
+		return nil
 	})
 	if err != nil {
 		t.Errorf("SpinWhile should not return error: %v", err)
@@ -28,8 +29,9 @@ func TestSpinWhileActionIsExecuted(t *testing.T) {
 	// Test that the action is always executed regardless of TTY status
 	counter := 0
 	f := &factory.Factory{}
-	err := SpinWhile(f, "Test action", func() {
+	err := SpinWhile(f, "Test action", func() error {
 		counter++
+		return nil
 	})
 	if err != nil {
 		t.Errorf("SpinWhile should not return error: %v", err)
@@ -44,9 +46,10 @@ func TestSpinWhileWithError(t *testing.T) {
 	// Test SpinWhile when action panics or has issues
 	actionCalled := false
 	f := &factory.Factory{}
-	err := SpinWhile(f, "Test action with panic recovery", func() {
+	err := SpinWhile(f, "Test action with panic recovery", func() error {
 		actionCalled = true
 		// Don't actually panic in test, just test normal flow
+		return nil
 	})
 	if err != nil {
 		t.Errorf("SpinWhile should not return error for normal action: %v", err)
@@ -64,8 +67,9 @@ func TestSpinWhileTTYDetection(t *testing.T) {
 
 	actionCalled := false
 	f := &factory.Factory{}
-	err := SpinWhile(f, "TTY detection test", func() {
+	err := SpinWhile(f, "TTY detection test", func() error {
 		actionCalled = true
+		return nil
 	})
 	if err != nil {
 		t.Errorf("SpinWhile should not return error: %v", err)
@@ -83,8 +87,9 @@ func TestSpinWhileQuiet(t *testing.T) {
 	// Test that SpinWhile works with Quiet mode
 	actionCalled := false
 	f := &factory.Factory{Quiet: true}
-	err := SpinWhile(f, "Test action", func() {
+	err := SpinWhile(f, "Test action", func() error {
 		actionCalled = true
+		return nil
 	})
 	if err != nil {
 		t.Errorf("SpinWhile should not return error: %v", err)

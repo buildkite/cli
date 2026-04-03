@@ -81,7 +81,7 @@ func (c *LogCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	var logContent string
-	err = bkIO.SpinWhile(f, "Fetching job log", func() {
+	if err = bkIO.SpinWhile(f, "Fetching job log", func() error {
 		jobLog, _, apiErr := f.RestAPIClient.Jobs.GetJobLog(
 			ctx,
 			bld.Organization,
@@ -90,12 +90,11 @@ func (c *LogCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			c.JobID,
 		)
 		if apiErr != nil {
-			err = apiErr
-			return
+			return apiErr
 		}
 		logContent = jobLog.Content
-	})
-	if err != nil {
+		return nil
+	}); err != nil {
 		return err
 	}
 

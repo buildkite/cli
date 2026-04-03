@@ -48,13 +48,10 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 	ctx := context.Background()
 	var downloadDir string
 
-	spinErr := bkIO.SpinWhile(f, "Downloading artifact", func() {
+	if err = bkIO.SpinWhile(f, "Downloading artifact", func() error {
 		downloadDir, err = download(ctx, f, c.ArtifactID)
-	})
-	if spinErr != nil {
-		return spinErr
-	}
-	if err != nil {
+		return err
+	}); err != nil {
 		return err
 	}
 

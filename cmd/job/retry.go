@@ -48,10 +48,10 @@ func (c *RetryCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	ctx := context.Background()
 	var j *bkGraphQL.RetryJobResponse
 
-	err = bkIO.SpinWhile(f, "Retrying job", func() {
+	if err = bkIO.SpinWhile(f, "Retrying job", func() error {
 		j, err = bkGraphQL.RetryJob(ctx, f.GraphQLClient, graphqlID)
-	})
-	if err != nil {
+		return err
+	}); err != nil {
 		return err
 	}
 

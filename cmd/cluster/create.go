@@ -68,13 +68,11 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	var cluster buildkite.Cluster
-	spinErr := bkIO.SpinWhile(f, "Creating cluster", func() {
-		cluster, _, err = f.RestAPIClient.Clusters.Create(ctx, f.Config.OrganizationSlug(), input)
-	})
-	if spinErr != nil {
-		return spinErr
-	}
-	if err != nil {
+	if err = bkIO.SpinWhile(f, "Creating cluster", func() error {
+		var apiErr error
+		cluster, _, apiErr = f.RestAPIClient.Clusters.Create(ctx, f.Config.OrganizationSlug(), input)
+		return apiErr
+	}); err != nil {
 		return fmt.Errorf("error creating cluster: %v", err)
 	}
 

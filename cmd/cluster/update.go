@@ -83,13 +83,11 @@ func (c *UpdateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	var cluster buildkite.Cluster
-	spinErr := bkIO.SpinWhile(f, "Updating cluster", func() {
-		cluster, _, err = f.RestAPIClient.Clusters.Update(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, input)
-	})
-	if spinErr != nil {
-		return spinErr
-	}
-	if err != nil {
+	if err = bkIO.SpinWhile(f, "Updating cluster", func() error {
+		var apiErr error
+		cluster, _, apiErr = f.RestAPIClient.Clusters.Update(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, input)
+		return apiErr
+	}); err != nil {
 		return fmt.Errorf("error updating cluster: %v", err)
 	}
 
