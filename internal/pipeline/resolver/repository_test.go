@@ -96,6 +96,33 @@ func TestResolvePipelinesFromPath(t *testing.T) {
 	})
 }
 
+func TestResolvePipelinesFromGitFallback(t *testing.T) {
+	ctx := context.Background()
+	const testOrg = "testOrg"
+
+	s := mockHTTPServer(`[{"slug": "cli-resolver-smoke", "repository": "git@github.com:buildkite/cli.git"}]`)
+	t.Cleanup(s.Close)
+
+	repo := testRepository(t, "https://github.com/buildkite/cli.git")
+	wt, err := repo.Worktree()
+	if err != nil {
+		t.Fatalf("Worktree returned error: %v", err)
+	}
+	t.Chdir(wt.Filesystem.Root())
+
+	f := testFactory(t, s.URL, testOrg, nil)
+	pipelines, err := resolveFromRepository(ctx, f, testOrg)
+	if err != nil {
+		t.Errorf("Error: %s", err)
+	}
+	if len(pipelines) != 1 {
+		t.Errorf("Expected 1 pipeline, got %d", len(pipelines))
+	}
+	if len(pipelines) == 1 && pipelines[0].Name != "cli-resolver-smoke" {
+		t.Errorf("Expected cli-resolver-smoke pipeline, got %s", pipelines[0].Name)
+	}
+}
+
 func testRepository(t *testing.T, remoteURLs ...string) *git.Repository {
 	t.Helper()
 

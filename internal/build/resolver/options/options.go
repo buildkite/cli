@@ -2,6 +2,9 @@ package options
 
 import (
 	"context"
+	"errors"
+	"os/exec"
+	"strings"
 
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
@@ -33,17 +36,43 @@ func ResolveBranchFromFlag(branch string) OptionsFn {
 // ResolveBranchFromRepository returns a function that is used to add a branch filter to a build list options
 func ResolveBranchFromRepository(repo *git.Repository) OptionsFn {
 	return func(options *buildkite.BuildsListOptions) error {
-		var branch string
-		if repo != nil && len(options.Branch) == 0 {
+		if len(options.Branch) > 0 {
+			return nil
+		}
+
+		if repo != nil {
 			head, err := repo.Head()
 			if err != nil {
 				return err
 			}
-			branch = head.Name().Short()
+			options.Branch = append(options.Branch, head.Name().Short())
+			return nil
+		}
+
+		branch, err := getBranchFromGit()
+		if err != nil {
+			return err
+		}
+		if branch != "" {
 			options.Branch = append(options.Branch, branch)
 		}
 		return nil
 	}
+}
+
+func getBranchFromGit() (string, error) {
+	cmd := exec.Command("git", "symbolic-ref", "--quiet", "--short", "HEAD")
+	output, err := cmd.Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		var execErr *exec.Error
+		if errors.As(err, &exitErr) || errors.As(err, &execErr) {
+			return "", nil
+		}
+		return "", err
+	}
+
+	return strings.TrimSpace(string(output)), nil
 }
 
 // ResolveUserFromFlag returns a function that is used to add a user filter to a build list options
