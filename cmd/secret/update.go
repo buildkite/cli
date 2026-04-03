@@ -84,42 +84,35 @@ func (c *UpdateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			return fmt.Errorf("secret value cannot be empty")
 		}
 
-		spinErr := bkIO.SpinWhile(f, "Updating secret value", func() {
+		if err = bkIO.SpinWhile(f, "Updating secret value", func() error {
 			_, err = f.RestAPIClient.ClusterSecrets.UpdateValue(ctx, org, c.ClusterUUID, c.SecretID, buildkite.ClusterSecretValueUpdate{
 				Value: value,
 			})
-		})
-		if spinErr != nil {
-			return spinErr
-		}
-		if err != nil {
+			return err
+		}); err != nil {
 			return fmt.Errorf("error updating secret value: %v", err)
 		}
 	}
 
 	var secret buildkite.ClusterSecret
 	if c.Description != "" || c.Policy != "" {
-		spinErr := bkIO.SpinWhile(f, "Updating secret", func() {
-			secret, _, err = f.RestAPIClient.ClusterSecrets.Update(ctx, org, c.ClusterUUID, c.SecretID, buildkite.ClusterSecretUpdate{
+		if err = bkIO.SpinWhile(f, "Updating secret", func() error {
+			var apiErr error
+			secret, _, apiErr = f.RestAPIClient.ClusterSecrets.Update(ctx, org, c.ClusterUUID, c.SecretID, buildkite.ClusterSecretUpdate{
 				Description: c.Description,
 				Policy:      c.Policy,
 			})
-		})
-		if spinErr != nil {
-			return spinErr
-		}
-		if err != nil {
+			return apiErr
+		}); err != nil {
 			return fmt.Errorf("error updating secret: %v", err)
 		}
 	} else {
 		// Fetch the secret to display current state
-		spinErr := bkIO.SpinWhile(f, "Loading secret", func() {
-			secret, _, err = f.RestAPIClient.ClusterSecrets.Get(ctx, org, c.ClusterUUID, c.SecretID)
-		})
-		if spinErr != nil {
-			return spinErr
-		}
-		if err != nil {
+		if err = bkIO.SpinWhile(f, "Loading secret", func() error {
+			var apiErr error
+			secret, _, apiErr = f.RestAPIClient.ClusterSecrets.Get(ctx, org, c.ClusterUUID, c.SecretID)
+			return apiErr
+		}); err != nil {
 			return fmt.Errorf("error fetching secret: %v", err)
 		}
 	}

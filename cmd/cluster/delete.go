@@ -59,13 +59,10 @@ func (c *DeleteCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return nil
 	}
 
-	spinErr := bkIO.SpinWhile(f, "Deleting cluster", func() {
+	if err = bkIO.SpinWhile(f, "Deleting cluster", func() error {
 		_, err = f.RestAPIClient.Clusters.Delete(ctx, f.Config.OrganizationSlug(), c.ClusterUUID)
-	})
-	if spinErr != nil {
-		return spinErr
-	}
-	if err != nil {
+		return err
+	}); err != nil {
 		return fmt.Errorf("error deleting cluster: %v", err)
 	}
 

@@ -151,7 +151,8 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
-	spinErr := bkIO.SpinWhile(f, "Loading build information", func() {
+	if err = bkIO.SpinWhile(f, "Loading build information", func() error {
+		var fetchErr error
 		wg.Add(3)
 		go func() {
 			defer wg.Done()
@@ -165,7 +166,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			)
 			if apiErr != nil {
 				mu.Lock()
-				err = apiErr
+				fetchErr = apiErr
 				mu.Unlock()
 			}
 		}()
@@ -182,7 +183,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			)
 			if apiErr != nil {
 				mu.Lock()
-				err = apiErr
+				fetchErr = apiErr
 				mu.Unlock()
 			}
 		}()
@@ -199,17 +200,14 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			)
 			if apiErr != nil {
 				mu.Lock()
-				err = apiErr
+				fetchErr = apiErr
 				mu.Unlock()
 			}
 		}()
 
 		wg.Wait()
-	})
-	if spinErr != nil {
-		return spinErr
-	}
-	if err != nil {
+		return fetchErr
+	}); err != nil {
 		return err
 	}
 

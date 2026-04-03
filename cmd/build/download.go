@@ -106,16 +106,16 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 	}
 
 	var dir string
-	spinErr := bkIO.SpinWhile(f, "Downloading build resources", func() {
+	if err = bkIO.SpinWhile(f, "Downloading build resources", func() error {
 		dir, err = download(ctx, bld, f)
-	})
-	if spinErr != nil {
-		return spinErr
+		return err
+	}); err != nil {
+		return err
 	}
 
 	fmt.Printf("Downloaded build to: %s\n", dir)
 
-	return err
+	return nil
 }
 
 func download(ctx context.Context, build *build.Build, f *factory.Factory) (string, error) {

@@ -90,12 +90,12 @@ func (c *ListCmd) runPipelineList(ctx context.Context, f *factory.Factory) error
 	listOpts := c.pipelineListOptionsFromFlags()
 
 	var pipelines []buildkite.Pipeline
-	var err error
 
-	err = bkIO.SpinWhile(f, "Loading pipelines", func() {
-		pipelines, err = c.fetchPipelines(ctx, f, org, listOpts)
-	})
-	if err != nil {
+	if err := bkIO.SpinWhile(f, "Loading pipelines", func() error {
+		var apiErr error
+		pipelines, apiErr = c.fetchPipelines(ctx, f, org, listOpts)
+		return apiErr
+	}); err != nil {
 		return fmt.Errorf("failed to list pipelines: %w", err)
 	}
 

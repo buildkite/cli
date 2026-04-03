@@ -62,15 +62,12 @@ func (c *CancelCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 }
 
 func (c *CancelCmd) cancelJob(ctx context.Context, displayID, apiID string, f *factory.Factory) error {
-	var err error
 	var result *graphql.CancelJobResponse
-	spinErr := bkIO.SpinWhile(f, fmt.Sprintf("Cancelling job %s", displayID), func() {
-		result, err = graphql.CancelJob(ctx, f.GraphQLClient, apiID)
-	})
-	if spinErr != nil {
-		return spinErr
-	}
-	if err != nil {
+	if err := bkIO.SpinWhile(f, fmt.Sprintf("Cancelling job %s", displayID), func() error {
+		var apiErr error
+		result, apiErr = graphql.CancelJob(ctx, f.GraphQLClient, apiID)
+		return apiErr
+	}); err != nil {
 		return err
 	}
 

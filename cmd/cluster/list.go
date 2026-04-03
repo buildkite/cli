@@ -79,13 +79,11 @@ func listClusters(ctx context.Context, f *factory.Factory) ([]buildkite.Cluster,
 	var clusters []buildkite.Cluster
 	var err error
 
-	spinErr := bkIO.SpinWhile(f, "Loading clusters information", func() {
-		clusters, _, err = f.RestAPIClient.Clusters.List(ctx, f.Config.OrganizationSlug(), nil)
-	})
-	if spinErr != nil {
-		return nil, spinErr
-	}
-	if err != nil {
+	if err = bkIO.SpinWhile(f, "Loading clusters information", func() error {
+		var apiErr error
+		clusters, _, apiErr = f.RestAPIClient.Clusters.List(ctx, f.Config.OrganizationSlug(), nil)
+		return apiErr
+	}); err != nil {
 		return nil, fmt.Errorf("error fetching cluster list: %v", err)
 	}
 

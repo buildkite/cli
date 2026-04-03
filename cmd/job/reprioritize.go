@@ -77,8 +77,9 @@ func (c *ReprioritizeCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) er
 	}
 
 	var job buildkite.Job
-	err = bkIO.SpinWhile(f, "Reprioritizing job", func() {
-		job, _, err = f.RestAPIClient.Jobs.ReprioritizeJob(
+	if err = bkIO.SpinWhile(f, "Reprioritizing job", func() error {
+		var apiErr error
+		job, _, apiErr = f.RestAPIClient.Jobs.ReprioritizeJob(
 			ctx,
 			bld.Organization,
 			bld.Pipeline,
@@ -88,8 +89,8 @@ func (c *ReprioritizeCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) er
 				Priority: c.Priority,
 			},
 		)
-	})
-	if err != nil {
+		return apiErr
+	}); err != nil {
 		return err
 	}
 

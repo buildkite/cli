@@ -149,15 +149,12 @@ func (c *ConvertCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	fmt.Println("Job submitted. Processing with AI (this may take several minutes)...")
 
 	var result *statusResponse
-	var pollErr error
-	err = bkIO.SpinWhile(f, "Processing conversion...", func() {
+	if err = bkIO.SpinWhile(f, "Processing conversion...", func() error {
+		var pollErr error
 		result, pollErr = pollJobStatus(jobResp.JobID, c.Timeout)
-	})
-	if err != nil {
+		return pollErr
+	}); err != nil {
 		return fmt.Errorf("error polling job status: %w", err)
-	}
-	if pollErr != nil {
-		return fmt.Errorf("error polling job status: %w", pollErr)
 	}
 
 	if result.Status == "failed" {

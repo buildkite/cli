@@ -122,10 +122,10 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	if c.Creator != "" && isValidEmail(c.Creator) {
 		originalEmail := c.Creator
-		_ = bkIO.SpinWhile(f, "Looking up user", func() {
+		if err = bkIO.SpinWhile(f, "Looking up user", func() error {
 			c.Creator, err = resolveCreatorEmailToUserID(ctx, f, originalEmail)
-		})
-		if err != nil {
+			return err
+		}); err != nil {
 			return fmt.Errorf("failed to resolve creator email: %w", err)
 		}
 		if c.Creator == "" {
@@ -280,19 +280,14 @@ func (c *ListCmd) fetchBuilds(ctx context.Context, f *factory.Factory, org strin
 			rawSinceConfirm = 0
 		}
 
-		spinErr := bkIO.SpinWhile(f, spinnerMsg, func() {
+		if err = bkIO.SpinWhile(f, spinnerMsg, func() error {
 			if c.Pipeline != "" {
 				builds, err = c.getBuildsByPipeline(ctx, f, org, listOpts)
 			} else {
 				builds, _, err = f.RestAPIClient.Builds.ListByOrg(ctx, org, listOpts)
 			}
-		})
-
-		if spinErr != nil {
-			return nil, spinErr
-		}
-
-		if err != nil {
+			return err
+		}); err != nil {
 			return nil, err
 		}
 

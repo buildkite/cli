@@ -93,16 +93,14 @@ func (c *PushCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	ctx := context.Background()
 	var pkg buildkite.Package
-	spinErr := bkIO.SpinWhile(f, "Pushing file", func() {
-		pkg, _, err = f.RestAPIClient.PackagesService.Create(ctx, f.Config.OrganizationSlug(), c.RegistrySlug, buildkite.CreatePackageInput{
+	if err = bkIO.SpinWhile(f, "Pushing file", func() error {
+		var apiErr error
+		pkg, _, apiErr = f.RestAPIClient.PackagesService.Create(ctx, f.Config.OrganizationSlug(), c.RegistrySlug, buildkite.CreatePackageInput{
 			Filename: packageName,
 			Package:  from,
 		})
-	})
-	if spinErr != nil {
-		return spinErr
-	}
-	if err != nil {
+		return apiErr
+	}); err != nil {
 		return fmt.Errorf("%w: request to create package failed: %w", ErrAPIError, err)
 	}
 

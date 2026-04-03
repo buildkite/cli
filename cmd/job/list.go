@@ -145,14 +145,14 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	org := f.Config.OrganizationSlug()
 	var jobs []buildkite.Job
 
-	err = bkIO.SpinWhile(f, "Loading jobs", func() {
+	if err = bkIO.SpinWhile(f, "Loading jobs", func() error {
 		if opts.queue != "" {
 			jobs, err = fetchJobsWithQueueFilter(ctx, f, org, opts)
 		} else {
 			jobs, err = fetchJobs(ctx, f, org, opts, listOpts)
 		}
-	})
-	if err != nil {
+		return err
+	}); err != nil {
 		return fmt.Errorf("failed to list jobs: %w", err)
 	}
 

@@ -57,13 +57,11 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	defer stop()
 
 	var secrets []buildkite.ClusterSecret
-	spinErr := bkIO.SpinWhile(f, "Loading secrets", func() {
-		secrets, _, err = f.RestAPIClient.ClusterSecrets.List(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, nil)
-	})
-	if spinErr != nil {
-		return spinErr
-	}
-	if err != nil {
+	if err = bkIO.SpinWhile(f, "Loading secrets", func() error {
+		var apiErr error
+		secrets, _, apiErr = f.RestAPIClient.ClusterSecrets.List(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, nil)
+		return apiErr
+	}); err != nil {
 		return fmt.Errorf("error fetching secrets: %v", err)
 	}
 

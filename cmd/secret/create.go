@@ -88,13 +88,11 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	var secret buildkite.ClusterSecret
-	spinErr := bkIO.SpinWhile(f, "Creating secret", func() {
-		secret, _, err = f.RestAPIClient.ClusterSecrets.Create(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, input)
-	})
-	if spinErr != nil {
-		return spinErr
-	}
-	if err != nil {
+	if err = bkIO.SpinWhile(f, "Creating secret", func() error {
+		var apiErr error
+		secret, _, apiErr = f.RestAPIClient.ClusterSecrets.Create(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, input)
+		return apiErr
+	}); err != nil {
 		return fmt.Errorf("error creating secret: %v", err)
 	}
 

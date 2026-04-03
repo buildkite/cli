@@ -9,11 +9,10 @@ import (
 	"github.com/mattn/go-isatty"
 )
 
-func SpinWhile(f *factory.Factory, name string, action func()) error {
+func SpinWhile(f *factory.Factory, name string, action func() error) error {
 	// If quiet mode is on or not a terminal, just run the action
 	if f.Quiet || !isatty.IsTerminal(os.Stdout.Fd()) {
-		action()
-		return nil
+		return action()
 	}
 
 	done := make(chan struct{})
@@ -46,9 +45,9 @@ func SpinWhile(f *factory.Factory, name string, action func()) error {
 		}
 	}()
 
-	action()
+	actionErr := action()
 	close(done)
 	<-finished // Wait for spinner to finish clearing
 
-	return nil
+	return actionErr
 }

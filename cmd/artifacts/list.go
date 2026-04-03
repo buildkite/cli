@@ -99,14 +99,15 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	var buildArtifacts []buildkite.Artifact
 
-	err = bkIO.SpinWhile(f, "Loading artifacts information", func() {
+	if err = bkIO.SpinWhile(f, "Loading artifacts information", func() error {
+		var apiErr error
 		if c.Job != "" {
-			buildArtifacts, _, err = f.RestAPIClient.Artifacts.ListByJob(ctx, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), c.Job, nil)
+			buildArtifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByJob(ctx, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), c.Job, nil)
 		} else {
-			buildArtifacts, _, err = f.RestAPIClient.Artifacts.ListByBuild(ctx, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), nil)
+			buildArtifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByBuild(ctx, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), nil)
 		}
-	})
-	if err != nil {
+		return apiErr
+	}); err != nil {
 		return err
 	}
 
