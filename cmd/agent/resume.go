@@ -11,7 +11,7 @@ import (
 )
 
 type ResumeCmd struct {
-	AgentID string `arg:"" help:"Agent ID to resume"`
+	AgentID string `arg:"" help:"Agent UUID to resume"`
 }
 
 func (c *ResumeCmd) Help() string {

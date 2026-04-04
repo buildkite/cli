@@ -20,7 +20,7 @@ import (
 
 type GetCmd struct {
 	ClusterUUID string `help:"The UUID of the cluster" required:"" name:"cluster-uuid"`
-	SecretID    string `help:"The UUID of the secret to view" required:"" name:"secret-id"`
+	SecretUUID  string `help:"The UUID of the secret to view" required:"" name:"secret-uuid" aliases:"secret-id"`
 	output.OutputFlags
 }
 
@@ -30,10 +30,10 @@ View details of a cluster secret.
 
 Examples:
   # View a secret
-  $ bk secret get --cluster-uuid my-cluster-uuid --secret-id my-secret-id
+  $ bk secret get --cluster-uuid my-cluster-uuid --secret-uuid my-secret-uuid
 
   # View a secret in JSON format
-  $ bk secret get --cluster-uuid my-cluster-uuid --secret-id my-secret-id -o json
+  $ bk secret get --cluster-uuid my-cluster-uuid --secret-uuid my-secret-uuid -o json
 `
 }
 
@@ -60,7 +60,7 @@ func (c *GetCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	var secret buildkite.ClusterSecret
 	if err = bkIO.SpinWhile(f, "Loading secret", func() error {
 		var apiErr error
-		secret, _, apiErr = f.RestAPIClient.ClusterSecrets.Get(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, c.SecretID)
+		secret, _, apiErr = f.RestAPIClient.ClusterSecrets.Get(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, c.SecretUUID)
 		return apiErr
 	}); err != nil {
 		return fmt.Errorf("error fetching secret: %v", err)
