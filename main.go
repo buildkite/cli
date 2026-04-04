@@ -83,7 +83,7 @@ type (
 		View    agent.ViewCmd    `cmd:"" help:"View details of an agent."`
 	}
 	ArtifactsCmd struct {
-		Download artifacts.DownloadCmd `cmd:"" help:"Download an artifact by its UUID."`
+		Download artifacts.DownloadCmd `cmd:"" help:"Download artifacts from a build."`
 		List     artifacts.ListCmd     `cmd:"" help:"List artifacts for a build or a job in a build." aliases:"ls"`
 	}
 	BuildCmd struct {
