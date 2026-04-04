@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/buildkite/cli/v3/pkg/keyring"
 	"github.com/spf13/afero"
 )
 
@@ -320,6 +321,37 @@ func TestConfig(t *testing.T) {
 			}
 		})
 	})
+}
+
+func TestAPITokenForOrgNoKeyring(t *testing.T) {
+	// Ensure BUILDKITE_NO_KEYRING disables keychain access entirely and that
+	// APITokenForOrg falls through to the config file (legacy) path without
+	// attempting to call the OS keychain.
+	setEnv(t, "BUILDKITE_NO_KEYRING", "1")
+	setEnv(t, "CI", "")
+	setEnv(t, "BUILDKITE", "")
+	setEnv(t, "BUILDKITE_API_TOKEN", "")
+	keyring.ResetForTesting()
+	t.Cleanup(keyring.ResetForTesting)
+
+	fs := afero.NewMemMapFs()
+	content := []byte("organizations:\n  my-org:\n    api_token: legacy-token\n")
+	if err := afero.WriteFile(fs, configFile(), content, 0o600); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	conf := New(fs, nil)
+
+	// Should return the legacy file token without touching the keychain.
+	if got := conf.APITokenForOrg("my-org"); got != "legacy-token" {
+		t.Errorf("APITokenForOrg() = %q, want %q", got, "legacy-token")
+	}
+
+	// Keyring must report unavailable.
+	kr := keyring.New()
+	if kr.IsAvailable() {
+		t.Error("expected keyring to be unavailable when BUILDKITE_NO_KEYRING=1")
+	}
 }
 
 func TestExperiments(t *testing.T) {
