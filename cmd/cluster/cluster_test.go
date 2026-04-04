@@ -361,8 +361,8 @@ func TestUpdateCmdValidate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "only default-queue-id",
-			cmd:     UpdateCmd{ClusterUUID: "cluster-1", DefaultQueueID: "queue-123"},
+			name:    "only default-queue-uuid",
+			cmd:     UpdateCmd{ClusterUUID: "cluster-1", DefaultQueueUUID: "queue-123"},
 			wantErr: false,
 		},
 		{

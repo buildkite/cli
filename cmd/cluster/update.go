@@ -17,12 +17,12 @@ import (
 )
 
 type UpdateCmd struct {
-	ClusterUUID    string `arg:"" help:"Cluster UUID to update" name:"cluster-uuid"`
-	Name           string `help:"New name for the cluster" optional:""`
-	Description    string `help:"New description for the cluster" optional:""`
-	Emoji          string `help:"New emoji for the cluster (e.g. :rocket:)" optional:""`
-	Color          string `help:"New color hex code for the cluster (e.g. #FF0000)" optional:""`
-	DefaultQueueID string `help:"UUID of the queue to set as the default" optional:"" name:"default-queue-id"`
+	ClusterUUID      string `arg:"" help:"Cluster UUID to update" name:"cluster-uuid"`
+	Name             string `help:"New name for the cluster" optional:""`
+	Description      string `help:"New description for the cluster" optional:""`
+	Emoji            string `help:"New emoji for the cluster (e.g. :rocket:)" optional:""`
+	Color            string `help:"New color hex code for the cluster (e.g. #FF0000)" optional:""`
+	DefaultQueueUUID string `help:"UUID of the queue to set as the default" optional:"" name:"default-queue-uuid" aliases:"default-queue-id"`
 	output.OutputFlags
 }
 
@@ -30,7 +30,7 @@ func (c *UpdateCmd) Help() string {
 	return `
 Update a cluster's settings.
 
-At least one of --name, --description, --emoji, --color, or --default-queue-id must be provided.
+At least one of --name, --description, --emoji, --color, or --default-queue-uuid must be provided.
 
 Examples:
   # Update a cluster's name
@@ -40,7 +40,7 @@ Examples:
   $ bk cluster update my-cluster-uuid --description "Updated description" --color "#00FF00"
 
   # Set the default queue
-  $ bk cluster update my-cluster-uuid --default-queue-id my-queue-uuid
+  $ bk cluster update my-cluster-uuid --default-queue-uuid my-queue-uuid
 
   # Output the updated cluster as JSON
   $ bk cluster update my-cluster-uuid --name "New Name" -o json
@@ -48,8 +48,8 @@ Examples:
 }
 
 func (c *UpdateCmd) Validate() error {
-	if c.Name == "" && c.Description == "" && c.Emoji == "" && c.Color == "" && c.DefaultQueueID == "" {
-		return fmt.Errorf("at least one of --name, --description, --emoji, --color, or --default-queue-id must be provided")
+	if c.Name == "" && c.Description == "" && c.Emoji == "" && c.Color == "" && c.DefaultQueueUUID == "" {
+		return fmt.Errorf("at least one of --name, --description, --emoji, --color, or --default-queue-uuid must be provided")
 	}
 	return nil
 }
@@ -79,7 +79,7 @@ func (c *UpdateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		Description:    c.Description,
 		Emoji:          c.Emoji,
 		Color:          c.Color,
-		DefaultQueueID: c.DefaultQueueID,
+		DefaultQueueID: c.DefaultQueueUUID,
 	}
 
 	var cluster buildkite.Cluster

@@ -12,7 +12,7 @@ import (
 )
 
 type PauseCmd struct {
-	AgentID          string `arg:"" help:"Agent ID to pause"`
+	AgentID          string `arg:"" help:"Agent UUID to pause"`
 	Note             string `help:"A descriptive note to record why the agent is paused"`
 	TimeoutInMinutes int    `help:"Timeout after which the agent is automatically resumed, in minutes" default:"5"`
 }

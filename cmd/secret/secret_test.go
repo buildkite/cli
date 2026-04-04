@@ -307,27 +307,27 @@ func TestUpdateCmdValidate(t *testing.T) {
 	}{
 		{
 			name:    "no flags set",
-			cmd:     UpdateCmd{ClusterUUID: "c", SecretID: "s"},
+			cmd:     UpdateCmd{ClusterUUID: "c", SecretUUID: "s"},
 			wantErr: true,
 		},
 		{
 			name:    "only description",
-			cmd:     UpdateCmd{ClusterUUID: "c", SecretID: "s", Description: "new desc"},
+			cmd:     UpdateCmd{ClusterUUID: "c", SecretUUID: "s", Description: "new desc"},
 			wantErr: false,
 		},
 		{
 			name:    "only policy",
-			cmd:     UpdateCmd{ClusterUUID: "c", SecretID: "s", Policy: "new policy"},
+			cmd:     UpdateCmd{ClusterUUID: "c", SecretUUID: "s", Policy: "new policy"},
 			wantErr: false,
 		},
 		{
 			name:    "only update-value",
-			cmd:     UpdateCmd{ClusterUUID: "c", SecretID: "s", UpdateValue: true},
+			cmd:     UpdateCmd{ClusterUUID: "c", SecretUUID: "s", UpdateValue: true},
 			wantErr: false,
 		},
 		{
 			name:    "description and update-value",
-			cmd:     UpdateCmd{ClusterUUID: "c", SecretID: "s", Description: "desc", UpdateValue: true},
+			cmd:     UpdateCmd{ClusterUUID: "c", SecretUUID: "s", Description: "desc", UpdateValue: true},
 			wantErr: false,
 		},
 	}
