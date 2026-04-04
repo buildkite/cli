@@ -145,18 +145,7 @@ func (c *DownloadCmd) downloadAll(ctx context.Context, f *factory.Factory, org, 
 	for i := range artifacts {
 		a := &artifacts[i]
 		destPath := filepath.Join(directory, filepath.FromSlash(a.Path))
-		if err := os.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
-			return err
-		}
-
-		out, err := os.Create(destPath)
-		if err != nil {
-			return err
-		}
-
-		_, err = f.RestAPIClient.Artifacts.DownloadArtifactByURL(ctx, a.DownloadURL, out)
-		out.Close()
-		if err != nil {
+		if err := downloadToFile(ctx, f, a.DownloadURL, destPath); err != nil {
 			return err
 		}
 
@@ -168,7 +157,15 @@ func (c *DownloadCmd) downloadAll(ctx context.Context, f *factory.Factory, org, 
 }
 
 func findArtifact(ctx context.Context, f *factory.Factory, org, pipeline, build, artifactID, jobUUID string) (*buildkite.Artifact, error) {
-	artifacts, err := listArtifacts(ctx, f, org, pipeline, build, jobUUID)
+	if jobUUID != "" {
+		artifact, _, err := f.RestAPIClient.Artifacts.Get(ctx, org, pipeline, build, jobUUID, artifactID)
+		if err != nil {
+			return nil, err
+		}
+		return &artifact, nil
+	}
+
+	artifacts, err := listArtifacts(ctx, f, org, pipeline, build, "")
 	if err != nil {
 		return nil, err
 	}
@@ -215,18 +212,24 @@ func listArtifacts(ctx context.Context, f *factory.Factory, org, pipeline, build
 }
 
 func downloadArtifact(ctx context.Context, f *factory.Factory, artifact *buildkite.Artifact) (string, error) {
-	filename := filepath.Base(artifact.Path)
-
-	out, err := os.Create(filename)
-	if err != nil {
+	destPath := filepath.FromSlash(artifact.Path)
+	if err := downloadToFile(ctx, f, artifact.DownloadURL, destPath); err != nil {
 		return "", err
+	}
+	return destPath, nil
+}
+
+func downloadToFile(ctx context.Context, f *factory.Factory, url, destPath string) error {
+	if err := os.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
+		return err
+	}
+
+	out, err := os.Create(destPath)
+	if err != nil {
+		return err
 	}
 	defer out.Close()
 
-	_, err = f.RestAPIClient.Artifacts.DownloadArtifactByURL(ctx, artifact.DownloadURL, out)
-	if err != nil {
-		return "", err
-	}
-
-	return filename, nil
+	_, err = f.RestAPIClient.Artifacts.DownloadArtifactByURL(ctx, url, out)
+	return err
 }
