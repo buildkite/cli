@@ -13,7 +13,7 @@ import (
 
 //go:generate go run generate.go
 func main() {
-	const schemaFile = "schema.graphql"
+	const schemaFile = "../../schema.graphql"
 
 	if _, err := os.Stat(schemaFile); errors.Is(err, os.ErrNotExist) {
 		headers := http.Header{

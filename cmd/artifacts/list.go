@@ -22,7 +22,7 @@ import (
 type ListCmd struct {
 	BuildNumber string `arg:"" optional:"" help:"Build number to list artifacts for"`
 	Pipeline    string `help:"The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}. If omitted, it will be resolved using the current directory." short:"p"`
-	Job         string `help:"List artifacts for a specific job on the given build." short:"j"`
+	JobUUID     string `help:"List artifacts for a specific job on the given build." short:"j" name:"job-uuid"`
 	output.OutputFlags
 }
 
@@ -40,7 +40,7 @@ Examples:
   $ bk artifacts list 429
 
   # To list artifacts of a specific job in a build
-  $ bk artifacts list 429 --job 0193903e-ecd9-4c51-9156-0738da987e87
+  $ bk artifacts list 429 --job-uuid 0193903e-ecd9-4c51-9156-0738da987e87
 
   # If not inside a repository or to use a specific pipeline, pass -p
   $ bk artifacts list 429 -p monolith
@@ -100,13 +100,8 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	var buildArtifacts []buildkite.Artifact
 
 	if err = bkIO.SpinWhile(f, "Loading artifacts information", func() error {
-		var apiErr error
-		if c.Job != "" {
-			buildArtifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByJob(ctx, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), c.Job, nil)
-		} else {
-			buildArtifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByBuild(ctx, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), nil)
-		}
-		return apiErr
+		buildArtifacts, err = listArtifacts(ctx, f, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), c.JobUUID)
+		return err
 	}); err != nil {
 		return err
 	}
@@ -125,9 +120,9 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	buildURL := fmt.Sprintf("https://buildkite.com/organizations/%s/pipelines/%s/builds/%d", bld.Organization, bld.Pipeline, bld.BuildNumber)
 
-	if c.Job != "" {
-		jobURL := fmt.Sprintf("%s/jobs/%s", buildURL, c.Job)
-		fmt.Fprintf(writer, "Showing %d artifacts for %s/%s build #%d (job %s): %s\n\n", len(buildArtifacts), bld.Organization, bld.Pipeline, bld.BuildNumber, c.Job, jobURL)
+	if c.JobUUID != "" {
+		jobURL := fmt.Sprintf("%s/jobs/%s", buildURL, c.JobUUID)
+		fmt.Fprintf(writer, "Showing %d artifacts for %s/%s build #%d (job %s): %s\n\n", len(buildArtifacts), bld.Organization, bld.Pipeline, bld.BuildNumber, c.JobUUID, jobURL)
 	} else {
 		fmt.Fprintf(writer, "Showing %d artifacts for %s/%s build #%d: %s\n\n", len(buildArtifacts), bld.Organization, bld.Pipeline, bld.BuildNumber, buildURL)
 	}

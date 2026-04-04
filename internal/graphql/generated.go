@@ -1710,92 +1710,6 @@ func (v *FindUserByEmailResponse) GetOrganization() *FindUserByEmailOrganization
 	return v.Organization
 }
 
-// GetArtifactsArtifact includes the requested fields of the GraphQL type Artifact.
-// The GraphQL type's documentation follows.
-//
-// A file uploaded from the agent whilst running a job
-type GetArtifactsArtifact struct {
-	// The public UUID for this artifact
-	Uuid string `json:"uuid"`
-	// The path of the uploaded artifact
-	Path string `json:"path"`
-	// The download URL for the artifact. Unless you've used your own artifact storage, the URL will be valid for only 10 minutes.
-	DownloadURL string `json:"downloadURL"`
-	// The job that uploaded this artifact
-	Job *GetArtifactsArtifactJobJobTypeCommand `json:"job"`
-}
-
-// GetUuid returns GetArtifactsArtifact.Uuid, and is useful for accessing the field via an interface.
-func (v *GetArtifactsArtifact) GetUuid() string { return v.Uuid }
-
-// GetPath returns GetArtifactsArtifact.Path, and is useful for accessing the field via an interface.
-func (v *GetArtifactsArtifact) GetPath() string { return v.Path }
-
-// GetDownloadURL returns GetArtifactsArtifact.DownloadURL, and is useful for accessing the field via an interface.
-func (v *GetArtifactsArtifact) GetDownloadURL() string { return v.DownloadURL }
-
-// GetJob returns GetArtifactsArtifact.Job, and is useful for accessing the field via an interface.
-func (v *GetArtifactsArtifact) GetJob() *GetArtifactsArtifactJobJobTypeCommand { return v.Job }
-
-// GetArtifactsArtifactJobJobTypeCommand includes the requested fields of the GraphQL type JobTypeCommand.
-// The GraphQL type's documentation follows.
-//
-// A type of job that runs a command on an agent
-type GetArtifactsArtifactJobJobTypeCommand struct {
-	// The UUID for this job
-	Uuid string `json:"uuid"`
-	// The pipeline that this job is a part of
-	Pipeline *GetArtifactsArtifactJobJobTypeCommandPipeline `json:"pipeline"`
-	// The build that this job is a part of
-	Build *GetArtifactsArtifactJobJobTypeCommandBuild `json:"build"`
-}
-
-// GetUuid returns GetArtifactsArtifactJobJobTypeCommand.Uuid, and is useful for accessing the field via an interface.
-func (v *GetArtifactsArtifactJobJobTypeCommand) GetUuid() string { return v.Uuid }
-
-// GetPipeline returns GetArtifactsArtifactJobJobTypeCommand.Pipeline, and is useful for accessing the field via an interface.
-func (v *GetArtifactsArtifactJobJobTypeCommand) GetPipeline() *GetArtifactsArtifactJobJobTypeCommandPipeline {
-	return v.Pipeline
-}
-
-// GetBuild returns GetArtifactsArtifactJobJobTypeCommand.Build, and is useful for accessing the field via an interface.
-func (v *GetArtifactsArtifactJobJobTypeCommand) GetBuild() *GetArtifactsArtifactJobJobTypeCommandBuild {
-	return v.Build
-}
-
-// GetArtifactsArtifactJobJobTypeCommandBuild includes the requested fields of the GraphQL type Build.
-// The GraphQL type's documentation follows.
-//
-// A build from a pipeline
-type GetArtifactsArtifactJobJobTypeCommandBuild struct {
-	// The number of the build
-	Number int `json:"number"`
-}
-
-// GetNumber returns GetArtifactsArtifactJobJobTypeCommandBuild.Number, and is useful for accessing the field via an interface.
-func (v *GetArtifactsArtifactJobJobTypeCommandBuild) GetNumber() int { return v.Number }
-
-// GetArtifactsArtifactJobJobTypeCommandPipeline includes the requested fields of the GraphQL type Pipeline.
-// The GraphQL type's documentation follows.
-//
-// A pipeline
-type GetArtifactsArtifactJobJobTypeCommandPipeline struct {
-	// The name of the pipeline
-	Name string `json:"name"`
-}
-
-// GetName returns GetArtifactsArtifactJobJobTypeCommandPipeline.Name, and is useful for accessing the field via an interface.
-func (v *GetArtifactsArtifactJobJobTypeCommandPipeline) GetName() string { return v.Name }
-
-// GetArtifactsResponse is returned by GetArtifacts on success.
-type GetArtifactsResponse struct {
-	// Find an artifact by its UUID
-	Artifact *GetArtifactsArtifact `json:"artifact"`
-}
-
-// GetArtifact returns GetArtifactsResponse.Artifact, and is useful for accessing the field via an interface.
-func (v *GetArtifactsResponse) GetArtifact() *GetArtifactsArtifact { return v.Artifact }
-
 // GetClusterQueueAgentOrganization includes the requested fields of the GraphQL type Organization.
 // The GraphQL type's documentation follows.
 //
@@ -2012,127 +1926,6 @@ type GetOrganizationIDResponse struct {
 func (v *GetOrganizationIDResponse) GetOrganization() *GetOrganizationIDOrganization {
 	return v.Organization
 }
-
-// GetPipelinePipeline includes the requested fields of the GraphQL type Pipeline.
-// The GraphQL type's documentation follows.
-//
-// A pipeline
-type GetPipelinePipeline struct {
-	// The name of the pipeline
-	Name string `json:"name"`
-	// The short description of the pipeline
-	Description *string `json:"description"`
-	// The emoji of the pipeline
-	Emoji *string `json:"emoji"`
-	// The color of the pipeline
-	Color *string `json:"color"`
-	// Returns true if the viewer has favorited this pipeline
-	Favorite bool                                                `json:"favorite"`
-	Steps    *GetPipelinePipelineSteps                           `json:"steps"`
-	Metrics  *GetPipelinePipelineMetricsPipelineMetricConnection `json:"metrics"`
-	// Tags that have been given to this pipeline
-	Tags []GetPipelinePipelineTagsPipelineTag `json:"tags"`
-}
-
-// GetName returns GetPipelinePipeline.Name, and is useful for accessing the field via an interface.
-func (v *GetPipelinePipeline) GetName() string { return v.Name }
-
-// GetDescription returns GetPipelinePipeline.Description, and is useful for accessing the field via an interface.
-func (v *GetPipelinePipeline) GetDescription() *string { return v.Description }
-
-// GetEmoji returns GetPipelinePipeline.Emoji, and is useful for accessing the field via an interface.
-func (v *GetPipelinePipeline) GetEmoji() *string { return v.Emoji }
-
-// GetColor returns GetPipelinePipeline.Color, and is useful for accessing the field via an interface.
-func (v *GetPipelinePipeline) GetColor() *string { return v.Color }
-
-// GetFavorite returns GetPipelinePipeline.Favorite, and is useful for accessing the field via an interface.
-func (v *GetPipelinePipeline) GetFavorite() bool { return v.Favorite }
-
-// GetSteps returns GetPipelinePipeline.Steps, and is useful for accessing the field via an interface.
-func (v *GetPipelinePipeline) GetSteps() *GetPipelinePipelineSteps { return v.Steps }
-
-// GetMetrics returns GetPipelinePipeline.Metrics, and is useful for accessing the field via an interface.
-func (v *GetPipelinePipeline) GetMetrics() *GetPipelinePipelineMetricsPipelineMetricConnection {
-	return v.Metrics
-}
-
-// GetTags returns GetPipelinePipeline.Tags, and is useful for accessing the field via an interface.
-func (v *GetPipelinePipeline) GetTags() []GetPipelinePipelineTagsPipelineTag { return v.Tags }
-
-// GetPipelinePipelineMetricsPipelineMetricConnection includes the requested fields of the GraphQL type PipelineMetricConnection.
-type GetPipelinePipelineMetricsPipelineMetricConnection struct {
-	Edges []*GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdge `json:"edges"`
-}
-
-// GetEdges returns GetPipelinePipelineMetricsPipelineMetricConnection.Edges, and is useful for accessing the field via an interface.
-func (v *GetPipelinePipelineMetricsPipelineMetricConnection) GetEdges() []*GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdge {
-	return v.Edges
-}
-
-// GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdge includes the requested fields of the GraphQL type PipelineMetricEdge.
-type GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdge struct {
-	Node *GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdgeNodePipelineMetric `json:"node"`
-}
-
-// GetNode returns GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdge.Node, and is useful for accessing the field via an interface.
-func (v *GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdge) GetNode() *GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdgeNodePipelineMetric {
-	return v.Node
-}
-
-// GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdgeNodePipelineMetric includes the requested fields of the GraphQL type PipelineMetric.
-// The GraphQL type's documentation follows.
-//
-// A metric for a pipeline
-type GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdgeNodePipelineMetric struct {
-	// The label of this metric
-	Label string `json:"label"`
-	// The value for this metric
-	Value *string `json:"value"`
-}
-
-// GetLabel returns GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdgeNodePipelineMetric.Label, and is useful for accessing the field via an interface.
-func (v *GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdgeNodePipelineMetric) GetLabel() string {
-	return v.Label
-}
-
-// GetValue returns GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdgeNodePipelineMetric.Value, and is useful for accessing the field via an interface.
-func (v *GetPipelinePipelineMetricsPipelineMetricConnectionEdgesPipelineMetricEdgeNodePipelineMetric) GetValue() *string {
-	return v.Value
-}
-
-// GetPipelinePipelineSteps includes the requested fields of the GraphQL type PipelineSteps.
-// The GraphQL type's documentation follows.
-//
-// Steps defined on a pipeline
-type GetPipelinePipelineSteps struct {
-	// A YAML representation of the pipeline steps
-	Yaml *string `json:"yaml"`
-}
-
-// GetYaml returns GetPipelinePipelineSteps.Yaml, and is useful for accessing the field via an interface.
-func (v *GetPipelinePipelineSteps) GetYaml() *string { return v.Yaml }
-
-// GetPipelinePipelineTagsPipelineTag includes the requested fields of the GraphQL type PipelineTag.
-// The GraphQL type's documentation follows.
-//
-// A tag associated with a pipeline
-type GetPipelinePipelineTagsPipelineTag struct {
-	// The label for this tag
-	Label string `json:"label"`
-}
-
-// GetLabel returns GetPipelinePipelineTagsPipelineTag.Label, and is useful for accessing the field via an interface.
-func (v *GetPipelinePipelineTagsPipelineTag) GetLabel() string { return v.Label }
-
-// GetPipelineResponse is returned by GetPipeline on success.
-type GetPipelineResponse struct {
-	// Find a pipeline
-	Pipeline *GetPipelinePipeline `json:"pipeline"`
-}
-
-// GetPipeline returns GetPipelineResponse.Pipeline, and is useful for accessing the field via an interface.
-func (v *GetPipelineResponse) GetPipeline() *GetPipelinePipeline { return v.Pipeline }
 
 // InviteUserOrganizationInvitationCreateOrganizationInvitationCreatePayload includes the requested fields of the GraphQL type OrganizationInvitationCreatePayload.
 // The GraphQL type's documentation follows.
@@ -3718,14 +3511,6 @@ func (v *__FindUserByEmailInput) GetOrganization() string { return v.Organizatio
 // GetEmail returns __FindUserByEmailInput.Email, and is useful for accessing the field via an interface.
 func (v *__FindUserByEmailInput) GetEmail() string { return v.Email }
 
-// __GetArtifactsInput is used internally by genqlient
-type __GetArtifactsInput struct {
-	ArtifactId string `json:"artifactId"`
-}
-
-// GetArtifactId returns __GetArtifactsInput.ArtifactId, and is useful for accessing the field via an interface.
-func (v *__GetArtifactsInput) GetArtifactId() string { return v.ArtifactId }
-
 // __GetClusterQueueAgentInput is used internally by genqlient
 type __GetClusterQueueAgentInput struct {
 	OrgSlug string   `json:"orgSlug"`
@@ -3757,14 +3542,6 @@ type __GetOrganizationIDInput struct {
 
 // GetSlug returns __GetOrganizationIDInput.Slug, and is useful for accessing the field via an interface.
 func (v *__GetOrganizationIDInput) GetSlug() string { return v.Slug }
-
-// __GetPipelineInput is used internally by genqlient
-type __GetPipelineInput struct {
-	Slug string `json:"slug"`
-}
-
-// GetSlug returns __GetPipelineInput.Slug, and is useful for accessing the field via an interface.
-func (v *__GetPipelineInput) GetSlug() string { return v.Slug }
 
 // __InviteUserInput is used internally by genqlient
 type __InviteUserInput struct {
@@ -4049,51 +3826,6 @@ func FindUserByEmail(
 	return data_, err_
 }
 
-// The query executed by GetArtifacts.
-const GetArtifacts_Operation = `
-query GetArtifacts ($artifactId: ID!) {
-	artifact(uuid: $artifactId) {
-		uuid
-		path
-		downloadURL
-		job {
-			uuid
-			pipeline {
-				name
-			}
-			build {
-				number
-			}
-		}
-	}
-}
-`
-
-func GetArtifacts(
-	ctx_ context.Context,
-	client_ graphql.Client,
-	artifactId string,
-) (data_ *GetArtifactsResponse, err_ error) {
-	req_ := &graphql.Request{
-		OpName: "GetArtifacts",
-		Query:  GetArtifacts_Operation,
-		Variables: &__GetArtifactsInput{
-			ArtifactId: artifactId,
-		},
-	}
-
-	data_ = &GetArtifactsResponse{}
-	resp_ := &graphql.Response{Data: data_}
-
-	err_ = client_.MakeRequest(
-		ctx_,
-		req_,
-		resp_,
-	)
-
-	return data_, err_
-}
-
 // The query executed by GetClusterQueueAgent.
 const GetClusterQueueAgent_Operation = `
 query GetClusterQueueAgent ($orgSlug: ID!, $queueId: [ID!]) {
@@ -4215,58 +3947,6 @@ func GetOrganizationID(
 	}
 
 	data_ = &GetOrganizationIDResponse{}
-	resp_ := &graphql.Response{Data: data_}
-
-	err_ = client_.MakeRequest(
-		ctx_,
-		req_,
-		resp_,
-	)
-
-	return data_, err_
-}
-
-// The query executed by GetPipeline.
-const GetPipeline_Operation = `
-query GetPipeline ($slug: ID!) {
-	pipeline(slug: $slug) {
-		name
-		description
-		emoji
-		color
-		favorite
-		steps {
-			yaml
-		}
-		metrics {
-			edges {
-				node {
-					label
-					value
-				}
-			}
-		}
-		tags {
-			label
-		}
-	}
-}
-`
-
-func GetPipeline(
-	ctx_ context.Context,
-	client_ graphql.Client,
-	slug string,
-) (data_ *GetPipelineResponse, err_ error) {
-	req_ := &graphql.Request{
-		OpName: "GetPipeline",
-		Query:  GetPipeline_Operation,
-		Variables: &__GetPipelineInput{
-			Slug: slug,
-		},
-	}
-
-	data_ = &GetPipelineResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
