@@ -2,6 +2,8 @@ package resolver
 
 import (
 	"context"
+	"errors"
+	"os/exec"
 	"strings"
 
 	bkIO "github.com/buildkite/cli/v3/internal/io"
@@ -51,6 +53,12 @@ func resolveFromRepository(ctx context.Context, f *factory.Factory, org string) 
 	repos, err := getRepoURLs(f.GitRepository)
 	if err != nil {
 		return nil, err
+	}
+	if len(repos) == 0 {
+		repos, err = getRepoURLsFromGit(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return filterPipelines(ctx, repos, org, f.RestAPIClient)
 }
@@ -105,4 +113,33 @@ func getRepoURLs(r *git.Repository) ([]string, error) {
 		return nil, nil // repo's "origin" remote does not exist, proceed to another resolver
 	}
 	return c.Remotes["origin"].URLs, nil
+}
+
+func getRepoURLsFromGit(ctx context.Context) ([]string, error) {
+	cmd := exec.CommandContext(ctx, "git", "remote", "get-url", "--all", "origin")
+	output, err := cmd.Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		var execErr *exec.Error
+		if errors.As(err, &exitErr) || errors.As(err, &execErr) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var urls []string
+	seen := make(map[string]struct{})
+	for _, line := range strings.Split(string(output), "\n") {
+		url := strings.TrimSpace(line)
+		if url == "" {
+			continue
+		}
+		if _, ok := seen[url]; ok {
+			continue
+		}
+		seen[url] = struct{}{}
+		urls = append(urls, url)
+	}
+
+	return urls, nil
 }
