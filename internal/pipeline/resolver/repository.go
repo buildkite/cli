@@ -128,16 +128,11 @@ func getRepoURLsFromGit(ctx context.Context) ([]string, error) {
 	}
 
 	var urls []string
-	seen := make(map[string]struct{})
 	for _, line := range strings.Split(string(output), "\n") {
 		url := strings.TrimSpace(line)
 		if url == "" {
 			continue
 		}
-		if _, ok := seen[url]; ok {
-			continue
-		}
-		seen[url] = struct{}{}
 		urls = append(urls, url)
 	}
 
