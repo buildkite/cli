@@ -41,3 +41,8 @@ func gitOutput(dir string, env []string, debug bool, args ...string) (string, er
 	}
 	return strings.TrimSpace(string(out)), nil
 }
+
+// RepositoryRoot returns the top-level path for the git repository containing dir.
+func RepositoryRoot(dir string, debug bool) (string, error) {
+	return gitOutput(dir, nil, debug, "rev-parse", "--show-toplevel")
+}
