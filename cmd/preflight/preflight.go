@@ -57,7 +57,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	repoRoot, err := resolveRepositoryRoot(f, globals.EnableDebug())
 	if err != nil {
 		return bkErrors.NewValidationError(
-			fmt.Errorf("not in a git repository"),
+			fmt.Errorf("not in a git repository: %w", err),
 			"preflight must be run from a git repository",
 			"Run this command from inside a git repository",
 		)
