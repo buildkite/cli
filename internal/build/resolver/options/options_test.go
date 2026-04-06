@@ -20,7 +20,7 @@ func TestResolveBranchFromGitFallback(t *testing.T) {
 	t.Chdir(root)
 
 	commitFile := filepath.Join(root, "README.md")
-	if err := exec.Command("sh", "-c", "printf 'hello\n' > README.md").Run(); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("hello\n"), 0644); err != nil {
 		t.Fatalf("creating file returned error: %v", err)
 	}
 	if err := exec.Command("git", "add", filepath.Base(commitFile)).Run(); err != nil {
