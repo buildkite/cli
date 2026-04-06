@@ -70,9 +70,22 @@ func MockForTesting() {
 	})
 }
 
+// ResetForTesting resets the availability cache so that the next call to
+// New() re-evaluates the environment. Intended for use in tests only.
+func ResetForTesting() {
+	keyringAvailableOnce = sync.Once{}
+	keyringAvailable = false
+}
+
 // isKeyringAvailable checks if the system keyring can be used
 func isKeyringAvailable() bool {
 	keyringAvailableOnce.Do(func() {
+		// Disable keyring if explicitly opted out
+		if os.Getenv("BUILDKITE_NO_KEYRING") != "" {
+			keyringAvailable = false
+			return
+		}
+
 		// Disable keyring in CI environments
 		if os.Getenv("CI") != "" || os.Getenv("BUILDKITE") != "" {
 			keyringAvailable = false

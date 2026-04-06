@@ -55,6 +55,9 @@ Examples:
 }
 
 // LoginWithToken stores a token for an organization in the system keychain.
+// When the keychain is unavailable (e.g. BUILDKITE_NO_KEYRING=1 is set), it
+// still registers the org and selects it in config so that commands resolve the
+// org correctly; the caller is expected to supply the token via BUILDKITE_API_TOKEN.
 func LoginWithToken(f *factory.Factory, org, token string) error {
 	if org == "" {
 		return errors.New("--org is required when --token is provided")
@@ -64,13 +67,14 @@ func LoginWithToken(f *factory.Factory, org, token string) error {
 	}
 
 	kr := keyring.New()
-	if !kr.IsAvailable() {
-		return errors.New("system keychain is not available; cannot store token")
+	if kr.IsAvailable() {
+		if err := kr.Set(org, token); err != nil {
+			return fmt.Errorf("failed to store token in keychain: %w", err)
+		}
+		fmt.Println("Token stored securely in system keychain.")
+	} else {
+		fmt.Println("Keychain unavailable; token not stored. Use BUILDKITE_API_TOKEN to supply your token at runtime.")
 	}
-	if err := kr.Set(org, token); err != nil {
-		return fmt.Errorf("failed to store token in keychain: %w", err)
-	}
-	fmt.Println("Token stored securely in system keychain.")
 
 	if err := f.Config.EnsureOrganization(org); err != nil {
 		return fmt.Errorf("failed to register organization in config: %w", err)
