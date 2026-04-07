@@ -44,15 +44,15 @@ func newPlainRenderer(stdout io.Writer) *plainRenderer {
 }
 
 func (r *plainRenderer) Render(e Event) error {
+	timestampPrefix := timestampPrefix(e.Time)
+
 	switch e.Type {
 	case EventOperation:
 		if e.Detail != "" {
-			sep := "\n"
-			detail := indentAllLines(e.Detail, len("["+time.TimeOnly+"] "))
-			_, err := fmt.Fprintf(r.stdout, "[%s] %s:%s%s\n", e.Time.Format(time.TimeOnly), e.Title, sep, detail)
+			_, err := fmt.Fprintf(r.stdout, "%s\n", formatTimestampedDetail(e.Title, e.Detail, e.Time))
 			return err
 		}
-		_, err := fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), e.Title)
+		_, err := fmt.Fprintf(r.stdout, "%s%s\n", timestampPrefix, e.Title)
 		return err
 
 	case EventBuildStatus:
@@ -63,7 +63,7 @@ func (r *plainRenderer) Render(e Event) error {
 			}
 		}
 		if line != r.lastLine {
-			_, err := fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), line)
+			_, err := fmt.Fprintf(r.stdout, "%s%s\n", timestampPrefix, line)
 			r.lastLine = line
 			return err
 		}
@@ -71,7 +71,7 @@ func (r *plainRenderer) Render(e Event) error {
 	case EventJobFailure:
 		if e.Job != nil {
 			presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
-			_, err := fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), presenter.Line(*e.Job))
+			_, err := fmt.Fprintf(r.stdout, "%s%s\n", timestampPrefix, presenter.Line(*e.Job))
 			return err
 		}
 
@@ -95,7 +95,7 @@ func (r *plainRenderer) Render(e Event) error {
 	case EventTestFailure:
 		if e.TestFailures != nil {
 			for _, t := range e.TestFailures {
-				if _, err := fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), formatTestFailureLine(t)); err != nil {
+				if _, err := fmt.Fprintf(r.stdout, "%s\n", formatTimestampedBlock(formatTestFailureLine(t), e.Time)); err != nil {
 					return err
 				}
 			}
@@ -163,6 +163,28 @@ func jobLogCommand(pipeline string, buildNumber int, jobID string) string {
 	return fmt.Sprintf("bk job log -b %d -p %s %s", buildNumber, pipeline, jobID)
 }
 
+func timestampPrefix(t time.Time) string {
+	return t.Format(time.TimeOnly) + " "
+}
+
+func formatTimestampedDetail(title, detail string, t time.Time) string {
+	return formatTimestampedBlock(title+":\n"+detail, t)
+}
+
+func formatTimestampedBlock(text string, t time.Time) string {
+	prefix := timestampPrefix(t)
+	lines := strings.Split(text, "\n")
+	if len(lines) == 0 {
+		return prefix
+	}
+
+	if len(lines) == 1 {
+		return prefix + lines[0]
+	}
+
+	return prefix + lines[0] + "\n" + indentAllLines(strings.Join(lines[1:], "\n"), len(prefix))
+}
+
 func indentAllLines(text string, indentWidth int) string {
 	lines := strings.Split(text, "\n")
 	indent := strings.Repeat(" ", indentWidth)
@@ -195,14 +217,6 @@ func formatTestFailureLine(t buildkite.BuildTest) string {
 
 	if currentExecution.FailureReason != "" {
 		line += fmt.Sprintf("\n    \033[2m%s\033[0m", currentExecution.FailureReason)
-	}
-	for _, fe := range currentExecution.FailureExpanded {
-		for _, exp := range fe.Expanded {
-			line += fmt.Sprintf("\n    \033[2m%s\033[0m", exp)
-		}
-		for _, bt := range fe.Backtrace {
-			line += fmt.Sprintf("\n    \033[2m%s\033[0m", bt)
-		}
 	}
 
 	return line

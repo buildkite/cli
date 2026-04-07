@@ -69,10 +69,7 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case EventJobFailure:
 			if msg.Job != nil {
 				presenter := jobPresenter{pipeline: msg.Pipeline, buildNumber: msg.BuildNumber}
-				line := fmt.Sprintf("%s %s",
-					ttyDimStyle.Render(msg.Time.Format("15:04:05")),
-					presenter.ColoredLine(*msg.Job),
-				)
+				line := timestampPrefix(msg.Time) + presenter.ColoredLine(*msg.Job)
 				return m, tea.Printf("%s", m.hardwrapLine(line))
 			}
 
@@ -86,10 +83,7 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(msg.TestFailures) > 0 {
 				var cmds []tea.Cmd
 				for _, t := range msg.TestFailures {
-					line := fmt.Sprintf("  %s  %s",
-						ttyDimStyle.Render(msg.Time.Format("15:04:05")),
-						formatTestFailureLine(t),
-					)
+					line := formatTimestampedBlock(formatTestFailureLine(t), msg.Time)
 					cmds = append(cmds, tea.Printf("%s", line))
 				}
 				return m, tea.Batch(cmds...)
@@ -144,25 +138,18 @@ func (m ttyModel) render() string {
 		return separator + "\n" + statusLine
 	}
 
-	var parts []string
-	if m.latest.Jobs.Passed > 0 {
-		parts = append(parts, fmt.Sprintf("%d passed", m.latest.Jobs.Passed))
+	parts := make([]string, 0, 6)
+	appendPart := func(count int, text string) {
+		if count > 0 {
+			parts = append(parts, text)
+		}
 	}
-	if m.latest.Jobs.Failed > 0 {
-		parts = append(parts, ttyFailureStyle.Render(fmt.Sprintf("%d failed", m.latest.Jobs.Failed)))
-	}
-	if m.latest.Jobs.SoftFailed > 0 {
-		parts = append(parts, ttySoftFailureStyle.Render(fmt.Sprintf("%d soft failed", m.latest.Jobs.SoftFailed)))
-	}
-	if m.latest.Jobs.Running > 0 {
-		parts = append(parts, fmt.Sprintf("%d running", m.latest.Jobs.Running))
-	}
-	if m.latest.Jobs.Scheduled > 0 {
-		parts = append(parts, fmt.Sprintf("%d scheduled", m.latest.Jobs.Scheduled))
-	}
-	if m.latest.Jobs.Waiting > 0 {
-		parts = append(parts, fmt.Sprintf("%d waiting", m.latest.Jobs.Waiting))
-	}
+	appendPart(m.latest.Jobs.Passed, fmt.Sprintf("%d passed", m.latest.Jobs.Passed))
+	appendPart(m.latest.Jobs.Failed, ttyFailureStyle.Render(fmt.Sprintf("%d failed", m.latest.Jobs.Failed)))
+	appendPart(m.latest.Jobs.SoftFailed, ttySoftFailureStyle.Render(fmt.Sprintf("%d soft failed", m.latest.Jobs.SoftFailed)))
+	appendPart(m.latest.Jobs.Running, fmt.Sprintf("%d running", m.latest.Jobs.Running))
+	appendPart(m.latest.Jobs.Scheduled, fmt.Sprintf("%d scheduled", m.latest.Jobs.Scheduled))
+	appendPart(m.latest.Jobs.Waiting, fmt.Sprintf("%d waiting", m.latest.Jobs.Waiting))
 
 	if len(parts) == 0 {
 		return separator + "\n" + statusLine

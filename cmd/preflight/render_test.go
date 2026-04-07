@@ -47,8 +47,8 @@ func TestPlainRenderer_Render_OperationWithDetail(t *testing.T) {
 	})
 
 	got := out.String()
-	indent := strings.Repeat(" ", len("[10:30:00] "))
-	expected := "[10:30:00] Creating snapshot of working tree...:\n" +
+	indent := strings.Repeat(" ", len("10:30:00 "))
+	expected := "10:30:00 Creating snapshot of working tree...:\n" +
 		indent + "Commit: abc1234567\n"
 	if got != expected {
 		t.Fatalf("expected:\n%s\ngot:\n%s", expected, got)
@@ -69,13 +69,41 @@ func TestPlainRenderer_Render_OperationWithMultiLineDetail(t *testing.T) {
 	})
 
 	got := out.String()
-	indent := strings.Repeat(" ", len("[10:30:00] "))
-	expected := "[10:30:00] Created snapshot of working tree...:\n" +
+	indent := strings.Repeat(" ", len("10:30:00 "))
+	expected := "10:30:00 Created snapshot of working tree...:\n" +
 		indent + "Commit: abc1234567\n" +
 		indent + "Ref:    refs/heads/bk/preflight/abc123\n" +
 		indent + "Files:  2 changed\n" +
 		indent + "  ~ app/controllers/jobs_controller.rb\n" +
 		indent + "  ~ db/structure.sql\n"
+	if got != expected {
+		t.Fatalf("expected:\n%s\ngot:\n%s", expected, got)
+	}
+}
+
+func TestFormatTimestampedDetail_UsesLeftAlignedTimestampIndent(t *testing.T) {
+	now := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
+
+	got := formatTimestampedDetail("Created snapshot of working tree...", "Commit: abc1234567\nRef: refs/heads/bk/preflight/abc123", now)
+
+	indent := strings.Repeat(" ", len("10:30:00 "))
+	expected := "10:30:00 Created snapshot of working tree...:\n" +
+		indent + "Commit: abc1234567\n" +
+		indent + "Ref: refs/heads/bk/preflight/abc123"
+	if got != expected {
+		t.Fatalf("expected:\n%s\ngot:\n%s", expected, got)
+	}
+}
+
+func TestFormatTimestampedBlock_IndentsContinuationLines(t *testing.T) {
+	now := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
+
+	got := formatTimestampedBlock("  ❌ test: react/jsx-no-bind\n    Location: .eslintrc.js:120\n    Got 193 failures and 0 errors.", now)
+
+	indent := strings.Repeat(" ", len("10:30:00 "))
+	expected := "10:30:00   ❌ test: react/jsx-no-bind\n" +
+		indent + "    Location: .eslintrc.js:120\n" +
+		indent + "    Got 193 failures and 0 errors."
 	if got != expected {
 		t.Fatalf("expected:\n%s\ngot:\n%s", expected, got)
 	}
