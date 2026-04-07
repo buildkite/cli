@@ -220,15 +220,18 @@ func TestPollTestFailures(t *testing.T) {
 			}
 
 			requestedPages = append(requestedPages, r.URL.Query().Get("page"))
+			if got, want := r.URL.Query().Get("include"), "executions"; got != want {
+				t.Fatalf("include = %q, want %q", got, want)
+			}
 			switch r.URL.Query().Get("page") {
 			case "1":
 				w.Header().Set("Link", "</v2/analytics/organizations/org/builds/build-123/tests?page=2&per_page=10>; rel=\"next\"")
 				json.NewEncoder(w).Encode([]buildkite.BuildTest{
-					{ID: "test-1", Name: "first-page failure", LatestFail: &buildkite.BuildTestLatestFail{ID: "exec-1"}},
+					{ID: "test-1", Name: "first-page failure", Executions: []buildkite.BuildTestExecution{{ID: "exec-1", Status: "failed"}}},
 				})
 			case "2":
 				json.NewEncoder(w).Encode([]buildkite.BuildTest{
-					{ID: "test-2", Name: "second-page failure", LatestFail: &buildkite.BuildTestLatestFail{ID: "exec-2"}},
+					{ID: "test-2", Name: "second-page failure", Executions: []buildkite.BuildTestExecution{{ID: "exec-2", Status: "failed"}}},
 				})
 			default:
 				t.Fatalf("unexpected page %q", r.URL.Query().Get("page"))
@@ -238,8 +241,8 @@ func TestPollTestFailures(t *testing.T) {
 
 		client := newTestClient(t, s.URL)
 		var reported []buildkite.BuildTest
-		err := pollTestFailures(context.Background(), client, "org", "build-123", NewTestTracker(), func(newFailures []buildkite.BuildTest) error {
-			reported = append(reported, newFailures...)
+		err := pollTestFailures(context.Background(), client, "org", "build-123", NewTestTracker(), func(newTestChanges []buildkite.BuildTest) error {
+			reported = append(reported, newTestChanges...)
 			return nil
 		})
 		if err != nil {
@@ -250,7 +253,7 @@ func TestPollTestFailures(t *testing.T) {
 			t.Fatalf("requested pages = %v, want %v", got, want)
 		}
 		if got, want := len(reported), 2; got != want {
-			t.Fatalf("reported %d failures, want %d", got, want)
+			t.Fatalf("reported %d test changes, want %d", got, want)
 		}
 		if got, want := reported[1].Name, "second-page failure"; got != want {
 			t.Fatalf("reported second page failure %q, want %q", got, want)

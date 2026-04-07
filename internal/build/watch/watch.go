@@ -22,9 +22,9 @@ const (
 // Returning an error aborts the watch loop and propagates that error to the caller.
 type StatusFunc func(b buildkite.Build) error
 
-// TestStatusFunc is called with newly-seen failed test executions on each poll.
+// TestStatusFunc is called with newly-seen test changes on each poll.
 // Returning an error aborts the watch loop.
-type TestStatusFunc func(newFailures []buildkite.BuildTest) error
+type TestStatusFunc func(newTestChanges []buildkite.BuildTest) error
 
 // WatchOpt configures optional WatchBuild behavior.
 type WatchOpt func(*watchConfig)
@@ -34,7 +34,7 @@ type watchConfig struct {
 }
 
 // WithTestTracking enables polling BuildTests.List for failed tests on each
-// iteration, calling onTestStatus with any newly-seen failures.
+// iteration, calling onTestStatus with any newly-seen test changes.
 func WithTestTracking(fn TestStatusFunc) WatchOpt {
 	return func(c *watchConfig) {
 		c.onTestStatus = fn
@@ -112,12 +112,12 @@ func WatchBuild(
 func pollTestFailures(ctx context.Context, client *buildkite.Client, org, buildID string, tracker *TestTracker, onTestStatus TestStatusFunc) error {
 	opts := &buildkite.BuildTestsListOptions{
 		ListOptions: buildkite.ListOptions{Page: 1, PerPage: 100},
-		Result:      "^failed",
+		Result:      "failed",
 		State:       "enabled",
-		Include:     "latest_fail",
+		Include:     "executions",
 	}
 
-	var newFailures []buildkite.BuildTest
+	var newTestChanges []buildkite.BuildTest
 	for {
 		reqCtx, cancel := context.WithTimeout(ctx, DefaultRequestTimeout)
 		tests, resp, err := client.BuildTests.List(reqCtx, org, buildID, opts)
@@ -127,7 +127,7 @@ func pollTestFailures(ctx context.Context, client *buildkite.Client, org, buildI
 			break
 		}
 
-		newFailures = append(newFailures, tracker.Update(tests)...)
+		newTestChanges = append(newTestChanges, tracker.Update(tests)...)
 		if resp == nil || resp.NextPage == 0 {
 			break
 		}
@@ -135,8 +135,8 @@ func pollTestFailures(ctx context.Context, client *buildkite.Client, org, buildI
 		opts.Page = resp.NextPage
 	}
 
-	if len(newFailures) > 0 {
-		return onTestStatus(newFailures)
+	if len(newTestChanges) > 0 {
+		return onTestStatus(newTestChanges)
 	}
 	return nil
 }
