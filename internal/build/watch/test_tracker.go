@@ -22,7 +22,7 @@ func NewTestTracker() *TestTracker {
 func (t *TestTracker) Update(tests []buildkite.BuildTest) []buildkite.BuildTest {
 	var newTestChanges []buildkite.BuildTest
 	for _, test := range tests {
-		if test.Executions == nil || len(test.Executions) == 0 {
+		if len(test.Executions) == 0 {
 			continue
 		}
 

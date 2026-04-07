@@ -44,7 +44,7 @@ func newPlainRenderer(stdout io.Writer) *plainRenderer {
 }
 
 func (r *plainRenderer) Render(e Event) error {
-	timestampPrefix := timestampPrefix(e.Time)
+	prefix := timestampPrefix(e.Time)
 
 	switch e.Type {
 	case EventOperation:
@@ -52,7 +52,7 @@ func (r *plainRenderer) Render(e Event) error {
 			_, err := fmt.Fprintf(r.stdout, "%s\n", formatTimestampedDetail(e.Title, e.Detail, e.Time))
 			return err
 		}
-		_, err := fmt.Fprintf(r.stdout, "%s%s\n", timestampPrefix, e.Title)
+		_, err := fmt.Fprintf(r.stdout, "%s%s\n", prefix, e.Title)
 		return err
 
 	case EventBuildStatus:
@@ -63,7 +63,7 @@ func (r *plainRenderer) Render(e Event) error {
 			}
 		}
 		if line != r.lastLine {
-			_, err := fmt.Fprintf(r.stdout, "%s%s\n", timestampPrefix, line)
+			_, err := fmt.Fprintf(r.stdout, "%s%s\n", prefix, line)
 			r.lastLine = line
 			return err
 		}
@@ -71,7 +71,7 @@ func (r *plainRenderer) Render(e Event) error {
 	case EventJobFailure:
 		if e.Job != nil {
 			presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
-			_, err := fmt.Fprintf(r.stdout, "%s%s\n", timestampPrefix, presenter.Line(*e.Job))
+			_, err := fmt.Fprintf(r.stdout, "%s%s\n", prefix, presenter.Line(*e.Job))
 			return err
 		}
 
