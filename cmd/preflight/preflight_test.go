@@ -122,8 +122,11 @@ func TestPreflightCmd_Run(t *testing.T) {
 		if !strings.HasPrefix(gotReq.Message, "Preflight ") {
 			t.Errorf("expected message starting with 'Preflight ', got %q", gotReq.Message)
 		}
+		if gotReq.Env["PREFLIGHT"] != "true" {
+			t.Errorf("expected PREFLIGHT=true, got %#v", gotReq.Env)
+		}
 		if gotReq.Env["BUILDKITE_PREFLIGHT"] != "true" {
-			t.Errorf("expected BUILDKITE_PREFLIGHT=true, got %#v", gotReq.Env)
+			t.Errorf("expected BUILDKITE_PREFLIGHT=true (deprecated), got %#v", gotReq.Env)
 		}
 	})
 
