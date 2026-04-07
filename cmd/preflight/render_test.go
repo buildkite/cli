@@ -302,10 +302,10 @@ func TestJSONRenderer_Render_MultipleEvents_JSONL(t *testing.T) {
 	}
 }
 
-func TestFormatTestFailureLine_FailedAttemptIncludesHistoryAndFailureDetails(t *testing.T) {
+func TestTestPresenter_Line_FailedAttemptIncludesHistoryAndFailureDetails(t *testing.T) {
 	t.Parallel()
 
-	line := formatTestFailureLine(buildkite.BuildTest{
+	line := testPresenter{}.Line(buildkite.BuildTest{
 		Name:     "Pipelines::ShardMigration::DeleteOrganizationFromShardWorker with more than BATCH_SIZE records for a shard that needs cleaning",
 		Location: "./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181",
 		Executions: []buildkite.BuildTestExecution{
@@ -324,7 +324,7 @@ func TestFormatTestFailureLine_FailedAttemptIncludesHistoryAndFailureDetails(t *
 
 	got := stripANSI(line)
 
-	if !strings.Contains(got, "❌ ❌ test:") {
+	if !strings.Contains(got, "✗ ✗ Pipelines::ShardMigration::DeleteOrganizationFromShardWorker") {
 		t.Fatalf("expected cumulative failure history, got %q", got)
 	}
 	if !strings.Contains(got, "Location: ./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181") {
@@ -338,10 +338,10 @@ func TestFormatTestFailureLine_FailedAttemptIncludesHistoryAndFailureDetails(t *
 	}
 }
 
-func TestFormatTestFailureLine_PassedAttemptOnlyShowsHistoryLine(t *testing.T) {
+func TestTestPresenter_Line_PassedAttemptOnlyShowsHistoryLine(t *testing.T) {
 	t.Parallel()
 
-	line := formatTestFailureLine(buildkite.BuildTest{
+	line := testPresenter{}.Line(buildkite.BuildTest{
 		Name:     "Test A",
 		Location: "./spec/example_spec.rb:10",
 		Executions: []buildkite.BuildTestExecution{
@@ -359,7 +359,7 @@ func TestFormatTestFailureLine_PassedAttemptOnlyShowsHistoryLine(t *testing.T) {
 	if strings.Contains(got, "Failure/Error:") {
 		t.Fatalf("expected passed attempt to omit failure detail, got %q", got)
 	}
-	if got != "  ❌ ❌ ✅ test: Test A" {
+	if got != "✗ ✗ ✓ Test A" {
 		t.Fatalf("unexpected output: %q", got)
 	}
 }

@@ -94,8 +94,9 @@ func (r *plainRenderer) Render(e Event) error {
 
 	case EventTestFailure:
 		if e.TestFailures != nil {
+			presenter := testPresenter{}
 			for _, t := range e.TestFailures {
-				if _, err := fmt.Fprintf(r.stdout, "%s\n", formatTimestampedBlock(formatTestFailureLine(t), e.Time)); err != nil {
+				if _, err := fmt.Fprintf(r.stdout, "%s\n", formatTimestampedBlock(presenter.Line(t), e.Time)); err != nil {
 					return err
 				}
 			}
@@ -194,7 +195,9 @@ func indentAllLines(text string, indentWidth int) string {
 	return strings.Join(lines, "\n")
 }
 
-func formatTestFailureLine(t buildkite.BuildTest) string {
+type testPresenter struct{}
+
+func (p testPresenter) Line(t buildkite.BuildTest) string {
 	name := t.Name
 	if t.Scope != "" {
 		name = t.Scope + " " + name
@@ -202,7 +205,7 @@ func formatTestFailureLine(t buildkite.BuildTest) string {
 	name = truncateToWidth(name, 80)
 
 	history := formatTestExecutionHistory(t)
-	line := fmt.Sprintf("  %s \033[33mtest:\033[0m %s", history, name)
+	line := fmt.Sprintf("%s %s", history, name)
 
 	currentExecution, ok := latestTestExecution(t)
 	if !ok || !isFailedTestExecution(currentExecution) {
@@ -265,9 +268,9 @@ func isFailedTestExecution(execution buildkite.BuildTestExecution) bool {
 func formatTestStatusIcon(status string) string {
 	switch {
 	case strings.EqualFold(status, "passed"):
-		return "\033[32m✅\033[0m"
+		return "\033[32m✓\033[0m"
 	case strings.EqualFold(status, "failed"):
-		return "\033[31m❌\033[0m"
+		return "\033[31m✗\033[0m"
 	default:
 		return "\033[2m?\033[0m"
 	}
