@@ -120,7 +120,8 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		Commit:  result.Commit,
 		Branch:  result.Branch,
 		Env: map[string]string{
-			"BUILDKITE_PREFLIGHT": "true",
+			"PREFLIGHT":           "true",
+			"BUILDKITE_PREFLIGHT": "true", // deprecated
 		},
 	})
 	if err != nil {
