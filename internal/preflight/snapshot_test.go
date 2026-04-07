@@ -373,19 +373,28 @@ func TestSnapshot_CleanWorktree(t *testing.T) {
 		t.Fatalf("Snapshot() error: %v", err)
 	}
 
-	// Should push HEAD directly with no files changed.
 	head := runGit(t, worktree, "rev-parse", "HEAD")
-	if result.Commit != head {
-		t.Errorf("expected HEAD %s, got %s", head, result.Commit)
+
+	// Even with a clean worktree a new commit should always be created so
+	// that commit statuses are attributed to the preflight run rather than
+	// the shared HEAD commit.
+	if result.Commit == head {
+		t.Errorf("expected a new commit distinct from HEAD %s, but got the same SHA", head)
 	}
 
 	if len(result.Files) != 0 {
 		t.Errorf("expected no changed files, got %d", len(result.Files))
 	}
 
-	// The remote branch should exist and point to HEAD.
+	// The new commit should be reachable and its parent should be HEAD.
+	parent := runGit(t, worktree, "rev-parse", result.Commit+"^")
+	if parent != head {
+		t.Errorf("expected parent of snapshot commit to be HEAD %s, got %s", head, parent)
+	}
+
+	// The remote branch should exist and point to the new commit.
 	remoteRef := runGit(t, worktree, "ls-remote", "origin", result.Ref)
-	if !strings.Contains(remoteRef, head) {
-		t.Errorf("remote branch should point to HEAD %s, got %q", head, remoteRef)
+	if !strings.Contains(remoteRef, result.Commit) {
+		t.Errorf("remote branch should point to snapshot commit %s, got %q", result.Commit, remoteRef)
 	}
 }
