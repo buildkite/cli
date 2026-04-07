@@ -3,6 +3,7 @@ package preflight
 import (
 	"bytes"
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +11,8 @@ import (
 	"github.com/buildkite/cli/v3/internal/build/watch"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
+
+var ansiCodesPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 func TestPlainRenderer_Render_Operation(t *testing.T) {
 	var out bytes.Buffer
@@ -269,6 +272,72 @@ func TestJSONRenderer_Render_MultipleEvents_JSONL(t *testing.T) {
 			t.Fatalf("line %d: invalid JSON: %v", i, err)
 		}
 	}
+}
+
+func TestFormatTestFailureLine_FailedAttemptIncludesHistoryAndFailureDetails(t *testing.T) {
+	t.Parallel()
+
+	line := formatTestFailureLine(buildkite.BuildTest{
+		Name:     "Pipelines::ShardMigration::DeleteOrganizationFromShardWorker with more than BATCH_SIZE records for a shard that needs cleaning",
+		Location: "./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181",
+		Executions: []buildkite.BuildTestExecution{
+			{
+				Status:        "failed",
+				Location:      "./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181",
+				FailureReason: "Failure/Error: expect(empty_tables).to eq({})",
+			},
+			{
+				Status:        "failed",
+				Location:      "./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181",
+				FailureReason: "Failure/Error: expect(empty_tables).to eq({})",
+			},
+		},
+	})
+
+	got := stripANSI(line)
+
+	if !strings.Contains(got, "❌ ❌ test:") {
+		t.Fatalf("expected cumulative failure history, got %q", got)
+	}
+	if !strings.Contains(got, "Location: ./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181") {
+		t.Fatalf("expected location detail, got %q", got)
+	}
+	if !strings.Contains(got, "Failure/Error: expect(empty_tables).to eq({})") {
+		t.Fatalf("expected failure reason, got %q", got)
+	}
+	if strings.Contains(got, "BATCH_SIZE records for a shard that needs cleaning") {
+		t.Fatalf("expected long name to be truncated, got %q", got)
+	}
+}
+
+func TestFormatTestFailureLine_PassedAttemptOnlyShowsHistoryLine(t *testing.T) {
+	t.Parallel()
+
+	line := formatTestFailureLine(buildkite.BuildTest{
+		Name:     "Test A",
+		Location: "./spec/example_spec.rb:10",
+		Executions: []buildkite.BuildTestExecution{
+			{Status: "failed", FailureReason: "Failure/Error: expect(false).to eq(true)", Location: "./spec/example_spec.rb:10"},
+			{Status: "failed", FailureReason: "Failure/Error: expect(false).to eq(true)", Location: "./spec/example_spec.rb:10"},
+			{Status: "passed", Location: "./spec/example_spec.rb:10"},
+		},
+	})
+
+	got := stripANSI(line)
+
+	if strings.Contains(got, "Location:") {
+		t.Fatalf("expected passed attempt to omit location detail, got %q", got)
+	}
+	if strings.Contains(got, "Failure/Error:") {
+		t.Fatalf("expected passed attempt to omit failure detail, got %q", got)
+	}
+	if got != "  ❌ ❌ ✅ test: Test A" {
+		t.Fatalf("unexpected output: %q", got)
+	}
+}
+
+func stripANSI(s string) string {
+	return ansiCodesPattern.ReplaceAllString(s, "")
 }
 
 func TestNewRenderer_NonFileWriterDefaultsToPlain(t *testing.T) {

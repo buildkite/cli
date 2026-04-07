@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mattn/go-isatty"
+	"github.com/mattn/go-runewidth"
 
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
@@ -176,17 +177,26 @@ func formatTestFailureLine(t buildkite.BuildTest) string {
 	if t.Scope != "" {
 		name = t.Scope + " " + name
 	}
-	line := fmt.Sprintf("  \033[31m✗\033[0m \033[33mtest:\033[0m %s", name)
-	if t.Location != "" {
-		line += fmt.Sprintf(" \033[2m%s\033[0m", t.Location)
-	}
-	if t.LatestFail == nil {
+	name = truncateToWidth(name, 80)
+
+	history := formatTestExecutionHistory(t)
+	line := fmt.Sprintf("  %s \033[33mtest:\033[0m %s", history, name)
+
+	currentExecution, ok := latestTestExecution(t)
+	if !ok || !isFailedTestExecution(currentExecution) {
 		return line
 	}
-	if t.LatestFail.FailureReason != "" {
-		line += fmt.Sprintf("\n    \033[2m%s\033[0m", t.LatestFail.FailureReason)
+
+	if location := currentExecution.Location; location != "" {
+		line += fmt.Sprintf("\n    \033[2mLocation: %s\033[0m", location)
+	} else if t.Location != "" {
+		line += fmt.Sprintf("\n    \033[2mLocation: %s\033[0m", t.Location)
 	}
-	for _, fe := range t.LatestFail.FailureExpanded {
+
+	if currentExecution.FailureReason != "" {
+		line += fmt.Sprintf("\n    \033[2m%s\033[0m", currentExecution.FailureReason)
+	}
+	for _, fe := range currentExecution.FailureExpanded {
 		for _, exp := range fe.Expanded {
 			line += fmt.Sprintf("\n    \033[2m%s\033[0m", exp)
 		}
@@ -194,5 +204,86 @@ func formatTestFailureLine(t buildkite.BuildTest) string {
 			line += fmt.Sprintf("\n    \033[2m%s\033[0m", bt)
 		}
 	}
+
 	return line
+}
+
+func formatTestExecutionHistory(t buildkite.BuildTest) string {
+	executions := t.Executions
+	if len(executions) == 0 {
+		return formatTestStatusIcon(t.State)
+	}
+
+	icons := make([]string, 0, len(executions))
+	for _, execution := range executions {
+		icons = append(icons, formatTestStatusIcon(execution.Status))
+	}
+	return strings.Join(icons, " ")
+}
+
+func latestTestExecution(t buildkite.BuildTest) (buildkite.BuildTestExecution, bool) {
+	if len(t.Executions) > 0 {
+		return t.Executions[len(t.Executions)-1], true
+	}
+
+	if t.State == "" {
+		return buildkite.BuildTestExecution{}, false
+	}
+
+	return buildkite.BuildTestExecution{
+		Status:        t.State,
+		Location:      t.Location,
+		FailureReason: latestTestFailureReason(t),
+	}, true
+}
+
+func latestTestFailureReason(t buildkite.BuildTest) string {
+	if t.LatestFail == nil {
+		return ""
+	}
+	return t.LatestFail.FailureReason
+}
+
+func isFailedTestExecution(execution buildkite.BuildTestExecution) bool {
+	return strings.EqualFold(execution.Status, "failed")
+}
+
+func formatTestStatusIcon(status string) string {
+	switch {
+	case strings.EqualFold(status, "passed"):
+		return "\033[32m✅\033[0m"
+	case strings.EqualFold(status, "failed"):
+		return "\033[31m❌\033[0m"
+	default:
+		return "\033[2m?\033[0m"
+	}
+}
+
+func truncateToWidth(s string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+
+	if runewidth.StringWidth(s) <= width {
+		return s
+	}
+
+	if width <= 1 {
+		return "…"
+	}
+
+	var b strings.Builder
+	currentWidth := 0
+
+	for _, r := range s {
+		runeWidth := runewidth.RuneWidth(r)
+		if currentWidth+runeWidth > width-1 {
+			break
+		}
+		b.WriteRune(r)
+		currentWidth += runeWidth
+	}
+
+	b.WriteRune('…')
+	return b.String()
 }
