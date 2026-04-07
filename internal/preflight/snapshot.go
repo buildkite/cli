@@ -54,9 +54,8 @@ func WithDebug() SnapshotOption {
 }
 
 // Snapshot pushes the current working tree state to a remote preflight ref.
-// If there are uncommitted changes, it creates a temporary commit containing
-// them without touching the real git index. If the worktree is clean, it
-// pushes HEAD directly.
+// It always creates a distinct commit on top of HEAD (even when the worktree
+// is clean) without touching the real git index.
 func Snapshot(dir string, preflightID uuid.UUID, opts ...SnapshotOption) (*SnapshotResult, error) {
 	cfg := &snapshotConfig{}
 	for _, opt := range opts {
@@ -101,21 +100,20 @@ func Snapshot(dir string, preflightID uuid.UUID, opts ...SnapshotOption) (*Snaps
 
 	branch := fmt.Sprintf("bk/preflight/%s", preflightID.String())
 	ref := fmt.Sprintf("refs/heads/%s", branch)
-	commit := head
 
-	if len(files) > 0 {
-		// Write the tree object.
-		tree, err := gitOutput(dir, env, cfg.debug, "write-tree")
-		if err != nil {
-			return nil, err
-		}
+	// Always write a tree and create a new commit, even when there are no
+	// local changes. This ensures the preflight branch always points to a
+	// distinct commit (not shared with HEAD), which allows commit statuses to
+	// be attributed to the preflight run rather than the base commit.
+	tree, err := gitOutput(dir, env, cfg.debug, "write-tree")
+	if err != nil {
+		return nil, err
+	}
 
-		// Create a commit on top of HEAD.
-		msg := fmt.Sprintf("Preflight snapshot\n\nPreflight Run ID: %s\nBase Commit: %s", preflightID, head)
-		commit, err = gitOutput(dir, env, cfg.debug, "commit-tree", tree, "-p", head, "-m", msg)
-		if err != nil {
-			return nil, err
-		}
+	msg := fmt.Sprintf("Preflight snapshot\n\nPreflight Run ID: %s\nBase Commit: %s", preflightID, head)
+	commit, err := gitOutput(dir, env, cfg.debug, "commit-tree", tree, "-p", head, "-m", msg)
+	if err != nil {
+		return nil, err
 	}
 
 	// Push the commit to the remote branch.
