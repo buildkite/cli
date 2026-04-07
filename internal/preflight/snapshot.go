@@ -69,13 +69,7 @@ func Snapshot(dir string, preflightID uuid.UUID, opts ...SnapshotOption) (*Snaps
 	tmp.Close()
 	defer os.Remove(tmpIndex)
 
-	var env []string
-	for _, e := range os.Environ() {
-		if !strings.HasPrefix(e, "GIT_INDEX_FILE=") {
-			env = append(env, e)
-		}
-	}
-	env = append(env, fmt.Sprintf("GIT_INDEX_FILE=%s", tmpIndex))
+	env := tempIndexEnv(tmpIndex)
 
 	// Seed the temp index from HEAD.
 	if err := gitRun(dir, env, cfg.debug, "read-tree", "HEAD"); err != nil {
