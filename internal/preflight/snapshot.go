@@ -16,10 +16,11 @@ type FileChange struct {
 
 // SnapshotResult holds the output of a successful snapshot operation.
 type SnapshotResult struct {
-	Commit string
-	Ref    string
-	Branch string
-	Files  []FileChange
+	Commit      string
+	Ref         string
+	Branch      string
+	Files       []FileChange
+	PushSkipped bool
 }
 
 func (r SnapshotResult) ShortCommit() string {
@@ -110,17 +111,23 @@ func Snapshot(dir string, preflightID uuid.UUID, opts ...SnapshotOption) (*Snaps
 		return nil, err
 	}
 
-	// Push the commit to the remote branch.
-	refspec := fmt.Sprintf("%s:%s", commit, ref)
-	if err := gitRun(dir, env, cfg.debug, "push", "origin", refspec); err != nil {
-		return nil, err
+	var pushSkipped bool
+	if _, err := gitOutput(dir, env, cfg.debug, "remote", "get-url", "origin"); err != nil {
+		pushSkipped = true
+	} else {
+		// Push the commit to the remote branch.
+		refspec := fmt.Sprintf("%s:%s", commit, ref)
+		if err := gitRun(dir, env, cfg.debug, "push", "origin", refspec); err != nil {
+			return nil, err
+		}
 	}
 
 	return &SnapshotResult{
-		Commit: commit,
-		Ref:    ref,
-		Branch: branch,
-		Files:  files,
+		Commit:      commit,
+		Ref:         ref,
+		Branch:      branch,
+		Files:       files,
+		PushSkipped: pushSkipped,
 	}, nil
 }
 

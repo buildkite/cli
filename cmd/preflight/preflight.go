@@ -111,6 +111,9 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			snapshotDetail += fmt.Sprintf("\n %s %s", file.StatusSymbol(), file.Path)
 		}
 	}
+	if result.PushSkipped {
+		snapshotDetail += "\nWarning: no remote \"origin\" found; push skipped"
+	}
 	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: "Pushed snapshot of working tree...", Detail: snapshotDetail})
 
 	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name)})
@@ -168,7 +171,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	buildResult := NewResult(finalBuild)
 	finalErr := buildResult.Error()
 
-	if !c.NoCleanup {
+	if !c.NoCleanup && !result.PushSkipped {
 		_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Cleaning up remote branch %s...", result.Branch)})
 		if cleanupErr := preflight.Cleanup(repoRoot, result.Ref, globals.EnableDebug()); cleanupErr != nil {
 			_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Warning: failed to delete remote branch %s: %v", result.Ref, cleanupErr)})
