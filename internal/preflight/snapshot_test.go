@@ -364,6 +364,33 @@ func TestDiffFiles(t *testing.T) {
 	}
 }
 
+func TestSnapshot_NoRemote(t *testing.T) {
+	worktree := initTestRepo(t)
+
+	// Remove the origin remote.
+	runGit(t, worktree, "remote", "remove", "origin")
+
+	// Add a change so we exercise the commit path too.
+	if err := os.WriteFile(filepath.Join(worktree, "README.md"), []byte("# changed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	preflightID := uuid.MustParse("00000000-0000-0000-0000-000000000010")
+	result, err := Snapshot(worktree, preflightID)
+	if err != nil {
+		t.Fatalf("Snapshot() error: %v", err)
+	}
+
+	if !result.PushSkipped {
+		t.Error("expected PushSkipped to be true when no remote exists")
+	}
+
+	// The commit should still be valid.
+	if len(result.Commit) != 40 {
+		t.Errorf("expected 40-char SHA, got %q", result.Commit)
+	}
+}
+
 func TestSnapshot_CleanWorktree(t *testing.T) {
 	worktree := initTestRepo(t)
 
