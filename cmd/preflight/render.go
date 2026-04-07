@@ -71,6 +71,23 @@ func (r *plainRenderer) Render(e Event) error {
 			_, err := fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), presenter.Line(*e.Job))
 			return err
 		}
+
+	case EventBuildSummary:
+		header := summaryHeader(e)
+		if _, err := fmt.Fprintf(r.stdout, "\n%s\n", header); err != nil {
+			return err
+		}
+		presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
+		for _, j := range e.PassedJobs {
+			if _, err := fmt.Fprintf(r.stdout, "  %s\n", presenter.PassedLine(j)); err != nil {
+				return err
+			}
+		}
+		for _, j := range e.FailedJobs {
+			if _, err := fmt.Fprintf(r.stdout, "  %s\n", presenter.Line(j)); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -92,6 +109,13 @@ func (r *jsonRenderer) Render(e Event) error {
 }
 
 func (r *jsonRenderer) Close() error { return nil }
+
+func summaryHeader(e Event) string {
+	if e.BuildState == "passed" {
+		return "✅ Preflight Passed"
+	}
+	return "❌ Preflight Failed"
+}
 
 func jobLogCommand(pipeline string, buildNumber int, jobID string) string {
 	return fmt.Sprintf("bk job log -b %d -p %s %s", buildNumber, pipeline, jobID)

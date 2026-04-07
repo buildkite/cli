@@ -141,18 +141,6 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 
 	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) error {
 		status := tracker.Update(b)
-		for _, failed := range status.NewlyFailed {
-			if err := renderer.Render(Event{
-				Type:        EventJobFailure,
-				Time:        time.Now(),
-				PreflightID: preflightID.String(),
-				Pipeline:    pipelineName,
-				BuildNumber: build.Number,
-				Job:         &failed,
-			}); err != nil {
-				return err
-			}
-		}
 		return renderer.Render(Event{
 			Type:        EventBuildStatus,
 			Time:        time.Now(),
@@ -167,6 +155,27 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 
 	buildResult := NewResult(finalBuild)
 	finalErr := buildResult.Error()
+
+	// Emit a final summary showing pass/fail, passed jobs (if ≤10), or hard-failed jobs.
+	if buildstate.IsTerminal(buildstate.State(finalBuild.State)) {
+		summaryEvent := Event{
+			Type:        EventBuildSummary,
+			Time:        time.Now(),
+			PreflightID: preflightID.String(),
+			Pipeline:    pipelineName,
+			BuildNumber: build.Number,
+			BuildURL:    build.WebURL,
+			BuildState:  finalBuild.State,
+		}
+		if buildResult.Passed() {
+			if passed := tracker.PassedJobs(); len(passed) <= 10 {
+				summaryEvent.PassedJobs = passed
+			}
+		} else {
+			summaryEvent.FailedJobs = tracker.FailedJobs()
+		}
+		_ = renderer.Render(summaryEvent)
+	}
 
 	if !c.NoCleanup {
 		_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Cleaning up remote branch %s...", result.Branch)})

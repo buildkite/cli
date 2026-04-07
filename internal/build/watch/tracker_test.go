@@ -238,7 +238,7 @@ func TestJobTracker_Update(t *testing.T) {
 }
 
 func TestJobTracker_FailedJobs(t *testing.T) {
-	t.Run("returns hard and soft failed jobs across updates", func(t *testing.T) {
+	t.Run("returns hard failed jobs and excludes soft failures", func(t *testing.T) {
 		tracker := NewJobTracker()
 		tracker.Update(buildkite.Build{
 			Jobs: []buildkite.Job{
@@ -255,21 +255,15 @@ func TestJobTracker_FailedJobs(t *testing.T) {
 		})
 
 		failedJobs := tracker.FailedJobs()
-		if len(failedJobs.Hard) != 1 {
-			t.Fatalf("expected 1 hard failed job, got %d", len(failedJobs.Hard))
+		if len(failedJobs) != 1 {
+			t.Fatalf("expected 1 failed job, got %d", len(failedJobs))
 		}
-		if len(failedJobs.Soft) != 1 {
-			t.Fatalf("expected 1 soft failed job, got %d", len(failedJobs.Soft))
-		}
-		if failedJobs.Hard[0].ID != "1" {
-			t.Errorf("expected hard failed job 1, got %s", failedJobs.Hard[0].ID)
-		}
-		if failedJobs.Soft[0].ID != "2" {
-			t.Errorf("expected soft failed job 2, got %s", failedJobs.Soft[0].ID)
+		if failedJobs[0].ID != "1" {
+			t.Errorf("expected failed job 1, got %s", failedJobs[0].ID)
 		}
 	})
 
-	t.Run("excludes non-script and broken jobs", func(t *testing.T) {
+	t.Run("excludes non-script, broken, and soft-failed jobs", func(t *testing.T) {
 		tracker := NewJobTracker()
 		tracker.Update(buildkite.Build{
 			Jobs: []buildkite.Job{
@@ -281,17 +275,11 @@ func TestJobTracker_FailedJobs(t *testing.T) {
 		})
 
 		failedJobs := tracker.FailedJobs()
-		if len(failedJobs.Hard) != 1 {
-			t.Fatalf("expected 1 hard failed job, got %d", len(failedJobs.Hard))
+		if len(failedJobs) != 1 {
+			t.Fatalf("expected 1 failed job, got %d", len(failedJobs))
 		}
-		if len(failedJobs.Soft) != 1 {
-			t.Fatalf("expected 1 soft failed job, got %d", len(failedJobs.Soft))
-		}
-		if failedJobs.Hard[0].ID != "3" {
-			t.Errorf("expected hard failed job 3, got %s", failedJobs.Hard[0].ID)
-		}
-		if failedJobs.Soft[0].ID != "4" {
-			t.Errorf("expected soft failed job 4, got %s", failedJobs.Soft[0].ID)
+		if failedJobs[0].ID != "3" {
+			t.Errorf("expected failed job 3, got %s", failedJobs[0].ID)
 		}
 	})
 }

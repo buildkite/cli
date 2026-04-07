@@ -37,6 +37,11 @@ func (p jobPresenter) Line(j buildkite.Job) string {
 	return fmt.Sprintf("%s %s %s — %s", symbol, name, status, jobLogCommand(p.pipeline, p.buildNumber, j.ID))
 }
 
+func (p jobPresenter) PassedLine(j buildkite.Job) string {
+	name := watch.NewFormattedJob(j).DisplayName()
+	return fmt.Sprintf("✔ %s", name)
+}
+
 func (p jobPresenter) ColoredLine(j buildkite.Job) string {
 	line := p.Line(j)
 	job := watch.NewFormattedJob(j)

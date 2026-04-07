@@ -11,9 +11,10 @@ import (
 type EventType string
 
 const (
-	EventOperation   EventType = "operation"
-	EventBuildStatus EventType = "build_status"
-	EventJobFailure  EventType = "job_failure"
+	EventOperation    EventType = "operation"
+	EventBuildStatus  EventType = "build_status"
+	EventJobFailure   EventType = "job_failure"
+	EventBuildSummary EventType = "build_summary"
 )
 
 // Event is the single data model emitted by a preflight run.
@@ -39,4 +40,10 @@ type Event struct {
 
 	// Job is set for job_failure events.
 	Job *buildkite.Job `json:"job,omitempty"`
+
+	// FailedJobs is set for build_summary events when the build failed. Contains hard-failed jobs only (soft failures excluded).
+	FailedJobs []buildkite.Job `json:"failed_jobs,omitempty"`
+
+	// PassedJobs is set for build_summary events when the build passed and has 10 or fewer jobs.
+	PassedJobs []buildkite.Job `json:"passed_jobs,omitempty"`
 }

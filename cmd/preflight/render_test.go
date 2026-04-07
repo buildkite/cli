@@ -295,6 +295,128 @@ func TestNewRenderer_JSONModeReturnsJSON(t *testing.T) {
 	}
 }
 
+func TestPlainRenderer_Render_BuildSummaryPassed(t *testing.T) {
+	var out bytes.Buffer
+	r := newPlainRenderer(&out)
+
+	if err := r.Render(Event{
+		Type:        EventBuildSummary,
+		Time:        time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
+		Pipeline:    "buildkite/cli",
+		BuildNumber: 42,
+		BuildState:  "passed",
+		PassedJobs: []buildkite.Job{
+			{ID: "job-1", Name: "Lint", Type: "script", State: "passed"},
+			{ID: "job-2", Name: "Test", Type: "script", State: "passed"},
+		},
+	}); err != nil {
+		t.Fatalf("Render() error: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "✅ Preflight Passed") {
+		t.Fatalf("expected passed header, got %q", got)
+	}
+	if !strings.Contains(got, "Lint") {
+		t.Fatalf("expected passed job name, got %q", got)
+	}
+	if !strings.Contains(got, "Test") {
+		t.Fatalf("expected passed job name, got %q", got)
+	}
+}
+
+func TestPlainRenderer_Render_BuildSummaryFailed(t *testing.T) {
+	var out bytes.Buffer
+	r := newPlainRenderer(&out)
+
+	exitOne := 1
+	if err := r.Render(Event{
+		Type:        EventBuildSummary,
+		Time:        time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
+		Pipeline:    "buildkite/cli",
+		BuildNumber: 42,
+		BuildState:  "failed",
+		FailedJobs: []buildkite.Job{
+			{ID: "job-1", Name: "Lint", Type: "script", State: "failed", ExitStatus: &exitOne},
+		},
+	}); err != nil {
+		t.Fatalf("Render() error: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "❌ Preflight Failed") {
+		t.Fatalf("expected failed header, got %q", got)
+	}
+	if !strings.Contains(got, "Lint") {
+		t.Fatalf("expected hard-failed job name, got %q", got)
+	}
+	if strings.Contains(got, "Optional check") {
+		t.Fatalf("soft-failed job should not appear in summary, got %q", got)
+	}
+}
+
+func TestJSONRenderer_Render_BuildSummaryPassed(t *testing.T) {
+	var out bytes.Buffer
+	r := newJSONRenderer(&out)
+
+	if err := r.Render(Event{
+		Type:        EventBuildSummary,
+		Time:        time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
+		PreflightID: "pfid-123",
+		Pipeline:    "buildkite/cli",
+		BuildNumber: 42,
+		BuildState:  "passed",
+	}); err != nil {
+		t.Fatalf("Render() error: %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
+	}
+	if got["type"] != "build_summary" {
+		t.Fatalf("expected type build_summary, got %v", got["type"])
+	}
+	if got["build_state"] != "passed" {
+		t.Fatalf("expected build_state=passed, got %v", got["build_state"])
+	}
+	if got["failed_jobs"] != nil {
+		t.Fatalf("expected no failed_jobs for passing build, got %v", got["failed_jobs"])
+	}
+}
+
+func TestJSONRenderer_Render_BuildSummaryFailed(t *testing.T) {
+	var out bytes.Buffer
+	r := newJSONRenderer(&out)
+
+	exitOne := 1
+	if err := r.Render(Event{
+		Type:        EventBuildSummary,
+		Time:        time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
+		PreflightID: "pfid-123",
+		Pipeline:    "buildkite/cli",
+		BuildNumber: 42,
+		BuildState:  "failed",
+		FailedJobs: []buildkite.Job{
+			{ID: "job-1", Name: "Lint", Type: "script", State: "failed", ExitStatus: &exitOne},
+		},
+	}); err != nil {
+		t.Fatalf("Render() error: %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
+	}
+	if got["build_state"] != "failed" {
+		t.Fatalf("expected build_state=failed, got %v", got["build_state"])
+	}
+	failedJobs, ok := got["failed_jobs"].([]any)
+	if !ok || len(failedJobs) != 1 {
+		t.Fatalf("expected 1 failed job, got %v", got["failed_jobs"])
+	}
+}
+
 func scriptJob(id, name, state string, softFailed bool, startedAt, finishedAt *buildkite.Timestamp, exitStatus *int) buildkite.Job {
 	return buildkite.Job{
 		ID:         id,
