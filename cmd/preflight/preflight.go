@@ -67,6 +67,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	if err != nil {
 		return bkErrors.NewInternalError(err, "UUIDv7 generation failed")
 	}
+	startedAt := time.Now()
 
 	if c.Interval <= 0 {
 		return bkErrors.NewValidationError(fmt.Errorf("interval must be greater than 0"), "invalid polling interval")
@@ -166,6 +167,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			BuildNumber: build.Number,
 			BuildURL:    build.WebURL,
 			BuildState:  finalBuild.State,
+			Duration:    time.Since(startedAt),
 		}
 		if buildResult.Passed() {
 			if passed := tracker.PassedJobs(); len(passed) <= 10 {

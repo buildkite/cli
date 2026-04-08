@@ -417,6 +417,31 @@ func TestJSONRenderer_Render_BuildSummaryFailed(t *testing.T) {
 	}
 }
 
+func TestFormatDuration(t *testing.T) {
+	tests := []struct {
+		d    time.Duration
+		want string
+	}{
+		{1 * time.Second, "1 second"},
+		{30 * time.Second, "30 seconds"},
+		{1 * time.Minute, "1 minute"},
+		{1*time.Minute + 1*time.Second, "1 minute 1 second"},
+		{1*time.Minute + 30*time.Second, "1 minute 30 seconds"},
+		{90 * time.Second, "1 minute 30 seconds"},
+		{10 * time.Minute, "10 minutes"},
+		{10*time.Minute + 23*time.Second, "10 minutes 23 seconds"},
+		{1 * time.Hour, "1 hour"},
+		{1*time.Hour + 1*time.Minute, "1 hour 1 minute"},
+		{2 * time.Hour, "2 hours"},
+		{2*time.Hour + 5*time.Minute, "2 hours 5 minutes"},
+	}
+	for _, tt := range tests {
+		if got := formatDuration(tt.d); got != tt.want {
+			t.Errorf("formatDuration(%v) = %q, want %q", tt.d, got, tt.want)
+		}
+	}
+}
+
 func scriptJob(id, name, state string, softFailed bool, startedAt, finishedAt *buildkite.Timestamp, exitStatus *int) buildkite.Job {
 	return buildkite.Job{
 		ID:         id,

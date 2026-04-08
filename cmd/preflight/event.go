@@ -46,4 +46,7 @@ type Event struct {
 
 	// PassedJobs is set for build_summary events when the build passed and has 10 or fewer jobs.
 	PassedJobs []buildkite.Job `json:"passed_jobs,omitempty"`
+
+	// Duration is set for build_summary events. Total elapsed time of the preflight run.
+	Duration time.Duration `json:"duration_ns,omitempty"`
 }
