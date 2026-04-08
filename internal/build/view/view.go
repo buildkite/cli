@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/buildkite/cli/v3/internal/artifact"
+	"github.com/buildkite/cli/v3/internal/emoji"
 	"github.com/buildkite/cli/v3/internal/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v4"
@@ -154,6 +155,7 @@ func renderJobs(jobs []buildkite.Job) string {
 		if name == "" {
 			name = "-"
 		}
+		name = emoji.Render(name)
 		name = truncateText(name, 72)
 
 		rows = append(rows, []string{
