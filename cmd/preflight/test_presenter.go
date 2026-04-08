@@ -122,22 +122,43 @@ func truncateToWidth(s string, width int) string {
 		return s
 	}
 
-	if width <= 1 {
-		return "…"
+	segmentWidth := width / 2
+	if segmentWidth == 0 {
+		return "..."
 	}
 
+	return trimLeftToWidth(s, segmentWidth) + "..." + trimRightToWidth(s, segmentWidth)
+}
+
+func trimLeftToWidth(s string, width int) string {
 	var b strings.Builder
 	currentWidth := 0
 
 	for _, r := range s {
 		runeWidth := runewidth.RuneWidth(r)
-		if currentWidth+runeWidth > width-1 {
+		if currentWidth+runeWidth > width {
 			break
 		}
 		b.WriteRune(r)
 		currentWidth += runeWidth
 	}
 
-	b.WriteRune('…')
 	return b.String()
+}
+
+func trimRightToWidth(s string, width int) string {
+	runes := []rune(s)
+	currentWidth := 0
+	start := len(runes)
+
+	for start > 0 {
+		runeWidth := runewidth.RuneWidth(runes[start-1])
+		if currentWidth+runeWidth > width {
+			break
+		}
+		currentWidth += runeWidth
+		start--
+	}
+
+	return string(runes[start:])
 }

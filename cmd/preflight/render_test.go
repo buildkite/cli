@@ -366,8 +366,8 @@ func TestTestPresenter_Line_FailedAttemptIncludesHistoryAndFailureDetails(t *tes
 
 	got := line
 
-	if !strings.Contains(got, "✗ ✗ Pipelines::ShardMigration::DeleteOrganizationFromShardWorker") {
-		t.Fatalf("expected cumulative failure history, got %q", got)
+	if !strings.Contains(got, "✗ ✗ Pipelines::ShardMigration::DeleteOrganiz... records for a shard that needs cleaning") {
+		t.Fatalf("expected long name to preserve the start and end, got %q", got)
 	}
 	if !strings.Contains(got, "Location: ./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181") {
 		t.Fatalf("expected location detail, got %q", got)
