@@ -13,10 +13,6 @@ func TestTestTracker_Update(t *testing.T) {
 			{
 				ID:   "test-1",
 				Name: "flaky test",
-				LatestFail: &buildkite.BuildTestLatestFail{
-					ID:            "exec-1",
-					FailureReason: "expected 3, got 2",
-				},
 				Executions: []buildkite.BuildTestExecution{{
 					ID:            "exec-1",
 					Status:        "failed",
@@ -61,10 +57,6 @@ func TestTestTracker_Update(t *testing.T) {
 			{
 				ID:   "test-1",
 				Name: "flaky test",
-				LatestFail: &buildkite.BuildTestLatestFail{
-					ID:            "exec-1",
-					FailureReason: "first failure",
-				},
 				Executions: []buildkite.BuildTestExecution{{
 					ID:            "exec-1",
 					Status:        "failed",
@@ -77,10 +69,6 @@ func TestTestTracker_Update(t *testing.T) {
 			{
 				ID:   "test-1",
 				Name: "flaky test",
-				LatestFail: &buildkite.BuildTestLatestFail{
-					ID:            "exec-2",
-					FailureReason: "second failure",
-				},
 				Executions: []buildkite.BuildTestExecution{{
 					ID:            "exec-2",
 					Status:        "failed",
@@ -92,9 +80,6 @@ func TestTestTracker_Update(t *testing.T) {
 		if len(newTestChanges) != 1 {
 			t.Fatalf("expected 1 new test change, got %d", len(newTestChanges))
 		}
-		if newTestChanges[0].LatestFail == nil || newTestChanges[0].LatestFail.ID != "exec-2" {
-			t.Errorf("expected latest fail exec-2, got %#v", newTestChanges[0].LatestFail)
-		}
 	})
 
 	t.Run("skips tests without executions", func(t *testing.T) {
@@ -104,10 +89,6 @@ func TestTestTracker_Update(t *testing.T) {
 			{
 				ID:   "test-2",
 				Name: "failing test",
-				LatestFail: &buildkite.BuildTestLatestFail{
-					ID:            "exec-1",
-					FailureReason: "boom",
-				},
 				Executions: []buildkite.BuildTestExecution{{
 					ID:            "exec-1",
 					Status:        "failed",
@@ -130,17 +111,14 @@ func TestTestTracker_Update(t *testing.T) {
 		tests := []buildkite.BuildTest{
 			{
 				ID:         "test-1",
-				LatestFail: &buildkite.BuildTestLatestFail{ID: "exec-1"},
 				Executions: []buildkite.BuildTestExecution{{ID: "exec-1", Status: "failed"}},
 			},
 			{
 				ID:         "test-2",
-				LatestFail: &buildkite.BuildTestLatestFail{ID: "exec-2"},
 				Executions: []buildkite.BuildTestExecution{{ID: "exec-2", Status: "failed"}},
 			},
 			{
 				ID:         "test-3",
-				LatestFail: &buildkite.BuildTestLatestFail{ID: "exec-3"},
 				Executions: []buildkite.BuildTestExecution{{ID: "exec-3", Status: "failed"}},
 			},
 		}
@@ -157,10 +135,6 @@ func TestTestTracker_Update(t *testing.T) {
 			{
 				ID:   "test-1",
 				Name: "flaky test",
-				LatestFail: &buildkite.BuildTestLatestFail{
-					ID:            "exec-2",
-					FailureReason: "second failure",
-				},
 				Executions: []buildkite.BuildTestExecution{
 					{ID: "exec-1", Status: "failed", FailureReason: "first failure"},
 					{ID: "exec-2", Status: "failed", FailureReason: "second failure"},
@@ -172,9 +146,6 @@ func TestTestTracker_Update(t *testing.T) {
 
 		if len(newTestChanges) != 1 {
 			t.Fatalf("expected 1 new test change, got %d", len(newTestChanges))
-		}
-		if newTestChanges[0].LatestFail == nil || newTestChanges[0].LatestFail.ID != "exec-2" {
-			t.Fatalf("expected latest fail exec-2, got %#v", newTestChanges[0].LatestFail)
 		}
 
 		newTestChanges = tracker.Update(tests)

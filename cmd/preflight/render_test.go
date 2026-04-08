@@ -188,6 +188,7 @@ func TestPlainRenderer_Render_TestFailure(t *testing.T) {
 	r := newPlainRenderer(&out)
 
 	now := time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)
+	executionTime := buildkite.Timestamp{Time: now}
 	r.Render(Event{
 		Type: EventTestFailure,
 		Time: now,
@@ -197,6 +198,7 @@ func TestPlainRenderer_Render_TestFailure(t *testing.T) {
 				Status:        "failed",
 				Location:      "./spec/example_spec.rb:10",
 				FailureReason: "Failure/Error: expect(false).to eq(true)",
+				Timestamp:     &executionTime,
 			}},
 		}},
 	})
@@ -336,6 +338,8 @@ func TestJSONRenderer_Render_MultipleEvents_JSONL(t *testing.T) {
 
 func TestTestPresenter_Line_FailedAttemptIncludesHistoryAndFailureDetails(t *testing.T) {
 	t.Parallel()
+	older := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)}
+	newer := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}
 
 	line := testPresenter{}.Line(buildkite.BuildTest{
 		Name:     "Pipelines::ShardMigration::DeleteOrganizationFromShardWorker with more than BATCH_SIZE records for a shard that needs cleaning",
@@ -345,11 +349,13 @@ func TestTestPresenter_Line_FailedAttemptIncludesHistoryAndFailureDetails(t *tes
 				Status:        "failed",
 				Location:      "./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181",
 				FailureReason: "Failure/Error: expect(empty_tables).to eq({})",
+				Timestamp:     &newer,
 			},
 			{
 				Status:        "failed",
-				Location:      "./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181",
+				Location:      "./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:182",
 				FailureReason: "Failure/Error: expect(empty_tables).to eq({})",
+				Timestamp:     &older,
 			},
 		},
 	})
@@ -401,6 +407,48 @@ func TestTestPresenter_Line_PassedAttemptOnlyShowsHistoryLine(t *testing.T) {
 	}
 	if got != "✗ ✗ ✓ Test A" {
 		t.Fatalf("unexpected output: %q", got)
+	}
+}
+
+func TestLatestTestExecution_PicksNewestTimestamp(t *testing.T) {
+	t.Parallel()
+	older := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)}
+	newer := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}
+
+	execution, ok := latestTestExecution(buildkite.BuildTest{
+		Executions: []buildkite.BuildTestExecution{
+			{Status: "failed", Location: "./spec/example_spec.rb:11", Timestamp: &older},
+			{Status: "passed", Location: "./spec/example_spec.rb:12", Timestamp: &newer},
+			{Status: "failed", Location: "./spec/example_spec.rb:10"},
+		},
+	})
+
+	if !ok {
+		t.Fatal("expected execution to be present")
+	}
+	if got, want := execution.Status, "passed"; got != want {
+		t.Fatalf("status = %q, want %q", got, want)
+	}
+	if got, want := execution.Location, "./spec/example_spec.rb:12"; got != want {
+		t.Fatalf("location = %q, want %q", got, want)
+	}
+}
+
+func TestLatestTestExecution_IgnoresExecutionsWithoutTimestamps(t *testing.T) {
+	t.Parallel()
+
+	execution, ok := latestTestExecution(buildkite.BuildTest{
+		Executions: []buildkite.BuildTestExecution{
+			{Status: "failed", Location: "./spec/example_spec.rb:10"},
+			{Status: "passed", Location: "./spec/example_spec.rb:11"},
+		},
+	})
+
+	if ok {
+		t.Fatalf("expected no execution, got %#v", execution)
+	}
+	if execution != nil {
+		t.Fatalf("expected nil execution, got %#v", execution)
 	}
 }
 
