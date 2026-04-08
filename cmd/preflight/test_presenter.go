@@ -2,6 +2,7 @@ package preflight
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/mattn/go-runewidth"
@@ -48,7 +49,7 @@ func (p testPresenter) line(t buildkite.BuildTest, colored bool) string {
 }
 
 func formatTestExecutionHistory(t buildkite.BuildTest, colored bool) string {
-	executions := t.Executions
+	executions := testExecutionsInTimestampOrder(t.Executions)
 	if len(executions) == 0 {
 		return formatTestStatusIcon(t.State, colored)
 	}
@@ -61,18 +62,36 @@ func formatTestExecutionHistory(t buildkite.BuildTest, colored bool) string {
 }
 
 func latestTestExecution(t buildkite.BuildTest) *buildkite.BuildTestExecution {
-	var latest *buildkite.BuildTestExecution
-	for i := range t.Executions {
-		execution := &t.Executions[i]
-		if execution.Timestamp == nil {
-			continue
-		}
-		if latest == nil || execution.Timestamp.After(latest.Timestamp.Time) {
-			latest = execution
+	executions := testExecutionsInTimestampOrder(t.Executions)
+	for i := len(executions) - 1; i >= 0; i-- {
+		execution := &executions[i]
+		if execution.Timestamp != nil {
+			return execution
 		}
 	}
 
-	return latest
+	return nil
+}
+
+func testExecutionsInTimestampOrder(executions []buildkite.BuildTestExecution) []buildkite.BuildTestExecution {
+	ordered := append([]buildkite.BuildTestExecution(nil), executions...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		left := ordered[i]
+		right := ordered[j]
+
+		switch {
+		case left.Timestamp == nil && right.Timestamp == nil:
+			return false
+		case left.Timestamp == nil:
+			return true
+		case right.Timestamp == nil:
+			return false
+		default:
+			return left.Timestamp.Before(right.Timestamp.Time)
+		}
+	})
+
+	return ordered
 }
 
 func isFailedTestExecution(execution *buildkite.BuildTestExecution) bool {

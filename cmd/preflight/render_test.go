@@ -380,16 +380,57 @@ func TestTestPresenter_Line_FailedAttemptIncludesHistoryAndFailureDetails(t *tes
 	}
 }
 
-func TestTestPresenter_Line_PassedAttemptOnlyShowsHistoryLine(t *testing.T) {
+func TestFormatTestExecutionHistory_SortsOldestToNewest(t *testing.T) {
 	t.Parallel()
+	oldest := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 29, 0, 0, time.UTC)}
+	middle := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)}
+	newest := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}
+
+	history := formatTestExecutionHistory(buildkite.BuildTest{
+		Executions: []buildkite.BuildTestExecution{
+			{Status: "passed", Timestamp: &newest},
+			{Status: "failed", Timestamp: &oldest},
+			{Status: "unknown", Timestamp: &middle},
+		},
+	}, false)
+
+	if got, want := history, "✗ ? ✓"; got != want {
+		t.Fatalf("history = %q, want %q", got, want)
+	}
+}
+
+func TestFormatTestExecutionHistory_PlacesNilTimestampsBeforeChronologicalHistory(t *testing.T) {
+	t.Parallel()
+	older := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)}
+	newer := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}
+
+	history := formatTestExecutionHistory(buildkite.BuildTest{
+		Executions: []buildkite.BuildTestExecution{
+			{Status: "passed", Timestamp: &newer},
+			{Status: "unknown"},
+			{Status: "failed", Timestamp: &older},
+			{Status: "passed"},
+		},
+	}, false)
+
+	if got, want := history, "? ✓ ✗ ✓"; got != want {
+		t.Fatalf("history = %q, want %q", got, want)
+	}
+}
+
+func TestTestPresenter_Line_PassedLatestAttemptOnlyShowsHistoryLine(t *testing.T) {
+	t.Parallel()
+	oldest := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 29, 0, 0, time.UTC)}
+	middle := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)}
+	newest := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}
 
 	line := testPresenter{}.Line(buildkite.BuildTest{
 		Name:     "Test A",
 		Location: "./spec/example_spec.rb:10",
 		Executions: []buildkite.BuildTestExecution{
-			{Status: "failed", FailureReason: "Failure/Error: expect(false).to eq(true)", Location: "./spec/example_spec.rb:10"},
-			{Status: "failed", FailureReason: "Failure/Error: expect(false).to eq(true)", Location: "./spec/example_spec.rb:10"},
-			{Status: "passed", Location: "./spec/example_spec.rb:10"},
+			{Status: "passed", Location: "./spec/example_spec.rb:10", Timestamp: &newest},
+			{Status: "failed", FailureReason: "Failure/Error: expect(false).to eq(true)", Location: "./spec/example_spec.rb:10", Timestamp: &oldest},
+			{Status: "failed", FailureReason: "Failure/Error: expect(false).to eq(true)", Location: "./spec/example_spec.rb:10", Timestamp: &middle},
 		},
 	})
 
