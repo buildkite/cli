@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/alecthomas/kong v1.15.0
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be
-	github.com/buildkite/go-buildkite/v4 v4.18.1-0.20260408011927-75549ad7dcc5
+	github.com/buildkite/go-buildkite/v4 v4.18.1-0.20260408042936-6212b2a69f6c
 	github.com/buildkite/roko v1.4.0
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
