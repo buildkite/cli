@@ -2,7 +2,9 @@ package watch
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	buildstate "github.com/buildkite/cli/v3/internal/build/state"
@@ -58,8 +60,10 @@ func WatchBuild(
 	}
 
 	var testTracker *TestTracker
+	testPollingEnabled := false
 	if cfg.onTestStatus != nil {
 		testTracker = NewTestTracker()
+		testPollingEnabled = true
 	}
 
 	var (
@@ -90,10 +94,12 @@ func WatchBuild(
 				}
 			}
 
-			if testTracker != nil && b.ID != "" {
-				if err := pollTestFailures(ctx, client, org, b.ID, testTracker, cfg.onTestStatus); err != nil {
+			if testPollingEnabled && b.ID != "" {
+				enabled, err := pollTestFailures(ctx, client, org, b.ID, testTracker, cfg.onTestStatus)
+				if err != nil {
 					return b, err
 				}
+				testPollingEnabled = enabled
 			}
 
 			if b.FinishedAt != nil || buildstate.IsTerminal(buildstate.State(b.State)) {
@@ -109,7 +115,7 @@ func WatchBuild(
 	}
 }
 
-func pollTestFailures(ctx context.Context, client *buildkite.Client, org, buildID string, tracker *TestTracker, onTestStatus TestStatusFunc) error {
+func pollTestFailures(ctx context.Context, client *buildkite.Client, org, buildID string, tracker *TestTracker, onTestStatus TestStatusFunc) (bool, error) {
 	opts := &buildkite.BuildTestsListOptions{
 		ListOptions: buildkite.ListOptions{Page: 1, PerPage: 100},
 		Result:      "failed",
@@ -123,6 +129,10 @@ func pollTestFailures(ctx context.Context, client *buildkite.Client, org, buildI
 		tests, resp, err := client.BuildTests.List(reqCtx, org, buildID, opts)
 		cancel()
 		if err != nil {
+			if isPermanentTestPollingError(err) {
+				return false, nil
+			}
+
 			// Test data may not be available yet; don't treat as fatal.
 			break
 		}
@@ -136,7 +146,22 @@ func pollTestFailures(ctx context.Context, client *buildkite.Client, org, buildI
 	}
 
 	if len(newTestChanges) > 0 {
-		return onTestStatus(newTestChanges)
+		return true, onTestStatus(newTestChanges)
 	}
-	return nil
+
+	return true, nil
+}
+
+func isPermanentTestPollingError(err error) bool {
+	var apiErr *buildkite.ErrorResponse
+	if !errors.As(err, &apiErr) || apiErr.Response == nil {
+		return false
+	}
+
+	switch apiErr.Response.StatusCode {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return true
+	default:
+		return false
+	}
 }
