@@ -21,6 +21,7 @@ var (
 type ttyModel struct {
 	spinner    spinner.Model
 	latest     Event
+	summary    *Event
 	cancelFunc context.CancelFunc
 }
 
@@ -75,10 +76,10 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case EventBuildSummary:
-			// Don't overwrite m.latest — the summary is printed to
-			// scrollback, and the status bar should keep showing the
-			// last build_status until the program quits.
-			return m, buildSummaryCmd(msg)
+			// Store the summary on the model so View() renders it as the
+			// final frame when the program quits via Close().
+			m.summary = &msg
+			return m, nil
 		}
 
 	case spinner.TickMsg:
@@ -104,6 +105,10 @@ func (m ttyModel) statusText() string {
 
 func (m ttyModel) View() string {
 	separator := ttyBorderStyle.Render("─────────────────────────────────────────────")
+
+	if m.summary != nil {
+		return buildSummaryView(*m.summary)
+	}
 
 	statusLine := fmt.Sprintf("  %s %s", m.spinner.View(), ttyStatusStyle.Render(m.statusText()))
 
@@ -139,15 +144,15 @@ func (m ttyModel) View() string {
 	return separator + "\n" + statusLine + "\n" + summaryLine
 }
 
-// buildSummaryCmd returns a single tea.Cmd that prints the complete build summary
-// to scrollback in one call, preserving header-before-jobs ordering.
-func buildSummaryCmd(e Event) tea.Cmd {
+// buildSummaryView renders the final build summary as a string for use in View().
+func buildSummaryView(e Event) string {
 	style := ttyFailureStyle
 	if e.BuildState == "passed" {
 		style = ttyStatusStyle
 	}
 
-	out := "\n" + style.Render(summaryHeader(e))
+	separator := ttyBorderStyle.Render("─────────────────────────────────────────────")
+	out := separator + "\n" + style.Render(summaryHeader(e))
 
 	presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
 	for _, j := range e.PassedJobs {
@@ -157,7 +162,7 @@ func buildSummaryCmd(e Event) tea.Cmd {
 		out += "\n  " + presenter.ColoredLine(j)
 	}
 
-	return tea.Printf("%s", out)
+	return out
 }
 
 type ttyRenderer struct {

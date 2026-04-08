@@ -6,7 +6,7 @@ import (
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
-func TestBuildSummaryCmd_ReturnsCmd(t *testing.T) {
+func TestBuildSummaryView_ReturnsOutput(t *testing.T) {
 	tests := []struct {
 		name  string
 		event Event
@@ -55,8 +55,8 @@ func TestBuildSummaryCmd_ReturnsCmd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if cmd := buildSummaryCmd(tt.event); cmd == nil {
-				t.Fatal("expected non-nil tea.Cmd")
+			if got := buildSummaryView(tt.event); got == "" {
+				t.Fatal("expected non-empty summary view")
 			}
 		})
 	}
