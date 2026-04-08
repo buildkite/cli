@@ -14,7 +14,6 @@ type jobPresenter struct {
 	buildNumber int
 }
 
-// failParts returns the shared components of a failed/soft-failed job line.
 func (p jobPresenter) failParts(j buildkite.Job) (symbol, name, detail string) {
 	job := watch.NewFormattedJob(j)
 	name = job.DisplayName()
@@ -40,21 +39,26 @@ func (p jobPresenter) failParts(j buildkite.Job) (symbol, name, detail string) {
 	return symbol, name, detail
 }
 
-// Line renders a failed/soft-failed job for plain (uncoloured) output.
 func (p jobPresenter) Line(j buildkite.Job) string {
 	symbol, name, detail := p.failParts(j)
 	return fmt.Sprintf("%s %s %s", symbol, emoji.Render(name), detail)
 }
 
-// PassedLine renders a passed job for plain (uncoloured) output.
 func (p jobPresenter) PassedLine(j buildkite.Job) string {
 	name := emoji.Render(watch.NewFormattedJob(j).DisplayName())
 	return fmt.Sprintf("✔ %s", name)
 }
 
-// ColoredLine renders a failed/soft-failed job with lipgloss foreground
-// colour. The leading emoji is rendered outside the colour span so that
-// Kitty graphics placeholder colour resets don't break the styling.
+func (p jobPresenter) ColoredPassedLine(j buildkite.Job, style lipgloss.Style) string {
+	emojiPrefix, textName := emoji.Split(watch.NewFormattedJob(j).DisplayName())
+	if emojiPrefix != "" {
+		return style.Render("✔ ") + emoji.Render(emojiPrefix) + " " + style.Render(textName)
+	}
+	return style.Render(fmt.Sprintf("✔ %s", textName))
+}
+
+// ColoredLine renders emoji outside the ANSI colour span to avoid
+// Kitty/iTerm2 graphics escape sequences breaking lipgloss styling.
 func (p jobPresenter) ColoredLine(j buildkite.Job) string {
 	job := watch.NewFormattedJob(j)
 	symbol, name, detail := p.failParts(j)
@@ -66,9 +70,8 @@ func (p jobPresenter) ColoredLine(j buildkite.Job) string {
 		style = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
 	}
 
-	colored := style.Render(fmt.Sprintf("%s %s %s", symbol, textName, detail))
 	if emojiPrefix != "" {
-		return emoji.Render(emojiPrefix) + " " + colored
+		return style.Render(symbol+" ") + emoji.Render(emojiPrefix) + " " + style.Render(fmt.Sprintf("%s %s", textName, detail))
 	}
-	return colored
+	return style.Render(fmt.Sprintf("%s %s %s", symbol, textName, detail))
 }

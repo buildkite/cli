@@ -155,8 +155,8 @@ func renderJobs(jobs []buildkite.Job) string {
 		if name == "" {
 			name = "-"
 		}
-		name = emoji.Render(name)
 		name = truncateText(name, 72)
+		name = emoji.Render(name)
 
 		rows = append(rows, []string{
 			job.State,

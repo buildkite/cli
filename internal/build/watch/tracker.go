@@ -2,6 +2,7 @@ package watch
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	buildkite "github.com/buildkite/go-buildkite/v4"
@@ -112,7 +113,7 @@ func (t *JobTracker) Update(b buildkite.Build) BuildStatus {
 	return status
 }
 
-// PassedJobs returns all jobs that passed.
+// PassedJobs returns all jobs that passed, sorted by start time.
 func (t *JobTracker) PassedJobs() []buildkite.Job {
 	var result []buildkite.Job
 	for _, tj := range t.jobs {
@@ -120,10 +121,11 @@ func (t *JobTracker) PassedJobs() []buildkite.Job {
 			result = append(result, tj.Job)
 		}
 	}
+	sortJobsByStartTime(result)
 	return result
 }
 
-// FailedJobs returns all hard-failed jobs (excludes soft failures).
+// FailedJobs returns all hard-failed jobs (excludes soft failures), sorted by start time.
 func (t *JobTracker) FailedJobs() []buildkite.Job {
 	var result []buildkite.Job
 	for _, tj := range t.jobs {
@@ -132,7 +134,26 @@ func (t *JobTracker) FailedJobs() []buildkite.Job {
 			result = append(result, tj.Job)
 		}
 	}
+	sortJobsByStartTime(result)
 	return result
+}
+
+func sortJobsByStartTime(jobs []buildkite.Job) {
+	sort.Slice(jobs, func(i, j int) bool {
+		si, sj := jobs[i].StartedAt, jobs[j].StartedAt
+		switch {
+		case si == nil && sj == nil:
+			return jobs[i].ID < jobs[j].ID
+		case si == nil:
+			return false
+		case sj == nil:
+			return true
+		case si.Time.Equal(sj.Time):
+			return jobs[i].ID < jobs[j].ID
+		default:
+			return si.Before(sj.Time)
+		}
+	})
 }
 
 func (t *JobTracker) summarize(b buildkite.Build) JobSummary {

@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/buildkite/cli/v3/internal/build/watch"
-	"github.com/buildkite/cli/v3/internal/emoji"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -158,13 +156,7 @@ func buildSummaryView(e Event) string {
 
 	presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
 	for _, j := range e.PassedJobs {
-		emojiPrefix, textName := emoji.Split(watch.NewFormattedJob(j).DisplayName())
-		dim := ttyDimStyle.Render(fmt.Sprintf("✔ %s", textName))
-		if emojiPrefix != "" {
-			out += "\n  " + emoji.Render(emojiPrefix) + " " + dim
-		} else {
-			out += "\n  " + dim
-		}
+		out += "\n  " + presenter.ColoredPassedLine(j, ttyDimStyle)
 	}
 	for _, j := range e.FailedJobs {
 		out += "\n  " + presenter.ColoredLine(j)

@@ -284,6 +284,50 @@ func TestJobTracker_FailedJobs(t *testing.T) {
 	})
 }
 
+func TestJobTracker_PassedJobs_SortedByStartTime(t *testing.T) {
+	tracker := NewJobTracker()
+	t1 := buildkite.Timestamp{Time: time.Date(2025, 1, 1, 0, 0, 10, 0, time.UTC)}
+	t2 := buildkite.Timestamp{Time: time.Date(2025, 1, 1, 0, 0, 5, 0, time.UTC)}
+	tracker.Update(buildkite.Build{
+		Jobs: []buildkite.Job{
+			{ID: "late", Type: "script", State: "passed", StartedAt: &t1},
+			{ID: "early", Type: "script", State: "passed", StartedAt: &t2},
+			{ID: "no-start", Type: "script", State: "passed"},
+		},
+	})
+
+	jobs := tracker.PassedJobs()
+	if len(jobs) != 3 {
+		t.Fatalf("expected 3 jobs, got %d", len(jobs))
+	}
+	wantOrder := []string{"early", "late", "no-start"}
+	for i, id := range wantOrder {
+		if jobs[i].ID != id {
+			t.Errorf("position %d: got %s, want %s", i, jobs[i].ID, id)
+		}
+	}
+}
+
+func TestJobTracker_FailedJobs_SortedByStartTime(t *testing.T) {
+	tracker := NewJobTracker()
+	t1 := buildkite.Timestamp{Time: time.Date(2025, 1, 1, 0, 0, 20, 0, time.UTC)}
+	t2 := buildkite.Timestamp{Time: time.Date(2025, 1, 1, 0, 0, 10, 0, time.UTC)}
+	tracker.Update(buildkite.Build{
+		Jobs: []buildkite.Job{
+			{ID: "b", Type: "script", State: "failed", StartedAt: &t1},
+			{ID: "a", Type: "script", State: "failed", StartedAt: &t2},
+		},
+	})
+
+	jobs := tracker.FailedJobs()
+	if len(jobs) != 2 {
+		t.Fatalf("expected 2 jobs, got %d", len(jobs))
+	}
+	if jobs[0].ID != "a" || jobs[1].ID != "b" {
+		t.Errorf("expected [a, b], got [%s, %s]", jobs[0].ID, jobs[1].ID)
+	}
+}
+
 func TestJobTracker_Summarize(t *testing.T) {
 	tracker := NewJobTracker()
 
