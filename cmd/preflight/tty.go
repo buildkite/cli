@@ -21,6 +21,7 @@ var (
 type ttyModel struct {
 	spinner    spinner.Model
 	latest     Event
+	summary    *Event
 	cancelFunc context.CancelFunc
 }
 
@@ -73,6 +74,12 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				)
 				return m, tea.Printf("%s", line)
 			}
+
+		case EventBuildSummary:
+			// Store the summary on the model so View() renders it as the
+			// final frame when the program quits via Close().
+			m.summary = &msg
+			return m, nil
 		}
 
 	case spinner.TickMsg:
@@ -98,6 +105,10 @@ func (m ttyModel) statusText() string {
 
 func (m ttyModel) View() string {
 	separator := ttyBorderStyle.Render("─────────────────────────────────────────────")
+
+	if m.summary != nil {
+		return buildSummaryView(*m.summary)
+	}
 
 	statusLine := fmt.Sprintf("  %s %s", m.spinner.View(), ttyStatusStyle.Render(m.statusText()))
 
@@ -131,6 +142,27 @@ func (m ttyModel) View() string {
 
 	summaryLine := fmt.Sprintf("  %s", ttyDimStyle.Render(strings.Join(parts, ", ")))
 	return separator + "\n" + statusLine + "\n" + summaryLine
+}
+
+// buildSummaryView renders the final build summary as a string for use in View().
+func buildSummaryView(e Event) string {
+	style := ttyFailureStyle
+	if e.BuildState == "passed" {
+		style = ttyStatusStyle
+	}
+
+	separator := ttyBorderStyle.Render("─────────────────────────────────────────────")
+	out := separator + "\n" + style.Render(summaryHeader(e))
+
+	presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
+	for _, j := range e.PassedJobs {
+		out += "\n  " + ttyDimStyle.Render(presenter.PassedLine(j))
+	}
+	for _, j := range e.FailedJobs {
+		out += "\n  " + presenter.ColoredLine(j)
+	}
+
+	return out
 }
 
 type ttyRenderer struct {

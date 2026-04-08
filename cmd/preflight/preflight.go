@@ -67,6 +67,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	if err != nil {
 		return bkErrors.NewInternalError(err, "UUIDv7 generation failed")
 	}
+	startedAt := time.Now()
 
 	if c.Interval <= 0 {
 		return bkErrors.NewValidationError(fmt.Errorf("interval must be greater than 0"), "invalid polling interval")
@@ -167,6 +168,28 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 
 	buildResult := NewResult(finalBuild)
 	finalErr := buildResult.Error()
+
+	// Emit a final summary showing pass/fail, passed jobs (if ≤10), or hard-failed jobs.
+	if buildstate.IsTerminal(buildstate.State(finalBuild.State)) {
+		summaryEvent := Event{
+			Type:        EventBuildSummary,
+			Time:        time.Now(),
+			PreflightID: preflightID.String(),
+			Pipeline:    pipelineName,
+			BuildNumber: build.Number,
+			BuildURL:    build.WebURL,
+			BuildState:  finalBuild.State,
+			Duration:    time.Since(startedAt),
+		}
+		if buildResult.Passed() {
+			if passed := tracker.PassedJobs(); len(passed) <= 10 {
+				summaryEvent.PassedJobs = passed
+			}
+		} else {
+			summaryEvent.FailedJobs = tracker.FailedJobs()
+		}
+		_ = renderer.Render(summaryEvent)
+	}
 
 	if !c.NoCleanup {
 		_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Cleaning up remote branch %s...", result.Branch)})
