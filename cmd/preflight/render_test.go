@@ -183,6 +183,38 @@ func TestPlainRenderer_Render_JobFailure(t *testing.T) {
 	}
 }
 
+func TestPlainRenderer_Render_TestFailure(t *testing.T) {
+	var out bytes.Buffer
+	r := newPlainRenderer(&out)
+
+	now := time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)
+	r.Render(Event{
+		Type: EventTestFailure,
+		Time: now,
+		TestFailures: []buildkite.BuildTest{{
+			Name: "Test A",
+			Executions: []buildkite.BuildTestExecution{{
+				Status:        "failed",
+				Location:      "./spec/example_spec.rb:10",
+				FailureReason: "Failure/Error: expect(false).to eq(true)",
+			}},
+		}},
+	})
+
+	got := out.String()
+	if ansiCodesPattern.MatchString(got) {
+		t.Fatalf("expected plain output without ANSI codes, got %q", got)
+	}
+
+	indent := strings.Repeat(" ", len("10:31:00 "))
+	expected := "10:31:00 ✗ Test A\n" +
+		indent + "    Location: ./spec/example_spec.rb:10\n" +
+		indent + "    Failure/Error: expect(false).to eq(true)\n"
+	if got != expected {
+		t.Fatalf("expected:\n%s\ngot:\n%s", expected, got)
+	}
+}
+
 func TestJSONRenderer_Render_Operation(t *testing.T) {
 	var out bytes.Buffer
 	r := newJSONRenderer(&out)
@@ -322,7 +354,11 @@ func TestTestPresenter_Line_FailedAttemptIncludesHistoryAndFailureDetails(t *tes
 		},
 	})
 
-	got := stripANSI(line)
+	if ansiCodesPattern.MatchString(line) {
+		t.Fatalf("expected plain line without ANSI codes, got %q", line)
+	}
+
+	got := line
 
 	if !strings.Contains(got, "✗ ✗ Pipelines::ShardMigration::DeleteOrganizationFromShardWorker") {
 		t.Fatalf("expected cumulative failure history, got %q", got)
@@ -351,7 +387,11 @@ func TestTestPresenter_Line_PassedAttemptOnlyShowsHistoryLine(t *testing.T) {
 		},
 	})
 
-	got := stripANSI(line)
+	if ansiCodesPattern.MatchString(line) {
+		t.Fatalf("expected plain line without ANSI codes, got %q", line)
+	}
+
+	got := line
 
 	if strings.Contains(got, "Location:") {
 		t.Fatalf("expected passed attempt to omit location detail, got %q", got)
@@ -361,6 +401,28 @@ func TestTestPresenter_Line_PassedAttemptOnlyShowsHistoryLine(t *testing.T) {
 	}
 	if got != "✗ ✗ ✓ Test A" {
 		t.Fatalf("unexpected output: %q", got)
+	}
+}
+
+func TestTestPresenter_ColoredLine_AddsANSIStyles(t *testing.T) {
+	t.Parallel()
+
+	line := testPresenter{}.ColoredLine(buildkite.BuildTest{
+		Name: "Test A",
+		Executions: []buildkite.BuildTestExecution{{
+			Status:        "failed",
+			Location:      "./spec/example_spec.rb:10",
+			FailureReason: "Failure/Error: expect(false).to eq(true)",
+		}},
+	})
+
+	if !ansiCodesPattern.MatchString(line) {
+		t.Fatalf("expected colored line with ANSI codes, got %q", line)
+	}
+
+	got := stripANSI(line)
+	if !strings.Contains(got, "✗ Test A") {
+		t.Fatalf("expected colored line to preserve text content, got %q", got)
 	}
 }
 

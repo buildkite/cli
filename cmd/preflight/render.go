@@ -198,13 +198,21 @@ func indentAllLines(text string, indentWidth int) string {
 type testPresenter struct{}
 
 func (p testPresenter) Line(t buildkite.BuildTest) string {
+	return p.line(t, false)
+}
+
+func (p testPresenter) ColoredLine(t buildkite.BuildTest) string {
+	return p.line(t, true)
+}
+
+func (p testPresenter) line(t buildkite.BuildTest, colored bool) string {
 	name := t.Name
 	if t.Scope != "" {
 		name = t.Scope + " " + name
 	}
 	name = truncateToWidth(name, 80)
 
-	history := formatTestExecutionHistory(t)
+	history := formatTestExecutionHistory(t, colored)
 	line := fmt.Sprintf("%s %s", history, name)
 
 	currentExecution, ok := latestTestExecution(t)
@@ -213,27 +221,27 @@ func (p testPresenter) Line(t buildkite.BuildTest) string {
 	}
 
 	if location := currentExecution.Location; location != "" {
-		line += fmt.Sprintf("\n    \033[2mLocation: %s\033[0m", location)
+		line += fmt.Sprintf("\n    %s", formatTestDetail("Location: "+location, colored))
 	} else if t.Location != "" {
-		line += fmt.Sprintf("\n    \033[2mLocation: %s\033[0m", t.Location)
+		line += fmt.Sprintf("\n    %s", formatTestDetail("Location: "+t.Location, colored))
 	}
 
 	if currentExecution.FailureReason != "" {
-		line += fmt.Sprintf("\n    \033[2m%s\033[0m", currentExecution.FailureReason)
+		line += fmt.Sprintf("\n    %s", formatTestDetail(currentExecution.FailureReason, colored))
 	}
 
 	return line
 }
 
-func formatTestExecutionHistory(t buildkite.BuildTest) string {
+func formatTestExecutionHistory(t buildkite.BuildTest, colored bool) string {
 	executions := t.Executions
 	if len(executions) == 0 {
-		return formatTestStatusIcon(t.State)
+		return formatTestStatusIcon(t.State, colored)
 	}
 
 	icons := make([]string, 0, len(executions))
 	for _, execution := range executions {
-		icons = append(icons, formatTestStatusIcon(execution.Status))
+		icons = append(icons, formatTestStatusIcon(execution.Status, colored))
 	}
 	return strings.Join(icons, " ")
 }
@@ -265,7 +273,26 @@ func isFailedTestExecution(execution buildkite.BuildTestExecution) bool {
 	return strings.EqualFold(execution.Status, "failed")
 }
 
-func formatTestStatusIcon(status string) string {
+func formatTestDetail(text string, colored bool) string {
+	if !colored {
+		return text
+	}
+
+	return "\033[2m" + text + "\033[0m"
+}
+
+func formatTestStatusIcon(status string, colored bool) string {
+	if !colored {
+		switch {
+		case strings.EqualFold(status, "passed"):
+			return "✓"
+		case strings.EqualFold(status, "failed"):
+			return "✗"
+		default:
+			return "?"
+		}
+	}
+
 	switch {
 	case strings.EqualFold(status, "passed"):
 		return "\033[32m✓\033[0m"
