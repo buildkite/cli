@@ -29,8 +29,8 @@ func (p testPresenter) line(t buildkite.BuildTest, colored bool) string {
 	history := formatTestExecutionHistory(t, colored)
 	line := fmt.Sprintf("%s %s", history, name)
 
-	currentExecution, ok := latestTestExecution(t)
-	if !ok || !isFailedTestExecution(currentExecution) {
+	currentExecution := latestTestExecution(t)
+	if !isFailedTestExecution(currentExecution) {
 		return line
 	}
 
@@ -60,7 +60,7 @@ func formatTestExecutionHistory(t buildkite.BuildTest, colored bool) string {
 	return strings.Join(icons, " ")
 }
 
-func latestTestExecution(t buildkite.BuildTest) (*buildkite.BuildTestExecution, bool) {
+func latestTestExecution(t buildkite.BuildTest) *buildkite.BuildTestExecution {
 	var latest *buildkite.BuildTestExecution
 	for i := range t.Executions {
 		execution := &t.Executions[i]
@@ -71,11 +71,8 @@ func latestTestExecution(t buildkite.BuildTest) (*buildkite.BuildTestExecution, 
 			latest = execution
 		}
 	}
-	if latest != nil {
-		return latest, true
-	}
 
-	return nil, false
+	return latest
 }
 
 func isFailedTestExecution(execution *buildkite.BuildTestExecution) bool {

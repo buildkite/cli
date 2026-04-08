@@ -415,7 +415,7 @@ func TestLatestTestExecution_PicksNewestTimestamp(t *testing.T) {
 	older := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)}
 	newer := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}
 
-	execution, ok := latestTestExecution(buildkite.BuildTest{
+	execution := latestTestExecution(buildkite.BuildTest{
 		Executions: []buildkite.BuildTestExecution{
 			{Status: "failed", Location: "./spec/example_spec.rb:11", Timestamp: &older},
 			{Status: "passed", Location: "./spec/example_spec.rb:12", Timestamp: &newer},
@@ -423,7 +423,7 @@ func TestLatestTestExecution_PicksNewestTimestamp(t *testing.T) {
 		},
 	})
 
-	if !ok {
+	if execution == nil {
 		t.Fatal("expected execution to be present")
 	}
 	if got, want := execution.Status, "passed"; got != want {
@@ -437,16 +437,13 @@ func TestLatestTestExecution_PicksNewestTimestamp(t *testing.T) {
 func TestLatestTestExecution_IgnoresExecutionsWithoutTimestamps(t *testing.T) {
 	t.Parallel()
 
-	execution, ok := latestTestExecution(buildkite.BuildTest{
+	execution := latestTestExecution(buildkite.BuildTest{
 		Executions: []buildkite.BuildTestExecution{
 			{Status: "failed", Location: "./spec/example_spec.rb:10"},
 			{Status: "passed", Location: "./spec/example_spec.rb:11"},
 		},
 	})
 
-	if ok {
-		t.Fatalf("expected no execution, got %#v", execution)
-	}
 	if execution != nil {
 		t.Fatalf("expected nil execution, got %#v", execution)
 	}
