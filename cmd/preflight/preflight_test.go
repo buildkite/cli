@@ -34,11 +34,11 @@ func (s stubGlobals) EnableDebug() bool      { return false }
 
 var _ cli.GlobalFlags = stubGlobals{}
 
-func TestPreflightCmd_Run(t *testing.T) {
+func TestRunCmd_Run(t *testing.T) {
 	t.Run("returns validation error when experiment disabled", func(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "")
 
-		cmd := &PreflightCmd{}
+		cmd := &RunCmd{}
 		err := cmd.Run(nil, stubGlobals{})
 		if err == nil {
 			t.Fatal("expected error, got nil")
@@ -59,7 +59,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 		// Run from a temp dir that is not a git repo.
 		t.Chdir(t.TempDir())
 
-		cmd := &PreflightCmd{}
+		cmd := &RunCmd{}
 		err := cmd.Run(nil, stubGlobals{})
 		if err == nil {
 			t.Fatal("expected error, got nil")
@@ -109,7 +109,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: false, Interval: 2}
+		cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Watch: false, Interval: 2}
 		err := cmd.Run(nil, stubGlobals{})
 		if err != nil {
 			t.Fatalf("expected no error, got: %v", err)
@@ -188,7 +188,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01}
+		cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01}
 		if err := cmd.Run(nil, stubGlobals{}); err != nil {
 			t.Fatalf("expected no error, got: %v", err)
 		}
@@ -235,7 +235,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01}
+		cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01}
 		err := cmd.Run(nil, stubGlobals{})
 		if err != nil {
 			t.Fatalf("expected no error, got: %v", err)
@@ -284,7 +284,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01, NoCleanup: true}
+		cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01, NoCleanup: true}
 		err := cmd.Run(nil, stubGlobals{})
 		if err != nil {
 			t.Fatalf("expected no error, got: %v", err)
@@ -330,7 +330,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01}
+		cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01}
 		err := cmd.Run(nil, stubGlobals{})
 		if err == nil {
 			t.Fatal("expected error, got nil")
@@ -385,7 +385,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01}
+		cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01}
 		err := cmd.Run(nil, stubGlobals{})
 		if err == nil {
 			t.Fatal("expected error, got nil")
@@ -434,7 +434,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01}
+		cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01}
 		err := cmd.Run(nil, stubGlobals{})
 		if err == nil {
 			t.Fatal("expected error, got nil")
@@ -465,7 +465,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Interval: 2}
+		cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Interval: 2}
 		err := cmd.Run(nil, stubGlobals{})
 		if err == nil {
 			t.Fatal("expected error, got nil")
