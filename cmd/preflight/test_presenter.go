@@ -27,50 +27,58 @@ func (p testPresenter) line(t buildkite.BuildTest, colored bool) string {
 	}
 	name = truncateToWidth(name, 80)
 
-	history := formatTestExecutionHistory(t, colored)
-	line := fmt.Sprintf("%s %s", history, name)
+	latestExecution := latestTestExecution(t)
 
-	currentExecution := latestTestExecution(t)
-	if !isFailedTestExecution(currentExecution) {
+	statusIcon := formatTestStatusIcon(latestExecution, colored)
+	line := fmt.Sprintf("%s %s", statusIcon, name)
+
+	if !isFailedTestExecution(latestExecution) {
 		return line
 	}
 
-	if location := currentExecution.Location; location != "" {
-		line += fmt.Sprintf("\n    %s", formatTestDetail("Location: "+location, colored))
+	detailParts := make([]string, 0, 2)
+	if attemptSummary := testAttemptCounts(t); attemptSummary != "" {
+		detailParts = append(detailParts, attemptSummary)
+	}
+	if location := latestExecution.Location; location != "" {
+		detailParts = append(detailParts, location)
 	} else if t.Location != "" {
-		line += fmt.Sprintf("\n    %s", formatTestDetail("Location: "+t.Location, colored))
+		detailParts = append(detailParts, t.Location)
+	}
+	if len(detailParts) > 0 {
+		line += fmt.Sprintf("\n    %s", formatTestDetail(strings.Join(detailParts, " — "), colored))
 	}
 
-	if currentExecution.FailureReason != "" {
-		line += fmt.Sprintf("\n    %s", formatTestDetail(currentExecution.FailureReason, colored))
+	if latestExecution.FailureReason != "" {
+		line += fmt.Sprintf("\n    %s", formatTestDetail(latestExecution.FailureReason, colored))
 	}
 
 	return line
 }
 
-func formatTestExecutionHistory(t buildkite.BuildTest, colored bool) string {
-	executions := testExecutionsInTimestampOrder(t.Executions)
-	if len(executions) == 0 {
-		return formatTestStatusIcon(t.State, colored)
+func testAttemptCounts(t buildkite.BuildTest) string {
+	attempts := t.ExecutionsCount
+	if attempts == 0 {
+		return ""
 	}
 
-	icons := make([]string, 0, len(executions))
-	for _, execution := range executions {
-		icons = append(icons, formatTestStatusIcon(execution.Status, colored))
-	}
-	return strings.Join(icons, " ")
+	passed := t.ExecutionsCountByResult.Passed
+	failed := t.ExecutionsCountByResult.Failed
+	return fmt.Sprintf("%d %s (%d passed, %d failed)", attempts, plural(attempts, "attempt"), passed, failed)
 }
 
 func latestTestExecution(t buildkite.BuildTest) *buildkite.BuildTestExecution {
 	executions := testExecutionsInTimestampOrder(t.Executions)
-	for i := len(executions) - 1; i >= 0; i-- {
-		execution := &executions[i]
-		if execution.Timestamp != nil {
-			return execution
-		}
+	if len(executions) == 0 {
+		return nil
 	}
 
-	return nil
+	latest := executions[len(executions)-1]
+	if latest.Timestamp == nil {
+		return nil
+	}
+
+	return &latest
 }
 
 func testExecutionsInTimestampOrder(executions []buildkite.BuildTestExecution) []buildkite.BuildTestExecution {
@@ -110,7 +118,12 @@ func formatTestDetail(text string, colored bool) string {
 	return "\033[2m" + text + "\033[0m"
 }
 
-func formatTestStatusIcon(status string, colored bool) string {
+func formatTestStatusIcon(execution *buildkite.BuildTestExecution, colored bool) string {
+	status := ""
+	if execution != nil {
+		status = execution.Status
+	}
+
 	if !colored {
 		switch {
 		case strings.EqualFold(status, "passed"):

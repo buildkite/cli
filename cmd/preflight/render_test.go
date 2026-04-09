@@ -193,7 +193,11 @@ func TestPlainRenderer_Render_TestFailure(t *testing.T) {
 		Type: EventTestFailure,
 		Time: now,
 		TestFailures: []buildkite.BuildTest{{
-			Name: "Test A",
+			Name:            "Test A",
+			ExecutionsCount: 1,
+			ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{
+				Failed: 1,
+			},
 			Executions: []buildkite.BuildTestExecution{{
 				Status:        "failed",
 				Location:      "./spec/example_spec.rb:10",
@@ -210,7 +214,7 @@ func TestPlainRenderer_Render_TestFailure(t *testing.T) {
 
 	indent := strings.Repeat(" ", len("10:31:00 "))
 	expected := "10:31:00 ✗ Test A\n" +
-		indent + "    Location: ./spec/example_spec.rb:10\n" +
+		indent + "    1 attempt (0 passed, 1 failed) — ./spec/example_spec.rb:10\n" +
 		indent + "    Failure/Error: expect(false).to eq(true)\n"
 	if got != expected {
 		t.Fatalf("expected:\n%s\ngot:\n%s", expected, got)
@@ -336,14 +340,18 @@ func TestJSONRenderer_Render_MultipleEvents_JSONL(t *testing.T) {
 	}
 }
 
-func TestTestPresenter_Line_FailedAttemptIncludesHistoryAndFailureDetails(t *testing.T) {
+func TestTestPresenter_Line_FailedAttemptIncludesSummaryAndFailureDetails(t *testing.T) {
 	t.Parallel()
 	older := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)}
 	newer := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}
 
 	line := testPresenter{}.Line(buildkite.BuildTest{
-		Name:     "Pipelines::ShardMigration::DeleteOrganizationFromShardWorker with more than BATCH_SIZE records for a shard that needs cleaning",
-		Location: "./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181",
+		Name:            "Pipelines::ShardMigration::DeleteOrganizationFromShardWorker with more than BATCH_SIZE records for a shard that needs cleaning",
+		Location:        "./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181",
+		ExecutionsCount: 2,
+		ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{
+			Failed: 2,
+		},
 		Executions: []buildkite.BuildTestExecution{
 			{
 				Status:        "failed",
@@ -366,10 +374,10 @@ func TestTestPresenter_Line_FailedAttemptIncludesHistoryAndFailureDetails(t *tes
 
 	got := line
 
-	if !strings.Contains(got, "✗ ✗ Pipelines::ShardMigration::DeleteOrganiz... records for a shard that needs cleaning") {
+	if !strings.Contains(got, "✗ Pipelines::ShardMigration::DeleteOrganiz... records for a shard that needs cleaning") {
 		t.Fatalf("expected long name to preserve the start and end, got %q", got)
 	}
-	if !strings.Contains(got, "Location: ./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181") {
+	if !strings.Contains(got, "2 attempts (0 passed, 2 failed) — ./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181") {
 		t.Fatalf("expected location detail, got %q", got)
 	}
 	if !strings.Contains(got, "Failure/Error: expect(empty_tables).to eq({})") {
@@ -380,53 +388,59 @@ func TestTestPresenter_Line_FailedAttemptIncludesHistoryAndFailureDetails(t *tes
 	}
 }
 
-func TestFormatTestExecutionHistory_SortsOldestToNewest(t *testing.T) {
+func TestFormatTestStatusIcon_UsesLatestExecution(t *testing.T) {
 	t.Parallel()
-	oldest := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 29, 0, 0, time.UTC)}
-	middle := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)}
 	newest := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}
 
-	history := formatTestExecutionHistory(buildkite.BuildTest{
-		Executions: []buildkite.BuildTestExecution{
-			{Status: "passed", Timestamp: &newest},
-			{Status: "failed", Timestamp: &oldest},
-			{Status: "unknown", Timestamp: &middle},
-		},
-	}, false)
+	execution := &buildkite.BuildTestExecution{Status: "passed", Timestamp: &newest}
+	icon := formatTestStatusIcon(execution, false)
 
-	if got, want := history, "✗ ? ✓"; got != want {
-		t.Fatalf("history = %q, want %q", got, want)
+	if got, want := icon, "✓"; got != want {
+		t.Fatalf("icon = %q, want %q", got, want)
 	}
 }
 
-func TestFormatTestExecutionHistory_PlacesNilTimestampsBeforeChronologicalHistory(t *testing.T) {
+func TestFormatTestStatusIcon_NilExecution(t *testing.T) {
 	t.Parallel()
-	older := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)}
-	newer := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}
 
-	history := formatTestExecutionHistory(buildkite.BuildTest{
-		Executions: []buildkite.BuildTestExecution{
-			{Status: "passed", Timestamp: &newer},
-			{Status: "unknown"},
-			{Status: "failed", Timestamp: &older},
-			{Status: "passed"},
-		},
-	}, false)
+	icon := formatTestStatusIcon(nil, false)
 
-	if got, want := history, "? ✓ ✗ ✓"; got != want {
-		t.Fatalf("history = %q, want %q", got, want)
+	if got, want := icon, "?"; got != want {
+		t.Fatalf("icon = %q, want %q", got, want)
 	}
 }
 
-func TestTestPresenter_Line_PassedLatestAttemptOnlyShowsHistoryLine(t *testing.T) {
+func TestTestAttemptCounts_FormatsCorrectly(t *testing.T) {
+	t.Parallel()
+
+	counts := testAttemptCounts(buildkite.BuildTest{
+		ExecutionsCount: 5,
+		ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{
+			Passed: 3,
+			Failed: 2,
+		},
+		Executions: []buildkite.BuildTestExecution{{Status: "failed"}},
+	})
+
+	if got, want := counts, "5 attempts (3 passed, 2 failed)"; got != want {
+		t.Fatalf("counts = %q, want %q", got, want)
+	}
+}
+
+func TestTestPresenter_Line_PassedLatestAttemptOnlyShowsSummaryLine(t *testing.T) {
 	t.Parallel()
 	oldest := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 29, 0, 0, time.UTC)}
 	middle := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)}
 	newest := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}
 
 	line := testPresenter{}.Line(buildkite.BuildTest{
-		Name:     "Test A",
-		Location: "./spec/example_spec.rb:10",
+		Name:            "Test A",
+		Location:        "./spec/example_spec.rb:10",
+		ExecutionsCount: 3,
+		ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{
+			Passed: 1,
+			Failed: 2,
+		},
 		Executions: []buildkite.BuildTestExecution{
 			{Status: "passed", Location: "./spec/example_spec.rb:10", Timestamp: &newest},
 			{Status: "failed", FailureReason: "Failure/Error: expect(false).to eq(true)", Location: "./spec/example_spec.rb:10", Timestamp: &oldest},
@@ -440,14 +454,11 @@ func TestTestPresenter_Line_PassedLatestAttemptOnlyShowsHistoryLine(t *testing.T
 
 	got := line
 
-	if strings.Contains(got, "Location:") {
+	if strings.Contains(got, "./spec/example_spec.rb:10") {
 		t.Fatalf("expected passed attempt to omit location detail, got %q", got)
 	}
 	if strings.Contains(got, "Failure/Error:") {
 		t.Fatalf("expected passed attempt to omit failure detail, got %q", got)
-	}
-	if got != "✗ ✗ ✓ Test A" {
-		t.Fatalf("unexpected output: %q", got)
 	}
 }
 
@@ -492,13 +503,19 @@ func TestLatestTestExecution_IgnoresExecutionsWithoutTimestamps(t *testing.T) {
 
 func TestTestPresenter_ColoredLine_AddsANSIStyles(t *testing.T) {
 	t.Parallel()
+	executionTime := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}
 
 	line := testPresenter{}.ColoredLine(buildkite.BuildTest{
-		Name: "Test A",
+		Name:            "Test A",
+		ExecutionsCount: 1,
+		ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{
+			Failed: 1,
+		},
 		Executions: []buildkite.BuildTestExecution{{
 			Status:        "failed",
 			Location:      "./spec/example_spec.rb:10",
 			FailureReason: "Failure/Error: expect(false).to eq(true)",
+			Timestamp:     &executionTime,
 		}},
 	})
 
@@ -508,6 +525,9 @@ func TestTestPresenter_ColoredLine_AddsANSIStyles(t *testing.T) {
 
 	got := stripANSI(line)
 	if !strings.Contains(got, "✗ Test A") {
+		t.Fatalf("expected colored line to preserve headline text content, got %q", got)
+	}
+	if !strings.Contains(got, "1 attempt (0 passed, 1 failed) — ./spec/example_spec.rb:10") {
 		t.Fatalf("expected colored line to preserve text content, got %q", got)
 	}
 }
