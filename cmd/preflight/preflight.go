@@ -142,7 +142,16 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			BuildState:  b.State,
 			Jobs:        &status.Summary,
 		})
-	})
+	}, watch.WithTestTracking(func(newTestChanges []buildkite.BuildTest) error {
+		return renderer.Render(Event{
+			Type:         EventTestFailure,
+			Time:         time.Now(),
+			PreflightID:  preflightID.String(),
+			Pipeline:     pipelineName,
+			BuildNumber:  build.Number,
+			TestFailures: newTestChanges,
+		})
+	}))
 
 	buildResult := NewResult(finalBuild)
 	finalErr := buildResult.Error()
