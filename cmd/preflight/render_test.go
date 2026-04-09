@@ -682,6 +682,132 @@ func TestJSONRenderer_Render_BuildSummaryFailed(t *testing.T) {
 	}
 }
 
+func TestPlainRenderer_Render_BuildSummaryWithTestFailures(t *testing.T) {
+	var out bytes.Buffer
+	r := newPlainRenderer(&out)
+
+	exitOne := 1
+	if err := r.Render(Event{
+		Type:        EventBuildSummary,
+		Time:        time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
+		Pipeline:    "buildkite/cli",
+		BuildNumber: 42,
+		BuildState:  "failed",
+		FailedJobs: []buildkite.Job{
+			{ID: "job-1", Name: "Test", Type: "script", State: "failed", ExitStatus: &exitOne},
+		},
+		Tests: map[string]*TestSuiteSummary{
+			"tests": {
+				Failed: 2,
+				Failures: []TestFailure{
+					{Name: "AuthService validates tokens"},
+					{Name: "UserService creates users"},
+				},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Render() error: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "2 tests failed: AuthService validates tokens, UserService creates users") {
+		t.Fatalf("expected test failure summary, got %q", got)
+	}
+}
+
+func TestPlainRenderer_Render_BuildSummaryWithSingleTestFailure(t *testing.T) {
+	var out bytes.Buffer
+	r := newPlainRenderer(&out)
+
+	if err := r.Render(Event{
+		Type:        EventBuildSummary,
+		Time:        time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
+		Pipeline:    "buildkite/cli",
+		BuildNumber: 42,
+		BuildState:  "failed",
+		Tests: map[string]*TestSuiteSummary{
+			"tests": {
+				Failed: 1,
+				Failures: []TestFailure{
+					{Name: "AuthService validates tokens"},
+				},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Render() error: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "1 test failed: AuthService validates tokens") {
+		t.Fatalf("expected singular 'test failed', got %q", got)
+	}
+}
+
+func TestJSONRenderer_Render_BuildSummaryWithTests(t *testing.T) {
+	var out bytes.Buffer
+	r := newJSONRenderer(&out)
+
+	if err := r.Render(Event{
+		Type:        EventBuildSummary,
+		Time:        time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
+		PreflightID: "pfid-123",
+		Pipeline:    "buildkite/cli",
+		BuildNumber: 42,
+		BuildState:  "failed",
+		Tests: map[string]*TestSuiteSummary{
+			"tests": {
+				Failed: 1,
+				Failures: []TestFailure{
+					{
+						Name:          "AuthService validates tokens",
+						Location:      "src/auth.test.ts:89",
+						FailureReason: "Got 15 failures and 0 errors.",
+						FailureDetail: []buildkite.FailureExpanded{
+							{
+								Backtrace: []string{"", "app/javascript/components/shared/FormRadioGroup.js:64:17", ""},
+								Expanded:  []string{"Do not use Array index in keys", "react/no-array-index-key"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Render() error: %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
+	}
+	tests, ok := got["tests"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected tests map, got %T: %v", got["tests"], got["tests"])
+	}
+	suite, ok := tests["tests"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected tests.tests map, got %T", tests["tests"])
+	}
+	if suite["failed"] != float64(1) {
+		t.Fatalf("expected failed=1, got %v", suite["failed"])
+	}
+	failures, ok := suite["failures"].([]any)
+	if !ok || len(failures) != 1 {
+		t.Fatalf("expected 1 failure, got %v", suite["failures"])
+	}
+	failure := failures[0].(map[string]any)
+	if failure["name"] != "AuthService validates tokens" {
+		t.Fatalf("expected failure name, got %v", failure["name"])
+	}
+	if failure["failure_reason"] != "Got 15 failures and 0 errors." {
+		t.Fatalf("expected failure_reason, got %v", failure["failure_reason"])
+	}
+	failureDetail, ok := failure["failure_detail"].([]any)
+	if !ok || len(failureDetail) != 1 {
+		t.Fatalf("expected 1 failure_detail, got %v", failure["failure_detail"])
+	}
+}
+
 func TestFormatDuration(t *testing.T) {
 	tests := []struct {
 		d    time.Duration

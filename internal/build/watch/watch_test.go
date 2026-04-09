@@ -336,6 +336,91 @@ func TestPollTestFailures(t *testing.T) {
 	})
 }
 
+func TestFetchFailedTests(t *testing.T) {
+	t.Run("returns tests with latest_fail details", func(t *testing.T) {
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if r.Method != "GET" || !strings.Contains(r.URL.Path, "/builds/build-123/tests") {
+				http.NotFound(w, r)
+				return
+			}
+			if got, want := r.URL.Query().Get("result"), "^failed"; got != want {
+				t.Errorf("result = %q, want %q", got, want)
+			}
+			if got, want := r.URL.Query().Get("include"), "latest_fail"; got != want {
+				t.Errorf("include = %q, want %q", got, want)
+			}
+			json.NewEncoder(w).Encode([]buildkite.BuildTest{
+				{
+					ID:    "test-1",
+					Name:  "Test A",
+					Scope: "AuthService",
+					LatestFail: &buildkite.BuildTestLatestFail{
+						FailureReason: "Expected true got false",
+					},
+				},
+			})
+		}))
+		defer s.Close()
+
+		client := newTestClient(t, s.URL)
+		tests, err := FetchFailedTests(context.Background(), client, "org", "build-123")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(tests) != 1 {
+			t.Fatalf("expected 1 test, got %d", len(tests))
+		}
+		if tests[0].Name != "Test A" {
+			t.Errorf("expected name 'Test A', got %q", tests[0].Name)
+		}
+		if tests[0].LatestFail == nil || tests[0].LatestFail.FailureReason != "Expected true got false" {
+			t.Errorf("expected failure reason, got %v", tests[0].LatestFail)
+		}
+	})
+
+	t.Run("returns nil on authorization failure", func(t *testing.T) {
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"message": "forbidden"})
+		}))
+		defer s.Close()
+
+		client := newTestClient(t, s.URL)
+		tests, err := FetchFailedTests(context.Background(), client, "org", "build-123")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if tests != nil {
+			t.Fatalf("expected nil tests, got %v", tests)
+		}
+	})
+
+	t.Run("follows pagination", func(t *testing.T) {
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			switch r.URL.Query().Get("page") {
+			case "1":
+				w.Header().Set("Link", "</v2/analytics/organizations/org/builds/build-123/tests?page=2&per_page=100>; rel=\"next\"")
+				json.NewEncoder(w).Encode([]buildkite.BuildTest{{ID: "test-1", Name: "A"}})
+			case "2":
+				json.NewEncoder(w).Encode([]buildkite.BuildTest{{ID: "test-2", Name: "B"}})
+			}
+		}))
+		defer s.Close()
+
+		client := newTestClient(t, s.URL)
+		tests, err := FetchFailedTests(context.Background(), client, "org", "build-123")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(tests) != 2 {
+			t.Fatalf("expected 2 tests, got %d", len(tests))
+		}
+	})
+}
+
 func newTestClient(t *testing.T, baseURL string) *buildkite.Client {
 	t.Helper()
 	client, err := buildkite.NewOpts(

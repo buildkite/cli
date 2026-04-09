@@ -53,4 +53,24 @@ type Event struct {
 
 	// TestFailures is set for test_failure events.
 	TestFailures []buildkite.BuildTest `json:"test_failures,omitempty"`
+
+	// Tests is set for build_summary events when test analytics data is available.
+	Tests map[string]*TestSuiteSummary `json:"tests,omitempty"`
+}
+
+// TestSuiteSummary aggregates test results for a single suite (run/label grouping).
+type TestSuiteSummary struct {
+	Passed   int           `json:"passed"`
+	Failed   int           `json:"failed"`
+	Skipped  int           `json:"skipped"`
+	Failures []TestFailure `json:"failures,omitempty"`
+}
+
+// TestFailure describes a single test whose every execution failed.
+type TestFailure struct {
+	Name          string                      `json:"name"`
+	Location      string                      `json:"location,omitempty"`
+	Message       string                      `json:"message,omitempty"`
+	FailureReason string                      `json:"failure_reason,omitempty"`
+	FailureDetail []buildkite.FailureExpanded `json:"failure_detail,omitempty"`
 }

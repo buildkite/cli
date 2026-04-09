@@ -182,6 +182,8 @@ func buildSummaryView(e Event) string {
 		out += "\n  " + presenter.ColoredLine(j)
 	}
 
+	out += testSummaryLines(e, true)
+
 	return out
 }
 

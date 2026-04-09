@@ -88,6 +88,11 @@ func (r *plainRenderer) Render(e Event) error {
 				return err
 			}
 		}
+		if lines := testSummaryLines(e, false); lines != "" {
+			if _, err := fmt.Fprintf(r.stdout, "%s\n", lines); err != nil {
+				return err
+			}
+		}
 
 	case EventTestFailure:
 		if e.TestFailures != nil {
@@ -181,6 +186,32 @@ func formatTimestampedBlock(text string, t time.Time) string {
 	}
 
 	return prefix + lines[0] + "\n" + indentAllLines(strings.Join(lines[1:], "\n"), len(prefix))
+}
+
+func testSummaryLines(e Event, colored bool) string {
+	if len(e.Tests) == 0 {
+		return ""
+	}
+
+	var out string
+	for _, suite := range e.Tests {
+		if suite.Failed == 0 || len(suite.Failures) == 0 {
+			continue
+		}
+
+		names := make([]string, 0, len(suite.Failures))
+		for _, f := range suite.Failures {
+			names = append(names, f.Name)
+		}
+
+		line := fmt.Sprintf("\n  %d %s failed: %s", suite.Failed, plural(suite.Failed, "test"), strings.Join(names, ", "))
+		if colored {
+			line = "\n  " + ttyFailureStyle.Render(fmt.Sprintf("%d %s failed: %s", suite.Failed, plural(suite.Failed, "test"), strings.Join(names, ", ")))
+		}
+		out += line
+	}
+
+	return out
 }
 
 func indentAllLines(text string, indentWidth int) string {

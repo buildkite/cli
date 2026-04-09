@@ -152,6 +152,36 @@ func pollTestFailures(ctx context.Context, client *buildkite.Client, org, buildI
 	return true, nil
 }
 
+// FetchFailedTests queries for tests where every execution failed (Result=^failed)
+// and returns the list with latest_fail details included.
+func FetchFailedTests(ctx context.Context, client *buildkite.Client, org, buildID string) ([]buildkite.BuildTest, error) {
+	opts := &buildkite.BuildTestsListOptions{
+		ListOptions: buildkite.ListOptions{Page: 1, PerPage: 100},
+		Result:      "^failed",
+		State:       "enabled",
+		Include:     "latest_fail",
+	}
+
+	var allTests []buildkite.BuildTest
+	for {
+		reqCtx, cancel := context.WithTimeout(ctx, DefaultRequestTimeout)
+		tests, resp, err := client.BuildTests.List(reqCtx, org, buildID, opts)
+		cancel()
+		if err != nil {
+			if isPermanentTestPollingError(err) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		allTests = append(allTests, tests...)
+		if resp == nil || resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+	return allTests, nil
+}
+
 func isPermanentTestPollingError(err error) bool {
 	var apiErr *buildkite.ErrorResponse
 	if !errors.As(err, &apiErr) || apiErr.Response == nil {

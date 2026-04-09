@@ -197,6 +197,11 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		} else {
 			summaryEvent.FailedJobs = tracker.FailedJobs()
 		}
+
+		if finalBuild.ID != "" {
+			summaryEvent.Tests = fetchTestSummary(ctx, f.RestAPIClient, resolvedPipeline.Org, finalBuild.ID)
+		}
+
 		_ = renderer.Render(summaryEvent)
 	}
 
@@ -239,6 +244,39 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	}
 
 	return finalErr
+}
+
+func fetchTestSummary(ctx context.Context, client *buildkite.Client, org, buildID string) map[string]*TestSuiteSummary {
+	failedTests, err := watch.FetchFailedTests(ctx, client, org, buildID)
+	if err != nil || len(failedTests) == 0 {
+		return nil
+	}
+
+	suite := &TestSuiteSummary{}
+	for _, t := range failedTests {
+		suite.Failed++
+
+		name := t.Name
+		if t.Scope != "" {
+			name = t.Scope + " " + name
+		}
+
+		tf := TestFailure{
+			Name:     name,
+			Location: t.Location,
+		}
+
+		if t.LatestFail != nil {
+			tf.FailureReason = t.LatestFail.FailureReason
+			tf.FailureDetail = t.LatestFail.FailureExpanded
+		}
+
+		suite.Failures = append(suite.Failures, tf)
+	}
+
+	return map[string]*TestSuiteSummary{
+		"tests": suite,
+	}
 }
 
 func resolveRepositoryRoot(f *factory.Factory, debug bool) (string, error) {
