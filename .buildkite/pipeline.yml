@@ -24,9 +24,11 @@ steps:
           tty: true
           mount-buildkite-agent: true
 
-  - wait
+  - wait: ~
 
   - label: ":terminal: build ({{matrix}})"
+    branches: 
+      - main
     matrix:
           - "darwin"
           - "linux"
