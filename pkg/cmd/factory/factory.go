@@ -35,10 +35,9 @@ type Factory struct {
 type FactoryOpt func(*factoryConfig)
 
 type factoryConfig struct {
-	debug           bool
-	orgOverride     string
-	transport       http.RoundTripper
-	userAgentSuffix string
+	debug       bool
+	orgOverride string
+	transport   http.RoundTripper
 }
 
 // WithDebug enables debug output for REST API calls
@@ -62,13 +61,6 @@ func WithOrgOverride(org string) FactoryOpt {
 func WithTransport(t http.RoundTripper) FactoryOpt {
 	return func(c *factoryConfig) {
 		c.transport = t
-	}
-}
-
-// WithUserAgentSuffix appends an extra product token to the default user agent.
-func WithUserAgentSuffix(suffix string) FactoryOpt {
-	return func(c *factoryConfig) {
-		c.userAgentSuffix = suffix
 	}
 }
 

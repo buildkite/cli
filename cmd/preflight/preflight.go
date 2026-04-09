@@ -21,7 +21,6 @@ import (
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	bkhttp "github.com/buildkite/cli/v3/internal/http"
-	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/preflight"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -57,9 +56,11 @@ func (c *RunCmd) Help() string {
 	return `Snapshots your working tree (uncommitted, staged, and untracked changes) and pushes it to a bk/preflight/<id> branch. If there are no local changes, pushes HEAD directly.`
 }
 
-func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	if c.Interval <= 0 {
-		return bkErrors.NewValidationError(fmt.Errorf("interval must be greater than 0"), "invalid polling interval")
+func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	rlTransport := bkhttp.NewRateLimitTransport(http.DefaultTransport)
+	f, err := newFactory(factory.WithDebug(globals.EnableDebug()), factory.WithTransport(rlTransport))
+	if err != nil {
+		return bkErrors.NewInternalError(err, "failed to initialize CLI", "This is likely a bug", "Report to Buildkite")
 	}
 
 	pCtx, err := setup(c.Pipeline, globals)
@@ -93,14 +94,12 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	renderer := newRenderer(os.Stdout, c.JSON, c.Text, stop)
 
 	rlTransport.OnRateLimit = func(attempt int, delay time.Duration) {
-		if globals.EnableDebug() {
-			_ = renderer.Render(Event{
-				Type:        EventOperation,
-				Time:        time.Now(),
-				PreflightID: preflightID.String(),
-				Title:       fmt.Sprintf("Rate limited by API, waiting %s before retrying (attempt %d/%d)...", delay.Truncate(time.Second), attempt+1, rlTransport.MaxRetries),
-			})
-		}
+		_ = renderer.Render(Event{
+			Type:        EventOperation,
+			Time:        time.Now(),
+			PreflightID: preflightID.String(),
+			Title:       fmt.Sprintf("Rate limited by API, waiting %s before retrying (attempt %d/%d)...", delay.Truncate(time.Second), attempt+1, rlTransport.MaxRetries),
+		})
 	}
 
 	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: "Pushing snapshot of working tree..."})
