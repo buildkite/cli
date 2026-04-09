@@ -8,7 +8,7 @@ require (
 	github.com/buildkite/go-buildkite/v4 v4.18.1-0.20260408042936-6212b2a69f6c
 	github.com/buildkite/roko v1.4.0
 	github.com/buildkite/termoji v0.0.0-20260330080310-c0aa4ebee0d1
-	github.com/charmbracelet/bubbles v1.0.0
+	github.com/charmbracelet/bubbles/v2 v2.1.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/ansi v0.11.6
