@@ -7,11 +7,14 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/buildkite/cli/v3/cmd/version"
 	"github.com/buildkite/cli/v3/internal/config"
+	bkhttp "github.com/buildkite/cli/v3/internal/http"
+	"github.com/buildkite/cli/v3/pkg/keyring"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 	git "github.com/go-git/go-git/v5"
 )
@@ -88,7 +91,7 @@ func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	if dump, err := httputil.DumpRequestOut(reqCopy, true); err == nil {
-		fmt.Fprintf(os.Stderr, "DEBUG request uri=%s\n%s\n", req.URL, dump)
+		fmt.Fprintf(os.Stderr, "DEBUG request uri=%s\n%s\n", req.URL, redactBody(string(dump)))
 	}
 
 	resp, err := d.transport.RoundTrip(req)
@@ -97,10 +100,29 @@ func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	if dump, err := httputil.DumpResponse(resp, true); err == nil {
-		fmt.Fprintf(os.Stderr, "DEBUG response uri=%s\n%s\n", req.URL, dump)
+		fmt.Fprintf(os.Stderr, "DEBUG response uri=%s\n%s\n", req.URL, redactBody(string(dump)))
 	}
 
 	return resp, nil
+}
+
+// sensitiveBodyPatterns matches token values in form-encoded request bodies
+// and JSON response bodies that should be redacted in debug output.
+var sensitiveBodyPatterns = regexp.MustCompile(
+	`((?:refresh_token|access_token|code|code_verifier)=)[^&\s]+` +
+		`|("(?:access_token|refresh_token|code)":\s*")[^"]+("?)`,
+)
+
+// redactBody replaces sensitive token values in HTTP dumps.
+func redactBody(dump string) string {
+	return sensitiveBodyPatterns.ReplaceAllStringFunc(dump, func(match string) string {
+		// Form-encoded: key=value
+		if idx := strings.IndexByte(match, '='); idx > 0 && !strings.HasPrefix(match, `"`) {
+			return match[:idx+1] + "[REDACTED]"
+		}
+		// JSON: "key": "value"
+		return sensitiveBodyPatterns.ReplaceAllString(match, `${1}[REDACTED]${2}`)
+	})
 }
 
 // redactHeaders replaces sensitive header values with [REDACTED]
@@ -121,7 +143,6 @@ func redactHeaders(headers http.Header) {
 
 type gqlHTTPClient struct {
 	client *http.Client
-	token  string
 }
 
 func init() {
@@ -129,8 +150,8 @@ func init() {
 }
 
 func (a *gqlHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", a.token))
-	req.Header.Set("User-Agent", userAgent)
+	// Auth and User-Agent are injected by AuthTransport in the
+	// shared HTTP transport chain, so we don't set them here.
 	return a.client.Do(req)
 }
 
@@ -156,21 +177,54 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 		}
 	}
 
-	// Build client options
+	// Build the HTTP transport chain.
+	//
+	// The chain is (outermost first):
+	//   RefreshTransport → AuthTransport → debugTransport → DefaultTransport
+	//
+	// AuthTransport reads the current token from a shared TokenSource on
+	// every request, so after a refresh all subsequent requests (REST and
+	// GraphQL) immediately use the new token — no stale cached values.
+	var transport = http.DefaultTransport
+
+	if cfg.debug {
+		transport = &debugTransport{transport: transport}
+	}
+
+	tokenSource := bkhttp.NewTokenSource(token)
+
+	transport = &bkhttp.AuthTransport{
+		Base:        transport,
+		TokenSource: tokenSource,
+		UserAgent:   userAgent,
+	}
+
+	// Add refresh transport if a refresh token is available for this org
+	org := conf.OrganizationSlug()
+	if cfg.orgOverride != "" {
+		org = cfg.orgOverride
+	}
+
+	kr := keyring.New()
+	if refreshToken, err := kr.GetRefreshToken(org); err == nil && refreshToken != "" {
+		transport = &bkhttp.RefreshTransport{
+			Base:        transport,
+			Org:         org,
+			Keyring:     kr,
+			TokenSource: tokenSource,
+		}
+	}
+
+	httpClient := &http.Client{Transport: transport}
+
+	// go-buildkite still needs WithTokenAuth to satisfy its constructor
+	// requirement, but our AuthTransport is the canonical source of the
+	// Authorization header.
 	clientOpts := []buildkite.ClientOpt{
 		buildkite.WithBaseURL(conf.RESTAPIEndpoint()),
 		buildkite.WithTokenAuth(token),
 		buildkite.WithUserAgent(userAgent),
-	}
-
-	// Use our own debug transport with redacted headers instead of go-buildkite's built-in debug
-	if cfg.debug {
-		httpClient := &http.Client{
-			Transport: &debugTransport{
-				transport: http.DefaultTransport,
-			},
-		}
-		clientOpts = append(clientOpts, buildkite.WithHTTPClient(httpClient))
+		buildkite.WithHTTPClient(httpClient),
 	}
 
 	buildkiteClient, err := buildkite.NewOpts(clientOpts...)
@@ -178,7 +232,7 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 		return nil, fmt.Errorf("creating buildkite client: %w", err)
 	}
 
-	graphqlHTTPClient := &gqlHTTPClient{client: http.DefaultClient, token: token}
+	graphqlHTTPClient := &gqlHTTPClient{client: httpClient}
 
 	return &Factory{
 		Config:        conf,

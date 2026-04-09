@@ -158,6 +158,25 @@ func (conf *Config) APITokenForOrg(org string) string {
 	return ""
 }
 
+// RefreshTokenForOrg gets the refresh token for a specific organization from the keyring.
+func (conf *Config) RefreshTokenForOrg(org string) string {
+	if org == "" {
+		return ""
+	}
+	kr := keyring.New()
+	if kr.IsAvailable() {
+		if token, err := kr.GetRefreshToken(org); err == nil && token != "" {
+			return token
+		}
+	}
+	return ""
+}
+
+// RefreshToken gets the refresh token for the currently selected organization.
+func (conf *Config) RefreshToken() string {
+	return conf.RefreshTokenForOrg(conf.OrganizationSlug())
+}
+
 // HasStoredTokenForOrg reports whether a token is stored for org in keyring
 // or config files, excluding environment variable overrides.
 func (conf *Config) HasStoredTokenForOrg(org string) bool {

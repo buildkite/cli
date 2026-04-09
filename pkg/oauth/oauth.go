@@ -155,11 +155,13 @@ type CallbackResult struct {
 
 // TokenResponse holds the token exchange response
 type TokenResponse struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	Scope       string `json:"scope"`
-	Error       string `json:"error,omitempty"`
-	ErrorDesc   string `json:"error_description,omitempty"`
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	Scope        string `json:"scope"`
+	RefreshToken string `json:"refresh_token,omitempty"`
+	ExpiresIn    int    `json:"expires_in,omitempty"`
+	Error        string `json:"error,omitempty"`
+	ErrorDesc    string `json:"error_description,omitempty"`
 }
 
 // Flow manages an OAuth authentication flow
@@ -361,6 +363,63 @@ func (f *Flow) ExchangeCode(ctx context.Context, code string) (*TokenResponse, e
 
 	if tokenResp.AccessToken == "" {
 		return nil, fmt.Errorf("no access token in response")
+	}
+
+	return &tokenResp, nil
+}
+
+// RefreshAccessToken exchanges a refresh token for a new access token and refresh token.
+func RefreshAccessToken(ctx context.Context, host, clientID, refreshToken string) (*TokenResponse, error) {
+	if host == "" {
+		if envHost := os.Getenv("BUILDKITE_HOST"); envHost != "" {
+			host = envHost
+		} else {
+			host = DefaultHost
+		}
+	}
+	if clientID == "" {
+		clientID = DefaultClientID
+	}
+
+	tokenURL := fmt.Sprintf("https://%s/oauth/token", host)
+
+	data := url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {refreshToken},
+		"client_id":     {clientID},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", tokenURL, strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("refresh token request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var tokenResp TokenResponse
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return nil, fmt.Errorf("failed to parse token response: %w", err)
+	}
+
+	if tokenResp.Error != "" {
+		return nil, fmt.Errorf("token refresh error: %s - %s", tokenResp.Error, tokenResp.ErrorDesc)
+	}
+
+	if tokenResp.AccessToken == "" {
+		return nil, fmt.Errorf("no access token in refresh response")
 	}
 
 	return &tokenResp, nil

@@ -36,6 +36,7 @@ func (c *LogoutCmd) logoutAll(f *factory.Factory) error {
 			if err := kr.Delete(org); err != nil {
 				fmt.Printf("Warning: could not remove token from keychain for %q: %v\n", org, err)
 			}
+			_ = kr.DeleteRefreshToken(org)
 		}
 	}
 
@@ -64,6 +65,7 @@ func (c *LogoutCmd) logoutOrg(f *factory.Factory) error {
 		} else {
 			fmt.Println("Token removed from system keychain.")
 		}
+		_ = kr.DeleteRefreshToken(org)
 	}
 
 	fmt.Printf("Logged out of organization %q\n", org)
