@@ -33,14 +33,17 @@ type PreflightCmd struct {
 	JSON      bool    `help:"Emit one JSON object per event (JSONL)." xor:"output"`
 }
 
-var notifyContext = signal.NotifyContext
+var (
+	notifyContext = signal.NotifyContext
+	newFactory    = factory.New
+)
 
 func (c *PreflightCmd) Help() string {
 	return `Snapshots your working tree (uncommitted, staged, and untracked changes) and pushes it to a bk/preflight/<id> branch. If there are no local changes, pushes HEAD directly.`
 }
 
 func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
+	f, err := newFactory(factory.WithDebug(globals.EnableDebug()))
 	if err != nil {
 		return bkErrors.NewInternalError(err, "failed to initialize CLI", "This is likely a bug", "Report to Buildkite")
 	}
@@ -51,23 +54,20 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			"the preflight command is under development and requires the 'preflight' experiment to opt in. Run: bk config set experiments preflight or set BUILDKITE_EXPERIMENTS=preflight")
 	}
 
-	if f.GitRepository == nil {
+	repoRoot, err := resolveRepositoryRoot(f, globals.EnableDebug())
+	if err != nil {
 		return bkErrors.NewValidationError(
-			fmt.Errorf("not in a git repository"),
+			fmt.Errorf("not in a git repository: %w", err),
 			"preflight must be run from a git repository",
 			"Run this command from inside a git repository",
 		)
-	}
-
-	wt, err := f.GitRepository.Worktree()
-	if err != nil {
-		return bkErrors.NewInternalError(err, "failed to get git worktree")
 	}
 
 	preflightID, err := uuid.NewV7()
 	if err != nil {
 		return bkErrors.NewInternalError(err, "UUIDv7 generation failed")
 	}
+	startedAt := time.Now()
 
 	if c.Interval <= 0 {
 		return bkErrors.NewValidationError(fmt.Errorf("interval must be greater than 0"), "invalid polling interval")
@@ -97,7 +97,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		opts = append(opts, preflight.WithDebug())
 	}
 
-	result, err := preflight.Snapshot(wt.Filesystem.Root(), preflightID, opts...)
+	result, err := preflight.Snapshot(repoRoot, preflightID, opts...)
 	if err != nil {
 		return bkErrors.NewSnapshotError(err, "failed to create preflight snapshot",
 			"Ensure you have uncommitted or committed changes to snapshot",
@@ -121,7 +121,8 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		Commit:  result.Commit,
 		Branch:  result.Branch,
 		Env: map[string]string{
-			"BUILDKITE_PREFLIGHT": "true",
+			"PREFLIGHT":           "true",
+			"BUILDKITE_PREFLIGHT": "true", // deprecated
 		},
 	})
 	if err != nil {
@@ -168,9 +169,31 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	buildResult := NewResult(finalBuild)
 	finalErr := buildResult.Error()
 
+	// Emit a final summary showing pass/fail, passed jobs (if ≤10), or hard-failed jobs.
+	if buildstate.IsTerminal(buildstate.State(finalBuild.State)) {
+		summaryEvent := Event{
+			Type:        EventBuildSummary,
+			Time:        time.Now(),
+			PreflightID: preflightID.String(),
+			Pipeline:    pipelineName,
+			BuildNumber: build.Number,
+			BuildURL:    build.WebURL,
+			BuildState:  finalBuild.State,
+			Duration:    time.Since(startedAt),
+		}
+		if buildResult.Passed() {
+			if passed := tracker.PassedJobs(); len(passed) <= 10 {
+				summaryEvent.PassedJobs = passed
+			}
+		} else {
+			summaryEvent.FailedJobs = tracker.FailedJobs()
+		}
+		_ = renderer.Render(summaryEvent)
+	}
+
 	if !c.NoCleanup {
 		_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Cleaning up remote branch %s...", result.Branch)})
-		if cleanupErr := preflight.Cleanup(wt.Filesystem.Root(), result.Ref, globals.EnableDebug()); cleanupErr != nil {
+		if cleanupErr := preflight.Cleanup(repoRoot, result.Ref, globals.EnableDebug()); cleanupErr != nil {
 			_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Warning: failed to delete remote branch %s: %v", result.Ref, cleanupErr)})
 		} else {
 			_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Deleted remote branch %s", result.Branch)})
@@ -207,4 +230,15 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	}
 
 	return finalErr
+}
+
+func resolveRepositoryRoot(f *factory.Factory, debug bool) (string, error) {
+	if f.GitRepository != nil {
+		wt, err := f.GitRepository.Worktree()
+		if err == nil {
+			return wt.Filesystem.Root(), nil
+		}
+	}
+
+	return preflight.RepositoryRoot(".", debug)
 }

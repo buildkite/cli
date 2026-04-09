@@ -71,6 +71,23 @@ func (r *plainRenderer) Render(e Event) error {
 			_, err := fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), presenter.Line(*e.Job))
 			return err
 		}
+
+	case EventBuildSummary:
+		header := summaryHeader(e)
+		if _, err := fmt.Fprintf(r.stdout, "\n%s\n", header); err != nil {
+			return err
+		}
+		presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
+		for _, j := range e.PassedJobs {
+			if _, err := fmt.Fprintf(r.stdout, "  %s\n", presenter.PassedLine(j)); err != nil {
+				return err
+			}
+		}
+		for _, j := range e.FailedJobs {
+			if _, err := fmt.Fprintf(r.stdout, "  %s\n", presenter.Line(j)); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -92,6 +109,43 @@ func (r *jsonRenderer) Render(e Event) error {
 }
 
 func (r *jsonRenderer) Close() error { return nil }
+
+func summaryHeader(e Event) string {
+	verdict := "❌ Preflight Failed"
+	if e.BuildState == "passed" {
+		verdict = "✅ Preflight Passed"
+	}
+	if e.Duration > 0 {
+		return fmt.Sprintf("%s (%s)", verdict, formatDuration(e.Duration))
+	}
+	return verdict
+}
+
+func formatDuration(d time.Duration) string {
+	d = d.Round(time.Second)
+	h := int(d.Hours())
+	m := int(d.Minutes()) % 60
+	s := int(d.Seconds()) % 60
+	switch {
+	case h > 0 && m > 0:
+		return fmt.Sprintf("%d %s %d %s", h, plural(h, "hour"), m, plural(m, "minute"))
+	case h > 0:
+		return fmt.Sprintf("%d %s", h, plural(h, "hour"))
+	case m > 0 && s > 0:
+		return fmt.Sprintf("%d %s %d %s", m, plural(m, "minute"), s, plural(s, "second"))
+	case m > 0:
+		return fmt.Sprintf("%d %s", m, plural(m, "minute"))
+	default:
+		return fmt.Sprintf("%d %s", s, plural(s, "second"))
+	}
+}
+
+func plural(n int, word string) string {
+	if n == 1 {
+		return word
+	}
+	return word + "s"
+}
 
 func jobLogCommand(pipeline string, buildNumber int, jobID string) string {
 	return fmt.Sprintf("bk job log -b %d -p %s %s", buildNumber, pipeline, jobID)

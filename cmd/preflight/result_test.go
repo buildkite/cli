@@ -65,6 +65,26 @@ func TestResult(t *testing.T) {
 	}
 }
 
+func TestResultPassed(t *testing.T) {
+	tests := []struct {
+		name  string
+		build buildkite.Build
+		want  bool
+	}{
+		{name: "passed build", build: buildkite.Build{State: "passed"}, want: true},
+		{name: "failed build", build: buildkite.Build{State: "failed"}, want: false},
+		{name: "running build", build: buildkite.Build{State: "running"}, want: false},
+		{name: "canceled build", build: buildkite.Build{State: "canceled"}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := NewResult(tt.build).Passed(); got != tt.want {
+				t.Fatalf("Passed() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestResultError(t *testing.T) {
 	tests := []struct {
 		name     string

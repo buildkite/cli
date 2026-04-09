@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 )
 
@@ -40,4 +41,19 @@ func gitOutput(dir string, env []string, debug bool, args ...string) (string, er
 		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+// RepositoryRoot returns the top-level path for the git repository containing dir.
+func RepositoryRoot(dir string, debug bool) (string, error) {
+	return gitOutput(dir, nil, debug, "rev-parse", "--show-toplevel")
+}
+
+// tempIndexEnv returns a copy of the current environment with GIT_INDEX_FILE
+// set to path, stripping any existing GIT_INDEX_FILE entry. This is used to
+// direct git commands at a temporary index without affecting the real one.
+func tempIndexEnv(path string) []string {
+	env := slices.DeleteFunc(os.Environ(), func(e string) bool {
+		return strings.HasPrefix(e, "GIT_INDEX_FILE=")
+	})
+	return append(env, "GIT_INDEX_FILE="+path)
 }

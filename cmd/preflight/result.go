@@ -45,6 +45,11 @@ func NewResult(build buildkite.Build) Result {
 	return Result{kind: resultUnknown, buildState: build.State}
 }
 
+// Passed reports whether the build completed successfully.
+func (r Result) Passed() bool {
+	return r.kind == resultCompletedPass
+}
+
 func (r Result) Error() error {
 	switch r.kind {
 	case resultCompletedPass:

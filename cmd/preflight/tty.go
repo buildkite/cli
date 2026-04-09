@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 var (
@@ -21,7 +22,9 @@ var (
 type ttyModel struct {
 	spinner    spinner.Model
 	latest     Event
+	summary    *Event
 	cancelFunc context.CancelFunc
+	width      int
 }
 
 func newTTYModel() ttyModel {
@@ -52,13 +55,12 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.latest = msg
 			timestamp := ttyDimStyle.Render(msg.Time.Format("15:04:05"))
 			prefix := timestamp + " "
+			line := prefix + msg.Title
 			if msg.Detail != "" {
 				detail := indentAllLines(msg.Detail, len("15:04:05 "))
-				line := prefix + msg.Title + ":\n" + detail
-				return m, tea.Printf("%s", line)
+				line += ":\n" + detail
 			}
-			line := prefix + msg.Title
-			return m, tea.Printf("%s", line)
+			return m, tea.Printf("%s", m.hardwrapLine(line))
 
 		case EventBuildStatus:
 			m.latest = msg
@@ -67,13 +69,23 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case EventJobFailure:
 			if msg.Job != nil {
 				presenter := jobPresenter{pipeline: msg.Pipeline, buildNumber: msg.BuildNumber}
-				line := fmt.Sprintf("  %s  %s",
+				line := fmt.Sprintf("%s %s",
 					ttyDimStyle.Render(msg.Time.Format("15:04:05")),
 					presenter.ColoredLine(*msg.Job),
 				)
-				return m, tea.Printf("%s", line)
+				return m, tea.Printf("%s", m.hardwrapLine(line))
 			}
+
+		case EventBuildSummary:
+			// Store the summary on the model so View() renders it as the
+			// final frame when the program quits via Close().
+			m.summary = &msg
+			return m, nil
 		}
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		return m, nil
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -96,8 +108,22 @@ func (m ttyModel) statusText() string {
 	}
 }
 
-func (m ttyModel) View() string {
+// hardwrapLine pre-wraps text with explicit newlines at the terminal width so that
+// Bubbletea's line counting matches the physical rows the terminal will use.
+// This prevents cursor positioning errors that leave View() artifacts in the scrollback.
+func (m ttyModel) hardwrapLine(s string) string {
+	if m.width <= 0 {
+		return s
+	}
+	return ansi.Hardwrap(s, m.width, false)
+}
+
+func (m ttyModel) render() string {
 	separator := ttyBorderStyle.Render("─────────────────────────────────────────────")
+
+	if m.summary != nil {
+		return buildSummaryView(*m.summary)
+	}
 
 	statusLine := fmt.Sprintf("  %s %s", m.spinner.View(), ttyStatusStyle.Render(m.statusText()))
 
@@ -131,6 +157,31 @@ func (m ttyModel) View() string {
 
 	summaryLine := fmt.Sprintf("  %s", ttyDimStyle.Render(strings.Join(parts, ", ")))
 	return separator + "\n" + statusLine + "\n" + summaryLine
+}
+
+func (m ttyModel) View() string {
+	return m.hardwrapLine(m.render())
+}
+
+// buildSummaryView renders the final build summary as a string for use in View().
+func buildSummaryView(e Event) string {
+	style := ttyFailureStyle
+	if e.BuildState == "passed" {
+		style = ttyStatusStyle
+	}
+
+	separator := ttyBorderStyle.Render("─────────────────────────────────────────────")
+	out := separator + "\n" + style.Render(summaryHeader(e))
+
+	presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
+	for _, j := range e.PassedJobs {
+		out += "\n  " + ttyDimStyle.Render(presenter.PassedLine(j))
+	}
+	for _, j := range e.FailedJobs {
+		out += "\n  " + presenter.ColoredLine(j)
+	}
+
+	return out
 }
 
 type ttyRenderer struct {

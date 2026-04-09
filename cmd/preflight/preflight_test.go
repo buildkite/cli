@@ -14,12 +14,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buildkite/cli/v3/internal/config"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 
 	"github.com/buildkite/cli/v3/internal/build/watch"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 
 	"github.com/buildkite/cli/v3/internal/cli"
+	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
 
 type stubGlobals struct{}
@@ -120,8 +122,72 @@ func TestPreflightCmd_Run(t *testing.T) {
 		if !strings.HasPrefix(gotReq.Message, "Preflight ") {
 			t.Errorf("expected message starting with 'Preflight ', got %q", gotReq.Message)
 		}
+		if gotReq.Env["PREFLIGHT"] != "true" {
+			t.Errorf("expected PREFLIGHT=true, got %#v", gotReq.Env)
+		}
 		if gotReq.Env["BUILDKITE_PREFLIGHT"] != "true" {
-			t.Errorf("expected BUILDKITE_PREFLIGHT=true, got %#v", gotReq.Env)
+			t.Errorf("expected BUILDKITE_PREFLIGHT=true (deprecated), got %#v", gotReq.Env)
+		}
+	})
+
+	t.Run("falls back to git cli when factory cannot open repository", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		originalNewFactory := newFactory
+		t.Cleanup(func() { newFactory = originalNewFactory })
+
+		now := time.Now()
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			switch {
+			case r.Method == "POST" && strings.Contains(r.URL.Path, "/builds"):
+				json.NewEncoder(w).Encode(buildkite.Build{
+					Number: 1,
+					State:  "scheduled",
+					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
+				})
+				return
+			case r.Method == "GET" && strings.Contains(r.URL.Path, "/builds/1"):
+				json.NewEncoder(w).Encode(buildkite.Build{
+					Number:     1,
+					State:      "passed",
+					FinishedAt: &buildkite.Timestamp{Time: now},
+				})
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+
+		newFactory = func(...factory.FactoryOpt) (*factory.Factory, error) {
+			client, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+			if err != nil {
+				return nil, err
+			}
+			return &factory.Factory{
+				Config:        config.New(nil, nil),
+				RestAPIClient: client,
+			}, nil
+		}
+
+		worktree := initTestRepo(t)
+		subdir := filepath.Join(worktree, "nested", "dir")
+		if err := os.MkdirAll(subdir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		t.Chdir(subdir)
+		if err := os.WriteFile(filepath.Join(subdir, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01}
+		if err := cmd.Run(nil, stubGlobals{}); err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		refs := runGit(t, worktree, "ls-remote", "--heads", "origin")
+		if strings.Contains(refs, "bk/preflight/") {
+			t.Errorf("expected preflight branch to be cleaned up, but found: %s", refs)
 		}
 	})
 
