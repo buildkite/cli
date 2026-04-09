@@ -18,7 +18,7 @@ import (
 
 type UpdateCmd struct {
 	ClusterUUID string `help:"The UUID of the cluster" required:"" name:"cluster-uuid"`
-	SecretID    string `help:"The UUID of the secret to update" required:"" name:"secret-id"`
+	SecretUUID  string `help:"The UUID of the secret to update" required:"" name:"secret-uuid" aliases:"secret-id"`
 	Description string `help:"Update the description of the secret" optional:""`
 	Policy      string `help:"Update the access policy for the secret (YAML format)" optional:""`
 	UpdateValue bool   `help:"Prompt to update the secret value" optional:"" name:"update-value"`
@@ -33,13 +33,13 @@ Use --update-value to be prompted for a new secret value (input will be masked).
 
 Examples:
   # Update a secret's description
-  $ bk secret update --cluster-uuid my-cluster-uuid --secret-id my-secret-id --description "New description"
+  $ bk secret update --cluster-uuid my-cluster-uuid --secret-uuid my-secret-uuid --description "New description"
 
   # Update a secret's value
-  $ bk secret update --cluster-uuid my-cluster-uuid --secret-id my-secret-id --update-value
+  $ bk secret update --cluster-uuid my-cluster-uuid --secret-uuid my-secret-uuid --update-value
 
   # Update both description and value
-  $ bk secret update --cluster-uuid my-cluster-uuid --secret-id my-secret-id --description "New description" --update-value
+  $ bk secret update --cluster-uuid my-cluster-uuid --secret-uuid my-secret-uuid --description "New description" --update-value
 `
 }
 
@@ -85,7 +85,7 @@ func (c *UpdateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		}
 
 		if err = bkIO.SpinWhile(f, "Updating secret value", func() error {
-			_, err = f.RestAPIClient.ClusterSecrets.UpdateValue(ctx, org, c.ClusterUUID, c.SecretID, buildkite.ClusterSecretValueUpdate{
+			_, err = f.RestAPIClient.ClusterSecrets.UpdateValue(ctx, org, c.ClusterUUID, c.SecretUUID, buildkite.ClusterSecretValueUpdate{
 				Value: value,
 			})
 			return err
@@ -98,7 +98,7 @@ func (c *UpdateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	if c.Description != "" || c.Policy != "" {
 		if err = bkIO.SpinWhile(f, "Updating secret", func() error {
 			var apiErr error
-			secret, _, apiErr = f.RestAPIClient.ClusterSecrets.Update(ctx, org, c.ClusterUUID, c.SecretID, buildkite.ClusterSecretUpdate{
+			secret, _, apiErr = f.RestAPIClient.ClusterSecrets.Update(ctx, org, c.ClusterUUID, c.SecretUUID, buildkite.ClusterSecretUpdate{
 				Description: c.Description,
 				Policy:      c.Policy,
 			})
@@ -110,7 +110,7 @@ func (c *UpdateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		// Fetch the secret to display current state
 		if err = bkIO.SpinWhile(f, "Loading secret", func() error {
 			var apiErr error
-			secret, _, apiErr = f.RestAPIClient.ClusterSecrets.Get(ctx, org, c.ClusterUUID, c.SecretID)
+			secret, _, apiErr = f.RestAPIClient.ClusterSecrets.Get(ctx, org, c.ClusterUUID, c.SecretUUID)
 			return apiErr
 		}); err != nil {
 			return fmt.Errorf("error fetching secret: %v", err)

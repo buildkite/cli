@@ -14,7 +14,7 @@ import (
 )
 
 type CancelCmd struct {
-	JobID string `arg:"" help:"Job ID to cancel" required:""`
+	JobID string `arg:"" help:"Job UUID to cancel" required:""`
 	Web   bool   `help:"Open the job in a web browser after it has been cancelled" short:"w"`
 }
 
