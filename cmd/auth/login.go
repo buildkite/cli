@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/alecthomas/kong"
@@ -155,7 +156,10 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	// Resolve org from the API using the new token
-	client, err := buildkite.NewOpts(buildkite.WithTokenAuth(tokenResp.AccessToken))
+	client, err := buildkite.NewOpts(
+		buildkite.WithTokenAuth(tokenResp.AccessToken),
+		buildkite.WithBaseURL(f.Config.RESTAPIEndpoint()),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to create API client: %w", err)
 	}
@@ -174,8 +178,36 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
+	// Store refresh token if the server issued one
+	if tokenResp.RefreshToken != "" {
+		kr := keyring.New()
+		if kr.IsAvailable() {
+			if err := kr.SetRefreshToken(org.Slug, tokenResp.RefreshToken); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to store refresh token: %v\n", err)
+			}
+		}
+	}
+
 	fmt.Printf("\n✅ Successfully authenticated with organization %q\n", org.Slug)
 	fmt.Printf("  Scopes: %s\n", tokenResp.Scope)
+	if tokenResp.RefreshToken != "" {
+		fmt.Printf("  Token expires in: %s (will refresh automatically)\n", formatDuration(tokenResp.ExpiresIn))
+	}
 
 	return nil
+}
+
+func formatDuration(seconds int) string {
+	if seconds <= 0 {
+		return "unknown"
+	}
+	d := time.Duration(seconds) * time.Second
+	if d >= time.Hour {
+		hours := int(d.Hours())
+		if hours == 1 {
+			return "1 hour"
+		}
+		return fmt.Sprintf("%d hours", hours)
+	}
+	return fmt.Sprintf("%d minutes", int(d.Minutes()))
 }

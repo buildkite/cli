@@ -10,7 +10,8 @@ import (
 )
 
 const (
-	serviceName = "buildkite-cli"
+	serviceName        = "buildkite-cli"
+	refreshServiceName = "buildkite-cli-refresh"
 )
 
 var (
@@ -53,6 +54,30 @@ func (k *Keyring) Delete(org string) error {
 		return nil
 	}
 	return keyring.Delete(serviceName, org)
+}
+
+// SetRefreshToken stores a refresh token for the given organization
+func (k *Keyring) SetRefreshToken(org, token string) error {
+	if !k.useKeyring {
+		return nil
+	}
+	return keyring.Set(refreshServiceName, org, token)
+}
+
+// GetRefreshToken retrieves a refresh token for the given organization
+func (k *Keyring) GetRefreshToken(org string) (string, error) {
+	if !k.useKeyring {
+		return "", keyring.ErrNotFound
+	}
+	return keyring.Get(refreshServiceName, org)
+}
+
+// DeleteRefreshToken removes a refresh token for the given organization
+func (k *Keyring) DeleteRefreshToken(org string) error {
+	if !k.useKeyring {
+		return nil
+	}
+	return keyring.Delete(refreshServiceName, org)
 }
 
 // IsAvailable returns true if the system keyring is available
