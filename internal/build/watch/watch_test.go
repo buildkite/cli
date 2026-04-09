@@ -206,6 +206,134 @@ func TestWatchBuild(t *testing.T) {
 			t.Fatalf("expected callback error, got %v", err)
 		}
 	})
+
+	t.Run("disables test polling after authorization failure", func(t *testing.T) {
+		buildPollCount := 0
+		testPollCount := 0
+		now := time.Now()
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+
+			switch {
+			case r.Method == "GET" && strings.Contains(r.URL.Path, "/builds/1"):
+				buildPollCount++
+				b := buildkite.Build{ID: "build-123", Number: 1, State: "running"}
+				if buildPollCount >= 3 {
+					b.State = "passed"
+					b.FinishedAt = &buildkite.Timestamp{Time: now}
+				}
+				json.NewEncoder(w).Encode(b)
+			case r.Method == "GET" && strings.Contains(r.URL.Path, "/builds/build-123/tests"):
+				testPollCount++
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]string{"message": "token is missing read_suites"})
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		defer s.Close()
+
+		client := newTestClient(t, s.URL)
+		b, err := WatchBuild(
+			context.Background(),
+			client,
+			"org",
+			"pipe",
+			1,
+			10*time.Millisecond,
+			func(buildkite.Build) error { return nil },
+			WithTestTracking(func([]buildkite.BuildTest) error { return nil }),
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if b.State != "passed" {
+			t.Fatalf("expected state passed, got %s", b.State)
+		}
+		if buildPollCount < 3 {
+			t.Fatalf("expected at least 3 build polls, got %d", buildPollCount)
+		}
+		if testPollCount != 1 {
+			t.Fatalf("expected test polling to stop after auth failure, got %d requests", testPollCount)
+		}
+	})
+}
+
+func TestPollTestFailures(t *testing.T) {
+	t.Run("follows pagination", func(t *testing.T) {
+		var requestedPages []string
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+
+			if r.Method != "GET" || !strings.Contains(r.URL.Path, "/builds/build-123/tests") {
+				http.NotFound(w, r)
+				return
+			}
+
+			requestedPages = append(requestedPages, r.URL.Query().Get("page"))
+			if got, want := r.URL.Query().Get("include"), "executions"; got != want {
+				t.Fatalf("include = %q, want %q", got, want)
+			}
+			switch r.URL.Query().Get("page") {
+			case "1":
+				w.Header().Set("Link", "</v2/analytics/organizations/org/builds/build-123/tests?page=2&per_page=10>; rel=\"next\"")
+				json.NewEncoder(w).Encode([]buildkite.BuildTest{
+					{ID: "test-1", Name: "first-page failure", Executions: []buildkite.BuildTestExecution{{ID: "exec-1", Status: "failed"}}},
+				})
+			case "2":
+				json.NewEncoder(w).Encode([]buildkite.BuildTest{
+					{ID: "test-2", Name: "second-page failure", Executions: []buildkite.BuildTestExecution{{ID: "exec-2", Status: "failed"}}},
+				})
+			default:
+				t.Fatalf("unexpected page %q", r.URL.Query().Get("page"))
+			}
+		}))
+		defer s.Close()
+
+		client := newTestClient(t, s.URL)
+		var reported []buildkite.BuildTest
+		enabled, err := pollTestFailures(context.Background(), client, "org", "build-123", NewTestTracker(), func(newTestChanges []buildkite.BuildTest) error {
+			reported = append(reported, newTestChanges...)
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !enabled {
+			t.Fatal("expected test polling to remain enabled")
+		}
+
+		if got, want := requestedPages, []string{"1", "2"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+			t.Fatalf("requested pages = %v, want %v", got, want)
+		}
+		if got, want := len(reported), 2; got != want {
+			t.Fatalf("reported %d test changes, want %d", got, want)
+		}
+		if got, want := reported[1].Name, "second-page failure"; got != want {
+			t.Fatalf("reported second page failure %q, want %q", got, want)
+		}
+	})
+
+	t.Run("disables polling on authorization errors", func(t *testing.T) {
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"message": "token is missing read_suites"})
+		}))
+		defer s.Close()
+
+		client := newTestClient(t, s.URL)
+		enabled, err := pollTestFailures(context.Background(), client, "org", "build-123", NewTestTracker(), func([]buildkite.BuildTest) error {
+			t.Fatal("onTestStatus should not be called on authorization errors")
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if enabled {
+			t.Fatal("expected test polling to be disabled")
+		}
+	})
 }
 
 func newTestClient(t *testing.T, baseURL string) *buildkite.Client {
