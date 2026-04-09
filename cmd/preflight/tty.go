@@ -85,7 +85,7 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				var cmds []tea.Cmd
 				for _, t := range msg.TestFailures {
 					line := formatTimestampedBlock(presenter.ColoredLine(t), msg.Time)
-					cmds = append(cmds, tea.Printf("%s", line))
+					cmds = append(cmds, tea.Printf("%s", m.hardwrapLine(line)))
 				}
 				return m, tea.Batch(cmds...)
 			}
