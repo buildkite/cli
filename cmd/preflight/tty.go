@@ -176,7 +176,7 @@ func buildSummaryView(e Event) string {
 
 	presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
 	for _, j := range e.PassedJobs {
-		out += "\n  " + ttyDimStyle.Render(presenter.PassedLine(j))
+		out += "\n  " + presenter.ColoredPassedLine(j, ttyDimStyle)
 	}
 	for _, j := range e.FailedJobs {
 		out += "\n  " + presenter.ColoredLine(j)
