@@ -28,7 +28,7 @@ func (t *TestTracker) Update(tests []buildkite.BuildTest) []buildkite.BuildTest 
 
 		hasNewExecution := false
 		for _, execution := range test.Executions {
-			if !t.seenExecutions[execution.ID] {
+			if execution.ID != "" && !t.seenExecutions[execution.ID] {
 				t.seenExecutions[execution.ID] = true
 				hasNewExecution = true
 			}

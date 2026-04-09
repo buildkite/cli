@@ -106,6 +106,26 @@ func TestTestTracker_Update(t *testing.T) {
 		}
 	})
 
+	t.Run("skips tests with missing execution ids", func(t *testing.T) {
+		tracker := NewTestTracker()
+		tests := []buildkite.BuildTest{
+			{ID: "test-1", Name: "passing test"},
+			{
+				ID:   "test-2",
+				Name: "failing test",
+				Executions: []buildkite.BuildTestExecution{{
+					Status:        "failed",
+					FailureReason: "boom",
+				}},
+			},
+		}
+
+		newTestChanges := tracker.Update(tests)
+		if len(newTestChanges) != 0 {
+			t.Fatalf("expected 0 new test change, got %d", len(newTestChanges))
+		}
+	})
+
 	t.Run("handles multiple new test changes at once", func(t *testing.T) {
 		tracker := NewTestTracker()
 		tests := []buildkite.BuildTest{
