@@ -154,12 +154,16 @@ func truncateToWidth(s string, width int) string {
 		return s
 	}
 
-	segmentWidth := width / 2
-	if segmentWidth == 0 {
-		return "..."
+	ellipsis := "..."
+	remaining := width - runewidth.StringWidth(ellipsis)
+	if remaining <= 0 {
+		return ellipsis
 	}
 
-	return trimLeftToWidth(s, segmentWidth) + "..." + trimRightToWidth(s, segmentWidth)
+	leftWidth := remaining / 2
+	rightWidth := remaining - leftWidth
+
+	return trimLeftToWidth(s, leftWidth) + ellipsis + trimRightToWidth(s, rightWidth)
 }
 
 func trimLeftToWidth(s string, width int) string {

@@ -374,7 +374,7 @@ func TestTestPresenter_Line_FailedAttemptIncludesSummaryAndFailureDetails(t *tes
 
 	got := line
 
-	if !strings.Contains(got, "✗ Pipelines::ShardMigration::DeleteOrganiz... records for a shard that needs cleaning") {
+	if !strings.Contains(got, "✗ Pipelines::ShardMigration::DeleteOrgan...records for a shard that needs cleaning") {
 		t.Fatalf("expected long name to preserve the start and end, got %q", got)
 	}
 	if !strings.Contains(got, "2 attempts (0 passed, 2 failed) — ./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181") {
