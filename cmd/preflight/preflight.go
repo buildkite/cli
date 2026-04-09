@@ -18,6 +18,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/build/watch"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
+	bkhttp "github.com/buildkite/cli/v3/internal/http"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/preflight"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -43,7 +44,8 @@ func (c *PreflightCmd) Help() string {
 }
 
 func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := newFactory(factory.WithDebug(globals.EnableDebug()))
+	rlTransport := bkhttp.NewRateLimitTransport(http.DefaultTransport)
+	f, err := newFactory(factory.WithDebug(globals.EnableDebug()), factory.WithTransport(rlTransport))
 	if err != nil {
 		return bkErrors.NewInternalError(err, "failed to initialize CLI", "This is likely a bug", "Report to Buildkite")
 	}
@@ -89,6 +91,15 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	}
 
 	renderer := newRenderer(os.Stdout, c.JSON, c.Text, stop)
+
+	rlTransport.OnRateLimit = func(attempt int, delay time.Duration) {
+		_ = renderer.Render(Event{
+			Type:        EventOperation,
+			Time:        time.Now(),
+			PreflightID: preflightID.String(),
+			Title:       fmt.Sprintf("Rate limited by API, waiting %s before retrying (attempt %d/%d)...", delay.Truncate(time.Second), attempt+1, rlTransport.MaxRetries),
+		})
+	}
 
 	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: "Pushing snapshot of working tree..."})
 

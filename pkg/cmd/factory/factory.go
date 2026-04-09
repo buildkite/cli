@@ -37,6 +37,7 @@ type FactoryOpt func(*factoryConfig)
 type factoryConfig struct {
 	debug       bool
 	orgOverride string
+	transport   http.RoundTripper
 }
 
 // WithDebug enables debug output for REST API calls
@@ -52,6 +53,14 @@ func WithDebug(debug bool) FactoryOpt {
 func WithOrgOverride(org string) FactoryOpt {
 	return func(c *factoryConfig) {
 		c.orgOverride = org
+	}
+}
+
+// WithTransport sets a custom http.RoundTripper for the REST API client.
+// It is composed with the debug transport when debug mode is enabled.
+func WithTransport(t http.RoundTripper) FactoryOpt {
+	return func(c *factoryConfig) {
+		c.transport = t
 	}
 }
 
@@ -163,15 +172,16 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 		buildkite.WithUserAgent(userAgent),
 	}
 
-	// Use our own debug transport with redacted headers instead of go-buildkite's built-in debug
-	if cfg.debug {
-		httpClient := &http.Client{
-			Transport: &debugTransport{
-				transport: http.DefaultTransport,
-			},
-		}
-		clientOpts = append(clientOpts, buildkite.WithHTTPClient(httpClient))
+	// Use custom transport if provided (caller is responsible for wrapping
+	// http.DefaultTransport if needed), then wrap with debug transport when enabled.
+	transport := http.RoundTripper(http.DefaultTransport)
+	if cfg.transport != nil {
+		transport = cfg.transport
 	}
+	if cfg.debug {
+		transport = &debugTransport{transport: transport}
+	}
+	clientOpts = append(clientOpts, buildkite.WithHTTPClient(&http.Client{Transport: transport}))
 
 	buildkiteClient, err := buildkite.NewOpts(clientOpts...)
 	if err != nil {

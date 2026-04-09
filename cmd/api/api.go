@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -114,17 +115,19 @@ func (c *ApiCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	fullEndpoint := buildFullEndpoint(c.Endpoint, f.Config.OrganizationSlug(), c.Analytics)
 
-	// Create an HTTP client with appropriate configuration
+	// Create an HTTP client with rate-limit retry via the shared transport.
+	rl := httpClient.NewRateLimitTransport(nil)
+	rl.MaxRetryDelay = 60 * time.Second
+	rl.OnRateLimit = func(attempt int, delay time.Duration) {
+		if c.Verbose {
+			fmt.Fprintf(os.Stderr, "WARNING: Rate limit exceeded, retrying in %v @ %q (attempt %d)\n", delay, time.Now().Add(delay).Format(time.RFC3339), attempt)
+		}
+	}
+
 	client := httpClient.NewClient(
 		f.Config.APIToken(),
 		httpClient.WithBaseURL(f.RestAPIClient.BaseURL.String()),
-		httpClient.WithMaxRetries(3),
-		httpClient.WithMaxRetryDelay(60*time.Second),
-		httpClient.WithOnRetry(func(attempt int, delay time.Duration) {
-			if c.Verbose {
-				fmt.Fprintf(os.Stderr, "WARNING: Rate limit exceeded, retrying in %v @ %q (attempt %d)\n", delay, time.Now().Add(delay).Format(time.RFC3339), attempt)
-			}
-		}),
+		httpClient.WithHTTPClient(&http.Client{Transport: rl}),
 	)
 
 	// Process custom headers
