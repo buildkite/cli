@@ -3,6 +3,7 @@ package preflight
 import (
 	"bytes"
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +11,8 @@ import (
 	"github.com/buildkite/cli/v3/internal/build/watch"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
+
+var ansiCodesPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 func TestPlainRenderer_Render_Operation(t *testing.T) {
 	var out bytes.Buffer
@@ -44,8 +47,8 @@ func TestPlainRenderer_Render_OperationWithDetail(t *testing.T) {
 	})
 
 	got := out.String()
-	indent := strings.Repeat(" ", len("[10:30:00] "))
-	expected := "[10:30:00] Creating snapshot of working tree...:\n" +
+	indent := strings.Repeat(" ", len("10:30:00 "))
+	expected := "10:30:00 Creating snapshot of working tree...:\n" +
 		indent + "Commit: abc1234567\n"
 	if got != expected {
 		t.Fatalf("expected:\n%s\ngot:\n%s", expected, got)
@@ -66,13 +69,41 @@ func TestPlainRenderer_Render_OperationWithMultiLineDetail(t *testing.T) {
 	})
 
 	got := out.String()
-	indent := strings.Repeat(" ", len("[10:30:00] "))
-	expected := "[10:30:00] Created snapshot of working tree...:\n" +
+	indent := strings.Repeat(" ", len("10:30:00 "))
+	expected := "10:30:00 Created snapshot of working tree...:\n" +
 		indent + "Commit: abc1234567\n" +
 		indent + "Ref:    refs/heads/bk/preflight/abc123\n" +
 		indent + "Files:  2 changed\n" +
 		indent + "  ~ app/controllers/jobs_controller.rb\n" +
 		indent + "  ~ db/structure.sql\n"
+	if got != expected {
+		t.Fatalf("expected:\n%s\ngot:\n%s", expected, got)
+	}
+}
+
+func TestFormatTimestampedDetail_UsesLeftAlignedTimestampIndent(t *testing.T) {
+	now := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
+
+	got := formatTimestampedDetail("Created snapshot of working tree...", "Commit: abc1234567\nRef: refs/heads/bk/preflight/abc123", now)
+
+	indent := strings.Repeat(" ", len("10:30:00 "))
+	expected := "10:30:00 Created snapshot of working tree...:\n" +
+		indent + "Commit: abc1234567\n" +
+		indent + "Ref: refs/heads/bk/preflight/abc123"
+	if got != expected {
+		t.Fatalf("expected:\n%s\ngot:\n%s", expected, got)
+	}
+}
+
+func TestFormatTimestampedBlock_IndentsContinuationLines(t *testing.T) {
+	now := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
+
+	got := formatTimestampedBlock("  ❌ test: react/jsx-no-bind\n    Location: .eslintrc.js:120\n    Got 193 failures and 0 errors.", now)
+
+	indent := strings.Repeat(" ", len("10:30:00 "))
+	expected := "10:30:00   ❌ test: react/jsx-no-bind\n" +
+		indent + "    Location: .eslintrc.js:120\n" +
+		indent + "    Got 193 failures and 0 errors."
 	if got != expected {
 		t.Fatalf("expected:\n%s\ngot:\n%s", expected, got)
 	}
@@ -149,6 +180,44 @@ func TestPlainRenderer_Render_JobFailure(t *testing.T) {
 	}
 	if !strings.Contains(got, "job-1") {
 		t.Fatalf("expected job ID, got %q", got)
+	}
+}
+
+func TestPlainRenderer_Render_TestFailure(t *testing.T) {
+	var out bytes.Buffer
+	r := newPlainRenderer(&out)
+
+	now := time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)
+	executionTime := buildkite.Timestamp{Time: now}
+	r.Render(Event{
+		Type: EventTestFailure,
+		Time: now,
+		TestFailures: []buildkite.BuildTest{{
+			Name:            "Test A",
+			ExecutionsCount: 1,
+			ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{
+				Failed: 1,
+			},
+			Executions: []buildkite.BuildTestExecution{{
+				Status:        "failed",
+				Location:      "./spec/example_spec.rb:10",
+				FailureReason: "Failure/Error: expect(false).to eq(true)",
+				Timestamp:     &executionTime,
+			}},
+		}},
+	})
+
+	got := out.String()
+	if ansiCodesPattern.MatchString(got) {
+		t.Fatalf("expected plain output without ANSI codes, got %q", got)
+	}
+
+	indent := strings.Repeat(" ", len("10:31:00 "))
+	expected := "10:31:00 ✗ Test A\n" +
+		indent + "    1 attempt (0 passed, 1 failed) — ./spec/example_spec.rb:10\n" +
+		indent + "    Failure/Error: expect(false).to eq(true)\n"
+	if got != expected {
+		t.Fatalf("expected:\n%s\ngot:\n%s", expected, got)
 	}
 }
 
@@ -269,6 +338,202 @@ func TestJSONRenderer_Render_MultipleEvents_JSONL(t *testing.T) {
 			t.Fatalf("line %d: invalid JSON: %v", i, err)
 		}
 	}
+}
+
+func TestTestPresenter_Line_FailedAttemptIncludesSummaryAndFailureDetails(t *testing.T) {
+	t.Parallel()
+	older := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)}
+	newer := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}
+
+	line := testPresenter{}.Line(buildkite.BuildTest{
+		Name:            "Pipelines::ShardMigration::DeleteOrganizationFromShardWorker with more than BATCH_SIZE records for a shard that needs cleaning",
+		Location:        "./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181",
+		ExecutionsCount: 2,
+		ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{
+			Failed: 2,
+		},
+		Executions: []buildkite.BuildTestExecution{
+			{
+				Status:        "failed",
+				Location:      "./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181",
+				FailureReason: "Failure/Error: expect(empty_tables).to eq({})",
+				Timestamp:     &newer,
+			},
+			{
+				Status:        "failed",
+				Location:      "./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:182",
+				FailureReason: "Failure/Error: expect(empty_tables).to eq({})",
+				Timestamp:     &older,
+			},
+		},
+	})
+
+	if ansiCodesPattern.MatchString(line) {
+		t.Fatalf("expected plain line without ANSI codes, got %q", line)
+	}
+
+	got := line
+
+	if !strings.Contains(got, "✗ Pipelines::ShardMigration::DeleteOrgan...records for a shard that needs cleaning") {
+		t.Fatalf("expected long name to preserve the start and end, got %q", got)
+	}
+	if !strings.Contains(got, "2 attempts (0 passed, 2 failed) — ./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181") {
+		t.Fatalf("expected location detail, got %q", got)
+	}
+	if !strings.Contains(got, "Failure/Error: expect(empty_tables).to eq({})") {
+		t.Fatalf("expected failure reason, got %q", got)
+	}
+	if strings.Contains(got, "BATCH_SIZE records for a shard that needs cleaning") {
+		t.Fatalf("expected long name to be truncated, got %q", got)
+	}
+}
+
+func TestFormatTestStatusIcon_UsesLatestExecution(t *testing.T) {
+	t.Parallel()
+	newest := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}
+
+	execution := &buildkite.BuildTestExecution{Status: "passed", Timestamp: &newest}
+	icon := formatTestStatusIcon(execution, false)
+
+	if got, want := icon, "✓"; got != want {
+		t.Fatalf("icon = %q, want %q", got, want)
+	}
+}
+
+func TestFormatTestStatusIcon_NilExecution(t *testing.T) {
+	t.Parallel()
+
+	icon := formatTestStatusIcon(nil, false)
+
+	if got, want := icon, "?"; got != want {
+		t.Fatalf("icon = %q, want %q", got, want)
+	}
+}
+
+func TestTestAttemptCounts_FormatsCorrectly(t *testing.T) {
+	t.Parallel()
+
+	counts := testAttemptCounts(buildkite.BuildTest{
+		ExecutionsCount: 5,
+		ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{
+			Passed: 3,
+			Failed: 2,
+		},
+		Executions: []buildkite.BuildTestExecution{{Status: "failed"}},
+	})
+
+	if got, want := counts, "5 attempts (3 passed, 2 failed)"; got != want {
+		t.Fatalf("counts = %q, want %q", got, want)
+	}
+}
+
+func TestTestPresenter_Line_PassedLatestAttemptOnlyShowsSummaryLine(t *testing.T) {
+	t.Parallel()
+	oldest := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 29, 0, 0, time.UTC)}
+	middle := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)}
+	newest := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}
+
+	line := testPresenter{}.Line(buildkite.BuildTest{
+		Name:            "Test A",
+		Location:        "./spec/example_spec.rb:10",
+		ExecutionsCount: 3,
+		ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{
+			Passed: 1,
+			Failed: 2,
+		},
+		Executions: []buildkite.BuildTestExecution{
+			{Status: "passed", Location: "./spec/example_spec.rb:10", Timestamp: &newest},
+			{Status: "failed", FailureReason: "Failure/Error: expect(false).to eq(true)", Location: "./spec/example_spec.rb:10", Timestamp: &oldest},
+			{Status: "failed", FailureReason: "Failure/Error: expect(false).to eq(true)", Location: "./spec/example_spec.rb:10", Timestamp: &middle},
+		},
+	})
+
+	if ansiCodesPattern.MatchString(line) {
+		t.Fatalf("expected plain line without ANSI codes, got %q", line)
+	}
+
+	got := line
+
+	if strings.Contains(got, "./spec/example_spec.rb:10") {
+		t.Fatalf("expected passed attempt to omit location detail, got %q", got)
+	}
+	if strings.Contains(got, "Failure/Error:") {
+		t.Fatalf("expected passed attempt to omit failure detail, got %q", got)
+	}
+}
+
+func TestLatestTestExecution_PicksNewestTimestamp(t *testing.T) {
+	t.Parallel()
+	older := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)}
+	newer := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}
+
+	execution := latestTestExecution(buildkite.BuildTest{
+		Executions: []buildkite.BuildTestExecution{
+			{Status: "failed", Location: "./spec/example_spec.rb:11", Timestamp: &older},
+			{Status: "passed", Location: "./spec/example_spec.rb:12", Timestamp: &newer},
+			{Status: "failed", Location: "./spec/example_spec.rb:10"},
+		},
+	})
+
+	if execution == nil {
+		t.Fatal("expected execution to be present")
+	}
+	if got, want := execution.Status, "passed"; got != want {
+		t.Fatalf("status = %q, want %q", got, want)
+	}
+	if got, want := execution.Location, "./spec/example_spec.rb:12"; got != want {
+		t.Fatalf("location = %q, want %q", got, want)
+	}
+}
+
+func TestLatestTestExecution_IgnoresExecutionsWithoutTimestamps(t *testing.T) {
+	t.Parallel()
+
+	execution := latestTestExecution(buildkite.BuildTest{
+		Executions: []buildkite.BuildTestExecution{
+			{Status: "failed", Location: "./spec/example_spec.rb:10"},
+			{Status: "passed", Location: "./spec/example_spec.rb:11"},
+		},
+	})
+
+	if execution != nil {
+		t.Fatalf("expected nil execution, got %#v", execution)
+	}
+}
+
+func TestTestPresenter_ColoredLine_AddsANSIStyles(t *testing.T) {
+	t.Parallel()
+	executionTime := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}
+
+	line := testPresenter{}.ColoredLine(buildkite.BuildTest{
+		Name:            "Test A",
+		ExecutionsCount: 1,
+		ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{
+			Failed: 1,
+		},
+		Executions: []buildkite.BuildTestExecution{{
+			Status:        "failed",
+			Location:      "./spec/example_spec.rb:10",
+			FailureReason: "Failure/Error: expect(false).to eq(true)",
+			Timestamp:     &executionTime,
+		}},
+	})
+
+	if !ansiCodesPattern.MatchString(line) {
+		t.Fatalf("expected colored line with ANSI codes, got %q", line)
+	}
+
+	got := stripANSI(line)
+	if !strings.Contains(got, "✗ Test A") {
+		t.Fatalf("expected colored line to preserve headline text content, got %q", got)
+	}
+	if !strings.Contains(got, "1 attempt (0 passed, 1 failed) — ./spec/example_spec.rb:10") {
+		t.Fatalf("expected colored line to preserve text content, got %q", got)
+	}
+}
+
+func stripANSI(s string) string {
+	return ansiCodesPattern.ReplaceAllString(s, "")
 }
 
 func TestNewRenderer_NonFileWriterDefaultsToPlain(t *testing.T) {

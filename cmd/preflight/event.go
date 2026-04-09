@@ -15,6 +15,7 @@ const (
 	EventBuildStatus  EventType = "build_status"
 	EventJobFailure   EventType = "job_failure"
 	EventBuildSummary EventType = "build_summary"
+	EventTestFailure  EventType = "test_failure"
 )
 
 // Event is the single data model emitted by a preflight run.
@@ -49,4 +50,7 @@ type Event struct {
 
 	// Duration is set for build_summary events. Total elapsed time of the preflight run.
 	Duration time.Duration `json:"duration_ns,omitempty"`
+
+	// TestFailures is set for test_failure events.
+	TestFailures []buildkite.BuildTest `json:"test_failures,omitempty"`
 }

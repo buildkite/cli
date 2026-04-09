@@ -35,6 +35,14 @@ github.com/bradleyjkemp/cupaloy/v2 v2.6.0 h1:knToPYa2xtfg42U3I6punFEjaGFKWQRXJwj
 github.com/bradleyjkemp/cupaloy/v2 v2.6.0/go.mod h1:bm7JXdkRd4BHJk9HpwqAI8BoAY1lps46Enkdqw6aRX0=
 github.com/buildkite/go-buildkite/v4 v4.18.0 h1:L0zypZi+jo9jqqcsrXSk5Jkyn3Hsdi2fwo5g7ltDbtU=
 github.com/buildkite/go-buildkite/v4 v4.18.0/go.mod h1:8+7GiWBKwEPAWoZnRU/kpNCt46j1iVH8kFMMbD4YDfc=
+github.com/buildkite/go-buildkite/v4 v4.18.1-0.20260407065206-c8b12d55efbc h1:4srNg3HovVguNTF4elfyeTcGi/CQkELyj8hoonCsPsE=
+github.com/buildkite/go-buildkite/v4 v4.18.1-0.20260407065206-c8b12d55efbc/go.mod h1:8+7GiWBKwEPAWoZnRU/kpNCt46j1iVH8kFMMbD4YDfc=
+github.com/buildkite/go-buildkite/v4 v4.18.1-0.20260407065502-570779211e70 h1:jyFaRy7P66/EJo+mD1eQe8rbA6fWrzRz/zF3yA57JyI=
+github.com/buildkite/go-buildkite/v4 v4.18.1-0.20260407065502-570779211e70/go.mod h1:8+7GiWBKwEPAWoZnRU/kpNCt46j1iVH8kFMMbD4YDfc=
+github.com/buildkite/go-buildkite/v4 v4.18.1-0.20260408011927-75549ad7dcc5 h1:OP779xxlsIWRyWIuOhuPtH5oLCnLFkxZRgVdUAnzcwU=
+github.com/buildkite/go-buildkite/v4 v4.18.1-0.20260408011927-75549ad7dcc5/go.mod h1:8+7GiWBKwEPAWoZnRU/kpNCt46j1iVH8kFMMbD4YDfc=
+github.com/buildkite/go-buildkite/v4 v4.18.1-0.20260408042936-6212b2a69f6c h1:79Jh2ccZMAa3+NJbxchk0S+lKat8rDbja04pte7oAuI=
+github.com/buildkite/go-buildkite/v4 v4.18.1-0.20260408042936-6212b2a69f6c/go.mod h1:8+7GiWBKwEPAWoZnRU/kpNCt46j1iVH8kFMMbD4YDfc=
 github.com/buildkite/roko v1.4.0 h1:DxixoCdpNqxu4/1lXrXbfsKbJSd7r1qoxtef/TT2J80=
 github.com/buildkite/roko v1.4.0/go.mod h1:0vbODqUFEcVf4v2xVXRfZZRsqJVsCCHTG/TBRByGK4E=
 github.com/buildkite/termoji v0.0.0-20260330080310-c0aa4ebee0d1 h1:aaEl0QZURcwC+KOfFTzSp66xknw5eTmFZ1NgB87s2xk=

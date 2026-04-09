@@ -41,15 +41,15 @@ func newPlainRenderer(stdout io.Writer) *plainRenderer {
 }
 
 func (r *plainRenderer) Render(e Event) error {
+	prefix := timestampPrefix(e.Time)
+
 	switch e.Type {
 	case EventOperation:
 		if e.Detail != "" {
-			sep := "\n"
-			detail := indentAllLines(e.Detail, len("["+time.TimeOnly+"] "))
-			_, err := fmt.Fprintf(r.stdout, "[%s] %s:%s%s\n", e.Time.Format(time.TimeOnly), e.Title, sep, detail)
+			_, err := fmt.Fprintf(r.stdout, "%s\n", formatTimestampedDetail(e.Title, e.Detail, e.Time))
 			return err
 		}
-		_, err := fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), e.Title)
+		_, err := fmt.Fprintf(r.stdout, "%s%s\n", prefix, e.Title)
 		return err
 
 	case EventBuildStatus:
@@ -60,7 +60,7 @@ func (r *plainRenderer) Render(e Event) error {
 			}
 		}
 		if line != r.lastLine {
-			_, err := fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), line)
+			_, err := fmt.Fprintf(r.stdout, "%s%s\n", prefix, line)
 			r.lastLine = line
 			return err
 		}
@@ -68,7 +68,7 @@ func (r *plainRenderer) Render(e Event) error {
 	case EventJobFailure:
 		if e.Job != nil {
 			presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
-			_, err := fmt.Fprintf(r.stdout, "[%s] %s\n", e.Time.Format(time.TimeOnly), presenter.Line(*e.Job))
+			_, err := fmt.Fprintf(r.stdout, "%s%s\n", prefix, presenter.Line(*e.Job))
 			return err
 		}
 
@@ -86,6 +86,16 @@ func (r *plainRenderer) Render(e Event) error {
 		for _, j := range e.FailedJobs {
 			if _, err := fmt.Fprintf(r.stdout, "  %s\n", presenter.Line(j)); err != nil {
 				return err
+			}
+		}
+
+	case EventTestFailure:
+		if e.TestFailures != nil {
+			presenter := testPresenter{}
+			for _, t := range e.TestFailures {
+				if _, err := fmt.Fprintf(r.stdout, "%s\n", formatTimestampedBlock(presenter.Line(t), e.Time)); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -149,6 +159,28 @@ func plural(n int, word string) string {
 
 func jobLogCommand(pipeline string, buildNumber int, jobID string) string {
 	return fmt.Sprintf("bk job log -b %d -p %s %s", buildNumber, pipeline, jobID)
+}
+
+func timestampPrefix(t time.Time) string {
+	return t.Format(time.TimeOnly) + " "
+}
+
+func formatTimestampedDetail(title, detail string, t time.Time) string {
+	return formatTimestampedBlock(title+":\n"+detail, t)
+}
+
+func formatTimestampedBlock(text string, t time.Time) string {
+	prefix := timestampPrefix(t)
+	lines := strings.Split(text, "\n")
+	if len(lines) == 0 {
+		return prefix
+	}
+
+	if len(lines) == 1 {
+		return prefix + lines[0]
+	}
+
+	return prefix + lines[0] + "\n" + indentAllLines(strings.Join(lines[1:], "\n"), len(prefix))
 }
 
 func indentAllLines(text string, indentWidth int) string {
