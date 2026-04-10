@@ -36,30 +36,30 @@ import (
 // Kong CLI structure, with base commands defined as additional commands are defined in their respective files
 type CLI struct {
 	// Global flags
-	Yes          bool                   `help:"Skip all confirmation prompts" short:"y"`
-	NoInput      bool                   `help:"Disable all interactive prompts" name:"no-input"`
-	Quiet        bool                   `help:"Suppress progress output" short:"q"`
-	NoPager      bool                   `help:"Disable pager for text output" name:"no-pager"`
-	Debug        bool                   `help:"Enable debug output for REST API calls"`
-	Agent        AgentCmd               `cmd:"" help:"Manage agents"`
-	Api          ApiCmd                 `cmd:"" help:"Interact with the Buildkite API"`
-	Artifacts    ArtifactsCmd           `cmd:"" help:"Manage pipeline build artifacts"`
-	Auth         AuthCmd                `cmd:"" help:"Authenticate with Buildkite"`
-	Build        BuildCmd               `cmd:"" help:"Manage pipeline builds"`
-	Cluster      ClusterCmd             `cmd:"" help:"Manage organization clusters"`
-	Secret       SecretCmd              `cmd:"" help:"Manage cluster secrets"`
-	Config       bkConfig.ConfigCmd     `cmd:"" help:"Manage CLI configuration"`
-	Configure    ConfigureCmd           `cmd:"" help:"Configure Buildkite API token" hidden:""`
-	Init         bkInit.InitCmd         `cmd:"" help:"Initialize a pipeline.yaml file"`
-	Job          JobCmd                 `cmd:"" help:"Manage jobs within a build"`
-	Organization OrganizationCmd        `cmd:"" help:"Manage organizations" aliases:"org"`
-	Pipeline     PipelineCmd            `cmd:"" help:"Manage pipelines"`
-	Package      PackageCmd             `cmd:"" help:"Manage packages"`
-	Preflight    preflight.PreflightCmd `cmd:"" help:"Validate pre-commit changes"`
-	Use          use.UseCmd             `cmd:"" help:"Select an organization" hidden:""`
-	User         UserCmd                `cmd:"" help:"Invite users to the organization"`
-	Version      VersionCmd             `cmd:"" help:"Print the version of the CLI being used"`
-	Whoami       whoami.WhoAmICmd       `cmd:"" help:"Print the current user and organization" hidden:""`
+	Yes          bool               `help:"Skip all confirmation prompts" short:"y"`
+	NoInput      bool               `help:"Disable all interactive prompts" name:"no-input"`
+	Quiet        bool               `help:"Suppress progress output" short:"q"`
+	NoPager      bool               `help:"Disable pager for text output" name:"no-pager"`
+	Debug        bool               `help:"Enable debug output for REST API calls"`
+	Agent        AgentCmd           `cmd:"" help:"Manage agents"`
+	Api          ApiCmd             `cmd:"" help:"Interact with the Buildkite API"`
+	Artifacts    ArtifactsCmd       `cmd:"" help:"Manage pipeline build artifacts"`
+	Auth         AuthCmd            `cmd:"" help:"Authenticate with Buildkite"`
+	Build        BuildCmd           `cmd:"" help:"Manage pipeline builds"`
+	Cluster      ClusterCmd         `cmd:"" help:"Manage organization clusters"`
+	Secret       SecretCmd          `cmd:"" help:"Manage cluster secrets"`
+	Config       bkConfig.ConfigCmd `cmd:"" help:"Manage CLI configuration"`
+	Configure    ConfigureCmd       `cmd:"" help:"Configure Buildkite API token" hidden:""`
+	Init         bkInit.InitCmd     `cmd:"" help:"Initialize a pipeline.yaml file"`
+	Job          JobCmd             `cmd:"" help:"Manage jobs within a build"`
+	Organization OrganizationCmd    `cmd:"" help:"Manage organizations" aliases:"org"`
+	Pipeline     PipelineCmd        `cmd:"" help:"Manage pipelines"`
+	Package      PackageCmd         `cmd:"" help:"Manage packages"`
+	Preflight    PreflightCmd       `cmd:"" help:"Validate pre-commit changes"`
+	Use          use.UseCmd         `cmd:"" help:"Select an organization" hidden:""`
+	User         UserCmd            `cmd:"" help:"Invite users to the organization"`
+	Version      VersionCmd         `cmd:"" help:"Print the version of the CLI being used"`
+	Whoami       whoami.WhoAmICmd   `cmd:"" help:"Print the current user and organization" hidden:""`
 }
 
 type (
@@ -130,6 +130,10 @@ type (
 		Convert  pipeline.ConvertCmd  `cmd:"" help:"Convert a CI/CD pipeline configuration to Buildkite format." aliases:"migrate"`
 		Validate pipeline.ValidateCmd `cmd:"" help:"Validate a pipeline YAML file."`
 		View     pipeline.ViewCmd     `cmd:"" help:"View a pipeline."`
+	}
+	PreflightCmd struct {
+		Run     preflight.RunCmd     `cmd:"" default:"withargs" help:"Run a preflight check"`
+		Cleanup preflight.CleanupCmd `cmd:"" help:"Clean up completed preflight branches"`
 	}
 	UserCmd struct {
 		Invite user.InviteCmd `cmd:"" help:"Invite users to your organization."`
