@@ -41,11 +41,11 @@ func (p jobPresenter) failParts(j buildkite.Job) (symbol, name, detail string) {
 
 func (p jobPresenter) Line(j buildkite.Job) string {
 	symbol, name, detail := p.failParts(j)
-	return fmt.Sprintf("%s %s %s", symbol, emoji.Render(name), detail)
+	return fmt.Sprintf("%s %s %s", symbol, name, detail)
 }
 
 func (p jobPresenter) PassedLine(j buildkite.Job) string {
-	name := emoji.Render(watch.NewFormattedJob(j).DisplayName())
+	name := watch.NewFormattedJob(j).DisplayName()
 	return fmt.Sprintf("✔ %s", name)
 }
 
