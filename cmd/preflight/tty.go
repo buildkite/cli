@@ -74,10 +74,15 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case EventBuildSummary:
-			// Store the summary on the model so View() renders it as the
-			// final frame when the program quits via Close().
+			// Print the summary via Printf (which scrolls it above the
+			// view) instead of rendering it through View(). Inline-image
+			// escape sequences from emoji.Render confuse Bubbletea's
+			// cursor tracking, causing lines to vanish on re-render.
 			m.summary = &msg
-			return m, nil
+			return m, tea.Sequence(
+				tea.Printf("%s", buildSummaryView(msg)),
+				tea.Quit,
+			)
 
 		case EventTestFailure:
 			if len(msg.TestFailures) > 0 {
@@ -129,10 +134,6 @@ func (m ttyModel) hardwrapLine(s string) string {
 func (m ttyModel) render() string {
 	separator := ttyBorderStyle.Render("─────────────────────────────────────────────")
 
-	if m.summary != nil {
-		return buildSummaryView(*m.summary)
-	}
-
 	statusLine := fmt.Sprintf("  %s %s", m.spinner.View(), ttyStatusStyle.Render(m.statusText()))
 
 	if m.latest.Jobs == nil {
@@ -161,6 +162,11 @@ func (m ttyModel) render() string {
 }
 
 func (m ttyModel) View() string {
+	if m.summary != nil {
+		// Summary was already printed via tea.Printf; return empty
+		// so Bubbletea clears the spinner area on exit.
+		return ""
+	}
 	return m.hardwrapLine(m.render())
 }
 
