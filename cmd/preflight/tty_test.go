@@ -16,30 +16,36 @@ func TestBuildSummaryView_ReturnsOutput(t *testing.T) {
 		{
 			name: "passed build no jobs",
 			event: Event{
-				Type:       EventBuildSummary,
-				BuildState: "passed",
+				Type:        EventBuildSummary,
+				BuildState:  "passed",
+				BuildNumber: 42,
+				BuildURL:    "https://buildkite.com/buildkite/cli/builds/42",
 			},
-			contains: []string{"─────"},
+			contains: []string{"─────", "Build #42: https://buildkite.com/buildkite/cli/builds/42"},
 		},
 		{
 			name: "passed build with jobs",
 			event: Event{
-				Type:       EventBuildSummary,
-				BuildState: "passed",
+				Type:        EventBuildSummary,
+				BuildState:  "passed",
+				BuildNumber: 42,
+				BuildURL:    "https://buildkite.com/buildkite/cli/builds/42",
 				PassedJobs: []buildkite.Job{
 					{ID: "j1", Name: "Lint", Type: "script", State: "passed"},
 					{ID: "j2", Name: "Test", Type: "script", State: "passed"},
 				},
 			},
-			contains: []string{"✔ Lint", "✔ Test"},
+			contains: []string{"Build #42: https://buildkite.com/buildkite/cli/builds/42", "✔ Lint", "✔ Test"},
 		},
 		{
 			name: "failed build no jobs",
 			event: Event{
-				Type:       EventBuildSummary,
-				BuildState: "failed",
+				Type:        EventBuildSummary,
+				BuildState:  "failed",
+				BuildNumber: 42,
+				BuildURL:    "https://buildkite.com/buildkite/cli/builds/42",
 			},
-			contains: []string{"─────"},
+			contains: []string{"─────", "Build #42: https://buildkite.com/buildkite/cli/builds/42"},
 		},
 		{
 			name: "failed build with jobs",
@@ -48,6 +54,7 @@ func TestBuildSummaryView_ReturnsOutput(t *testing.T) {
 				BuildState:  "failed",
 				Pipeline:    "buildkite/cli",
 				BuildNumber: 42,
+				BuildURL:    "https://buildkite.com/buildkite/cli/builds/42",
 				FailedJobs: func() []buildkite.Job {
 					exit := 1
 					return []buildkite.Job{
@@ -55,7 +62,7 @@ func TestBuildSummaryView_ReturnsOutput(t *testing.T) {
 					}
 				}(),
 			},
-			contains: []string{"✗", "Lint", "failed with exit 1"},
+			contains: []string{"Build #42: https://buildkite.com/buildkite/cli/builds/42", "✗", "Lint", "failed with exit 1"},
 		},
 	}
 
