@@ -184,6 +184,18 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 				return err
 			}
 		}
+		for _, retryPassed := range status.NewlyRetryPassed {
+			if err := renderer.Render(Event{
+				Type:        EventJobRetryPassed,
+				Time:        time.Now(),
+				PreflightID: preflightID.String(),
+				Pipeline:    pipelineName,
+				BuildNumber: build.Number,
+				Job:         &retryPassed,
+			}); err != nil {
+				return err
+			}
+		}
 		return renderer.Render(Event{
 			Type:        EventBuildStatus,
 			Time:        time.Now(),
@@ -194,7 +206,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			BuildState:  b.State,
 			Jobs:        &status.Summary,
 		})
-	}, watch.WithTestTracking(func(newTestChanges []buildkite.BuildTest) error {
+	}, watch.WithRetriedJobs(), watch.WithTestTracking(func(newTestChanges []buildkite.BuildTest) error {
 		return renderer.Render(Event{
 			Type:         EventTestFailure,
 			Time:         time.Now(),

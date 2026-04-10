@@ -72,6 +72,13 @@ func (r *plainRenderer) Render(e Event) error {
 			return err
 		}
 
+	case EventJobRetryPassed:
+		if e.Job != nil {
+			presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
+			_, err := fmt.Fprintf(r.stdout, "%s%s\n", prefix, presenter.RetryPassedLine(*e.Job))
+			return err
+		}
+
 	case EventBuildSummary:
 		header := summaryHeader(e)
 		if _, err := fmt.Fprintf(r.stdout, "\n%s\n", header); err != nil {

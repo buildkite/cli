@@ -49,6 +49,21 @@ func (p jobPresenter) PassedLine(j buildkite.Job) string {
 	return fmt.Sprintf("✔ %s", name)
 }
 
+func (p jobPresenter) RetryPassedLine(j buildkite.Job) string {
+	name := watch.NewFormattedJob(j).DisplayName()
+	return fmt.Sprintf("✔ %s passed on retry (attempt %d)", name, j.RetriesCount+1)
+}
+
+func (p jobPresenter) ColoredRetryPassedLine(j buildkite.Job) string {
+	emojiPrefix, textName := emoji.Split(watch.NewFormattedJob(j).DisplayName())
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+	detail := fmt.Sprintf("passed on retry (attempt %d)", j.RetriesCount+1)
+	if emojiPrefix != "" {
+		return style.Render("✔ ") + emoji.Render(emojiPrefix) + " " + style.Render(fmt.Sprintf("%s %s", textName, detail))
+	}
+	return style.Render(fmt.Sprintf("✔ %s %s", textName, detail))
+}
+
 func (p jobPresenter) ColoredPassedLine(j buildkite.Job, style lipgloss.Style) string {
 	emojiPrefix, textName := emoji.Split(watch.NewFormattedJob(j).DisplayName())
 	if emojiPrefix != "" {

@@ -183,6 +183,72 @@ func TestPlainRenderer_Render_JobFailure(t *testing.T) {
 	}
 }
 
+func TestPlainRenderer_Render_JobRetryPassed(t *testing.T) {
+	var out bytes.Buffer
+	r := newPlainRenderer(&out)
+
+	now := time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)
+	r.Render(Event{
+		Type: EventJobRetryPassed,
+		Time: now,
+		Job: &buildkite.Job{
+			ID:           "retry-1",
+			Name:         "Lint",
+			Type:         "script",
+			State:        "passed",
+			RetriesCount: 1,
+		},
+	})
+
+	got := out.String()
+	if !strings.Contains(got, "10:31:00") {
+		t.Fatalf("expected timestamp, got %q", got)
+	}
+	if !strings.Contains(got, "✔ Lint") {
+		t.Fatalf("expected check mark and job name, got %q", got)
+	}
+	if !strings.Contains(got, "passed on retry") {
+		t.Fatalf("expected retry text, got %q", got)
+	}
+	if !strings.Contains(got, "attempt 2") {
+		t.Fatalf("expected attempt count, got %q", got)
+	}
+}
+
+func TestJSONRenderer_Render_JobRetryPassed(t *testing.T) {
+	var out bytes.Buffer
+	r := newJSONRenderer(&out)
+
+	now := time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)
+	r.Render(Event{
+		Type:        EventJobRetryPassed,
+		Time:        now,
+		PreflightID: "pfid-123",
+		Pipeline:    "buildkite/cli",
+		BuildNumber: 42,
+		Job: &buildkite.Job{
+			ID:           "retry-1",
+			Name:         "Lint",
+			State:        "passed",
+			RetriesCount: 1,
+		},
+	})
+
+	var got Event
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if got.Type != EventJobRetryPassed {
+		t.Fatalf("expected type %q, got %q", EventJobRetryPassed, got.Type)
+	}
+	if got.Job == nil {
+		t.Fatal("expected job to be present")
+	}
+	if got.Job.RetriesCount != 1 {
+		t.Fatalf("expected retries count 1, got %d", got.Job.RetriesCount)
+	}
+}
+
 func TestPlainRenderer_Render_TestFailure(t *testing.T) {
 	var out bytes.Buffer
 	r := newPlainRenderer(&out)
