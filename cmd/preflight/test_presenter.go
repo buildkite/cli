@@ -27,58 +27,54 @@ func (p testPresenter) line(t buildkite.BuildTest, colored bool) string {
 	}
 	name = truncateToWidth(name, 80)
 
-	latestExecution := latestTestExecution(t)
+	line := fmt.Sprintf("%s %s", formatTestStatusSummary(t, colored), name)
 
-	statusIcon := formatTestStatusIcon(latestExecution, colored)
-	line := fmt.Sprintf("%s %s", statusIcon, name)
-
-	if !isFailedTestExecution(latestExecution) {
+	latestFailedExecution := latestFailedTestExecution(t)
+	if latestFailedExecution == nil {
 		return line
 	}
 
-	detailParts := make([]string, 0, 2)
-	if attemptSummary := testAttemptCounts(t); attemptSummary != "" {
-		detailParts = append(detailParts, attemptSummary)
-	}
-	if location := latestExecution.Location; location != "" {
-		detailParts = append(detailParts, location)
+	if location := latestFailedExecution.Location; location != "" {
+		line += fmt.Sprintf("\n    %s", formatTestDetail(location, colored))
 	} else if t.Location != "" {
-		detailParts = append(detailParts, t.Location)
-	}
-	if len(detailParts) > 0 {
-		line += fmt.Sprintf("\n    %s", formatTestDetail(strings.Join(detailParts, " — "), colored))
+		line += fmt.Sprintf("\n    %s", formatTestDetail(t.Location, colored))
 	}
 
-	if latestExecution.FailureReason != "" {
-		line += fmt.Sprintf("\n    %s", formatTestDetail(latestExecution.FailureReason, colored))
+	if latestFailedExecution.FailureReason != "" {
+		line += fmt.Sprintf("\n    %s", formatTestDetail(latestFailedExecution.FailureReason, colored))
 	}
 
 	return line
 }
 
-func testAttemptCounts(t buildkite.BuildTest) string {
-	attempts := t.ExecutionsCount
-	if attempts == 0 {
-		return ""
-	}
-
+func formatTestStatusSummary(t buildkite.BuildTest, colored bool) string {
 	passed := t.ExecutionsCountByResult.Passed
 	failed := t.ExecutionsCountByResult.Failed
-	return fmt.Sprintf("%d %s (%d passed, %d failed)", attempts, plural(attempts, "attempt"), passed, failed)
+	if colored {
+		return fmt.Sprintf("%s %d %s %d", formatTestStatusSymbol("✗", "31", colored), failed, formatTestStatusSymbol("✓", "32", colored), passed)
+	}
+
+	return fmt.Sprintf("%d %s, %d %s", failed, testCountWord(failed, "failure", "failures"), passed, testCountWord(passed, "pass", "passes"))
 }
 
-func latestTestExecution(t buildkite.BuildTest) *buildkite.BuildTestExecution {
+func testCountWord(n int, singular, plural string) string {
+	if n == 1 {
+		return singular
+	}
+
+	return plural
+}
+
+func latestFailedTestExecution(t buildkite.BuildTest) *buildkite.BuildTestExecution {
 	executions := testExecutionsInTimestampOrder(t.Executions)
-	if len(executions) == 0 {
-		return nil
+	for i := len(executions) - 1; i >= 0; i-- {
+		if strings.EqualFold(executions[i].Status, "failed") {
+			latest := executions[i]
+			return &latest
+		}
 	}
 
-	latest := executions[len(executions)-1]
-	if latest.Timestamp == nil {
-		return nil
-	}
-
-	return &latest
+	return nil
 }
 
 func testExecutionsInTimestampOrder(executions []buildkite.BuildTestExecution) []buildkite.BuildTestExecution {
@@ -102,14 +98,6 @@ func testExecutionsInTimestampOrder(executions []buildkite.BuildTestExecution) [
 	return ordered
 }
 
-func isFailedTestExecution(execution *buildkite.BuildTestExecution) bool {
-	if execution == nil {
-		return false
-	}
-
-	return strings.EqualFold(execution.Status, "failed")
-}
-
 func formatTestDetail(text string, colored bool) string {
 	if !colored {
 		return text
@@ -118,31 +106,12 @@ func formatTestDetail(text string, colored bool) string {
 	return "\033[2m" + text + "\033[0m"
 }
 
-func formatTestStatusIcon(execution *buildkite.BuildTestExecution, colored bool) string {
-	status := ""
-	if execution != nil {
-		status = execution.Status
-	}
-
+func formatTestStatusSymbol(symbol, color string, colored bool) string {
 	if !colored {
-		switch {
-		case strings.EqualFold(status, "passed"):
-			return "✓"
-		case strings.EqualFold(status, "failed"):
-			return "✗"
-		default:
-			return "?"
-		}
+		return symbol
 	}
 
-	switch {
-	case strings.EqualFold(status, "passed"):
-		return "\033[32m✓\033[0m"
-	case strings.EqualFold(status, "failed"):
-		return "\033[31m✗\033[0m"
-	default:
-		return "\033[2m?\033[0m"
-	}
+	return fmt.Sprintf("\033[%sm%s\033[0m", color, symbol)
 }
 
 func truncateToWidth(s string, width int) string {
