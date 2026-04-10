@@ -569,6 +569,7 @@ func TestPlainRenderer_Render_BuildSummaryPassed(t *testing.T) {
 		Time:        time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
 		Pipeline:    "buildkite/cli",
 		BuildNumber: 42,
+		BuildURL:    "https://buildkite.com/buildkite/cli/builds/42",
 		BuildState:  "passed",
 		PassedJobs: []buildkite.Job{
 			{ID: "job-1", Name: "Lint", Type: "script", State: "passed"},
@@ -581,6 +582,9 @@ func TestPlainRenderer_Render_BuildSummaryPassed(t *testing.T) {
 	got := out.String()
 	if !strings.Contains(got, "✅ Preflight Passed") {
 		t.Fatalf("expected passed header, got %q", got)
+	}
+	if !strings.Contains(got, "Build #42: https://buildkite.com/buildkite/cli/builds/42") {
+		t.Fatalf("expected build URL in summary, got %q", got)
 	}
 	if !strings.Contains(got, "Lint") {
 		t.Fatalf("expected passed job name, got %q", got)
@@ -600,6 +604,7 @@ func TestPlainRenderer_Render_BuildSummaryFailed(t *testing.T) {
 		Time:        time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
 		Pipeline:    "buildkite/cli",
 		BuildNumber: 42,
+		BuildURL:    "https://buildkite.com/buildkite/cli/builds/42",
 		BuildState:  "failed",
 		FailedJobs: []buildkite.Job{
 			{ID: "job-1", Name: "Lint", Type: "script", State: "failed", ExitStatus: &exitOne},
@@ -611,6 +616,9 @@ func TestPlainRenderer_Render_BuildSummaryFailed(t *testing.T) {
 	got := out.String()
 	if !strings.Contains(got, "❌ Preflight Failed") {
 		t.Fatalf("expected failed header, got %q", got)
+	}
+	if !strings.Contains(got, "Build #42: https://buildkite.com/buildkite/cli/builds/42") {
+		t.Fatalf("expected build URL in summary, got %q", got)
 	}
 	if !strings.Contains(got, "Lint") {
 		t.Fatalf("expected hard-failed job name, got %q", got)

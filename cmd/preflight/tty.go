@@ -179,6 +179,9 @@ func buildSummaryView(e Event) string {
 
 	separator := ttyBorderStyle.Render("─────────────────────────────────────────────")
 	out := separator + "\n" + style.Render(summaryHeader(e))
+	if line := summaryBuildLine(e); line != "" {
+		out += "\n  " + ttyDimStyle.Render(line)
+	}
 
 	presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
 	for _, j := range e.PassedJobs {
