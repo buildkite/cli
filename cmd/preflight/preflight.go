@@ -26,13 +26,17 @@ import (
 )
 
 type PreflightCmd struct {
-	Pipeline  string  `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
-	Watch     bool    `help:"Watch the build until completion." default:"true" negatable:""`
-	Interval  float64 `help:"Polling interval in seconds when watching." default:"2"`
-	NoCleanup bool    `help:"Skip deleting the remote preflight branch after the build finishes."`
-	Text      bool    `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
-	JSON      bool    `help:"Emit one JSON object per event (JSONL)." xor:"output"`
+	Pipeline  string              `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
+	Watch     bool                `help:"Watch the build until completion." default:"true" negatable:""`
+	Interval  float64             `help:"Polling interval in seconds when watching." default:"2"`
+	NoCleanup bool                `help:"Skip deleting the remote preflight branch after the build finishes."`
+	Text      bool                `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
+	JSON      bool                `help:"Emit one JSON object per event (JSONL)." xor:"output"`
+	Default   PreflightDefaultCmd `cmd:"" optional:"" hidden:"" default:"1"`
+	Show      ShowCmd             `cmd:"" help:"Show the current status and results for a preflight build."`
 }
+
+type PreflightDefaultCmd struct{}
 
 var (
 	notifyContext = signal.NotifyContext

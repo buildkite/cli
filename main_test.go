@@ -55,4 +55,28 @@ func TestApplyExperiments(t *testing.T) {
 		}
 		t.Fatal("preflight command not found in parser")
 	})
+
+	t.Run("preflight root still parses with default subcommand", func(t *testing.T) {
+		cli := &CLI{}
+		parser, err := newKongParser(cli)
+		if err != nil {
+			t.Fatalf("failed to create parser: %v", err)
+		}
+
+		if _, err := parser.Parse([]string{"preflight"}); err != nil {
+			t.Fatalf("failed to parse preflight root command: %v", err)
+		}
+	})
+
+	t.Run("preflight show parses", func(t *testing.T) {
+		cli := &CLI{}
+		parser, err := newKongParser(cli)
+		if err != nil {
+			t.Fatalf("failed to create parser: %v", err)
+		}
+
+		if _, err := parser.Parse([]string{"preflight", "show", "00000000-0000-0000-0000-000000000123"}); err != nil {
+			t.Fatalf("failed to parse preflight show command: %v", err)
+		}
+	})
 }
