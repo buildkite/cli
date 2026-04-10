@@ -48,6 +48,14 @@ func (c *PreflightCmd) Help() string {
 }
 
 func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	if kongCtx != nil {
+		switch kongCtx.Command() {
+		case "preflight", "preflight default":
+		default:
+			return nil
+		}
+	}
+
 	rlTransport := bkhttp.NewRateLimitTransport(http.DefaultTransport)
 	f, err := newFactory(factory.WithDebug(globals.EnableDebug()), factory.WithTransport(rlTransport))
 	if err != nil {

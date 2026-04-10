@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/config"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 
@@ -35,6 +36,18 @@ func (s stubGlobals) EnableDebug() bool      { return false }
 var _ cli.GlobalFlags = stubGlobals{}
 
 func TestPreflightCmd_Run(t *testing.T) {
+	t.Run("returns nil for show subcommand dispatch", func(t *testing.T) {
+		cmd := &PreflightCmd{}
+		ctx := &kong.Context{Path: []*kong.Path{
+			{Command: &kong.Node{Name: "preflight"}},
+			{Command: &kong.Node{Name: "show"}},
+		}}
+
+		if err := cmd.Run(ctx, stubGlobals{}); err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+	})
+
 	t.Run("returns validation error when experiment disabled", func(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "")
 
