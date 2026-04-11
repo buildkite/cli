@@ -1,9 +1,6 @@
 agents:
   queue: hosted
 
-x-mise-plugin: &mise_plugin
-  buildkite-plugins/mise#v1.1.1: ~
-
 cache: ".buildkite/cache-volume"
 
 steps:
@@ -21,7 +18,7 @@ steps:
       - OAUTH_CLIENT_ID
     command: 'GOOS="{{matrix}}" .buildkite/release.sh release --clean --split'
     plugins:
-      - *mise_plugin
+      - buildkite-plugins/mise#v1.1.1: ~
 
   - label: ":rocket: :package: upload packages ({{matrix}})"
     key: upload_packages
@@ -61,5 +58,5 @@ steps:
       - artifacts#v1.9.4:
           download:
             - dist/**/*
-      - *mise_plugin
+      - buildkite-plugins/mise#v1.1.1: ~
     command: '.buildkite/release.sh continue --merge'
