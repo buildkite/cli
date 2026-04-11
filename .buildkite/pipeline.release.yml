@@ -15,6 +15,7 @@ steps:
     artifact_paths:
       - dist/**/*
     secrets:
+      - MISE_GITHUB_TOKEN
       - POSTHOG_API_KEY
       - OAUTH_CLIENT_ID
     command: 'GOOS="{{matrix}}" .buildkite/release.sh release --clean --split'
@@ -39,6 +40,7 @@ steps:
     env:
       AWS_REGION: us-east-1
     secrets:
+      - MISE_GITHUB_TOKEN
       - POSTHOG_API_KEY
       - OAUTH_CLIENT_ID
     plugins:
