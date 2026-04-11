@@ -1,9 +1,6 @@
 agents:
   queue: hosted
 
-x-mise-plugin: &mise_plugin
-  buildkite-plugins/mise#v1.1.1: ~
-
 cache: ".buildkite/cache-volume"
 
 steps:
@@ -12,7 +9,7 @@ steps:
     secrets:
       - MISE_GITHUB_TOKEN
     plugins:
-      - *mise_plugin
+      - buildkite-plugins/mise#v1.1.1: ~
 
   - name: ":go: test"
     key: test
@@ -28,7 +25,7 @@ steps:
       - go-cover-treemap -coverprofile cover.out > cover-tree.svg
       - echo '<details><summary>Coverage tree map</summary><img src="artifact://cover-tree.svg" alt="Test coverage tree map" width="70%"></details>' | buildkite-agent annotate --style "info"
     plugins:
-      - *mise_plugin
+      - buildkite-plugins/mise#v1.1.1: ~
 
   - wait: ~
 
@@ -47,7 +44,7 @@ steps:
       - OAUTH_CLIENT_ID
     command: 'GOOS="{{matrix}}" .buildkite/release.sh release --clean --snapshot --split'
     plugins:
-      - *mise_plugin
+      - buildkite-plugins/mise#v1.1.1: ~
 
   - input: ":package: Create a release?"
     prompt: "Select the release type"
