@@ -16,7 +16,6 @@ To get started with contributing, please follow these steps:
    * Lint with `mise run lint`.
    * Make sure the tests pass with `mise run test`.
    * Run `mise run generate` after GraphQL changes. If you need to refresh `schema.graphql`, set `BUILDKITE_GRAPHQL_TOKEN` first.
-   * If you prefer the containerized lint setup, `docker-compose -f .buildkite/docker-compose.yaml run golangci-lint golangci-lint run` still works.
 7. Commit your changes and push them to your forked repository.
 8. Submit a pull request with a detailed description of your changes and links to any relevant issues.
 

@@ -46,9 +46,6 @@ mise run generate
 go run main.go --help
 ```
 
-- `mise run build` builds `bk` into `dist/bk`, stamped with `git describe`
-- `mise run install` installs `bk` into `$(go env GOBIN)` or `$(go env GOPATH)/bin`
-- `mise run install:global` installs `bk` into `~/bin/bk`
-
-`mise.toml` pins Go `1.26.1` to match the current release build image. The
-module itself remains compatible with Go `1.25.0` as declared in `go.mod`.
+`mise.toml` pins the shared toolchain, including the release helpers used in
+CI. The module itself remains compatible with Go `1.25.0` as declared in
+`go.mod`.
