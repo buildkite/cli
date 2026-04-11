@@ -10,6 +10,8 @@ steps:
   - name: ":golangci-lint: lint"
     key: lint
     command: 'golangci-lint run --verbose --timeout 3m'
+    secrets:
+      - MISE_GITHUB_TOKEN
     plugins:
       - *mise_plugin
 
@@ -17,6 +19,8 @@ steps:
     key: test
     artifact_paths:
       - cover-tree.svg
+    secrets:
+      - MISE_GITHUB_TOKEN
     commands:
       # Hosted agents inject org/token env that breaks config-precedence tests,
       # so clear those variables in the command shell right before go test.
@@ -39,6 +43,7 @@ steps:
     artifact_paths:
       - dist/**/*
     secrets:
+      - MISE_GITHUB_TOKEN
       - POSTHOG_API_KEY
       - OAUTH_CLIENT_ID
     command: 'GOOS="{{matrix}}" .buildkite/release.sh release --clean --snapshot --split'
