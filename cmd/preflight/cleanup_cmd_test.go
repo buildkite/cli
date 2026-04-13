@@ -297,6 +297,100 @@ func TestCleanupCmd_Run(t *testing.T) {
 			t.Error("expected cancel-b to be preserved after cancellation")
 		}
 	})
+
+	t.Run("preflight-uuid targets a single branch and leaves others alone", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+
+		const targetUUID = "01935b62-0000-7000-8000-000000000001"
+		const otherUUID = "01935b62-0000-7000-8000-000000000002"
+		targetBranch := "bk/preflight/" + targetUUID
+		otherBranch := "bk/preflight/" + otherUUID
+		createPreflightBranch(t, worktree, targetBranch)
+		createPreflightBranch(t, worktree, otherBranch)
+
+		var queriedBranches []string
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if r.Method == "GET" && strings.Contains(r.URL.Path, "/builds") {
+				queriedBranches = append(queriedBranches, r.URL.Query()["branch[]"]...)
+				var builds []buildkite.Build
+				for _, branch := range r.URL.Query()["branch[]"] {
+					builds = append(builds, buildkite.Build{Number: 1, State: "passed", Branch: branch})
+				}
+				json.NewEncoder(w).Encode(builds)
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		cmd := &CleanupCmd{Pipeline: "test-org/test-pipeline", Text: true, PreflightUUID: targetUUID}
+		if err := cmd.Run(nil, stubGlobals{}); err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		// Only the targeted branch should have been queried for build state.
+		if len(queriedBranches) != 1 || queriedBranches[0] != targetBranch {
+			t.Errorf("expected build lookup scoped to %s, got %v", targetBranch, queriedBranches)
+		}
+
+		refs := runGit(t, worktree, "ls-remote", "--heads", "origin")
+		if strings.Contains(refs, targetBranch) {
+			t.Errorf("expected targeted branch %s to be deleted", targetBranch)
+		}
+		if !strings.Contains(refs, otherBranch) {
+			t.Errorf("expected untargeted branch %s to be preserved", otherBranch)
+		}
+	})
+
+	t.Run("preflight-uuid with invalid UUID returns validation error", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		cmd := &CleanupCmd{Pipeline: "test-org/test-pipeline", Text: true, PreflightUUID: "not-a-uuid"}
+		err := cmd.Run(nil, stubGlobals{})
+		if err == nil {
+			t.Fatal("expected validation error, got nil")
+		}
+		if !bkErrors.IsValidationError(err) {
+			t.Fatalf("expected validation error, got %T: %v", err, err)
+		}
+	})
+
+	t.Run("preflight-uuid with no matching branch exits cleanly", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+
+		// An unrelated preflight branch exists, but the targeted one does not.
+		createPreflightBranch(t, worktree, "bk/preflight/01935b62-0000-7000-8000-000000000003")
+
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Errorf("unexpected API request: %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		cmd := &CleanupCmd{
+			Pipeline:      "test-org/test-pipeline",
+			Text:          true,
+			PreflightUUID: "01935b62-0000-7000-8000-0000000000ff",
+		}
+		if err := cmd.Run(nil, stubGlobals{}); err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		// The unrelated branch should still exist.
+		refs := runGit(t, worktree, "ls-remote", "--heads", "origin")
+		if !strings.Contains(refs, "bk/preflight/01935b62-0000-7000-8000-000000000003") {
+			t.Error("expected unrelated preflight branch to be preserved")
+		}
+	})
 }
 
 // createPreflightBranch creates a preflight branch on the remote by pushing a commit.

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
+	"github.com/google/uuid"
 
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
@@ -16,17 +17,24 @@ import (
 
 // CleanupCmd deletes remote bk/preflight/* branches whose builds have completed.
 type CleanupCmd struct {
-	Pipeline string `help:"The pipeline to check builds against. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
-	DryRun   bool   `help:"Show which branches would be deleted without actually deleting them." name:"dry-run"`
-	Text     bool   `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
-	JSON     bool   `help:"Emit one JSON object per event (JSONL)." xor:"output"`
+	Pipeline      string `help:"The pipeline to check builds against. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
+	PreflightUUID string `help:"Target a single preflight branch by its UUID (bk/preflight/<uuid>)." name:"preflight-uuid"`
+	DryRun        bool   `help:"Show which branches would be deleted without actually deleting them." name:"dry-run"`
+	Text          bool   `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
+	JSON          bool   `help:"Emit one JSON object per event (JSONL)." xor:"output"`
 }
 
 func (c *CleanupCmd) Help() string {
-	return `Deletes remote bk/preflight/* branches whose builds have completed (passed, failed, canceled). Branches with in-progress builds are left untouched to avoid interrupting concurrent preflight runs.`
+	return `Deletes remote bk/preflight/* branches whose builds have completed (passed, failed, canceled). Branches with in-progress builds are left untouched to avoid interrupting concurrent preflight runs. Pass --preflight-uuid to target a single preflight branch.`
 }
 
 func (c *CleanupCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	if c.PreflightUUID != "" {
+		if _, err := uuid.Parse(c.PreflightUUID); err != nil {
+			return bkErrors.NewValidationError(err, fmt.Sprintf("invalid preflight UUID %q", c.PreflightUUID))
+		}
+	}
+
 	pCtx, err := setup(c.Pipeline, globals)
 	if err != nil {
 		return err
@@ -37,13 +45,28 @@ func (c *CleanupCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	repoRoot := pCtx.RepoRoot
 	resolvedPipeline := pCtx.Pipeline
 
-	branches, err := preflight.ListRemotePreflightBranches(repoRoot, globals.EnableDebug())
-	if err != nil {
-		return bkErrors.NewInternalError(err, "failed to list remote preflight branches")
+	var branches []preflight.BranchBuild
+	if c.PreflightUUID != "" {
+		branch, err := preflight.LookupRemotePreflightBranch(repoRoot, c.PreflightUUID, globals.EnableDebug())
+		if err != nil {
+			return bkErrors.NewInternalError(err, "failed to look up preflight branch")
+		}
+		if branch != nil {
+			branches = []preflight.BranchBuild{*branch}
+		}
+	} else {
+		branches, err = preflight.ListRemotePreflightBranches(repoRoot, globals.EnableDebug())
+		if err != nil {
+			return bkErrors.NewInternalError(err, "failed to list remote preflight branches")
+		}
 	}
 
 	if len(branches) == 0 {
-		fmt.Fprintln(os.Stdout, "No preflight branches found")
+		if c.PreflightUUID != "" {
+			fmt.Fprintf(os.Stdout, "No preflight branch found for UUID %s\n", c.PreflightUUID)
+		} else {
+			fmt.Fprintln(os.Stdout, "No preflight branches found")
+		}
 		return nil
 	}
 

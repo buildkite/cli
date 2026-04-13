@@ -27,7 +27,26 @@ func (bb BranchBuild) IsCompleted() bool {
 
 // ListRemotePreflightBranches returns all remote branches matching bk/preflight/*.
 func ListRemotePreflightBranches(dir string, debug bool) ([]BranchBuild, error) {
-	out, err := gitOutput(dir, nil, debug, "ls-remote", "origin", "refs/heads/bk/preflight/*")
+	return lsRemotePreflightBranches(dir, "refs/heads/bk/preflight/*", debug)
+}
+
+// LookupRemotePreflightBranch returns the remote bk/preflight/<uuid> branch if it
+// exists, or nil if no such branch is present on the remote.
+func LookupRemotePreflightBranch(dir, uuid string, debug bool) (*BranchBuild, error) {
+	branches, err := lsRemotePreflightBranches(dir, "refs/heads/bk/preflight/"+uuid, debug)
+	if err != nil {
+		return nil, err
+	}
+	if len(branches) == 0 {
+		return nil, nil
+	}
+	return &branches[0], nil
+}
+
+// lsRemotePreflightBranches runs ls-remote against origin with the given ref
+// pattern and parses the results into BranchBuild entries.
+func lsRemotePreflightBranches(dir, pattern string, debug bool) ([]BranchBuild, error) {
+	out, err := gitOutput(dir, nil, debug, "ls-remote", "origin", pattern)
 	if err != nil {
 		return nil, fmt.Errorf("listing remote preflight branches: %w", err)
 	}
