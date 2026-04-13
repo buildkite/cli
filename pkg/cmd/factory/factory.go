@@ -16,7 +16,7 @@ import (
 	git "github.com/go-git/go-git/v5"
 )
 
-var userAgent string
+var baseUserAgent string
 
 type Factory struct {
 	Config        *config.Config
@@ -35,9 +35,10 @@ type Factory struct {
 type FactoryOpt func(*factoryConfig)
 
 type factoryConfig struct {
-	debug       bool
-	orgOverride string
-	transport   http.RoundTripper
+	debug           bool
+	orgOverride     string
+	transport       http.RoundTripper
+	userAgentSuffix string
 }
 
 // WithDebug enables debug output for REST API calls
@@ -61,6 +62,13 @@ func WithOrgOverride(org string) FactoryOpt {
 func WithTransport(t http.RoundTripper) FactoryOpt {
 	return func(c *factoryConfig) {
 		c.transport = t
+	}
+}
+
+// WithUserAgentSuffix appends an extra product token to the default user agent.
+func WithUserAgentSuffix(suffix string) FactoryOpt {
+	return func(c *factoryConfig) {
+		c.userAgentSuffix = suffix
 	}
 }
 
@@ -129,17 +137,25 @@ func redactHeaders(headers http.Header) {
 }
 
 type gqlHTTPClient struct {
-	client *http.Client
-	token  string
+	client    *http.Client
+	token     string
+	userAgent string
 }
 
 func init() {
-	userAgent = fmt.Sprintf("%s buildkite-cli/%s", buildkite.DefaultUserAgent, version.Version)
+	baseUserAgent = fmt.Sprintf("%s buildkite-cli/%s", buildkite.DefaultUserAgent, version.Version)
+}
+
+func buildUserAgent(suffix string) string {
+	if suffix == "" {
+		return baseUserAgent
+	}
+	return fmt.Sprintf("%s %s", baseUserAgent, suffix)
 }
 
 func (a *gqlHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", a.token))
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", a.userAgent)
 	return a.client.Do(req)
 }
 
@@ -165,6 +181,8 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 		}
 	}
 
+	userAgent := buildUserAgent(cfg.userAgentSuffix)
+
 	// Build client options
 	clientOpts := []buildkite.ClientOpt{
 		buildkite.WithBaseURL(conf.RESTAPIEndpoint()),
@@ -188,7 +206,7 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 		return nil, fmt.Errorf("creating buildkite client: %w", err)
 	}
 
-	graphqlHTTPClient := &gqlHTTPClient{client: http.DefaultClient, token: token}
+	graphqlHTTPClient := &gqlHTTPClient{client: http.DefaultClient, token: token, userAgent: userAgent}
 
 	return &Factory{
 		Config:        conf,

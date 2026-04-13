@@ -78,8 +78,10 @@ func TestPreflightCmd_Run(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
 
 		var gotReq buildkite.CreateBuild
+		var gotUserAgent string
 		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == "POST" && strings.Contains(r.URL.Path, "/builds") {
+				gotUserAgent = r.Header.Get("User-Agent")
 				json.NewDecoder(r.Body).Decode(&gotReq)
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode(buildkite.Build{
@@ -127,6 +129,12 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 		if gotReq.Env["BUILDKITE_PREFLIGHT"] != "true" {
 			t.Errorf("expected BUILDKITE_PREFLIGHT=true (deprecated), got %#v", gotReq.Env)
+		}
+		if !strings.Contains(gotUserAgent, buildkite.DefaultUserAgent) {
+			t.Errorf("expected User-Agent to contain %q, got %q", buildkite.DefaultUserAgent, gotUserAgent)
+		}
+		if !strings.Contains(gotUserAgent, "buildkite-cli-preflight/") {
+			t.Errorf("expected User-Agent to contain preflight token, got %q", gotUserAgent)
 		}
 	})
 

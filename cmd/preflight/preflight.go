@@ -8,12 +8,14 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/google/uuid"
 
+	"github.com/buildkite/cli/v3/cmd/version"
 	buildstate "github.com/buildkite/cli/v3/internal/build/state"
 	"github.com/buildkite/cli/v3/internal/build/watch"
 	"github.com/buildkite/cli/v3/internal/cli"
@@ -39,13 +41,28 @@ var (
 	newFactory    = factory.New
 )
 
+func preflightUserAgentSuffix() string {
+	major := strings.TrimPrefix(version.Version, "v")
+	if i := strings.IndexByte(major, '.'); i >= 0 {
+		major = major[:i]
+	}
+	if major == "" || major == "DEV" {
+		major = "DEV"
+	}
+	return "buildkite-cli-preflight/" + major + ".x"
+}
+
 func (c *PreflightCmd) Help() string {
 	return `Snapshots your working tree (uncommitted, staged, and untracked changes) and pushes it to a bk/preflight/<id> branch. If there are no local changes, pushes HEAD directly.`
 }
 
 func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	rlTransport := bkhttp.NewRateLimitTransport(http.DefaultTransport)
-	f, err := newFactory(factory.WithDebug(globals.EnableDebug()), factory.WithTransport(rlTransport))
+	f, err := newFactory(
+		factory.WithDebug(globals.EnableDebug()),
+		factory.WithTransport(rlTransport),
+		factory.WithUserAgentSuffix(preflightUserAgentSuffix()),
+	)
 	if err != nil {
 		return bkErrors.NewInternalError(err, "failed to initialize CLI", "This is likely a bug", "Report to Buildkite")
 	}

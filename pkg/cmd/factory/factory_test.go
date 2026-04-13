@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
 func TestRedactHeaders(t *testing.T) {
@@ -151,4 +153,50 @@ func TestDebugTransportHandlesNilBody(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected status 200, got %d", resp.StatusCode)
 	}
+}
+
+func TestBuildUserAgent(t *testing.T) {
+	t.Run("default user agent has no preflight suffix", func(t *testing.T) {
+		got := buildUserAgent("")
+		if !strings.Contains(got, buildkite.DefaultUserAgent) {
+			t.Fatalf("expected default user agent %q in %q", buildkite.DefaultUserAgent, got)
+		}
+		if strings.Contains(got, "buildkite-cli-preflight/") {
+			t.Fatalf("expected no preflight suffix in %q", got)
+		}
+	})
+
+	t.Run("preflight suffix is appended when requested", func(t *testing.T) {
+		got := buildUserAgent("buildkite-cli-preflight/3.x")
+		if !strings.Contains(got, buildkite.DefaultUserAgent) {
+			t.Fatalf("expected default user agent %q in %q", buildkite.DefaultUserAgent, got)
+		}
+		if !strings.Contains(got, "buildkite-cli-preflight/3.x") {
+			t.Fatalf("expected preflight suffix in %q", got)
+		}
+	})
+}
+
+func TestNewUserAgent(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	t.Run("non-preflight factory does not set preflight suffix", func(t *testing.T) {
+		f, err := New()
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		if strings.Contains(f.RestAPIClient.UserAgent, "buildkite-cli-preflight/") {
+			t.Fatalf("expected no preflight suffix in %q", f.RestAPIClient.UserAgent)
+		}
+	})
+
+	t.Run("factory can opt in to preflight suffix", func(t *testing.T) {
+		f, err := New(WithUserAgentSuffix("buildkite-cli-preflight/3.x"))
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		if !strings.Contains(f.RestAPIClient.UserAgent, "buildkite-cli-preflight/3.x") {
+			t.Fatalf("expected preflight suffix in %q", f.RestAPIClient.UserAgent)
+		}
+	})
 }
