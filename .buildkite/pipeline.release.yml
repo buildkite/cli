@@ -60,7 +60,7 @@ steps:
       - POSTHOG_API_KEY
       - OAUTH_CLIENT_ID
     plugins:
-      - aws-assume-role-with-web-identity#v1.4.0:
+      - aws-assume-role-with-web-identity#v1.5.0:
           role-arn: arn:aws:iam::445615400570:role/pipeline-buildkite-buildkite-cli-release
           session-tags:
             - organization_slug
