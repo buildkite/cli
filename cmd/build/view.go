@@ -87,6 +87,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	ctx := context.Background()
+	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 
 	var opts view.ViewOptions
 	opts.Pipeline = c.Pipeline
@@ -126,8 +127,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 	if bld == nil {
-		fmt.Println("No build found.")
-		return nil
+		return output.WriteTextOrStructured(os.Stdout, format, nil, "No build found.")
 	}
 
 	opts.Organization = bld.Organization
@@ -229,7 +229,6 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		},
 	}
 
-	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 	if format == output.FormatText {
 		writer, cleanup := bkIO.Pager(f.NoPager, f.Config.Pager())
 		defer func() { _ = cleanup() }()

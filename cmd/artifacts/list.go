@@ -93,8 +93,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 	if bld == nil {
-		fmt.Println("No build found.")
-		return nil
+		return output.WriteTextOrStructured(os.Stdout, format, []buildkite.Artifact{}, "No build found.")
 	}
 
 	var buildArtifacts []buildkite.Artifact
