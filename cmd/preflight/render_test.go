@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/buildkite/cli/v3/internal/build/watch"
+	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
@@ -562,6 +563,31 @@ func TestPlainRenderer_Render_BuildSummaryFailed(t *testing.T) {
 	}
 }
 
+func TestPlainRenderer_Render_BuildSummaryIncludesTests(t *testing.T) {
+	var out bytes.Buffer
+	r := newPlainRenderer(&out)
+
+	if err := r.Render(Event{
+		Type:       EventBuildSummary,
+		Time:       time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
+		BuildState: "failed",
+		Tests: map[string]internalpreflight.ShowTestSuite{
+			"go":    {Passed: 12, Failed: 1, Skipped: 0},
+			"rspec": {Passed: 47, Failed: 2, Skipped: 3},
+		},
+	}); err != nil {
+		t.Fatalf("Render() error: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "go tests: 12 passed, 1 failed, 0 skipped") {
+		t.Fatalf("expected go test summary, got %q", got)
+	}
+	if !strings.Contains(got, "rspec tests: 47 passed, 2 failed, 3 skipped") {
+		t.Fatalf("expected rspec test summary, got %q", got)
+	}
+}
+
 func TestJSONRenderer_Render_BuildSummaryPassed(t *testing.T) {
 	var out bytes.Buffer
 	r := newJSONRenderer(&out)
@@ -621,6 +647,39 @@ func TestJSONRenderer_Render_BuildSummaryFailed(t *testing.T) {
 	failedJobs, ok := got["failed_jobs"].([]any)
 	if !ok || len(failedJobs) != 1 {
 		t.Fatalf("expected 1 failed job, got %v", got["failed_jobs"])
+	}
+}
+
+func TestJSONRenderer_Render_BuildSummaryIncludesTests(t *testing.T) {
+	var out bytes.Buffer
+	r := newJSONRenderer(&out)
+
+	if err := r.Render(Event{
+		Type:        EventBuildSummary,
+		Time:        time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
+		PreflightID: "pfid-123",
+		BuildState:  "failed",
+		Tests: map[string]internalpreflight.ShowTestSuite{
+			"rspec": {Passed: 47, Failed: 2, Skipped: 3},
+		},
+	}); err != nil {
+		t.Fatalf("Render() error: %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
+	}
+	tests, ok := got["tests"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected tests object, got %v", got["tests"])
+	}
+	rspec, ok := tests["rspec"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected rspec summary, got %v", tests["rspec"])
+	}
+	if rspec["passed"] != float64(47) || rspec["failed"] != float64(2) || rspec["skipped"] != float64(3) {
+		t.Fatalf("unexpected rspec summary: %v", rspec)
 	}
 }
 

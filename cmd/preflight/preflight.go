@@ -36,6 +36,7 @@ type PreflightCmd struct {
 	JSON      bool                `help:"Emit one JSON object per event (JSONL)." xor:"output"`
 	Default   PreflightDefaultCmd `cmd:"" optional:"" hidden:"" default:"1"`
 	Show      ShowCmd             `cmd:"" help:"Show the current status and results for a preflight build."`
+	WatchRun  WatchRunCmd         `cmd:"" help:"Watch preflight-edge events for a preflight run." hidden:""`
 }
 
 type PreflightDefaultCmd struct{}
@@ -222,6 +223,20 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			BuildState:  finalBuild.State,
 			Duration:    time.Since(startedAt),
 		}
+
+		showResult, showErr := preflight.LoadShowResult(ctx, f.RestAPIClient, resolvedPipeline.Org, preflightID.String(), preflight.ShowOptions{})
+		if showErr == nil {
+			summaryEvent.Tests = showResult.Tests
+		} else if globals.EnableDebug() {
+			_ = renderer.Render(Event{
+				Type:        EventOperation,
+				Time:        time.Now(),
+				PreflightID: preflightID.String(),
+				Title:       fmt.Sprintf("Debug: failed to load final test summary: %v", showErr),
+			})
+		}
+
+		// API Call to Preflight Endpoint
 		if buildResult.Passed() {
 			if passed := tracker.PassedJobs(); len(passed) <= 10 {
 				summaryEvent.PassedJobs = passed

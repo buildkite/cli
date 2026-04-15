@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
@@ -79,6 +80,17 @@ func TestBuildSummaryView_ReturnsOutput(t *testing.T) {
 				BuildURL:    "https://buildkite.com/buildkite/cli/builds/42",
 			},
 			contains: []string{"Build #42", "https://buildkite.com/", "buildkite/cli/builds/42"},
+		},
+		{
+			name: "build with tests",
+			event: Event{
+				Type:       EventBuildSummary,
+				BuildState: "failed",
+				Tests: map[string]internalpreflight.ShowTestSuite{
+					"rspec": {Passed: 47, Failed: 2, Skipped: 3},
+				},
+			},
+			contains: []string{"rspec tests: 47 passed, 2 failed, 3 skipped"},
 		},
 	}
 

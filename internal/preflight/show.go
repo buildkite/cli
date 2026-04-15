@@ -17,6 +17,41 @@ import (
 
 const showLimit = 100
 
+type preflightRunsSummaryResponse struct {
+	Tests preflightRunsSummaryTests `json:"tests"`
+}
+
+type preflightRunsSummaryTests struct {
+	Runs     map[string]preflightRunSummary `json:"runs"`
+	Failures []preflightRunFailure          `json:"failures"`
+}
+
+type preflightRunSummary struct {
+	Suite   preflightRunSuite `json:"suite"`
+	Passed  int               `json:"passed"`
+	Failed  int               `json:"failed"`
+	Skipped int               `json:"skipped"`
+}
+
+type preflightRunSuite struct {
+	ID   string `json:"id"`
+	Slug string `json:"slug"`
+}
+
+type preflightRunFailure struct {
+	RunID         string                  `json:"run_id"`
+	SuiteSlug     string                  `json:"suite_slug"`
+	Name          string                  `json:"name"`
+	Location      string                  `json:"location"`
+	FailureReason string                  `json:"failure_reason"`
+	LatestFail    *preflightRunLatestFail `json:"latest_fail,omitempty"`
+}
+
+type preflightRunLatestFail struct {
+	FailureReason   string                      `json:"failure_reason"`
+	FailureExpanded []buildkite.FailureExpanded `json:"failure_expanded,omitempty"`
+}
+
 type ShowResult struct {
 	Status     string                   `json:"status"`
 	DurationMS int64                    `json:"duration_ms"`
@@ -61,7 +96,11 @@ type ShowFailedJob struct {
 	State      string `json:"state"`
 }
 
-func LoadShowResult(ctx context.Context, client *buildkite.Client, org, preflightID string) (ShowResult, error) {
+type ShowOptions struct {
+	IncludeFailures bool
+}
+
+func LoadShowResult(ctx context.Context, client *buildkite.Client, org, preflightID string, opts ShowOptions) (ShowResult, error) {
 	result := ShowResult{
 		Tests: map[string]ShowTestSuite{},
 		Jobs: ShowJobs{
@@ -87,7 +126,7 @@ func LoadShowResult(ctx context.Context, client *buildkite.Client, org, prefligh
 	result.BuildURL = build.WebURL
 	result.Jobs = summarizeJobs(build)
 
-	tests, err := summarizeTests(ctx, client, org, build)
+	tests, err := summarizeTests(ctx, client, org, build, opts)
 	if err != nil {
 		return ShowResult{}, err
 	}
@@ -155,13 +194,13 @@ func summarizeJobs(build buildkite.Build) ShowJobs {
 	return summary
 }
 
-func summarizeTests(ctx context.Context, client *buildkite.Client, org string, build buildkite.Build) (map[string]ShowTestSuite, error) {
+func summarizeTests(ctx context.Context, client *buildkite.Client, org string, build buildkite.Build, opts ShowOptions) (map[string]ShowTestSuite, error) {
 	suiteKey := primarySuiteSlug(build)
 	if suiteKey == "" || build.ID == "" {
 		return map[string]ShowTestSuite{}, nil
 	}
 
-	allTests, err := listBuildTests(ctx, client, org, build.ID, buildkite.BuildTestsListOptions{State: "enabled"}, 0)
+	summary, err := loadPreflightRunsSummary(ctx, client, org, build.ID, opts)
 	if err != nil {
 		if isOptionalShowTestError(err) {
 			return map[string]ShowTestSuite{}, nil
@@ -169,57 +208,62 @@ func summarizeTests(ctx context.Context, client *buildkite.Client, org string, b
 		return nil, bkErrors.WrapAPIError(err, "loading preflight test summary")
 	}
 
-	failedTests, err := listBuildTests(ctx, client, org, build.ID, buildkite.BuildTestsListOptions{
-		Result:  "failed",
-		State:   "enabled",
-		Include: "latest_fail",
-	}, showLimit)
-	if err != nil {
-		if isOptionalShowTestError(err) {
-			return map[string]ShowTestSuite{}, nil
+	tests := map[string]ShowTestSuite{}
+	for _, run := range summary.Tests.Runs {
+		slug := strings.TrimSpace(run.Suite.Slug)
+		if slug == "" {
+			slug = suiteKey
 		}
-		return nil, bkErrors.WrapAPIError(err, "loading preflight test failures")
+		tests[slug] = ShowTestSuite{
+			Passed:   run.Passed,
+			Failed:   run.Failed,
+			Skipped:  run.Skipped,
+			Failures: []ShowTestFailure{},
+		}
 	}
 
-	// The build tests API is scoped to a build rather than a suite, so we can
-	// only produce one aggregated summary for the build today.
-	suite := ShowTestSuite{Failures: []ShowTestFailure{}}
-	for _, test := range allTests {
-		suite.Passed += test.ExecutionsCountByResult.Passed
-		suite.Failed += test.ExecutionsCountByResult.Failed
-		suite.Skipped += test.ExecutionsCountByResult.Skipped
-	}
-	for _, test := range failedTests {
-		suite.Failures = append(suite.Failures, showTestFailure(test))
+	if !opts.IncludeFailures {
+		return tests, nil
 	}
 
-	return map[string]ShowTestSuite{suiteKey: suite}, nil
+	for _, failure := range summary.Tests.Failures {
+		slug := strings.TrimSpace(failure.SuiteSlug)
+		if slug == "" {
+			slug = suiteKey
+		}
+		suite := tests[slug]
+		if len(suite.Failures) >= showLimit {
+			tests[slug] = suite
+			continue
+		}
+		suite.Failures = append(suite.Failures, showRunFailure(failure))
+		tests[slug] = suite
+	}
+
+	return tests, nil
 }
 
-func listBuildTests(ctx context.Context, client *buildkite.Client, org, buildID string, opt buildkite.BuildTestsListOptions, limit int) ([]buildkite.BuildTest, error) {
-	opt.ListOptions = buildkite.ListOptions{Page: 1, PerPage: 100}
-	var tests []buildkite.BuildTest
-
-	for {
-		pageTests, resp, err := client.BuildTests.List(ctx, org, buildID, &opt)
-		if err != nil {
-			return nil, err
-		}
-
-		if limit > 0 && len(tests)+len(pageTests) > limit {
-			pageTests = pageTests[:limit-len(tests)]
-		}
-		tests = append(tests, pageTests...)
-
-		if limit > 0 && len(tests) >= limit {
-			return tests, nil
-		}
-		if resp == nil || resp.NextPage == 0 {
-			return tests, nil
-		}
-
-		opt.Page = resp.NextPage
+func loadPreflightRunsSummary(ctx context.Context, client *buildkite.Client, org, buildID string, opts ShowOptions) (*preflightRunsSummaryResponse, error) {
+	query := url.Values{}
+	query.Set("build_id", buildID)
+	query.Set("failed_result", "failed")
+	if opts.IncludeFailures {
+		query.Set("include", "latest_fail")
 	}
+
+	path := fmt.Sprintf("v2/organizations/%s/preflight/runs/%s?%s", org, buildID, query.Encode())
+	req, err := client.NewRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var summary preflightRunsSummaryResponse
+	_, err = client.Do(req, &summary)
+	if err != nil {
+		return nil, err
+	}
+
+	return &summary, nil
 }
 
 func showBuildStatus(build buildkite.Build) string {
@@ -262,20 +306,20 @@ func primarySuiteSlug(build buildkite.Build) string {
 	return ""
 }
 
-func showTestFailure(test buildkite.BuildTest) ShowTestFailure {
+func showRunFailure(runFailure preflightRunFailure) ShowTestFailure {
 	failure := ShowTestFailure{
-		Name:          displayTestName(test),
-		Location:      test.Location,
+		Name:          strings.TrimSpace(runFailure.Name),
+		Location:      runFailure.Location,
 		FailureDetail: []ShowFailureDetail{},
 	}
 
-	if test.LatestFail == nil {
+	if runFailure.LatestFail == nil {
 		return failure
 	}
 
-	failure.Message = test.LatestFail.FailureReason
-	failure.FailureReason = test.LatestFail.FailureReason
-	for _, detail := range test.LatestFail.FailureExpanded {
+	failure.Message = runFailure.LatestFail.FailureReason
+	failure.FailureReason = runFailure.LatestFail.FailureReason
+	for _, detail := range runFailure.LatestFail.FailureExpanded {
 		failure.FailureDetail = append(failure.FailureDetail, ShowFailureDetail{
 			Backtrace: detail.Backtrace,
 			Expanded:  detail.Expanded,
@@ -292,19 +336,6 @@ func displayJobName(job buildkite.Job) string {
 		}
 	}
 	return ""
-}
-
-func displayTestName(test buildkite.BuildTest) string {
-	scope := strings.TrimSpace(test.Scope)
-	name := strings.TrimSpace(test.Name)
-	switch {
-	case scope == "":
-		return name
-	case name == "":
-		return scope
-	default:
-		return scope + "." + name
-	}
 }
 
 func pipelineSlugFromBuild(build buildkite.Build) string {

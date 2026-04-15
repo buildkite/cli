@@ -191,6 +191,9 @@ func (m ttyModel) buildSummaryView(e Event) string {
 	for _, j := range e.FailedJobs {
 		out += "\n  " + presenter.ColoredLine(j)
 	}
+	for _, line := range summaryTestLines(e.Tests) {
+		out += "\n  " + ttyDimStyle.Render(line)
+	}
 
 	return out
 }
