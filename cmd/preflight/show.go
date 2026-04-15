@@ -18,6 +18,7 @@ import (
 
 type ShowCmd struct {
 	PreflightID string `arg:"" name:"uuid" help:"The preflight UUID to inspect."`
+	Failures    bool   `help:"Include detailed test failures in the output."`
 }
 
 func (c *ShowCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
@@ -54,7 +55,9 @@ func (c *ShowCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return bkErrors.NewValidationError(err, "invalid preflight UUID")
 	}
 
-	result, err := internalpreflight.LoadShowResult(context.Background(), f.RestAPIClient, org, preflightID.String())
+	result, err := internalpreflight.LoadShowResult(context.Background(), f.RestAPIClient, org, preflightID.String(), internalpreflight.ShowOptions{
+		IncludeFailures: c.Failures,
+	})
 	if err != nil {
 		return err
 	}

@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
+	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
 	"github.com/mattn/go-isatty"
 )
 
@@ -88,6 +90,11 @@ func (r *plainRenderer) Render(e Event) error {
 				return err
 			}
 		}
+		for _, line := range summaryTestLines(e.Tests) {
+			if _, err := fmt.Fprintf(r.stdout, "  %s\n", line); err != nil {
+				return err
+			}
+		}
 
 	case EventTestFailure:
 		if e.TestFailures != nil {
@@ -155,6 +162,31 @@ func plural(n int, word string) string {
 		return word
 	}
 	return word + "s"
+}
+
+func summaryTestLines(tests map[string]internalpreflight.ShowTestSuite) []string {
+	if len(tests) == 0 {
+		return nil
+	}
+
+	suites := make([]string, 0, len(tests))
+	for suite := range tests {
+		suites = append(suites, suite)
+	}
+	slices.Sort(suites)
+
+	lines := make([]string, 0, len(suites))
+	for _, suite := range suites {
+		summary := tests[suite]
+		parts := []string{
+			fmt.Sprintf("%d passed", summary.Passed),
+			fmt.Sprintf("%d failed", summary.Failed),
+			fmt.Sprintf("%d skipped", summary.Skipped),
+		}
+		lines = append(lines, fmt.Sprintf("%s tests: %s", suite, strings.Join(parts, ", ")))
+	}
+
+	return lines
 }
 
 func jobLogCommand(pipeline string, buildNumber int, jobID string) string {
