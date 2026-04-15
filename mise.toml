@@ -5,7 +5,7 @@ go = "1.26.2"
 golangci-lint = "2.11.4"
 lefthook = "2.1.5"
 "aqua:mvdan/gofumpt" = "0.9.2"
-"aqua:goreleaser/goreleaser" = "2.15.2"
+"aqua:goreleaser/goreleaser" = "2.15.3"
 
 [tasks.format]
 description = "Format Go files with gofumpt"
