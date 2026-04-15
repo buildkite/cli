@@ -61,11 +61,14 @@ func TestValidateConfiguration_MissingValues(t *testing.T) {
 		t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
 		conf := newTestConfig(t)
 
+		var validationErr error
 		stdout, stderr := captureStandardStreams(t, func() {
-			if err := ValidateConfiguration(conf, "pipeline view"); err != nil {
-				t.Fatalf("expected no error when only org is missing, got %v", err)
-			}
+			validationErr = ValidateConfiguration(conf, "pipeline view")
 		})
+
+		if validationErr != nil {
+			t.Fatalf("expected no error when only org is missing, got %v", validationErr)
+		}
 
 		if stdout != "" {
 			t.Fatalf("expected stdout to remain empty, got %q", stdout)
