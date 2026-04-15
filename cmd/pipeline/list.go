@@ -99,9 +99,9 @@ func (c *ListCmd) runPipelineList(ctx context.Context, f *factory.Factory) error
 		return fmt.Errorf("failed to list pipelines: %w", err)
 	}
 
+	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 	if len(pipelines) == 0 {
-		fmt.Fprintln(os.Stdout, "No pipelines found matching the specified criteria.")
-		return nil
+		return output.WriteTextOrStructured(os.Stdout, format, []buildkite.Pipeline{}, "No pipelines found matching the specified criteria.")
 	}
 
 	return c.displayPipelines(pipelines, f)

@@ -53,6 +53,17 @@ func Write(w io.Writer, v interface{}, format Format) error {
 	}
 }
 
+// WriteTextOrStructured writes a human-readable text line for text output and
+// structured output for JSON or YAML formats.
+func WriteTextOrStructured(w io.Writer, format Format, structuredValue interface{}, text string) error {
+	if format == FormatText {
+		_, err := fmt.Fprintln(w, text)
+		return err
+	}
+
+	return Write(w, structuredValue, format)
+}
+
 func writeJSON(w io.Writer, v interface{}) error {
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")
