@@ -88,7 +88,7 @@ steps:
     env:
       AWS_REGION: us-east-1
     plugins:
-      - aws-assume-role-with-web-identity#v1.4.0:
+      - aws-assume-role-with-web-identity#v1.5.0:
           role-arn: arn:aws:iam::445615400570:role/pipeline-buildkite-buildkite-cli
           session-tags:
             - organization_slug
