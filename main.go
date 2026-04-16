@@ -18,6 +18,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/configure"
 	bkInit "github.com/buildkite/cli/v3/cmd/init"
 	"github.com/buildkite/cli/v3/cmd/job"
+	"github.com/buildkite/cli/v3/cmd/maintainer"
 	"github.com/buildkite/cli/v3/cmd/organization"
 	"github.com/buildkite/cli/v3/cmd/pipeline"
 	"github.com/buildkite/cli/v3/cmd/pkg"
@@ -47,6 +48,7 @@ type CLI struct {
 	Auth         AuthCmd            `cmd:"" help:"Authenticate with Buildkite"`
 	Build        BuildCmd           `cmd:"" help:"Manage pipeline builds"`
 	Cluster      ClusterCmd         `cmd:"" help:"Manage organization clusters"`
+	Maintainer   MaintainerCmd      `cmd:"" help:"Manage cluster maintainers"`
 	Secret       SecretCmd          `cmd:"" help:"Manage cluster secrets"`
 	Config       bkConfig.ConfigCmd `cmd:"" help:"Manage CLI configuration"`
 	Configure    ConfigureCmd       `cmd:"" help:"Configure Buildkite API token" hidden:""`
@@ -101,6 +103,11 @@ type (
 		Create cluster.CreateCmd `cmd:"" help:"Create a new cluster."`
 		Update cluster.UpdateCmd `cmd:"" help:"Update a cluster."`
 		Delete cluster.DeleteCmd `cmd:"" help:"Delete a cluster." aliases:"rm"`
+	}
+	MaintainerCmd struct {
+		List   maintainer.ListCmd   `cmd:"" help:"List cluster maintainers." aliases:"ls"`
+		Create maintainer.CreateCmd `cmd:"" help:"Create a cluster maintainer."`
+		Delete maintainer.DeleteCmd `cmd:"" help:"Delete a cluster maintainer." aliases:"rm"`
 	}
 	SecretCmd struct {
 		List   secret.ListCmd   `cmd:"" help:"List secrets for a cluster." aliases:"ls"`
