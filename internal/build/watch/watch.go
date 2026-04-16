@@ -33,6 +33,7 @@ type WatchOpt func(*watchConfig)
 
 type watchConfig struct {
 	onTestStatus TestStatusFunc
+	stopStates   map[buildstate.State]struct{}
 }
 
 // WithTestTracking enables polling BuildTests.List for failed tests on each
@@ -40,6 +41,19 @@ type watchConfig struct {
 func WithTestTracking(fn TestStatusFunc) WatchOpt {
 	return func(c *watchConfig) {
 		c.onTestStatus = fn
+	}
+}
+
+// WithStopStates exits the watch loop when the build enters any of the given
+// states, in addition to the default terminal-state behavior.
+func WithStopStates(states ...buildstate.State) WatchOpt {
+	return func(c *watchConfig) {
+		if c.stopStates == nil {
+			c.stopStates = make(map[buildstate.State]struct{}, len(states))
+		}
+		for _, state := range states {
+			c.stopStates[state] = struct{}{}
+		}
 	}
 }
 
@@ -102,7 +116,7 @@ func WatchBuild(
 				testPollingEnabled = enabled
 			}
 
-			if b.FinishedAt != nil || buildstate.IsTerminal(buildstate.State(b.State)) {
+			if shouldStopWatching(cfg, b) {
 				return b, nil
 			}
 		}
@@ -113,6 +127,20 @@ func WatchBuild(
 		case <-time.After(interval):
 		}
 	}
+}
+
+func shouldStopWatching(cfg *watchConfig, build buildkite.Build) bool {
+	if build.FinishedAt != nil {
+		return true
+	}
+
+	state := buildstate.State(build.State)
+	if buildstate.IsTerminal(state) {
+		return true
+	}
+
+	_, stop := cfg.stopStates[state]
+	return stop
 }
 
 func pollTestFailures(ctx context.Context, client *buildkite.Client, org, buildID string, tracker *TestTracker, onTestStatus TestStatusFunc) (bool, error) {

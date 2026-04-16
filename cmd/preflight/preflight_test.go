@@ -340,6 +340,61 @@ func TestRunCmd_Run(t *testing.T) {
 		}
 	})
 
+	t.Run("exit-on-build-failing exits when build enters failing state", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		pollCount := 0
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if r.Method == "POST" && strings.Contains(r.URL.Path, "/builds") {
+				json.NewEncoder(w).Encode(buildkite.Build{
+					Number: 1,
+					State:  "scheduled",
+					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
+				})
+				return
+			}
+			if r.Method == "GET" && strings.Contains(r.URL.Path, "/builds/1") {
+				pollCount++
+				state := "running"
+				if pollCount >= 2 {
+					state = "failing"
+				}
+				json.NewEncoder(w).Encode(buildkite.Build{Number: 1, State: state})
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Watch: true, FastFail: true, Interval: 0.01}
+		err := cmd.Run(nil, stubGlobals{})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !bkErrors.IsPreflightIncompleteFailure(err) {
+			t.Fatalf("expected incomplete failure error, got %T: %v", err, err)
+		}
+		if code := bkErrors.GetExitCodeForError(err); code != bkErrors.ExitCodePreflightIncompleteFailure {
+			t.Fatalf("expected exit code %d, got %d", bkErrors.ExitCodePreflightIncompleteFailure, code)
+		}
+		if pollCount != 2 {
+			t.Fatalf("expected watch to stop on the first failing poll, got %d polls", pollCount)
+		}
+
+		refs := runGit(t, worktree, "ls-remote", "--heads", "origin")
+		if strings.Contains(refs, "bk/preflight/") {
+			t.Errorf("expected preflight branch to be cleaned up, but found: %s", refs)
+		}
+	})
+
 	t.Run("returns user aborted error when interrupted while watching", func(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
 

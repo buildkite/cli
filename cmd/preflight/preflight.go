@@ -31,6 +31,7 @@ import (
 type RunCmd struct {
 	Pipeline  string  `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
 	Watch     bool    `help:"Watch the build until completion." default:"true" negatable:""`
+	FastFail  bool    `name:"exit-on-build-failing" help:"Exit watch mode as soon as the build enters a failing state."`
 	Interval  float64 `help:"Polling interval in seconds when watching." default:"2"`
 	NoCleanup bool    `help:"Skip deleting the remote preflight branch after the build finishes."`
 	Text      bool    `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
@@ -143,6 +144,19 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	interval := time.Duration(c.Interval * float64(time.Second))
 	tracker := watch.NewJobTracker()
+	watchOpts := []watch.WatchOpt{watch.WithTestTracking(func(newTestChanges []buildkite.BuildTest) error {
+		return renderer.Render(Event{
+			Type:         EventTestFailure,
+			Time:         time.Now(),
+			PreflightID:  preflightID.String(),
+			Pipeline:     pipelineName,
+			BuildNumber:  build.Number,
+			TestFailures: newTestChanges,
+		})
+	})}
+	if c.FastFail {
+		watchOpts = append(watchOpts, watch.WithStopStates(buildstate.Failing))
+	}
 
 	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) error {
 		status := tracker.Update(b)
@@ -168,16 +182,7 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			BuildState:  b.State,
 			Jobs:        &status.Summary,
 		})
-	}, watch.WithTestTracking(func(newTestChanges []buildkite.BuildTest) error {
-		return renderer.Render(Event{
-			Type:         EventTestFailure,
-			Time:         time.Now(),
-			PreflightID:  preflightID.String(),
-			Pipeline:     pipelineName,
-			BuildNumber:  build.Number,
-			TestFailures: newTestChanges,
-		})
-	}))
+	}, watchOpts...)
 
 	buildResult := NewResult(finalBuild)
 	finalErr := buildResult.Error()

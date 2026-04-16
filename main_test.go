@@ -55,4 +55,40 @@ func TestApplyExperiments(t *testing.T) {
 		}
 		t.Fatal("preflight command not found in parser")
 	})
+
+	t.Run("preflight root still parses with default subcommand", func(t *testing.T) {
+		cli := &CLI{}
+		parser, err := newKongParser(cli)
+		if err != nil {
+			t.Fatalf("failed to create parser: %v", err)
+		}
+
+		if _, err := parser.Parse([]string{"preflight"}); err != nil {
+			t.Fatalf("failed to parse preflight root command: %v", err)
+		}
+	})
+
+	t.Run("preflight parses the exit-on-build-failing flag", func(t *testing.T) {
+		cli := &CLI{}
+		parser, err := newKongParser(cli)
+		if err != nil {
+			t.Fatalf("failed to create parser: %v", err)
+		}
+
+		if _, err := parser.Parse([]string{"preflight", "--exit-on-build-failing"}); err != nil {
+			t.Fatalf("failed to parse preflight exit-on-build-failing flag: %v", err)
+		}
+	})
+
+	t.Run("preflight rejects the fail-fast flag", func(t *testing.T) {
+		cli := &CLI{}
+		parser, err := newKongParser(cli)
+		if err != nil {
+			t.Fatalf("failed to create parser: %v", err)
+		}
+
+		if _, err := parser.Parse([]string{"preflight", "--fail-fast"}); err == nil {
+			t.Fatal("expected --fail-fast to be rejected")
+		}
+	})
 }
