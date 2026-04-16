@@ -31,10 +31,10 @@ Create a cluster maintainer.
 Either --user or --team must be specified.
 
 Examples:
-  # Add a user as maintainer
+	# Create a user maintainer assignment
   $ bk maintainer create my-cluster-uuid --user user-uuid
 
-  # Add a team as maintainer
+	# Create a team maintainer assignment
   $ bk maintainer create my-cluster-uuid --team team-uuid
 `
 }
@@ -104,7 +104,8 @@ func renderMaintainerText(m buildkite.ClusterMaintainerEntry) string {
 	}
 
 	rows := [][]string{
-		{"ID", output.ValueOrDash(m.ID)},
+		{"Assignment ID", output.ValueOrDash(m.ID)},
+		{"Actor ID", output.ValueOrDash(m.Actor.ID)},
 		{"Type", output.ValueOrDash(m.Actor.Type)},
 		{"Name", output.ValueOrDash(name)},
 	}
@@ -116,7 +117,7 @@ func renderMaintainerText(m buildkite.ClusterMaintainerEntry) string {
 	)
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "Maintainer %s\n\n", output.ValueOrDash(m.ID))
+	fmt.Fprintf(&sb, "Maintainer assignment %s\n\n", output.ValueOrDash(m.ID))
 	sb.WriteString(table)
 
 	return sb.String()

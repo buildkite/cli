@@ -79,13 +79,13 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			name = m.Actor.Name
 		}
 
-		rows = append(rows, []string{m.ID, m.Actor.Type, name})
+		rows = append(rows, []string{m.ID, m.Actor.ID, m.Actor.Type, name})
 	}
 
 	table := output.Table(
-		[]string{"ID", "Type", "Name"},
+		[]string{"Assignment ID", "Actor ID", "Type", "Name"},
 		rows,
-		map[string]string{"id": "bold", "name": "italic"},
+		map[string]string{"assignment id": "bold", "name": "italic"},
 	)
 
 	writer, cleanup := bkIO.Pager(f.NoPager, f.Config.Pager())

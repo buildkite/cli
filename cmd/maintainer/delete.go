@@ -16,7 +16,7 @@ import (
 
 type DeleteCmd struct {
 	ClusterUUID  string `arg:"" help:"Cluster UUID" name:"cluster-uuid"`
-	MaintainerID string `arg:"" help:"Maintainer ID to delete" name:"maintainer-id"`
+	MaintainerID string `arg:"" help:"Maintainer assignment ID to delete" name:"maintainer-id"`
 }
 
 func (c *DeleteCmd) Help() string {
@@ -26,13 +26,13 @@ Delete a cluster maintainer.
 You will be prompted to confirm deletion unless --yes is set.
 
 Examples:
-  # Delete a maintainer (with confirmation prompt)
+	# Delete a maintainer assignment (with confirmation prompt)
   $ bk maintainer delete my-cluster-uuid maintainer-id
 
   # Delete without confirmation
   $ bk maintainer delete my-cluster-uuid maintainer-id --yes
 
-  # Use list to find maintainer IDs
+	# Use list to find maintainer assignment IDs
   $ bk maintainer list my-cluster-uuid
 `
 }
