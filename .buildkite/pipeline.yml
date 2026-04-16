@@ -3,6 +3,7 @@ agents:
 
 steps:
   - name: ":golangci-lint: lint"
+    key: lint
     command: golangci-lint run --verbose --timeout 3m
     plugins:
       - docker-compose#v5.12.1:
@@ -11,6 +12,7 @@ steps:
           tty: true
 
   - name: ":go: test"
+    key: test
     artifact_paths:
       - cover-tree.svg
     commands:
@@ -24,9 +26,9 @@ steps:
           tty: true
           mount-buildkite-agent: true
 
-  - wait: ~
-
   - label: ":terminal: build ({{matrix}})"
+    key: build
+    depends_on: ["lint", "test"]
     branches: 
       - main
     matrix:
@@ -58,8 +60,9 @@ steps:
           tty: true
 
   - input: ":package: Create a release?"
-    prompt: "Select the release type"
     key: release_unblock
+    depends_on: ["lint", "test", "build"]
+    prompt: "Select the release type"
     branches:
       - main
     allowed_teams:
@@ -88,7 +91,7 @@ steps:
     env:
       AWS_REGION: us-east-1
     plugins:
-      - aws-assume-role-with-web-identity#v1.4.0:
+      - aws-assume-role-with-web-identity#v1.5.0:
           role-arn: arn:aws:iam::445615400570:role/pipeline-buildkite-buildkite-cli
           session-tags:
             - organization_slug

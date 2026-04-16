@@ -2,6 +2,7 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended",
+    ":disableDependencyDashboard",
     ":semanticCommits",
     ":automergeMinor",
     "schedule:nonOfficeHours"

@@ -3,8 +3,35 @@ package preflight
 import (
 	"testing"
 
+	buildkite "github.com/buildkite/go-buildkite/v4"
 	"github.com/google/uuid"
 )
+
+func TestBranchBuild_IsCompleted(t *testing.T) {
+	tests := []struct {
+		name  string
+		build *buildkite.Build
+		want  bool
+	}{
+		{"nil build", nil, true},
+		{"passed", &buildkite.Build{State: "passed"}, true},
+		{"failed", &buildkite.Build{State: "failed"}, true},
+		{"canceled", &buildkite.Build{State: "canceled"}, true},
+		{"running", &buildkite.Build{State: "running"}, false},
+		{"scheduled", &buildkite.Build{State: "scheduled"}, false},
+		{"failing", &buildkite.Build{State: "failing"}, false},
+		{"blocked", &buildkite.Build{State: "blocked"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bb := BranchBuild{Branch: "bk/preflight/test", Build: tt.build}
+			if got := bb.IsCompleted(); got != tt.want {
+				t.Errorf("IsCompleted() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
 
 func TestCleanup(t *testing.T) {
 	worktree := initTestRepo(t)

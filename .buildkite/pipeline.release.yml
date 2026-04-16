@@ -3,6 +3,7 @@ agents:
 
 steps:
   - label: ":terminal: build ({{matrix}})"
+    key: build
     matrix:
           - "darwin"
           - "linux"
@@ -30,9 +31,9 @@ steps:
           shell: false
           tty: true
 
-  - wait
-
   - label: ":rocket: :package: upload packages ({{matrix}})"
+    key: upload_packages
+    depends_on: build
     matrix:
       - "deb"
       - "rpm"
@@ -52,6 +53,8 @@ steps:
           tty: true
 
   - label: ":rocket: :github: release"
+    key: release
+    depends_on: ["build", "upload_packages"]
     artifact_paths:
       - dist/**/*
     env:
@@ -60,7 +63,7 @@ steps:
       - POSTHOG_API_KEY
       - OAUTH_CLIENT_ID
     plugins:
-      - aws-assume-role-with-web-identity#v1.4.0:
+      - aws-assume-role-with-web-identity#v1.5.0:
           role-arn: arn:aws:iam::445615400570:role/pipeline-buildkite-buildkite-cli-release
           session-tags:
             - organization_slug

@@ -41,10 +41,10 @@ func (c *ListCmd) Run(globals cli.GlobalFlags) error {
 
 	f.NoPager = f.NoPager || globals.DisablePager()
 
+	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 	orgs := f.Config.ConfiguredOrganizations()
 	if len(orgs) == 0 {
-		fmt.Println("No organizations configured. Run `bk configure` to add one.")
-		return nil
+		return output.WriteTextOrStructured(os.Stdout, format, []Organization{}, "No organizations configured. Run `bk configure` to add one.")
 	}
 
 	slices.Sort(orgs)
@@ -57,8 +57,6 @@ func (c *ListCmd) Run(globals cli.GlobalFlags) error {
 			Selected: org == selectedOrg,
 		}
 	}
-
-	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 
 	if format != output.FormatText {
 		return output.Write(os.Stdout, organizations, format)
