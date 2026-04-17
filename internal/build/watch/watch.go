@@ -36,6 +36,25 @@ type watchConfig struct {
 	stopStates   map[buildstate.State]struct{}
 }
 
+// StopReason describes why WatchBuild exited before the build reached a
+// terminal state.
+type StopReason string
+
+const (
+	StopReasonStateReached StopReason = "state_reached"
+)
+
+// StopError indicates WatchBuild exited because a configured stop condition
+// was met rather than because the build reached a terminal state.
+type StopError struct {
+	Reason StopReason
+	State  buildstate.State
+}
+
+func (e *StopError) Error() string {
+	return fmt.Sprintf("watch stopped early: %s (%s)", e.Reason, e.State)
+}
+
 // WithTestTracking enables polling BuildTests.List for failed tests on each
 // iteration, calling onTestStatus with any newly-seen test changes.
 func WithTestTracking(fn TestStatusFunc) WatchOpt {
@@ -116,8 +135,8 @@ func WatchBuild(
 				testPollingEnabled = enabled
 			}
 
-			if shouldStopWatching(cfg, b) {
-				return b, nil
+			if stopErr := shouldStopWatching(cfg, b); stopErr != nil {
+				return b, stopErr
 			}
 		}
 
@@ -129,18 +148,24 @@ func WatchBuild(
 	}
 }
 
-func shouldStopWatching(cfg *watchConfig, build buildkite.Build) bool {
+func shouldStopWatching(cfg *watchConfig, build buildkite.Build) error {
 	if build.FinishedAt != nil {
-		return true
+		return nil
 	}
 
 	state := buildstate.State(build.State)
 	if buildstate.IsTerminal(state) {
-		return true
+		return nil
 	}
 
-	_, stop := cfg.stopStates[state]
-	return stop
+	if _, stop := cfg.stopStates[state]; stop {
+		return &StopError{
+			Reason: StopReasonStateReached,
+			State:  state,
+		}
+	}
+
+	return nil
 }
 
 func pollTestFailures(ctx context.Context, client *buildkite.Client, org, buildID string, tracker *TestTracker, onTestStatus TestStatusFunc) (bool, error) {

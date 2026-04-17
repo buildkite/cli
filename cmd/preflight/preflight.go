@@ -184,32 +184,40 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		})
 	}, watchOpts...)
 
+	var stopErr *watch.StopError
+	stoppedOnFailFast := errors.As(err, &stopErr) &&
+		stopErr.Reason == watch.StopReasonStateReached &&
+		stopErr.State == buildstate.Failing
+
 	buildResult := NewResult(finalBuild)
 	finalErr := buildResult.Error()
 
 	// Emit a final summary showing pass/fail, passed jobs (if ≤10), or hard-failed jobs.
-	if err == nil && (buildstate.IsTerminal(buildstate.State(finalBuild.State)) || buildResult.kind == resultIncompleteFailure && c.FailFast) {
-		summaryEvent := Event{
-			Type:        EventBuildSummary,
-			Time:        time.Now(),
-			PreflightID: preflightID.String(),
-			Pipeline:    pipelineName,
-			BuildNumber: build.Number,
-			BuildURL:    build.WebURL,
-			BuildState:  finalBuild.State,
-			Duration:    time.Since(startedAt),
-		}
-		if buildResult.Passed() {
-			if passed := tracker.PassedJobs(); len(passed) <= 10 {
-				summaryEvent.PassedJobs = passed
+	if err == nil || stoppedOnFailFast {
+		if buildstate.IsTerminal(buildstate.State(finalBuild.State)) || stoppedOnFailFast {
+			summaryEvent := Event{
+				Type:        EventBuildSummary,
+				Time:        time.Now(),
+				PreflightID: preflightID.String(),
+				Pipeline:    pipelineName,
+				BuildNumber: build.Number,
+				BuildURL:    build.WebURL,
+				BuildState:  finalBuild.State,
+				Duration:    time.Since(startedAt),
 			}
-		} else {
-			summaryEvent.FailedJobs = tracker.FailedJobs()
+			if buildResult.Passed() {
+				if passed := tracker.PassedJobs(); len(passed) <= 10 {
+					summaryEvent.PassedJobs = passed
+				}
+			} else {
+				summaryEvent.FailedJobs = tracker.FailedJobs()
+			}
+			_ = renderer.Render(summaryEvent)
 		}
-		_ = renderer.Render(summaryEvent)
 	}
 
-	if !c.NoCleanup {
+	skipCleanup := c.NoCleanup || stoppedOnFailFast
+	if !skipCleanup {
 		_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Cleaning up remote branch %s...", result.Branch)})
 		if cleanupErr := preflight.Cleanup(repoRoot, result.Ref, globals.EnableDebug()); cleanupErr != nil {
 			_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Warning: failed to delete remote branch %s: %v", result.Ref, cleanupErr)})
@@ -239,6 +247,10 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return bkErrors.NewUserAbortedError(context.Canceled, "preflight canceled by user")
 	}
 	_ = renderer.Close()
+
+	if stoppedOnFailFast {
+		return finalErr
+	}
 
 	if err != nil {
 		return bkErrors.NewInternalError(err, "watching build failed",

@@ -218,8 +218,15 @@ func TestWatchBuild(t *testing.T) {
 			},
 			WithStopStates("failing"),
 		)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		var stopErr *StopError
+		if !errors.As(err, &stopErr) {
+			t.Fatalf("expected StopError, got %v", err)
+		}
+		if stopErr.Reason != StopReasonStateReached {
+			t.Fatalf("expected stop reason %q, got %q", StopReasonStateReached, stopErr.Reason)
+		}
+		if stopErr.State != "failing" {
+			t.Fatalf("expected stop state failing, got %s", stopErr.State)
 		}
 		if b.State != "failing" {
 			t.Fatalf("expected state failing, got %s", b.State)
