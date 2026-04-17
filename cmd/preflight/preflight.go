@@ -306,9 +306,9 @@ func (c *PreflightCmd) loadFinalResult(ctx context.Context, client *buildkite.Cl
 	if !c.AwaitTestResults.Enabled || c.AwaitTestResults.Duration <= 0 {
 		return c.loadSummary(ctx, client, org, buildWithTests.ID)
 	}
-	if !expectTestSummary {
-		return preflight.SummaryResult{Tests: map[string]preflight.SummaryTestSuite{}, Failures: []preflight.SummaryTestFailure{}}, nil
-	}
+		if !expectTestSummary {
+			return preflight.SummaryResult{Tests: map[string]preflight.SummaryTestRun{}, Failures: []preflight.SummaryTestFailure{}}, nil
+		}
 
 	timer := time.NewTimer(c.AwaitTestResults.Duration)
 	defer timer.Stop()
@@ -324,7 +324,7 @@ func (c *PreflightCmd) loadFinalResult(ctx context.Context, client *buildkite.Cl
 
 func (c *PreflightCmd) loadSummary(ctx context.Context, client *buildkite.Client, org, buildID string) (preflight.SummaryResult, error) {
 	if buildID == "" {
-		return preflight.SummaryResult{Tests: map[string]preflight.SummaryTestSuite{}, Failures: []preflight.SummaryTestFailure{}}, nil
+		return preflight.SummaryResult{Tests: map[string]preflight.SummaryTestRun{}, Failures: []preflight.SummaryTestFailure{}}, nil
 	}
 
 	summary, err := preflight.NewRunSummaryService(client).Get(ctx, org, buildID, &preflight.RunSummaryGetOptions{

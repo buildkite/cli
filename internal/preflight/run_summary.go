@@ -14,17 +14,20 @@ type SummaryOptions struct {
 }
 
 type SummaryResult struct {
-	Tests    map[string]SummaryTestSuite `json:"tests"`
+	Tests    map[string]SummaryTestRun   `json:"tests"`
 	Failures []SummaryTestFailure        `json:"failures"`
 }
 
-type SummaryTestSuite struct {
+type SummaryTestRun struct {
+	RunID     string `json:"run_id"`
+	SuiteSlug string `json:"suite_slug"`
 	Passed  int `json:"passed"`
 	Failed  int `json:"failed"`
 	Skipped int `json:"skipped"`
 }
 
 type SummaryTestFailure struct {
+	RunID         string                 `json:"run_id"`
 	SuiteSlug     string                 `json:"suite_slug"`
 	Name          string                 `json:"name"`
 	Location      string                 `json:"location"`
@@ -116,14 +119,12 @@ func (s *RunSummaryService) Get(ctx context.Context, org, buildID string, opt *R
 }
 
 func (r RunSummaryResponse) SummaryResult() SummaryResult {
-	tests := make(map[string]SummaryTestSuite, len(r.Tests.Runs))
+	tests := make(map[string]SummaryTestRun, len(r.Tests.Runs))
 
 	for runID, run := range r.Tests.Runs {
-		slug := strings.TrimSpace(run.Suite.Slug)
-		if slug == "" {
-			slug = runID
-		}
-		tests[slug] = SummaryTestSuite{
+		tests[runID] = SummaryTestRun{
+			RunID:     runID,
+			SuiteSlug: strings.TrimSpace(run.Suite.Slug),
 			Passed:  run.Passed,
 			Failed:  run.Failed,
 			Skipped: run.Skipped,
@@ -140,6 +141,7 @@ func (r RunSummaryResponse) SummaryResult() SummaryResult {
 
 func (f RunSummaryFailure) summaryFailure() SummaryTestFailure {
 	result := SummaryTestFailure{
+		RunID:         strings.TrimSpace(f.RunID),
 		SuiteSlug:     strings.TrimSpace(f.SuiteSlug),
 		Name:          strings.TrimSpace(f.Name),
 		Location:      f.Location,

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"slices"
 	"strings"
 	"time"
 
@@ -195,7 +194,7 @@ func buildSummaryDetails(e Event, colored bool) string {
 		sections = append(sections, strings.Join(lines, "\n"))
 	}
 
-	if testSection := summaryTestsSection(e.Tests, e.Failures); testSection != "" {
+	if testSection := summaryTestsSection(e.Tests, e.Failures, !colored); testSection != "" {
 		sections = append(sections, testSection)
 	}
 
@@ -206,28 +205,21 @@ func buildSummaryDetails(e Event, colored bool) string {
 	return "\n\n" + strings.Join(sections, "\n\n") + "\n"
 }
 
-func summaryTestsSection(tests map[string]internalpreflight.SummaryTestSuite, failures []internalpreflight.SummaryTestFailure) string {
+func summaryTestsSection(tests map[string]internalpreflight.SummaryTestRun, failures []internalpreflight.SummaryTestFailure, includeRunID bool) string {
 	if len(tests) == 0 && len(failures) == 0 {
 		return ""
 	}
 
-	suites := make([]string, 0, len(tests))
-	for suite := range tests {
-		suites = append(suites, suite)
-	}
-	slices.Sort(suites)
-
 	lines := []string{"    Tests X"}
-	for _, suite := range suites {
-		summary := tests[suite]
-		lines = append(lines, fmt.Sprintf("        %s: %d passed, %d failed, %d skipped", suite, summary.Passed, summary.Failed, summary.Skipped))
+	for _, summary := range tests {
+		lines = append(lines, fmt.Sprintf("        %s: %d passed, %d failed, %d skipped", summaryTestRunLabel(summary, includeRunID), summary.Passed, summary.Failed, summary.Skipped))
 	}
 
-	displayed := min(len(failures), summaryTestFailureDisplayLimit)
+		displayed := min(len(failures), summaryTestFailureDisplayLimit)
 	if displayed > 0 {
 		lines = append(lines, "")
 		for _, failure := range failures[:displayed] {
-			lines = append(lines, indentAllLines(summaryTestFailureBlock(failure), 8))
+			lines = append(lines, indentAllLines(summaryTestFailureBlock(failure, includeRunID), 8))
 		}
 	}
 
@@ -242,10 +234,20 @@ func summaryTestsSection(tests map[string]internalpreflight.SummaryTestSuite, fa
 	return strings.Join(lines, "\n")
 }
 
-func summaryTestFailureBlock(failure internalpreflight.SummaryTestFailure) string {
+func summaryTestRunLabel(run internalpreflight.SummaryTestRun, includeRunID bool) string {
+	suite := strings.TrimSpace(run.SuiteSlug)
+	switch {
+	case suite != "":
+		return suite
+	default:
+		return "unknown"
+	}
+}
+
+func summaryTestFailureBlock(failure internalpreflight.SummaryTestFailure, includeRunID bool) string {
 	parts := []string{"FAIL"}
-	if suite := strings.TrimSpace(failure.SuiteSlug); suite != "" {
-		parts[0] += fmt.Sprintf(" [%s]", suite)
+	if label := summaryTestFailureLabel(failure, includeRunID); label != "" {
+		parts[0] += fmt.Sprintf(" [%s]", label)
 	}
 	if location := strings.TrimSpace(failure.Location); location != "" {
 		parts = append(parts, location)
@@ -262,6 +264,16 @@ func summaryTestFailureBlock(failure internalpreflight.SummaryTestFailure) strin
 	}
 
 	return strings.Join(parts, " — ")
+}
+
+func summaryTestFailureLabel(failure internalpreflight.SummaryTestFailure, includeRunID bool) string {
+	suite := strings.TrimSpace(failure.SuiteSlug)
+	switch {
+	case suite != "":
+		return suite
+	default:
+		return ""
+	}
 }
 
 func jobLogCommand(pipeline string, buildNumber int, jobID string) string {
