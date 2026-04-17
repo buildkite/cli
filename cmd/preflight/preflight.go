@@ -36,7 +36,6 @@ type PreflightCmd struct {
 	Text             bool                 `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
 	JSON             bool                 `help:"Emit one JSON object per event (JSONL)." xor:"output"`
 	Default          PreflightDefaultCmd  `cmd:"" optional:"" hidden:"" default:"1"`
-	Show             ShowCmd              `cmd:"" help:"Show the current status and results for a preflight build."`
 }
 
 type PreflightDefaultCmd struct{}
@@ -78,14 +77,6 @@ func (c *PreflightCmd) Help() string {
 }
 
 func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	if kongCtx != nil {
-		switch kongCtx.Command() {
-		case "preflight", "preflight default":
-		default:
-			return nil
-		}
-	}
-
 	rlTransport := bkhttp.NewRateLimitTransport(http.DefaultTransport)
 	f, err := newFactory(factory.WithDebug(globals.EnableDebug()), factory.WithTransport(rlTransport))
 	if err != nil {
@@ -240,9 +231,10 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			Duration:    time.Since(startedAt),
 		}
 
-		showResult, showErr := c.loadFinalResult(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, preflightID.String())
+		showResult, showErr := c.loadFinalResult(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number)
 		if showErr == nil {
 			summaryEvent.Tests = showResult.Tests
+			summaryEvent.Failures = showResult.Failures
 		} else if globals.EnableDebug() {
 			_ = renderer.Render(Event{
 				Type:        EventOperation,
@@ -252,7 +244,6 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			})
 		}
 
-		// API Call to Preflight Endpoint
 		if buildResult.Passed() {
 			if passed := tracker.PassedJobs(); len(passed) <= 10 {
 				summaryEvent.PassedJobs = passed
@@ -304,14 +295,15 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	return finalErr
 }
 
-func (c *PreflightCmd) loadFinalResult(ctx context.Context, client *buildkite.Client, org, pipeline string, buildNumber int, preflightID string) (preflight.ShowResult, error) {
-	expectTestSummary := false
-	if buildWithTests, _, buildErr := client.Builds.Get(ctx, org, pipeline, strconv.Itoa(buildNumber), &buildkite.BuildGetOptions{IncludeTestEngine: true}); buildErr == nil {
-		expectTestSummary = buildWithTests.TestEngine != nil && len(buildWithTests.TestEngine.Runs) > 0
-	}
+func (c *PreflightCmd) loadFinalResult(ctx context.Context, client *buildkite.Client, org, pipeline string, buildNumber int) (preflight.SummaryResult, error) {
+	buildWithTests, _, buildErr := client.Builds.Get(ctx, org, pipeline, strconv.Itoa(buildNumber), &buildkite.BuildGetOptions{IncludeTestEngine: true})
+	expectTestSummary := buildErr == nil && buildWithTests.TestEngine != nil && len(buildWithTests.TestEngine.Runs) > 0
 
-	if !c.AwaitTestResults.Enabled || c.AwaitTestResults.Duration <= 0 || !expectTestSummary {
-		return preflight.LoadShowResult(ctx, client, org, preflightID, preflight.ShowOptions{IncludeFailures: true})
+	if !c.AwaitTestResults.Enabled || c.AwaitTestResults.Duration <= 0 {
+		return c.loadRunSummary(ctx, client, org, buildWithTests.ID)
+	}
+	if !expectTestSummary {
+		return preflight.SummaryResult{Tests: map[string]preflight.SummaryTestSuite{}, Failures: []preflight.SummaryTestFailure{}}, nil
 	}
 
 	timer := time.NewTimer(c.AwaitTestResults.Duration)
@@ -319,11 +311,27 @@ func (c *PreflightCmd) loadFinalResult(ctx context.Context, client *buildkite.Cl
 
 	select {
 	case <-ctx.Done():
-		return showResult, showErr
+		return preflight.SummaryResult{}, ctx.Err()
 	case <-timer.C:
 	}
 
-	return preflight.LoadShowResult(ctx, client, org, preflightID, preflight.ShowOptions{IncludeFailures: true})
+	return c.loadRunSummary(ctx, client, org, buildWithTests.ID)
+}
+
+func (c *PreflightCmd) loadRunSummary(ctx context.Context, client *buildkite.Client, org, buildID string) (preflight.SummaryResult, error) {
+	if buildID == "" {
+		return preflight.SummaryResult{Tests: map[string]preflight.SummaryTestSuite{}, Failures: []preflight.SummaryTestFailure{}}, nil
+	}
+
+	summary, err := preflight.NewRunSummaryService(client).Get(ctx, org, buildID, &preflight.RunSummaryGetOptions{
+		FailedResult:    "failed",
+		IncludeFailures: true,
+	})
+	if err != nil {
+		return preflight.SummaryResult{}, err
+	}
+
+	return summary.SummaryResult(), nil
 }
 
 func resolveRepositoryRoot(f *factory.Factory, debug bool) (string, error) {

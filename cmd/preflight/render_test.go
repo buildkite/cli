@@ -637,19 +637,15 @@ func TestPlainRenderer_Render_BuildSummaryIncludesTests(t *testing.T) {
 		Type:       EventBuildSummary,
 		Time:       time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
 		BuildState: "failed",
-		Tests: map[string]internalpreflight.ShowTestSuite{
-			"go": {Passed: 12, Failed: 1, Skipped: 0},
-			"rspec": {
-				Passed:  47,
-				Failed:  2,
-				Skipped: 3,
-				Failures: []internalpreflight.ShowTestFailure{{
-					Name:     "AuthService.validateToken handles expired tokens",
-					Location: "src/auth.test.ts:89",
-					Message:  "Expected 'expired' but got 'invalid'",
-				}},
-			},
+		Tests: map[string]internalpreflight.SummaryTestSuite{
+			"go":    {Passed: 12, Failed: 1, Skipped: 0},
+			"rspec": {Passed: 47, Failed: 2, Skipped: 3},
 		},
+		Failures: []internalpreflight.SummaryTestFailure{{
+			Name:     "AuthService.validateToken handles expired tokens",
+			Location: "src/auth.test.ts:89",
+			Message:  "Expected 'expired' but got 'invalid'",
+		}},
 	}); err != nil {
 		t.Fatalf("Render() error: %v", err)
 	}
@@ -743,18 +739,14 @@ func TestJSONRenderer_Render_BuildSummaryIncludesTests(t *testing.T) {
 		Time:        time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
 		PreflightID: "pfid-123",
 		BuildState:  "failed",
-		Tests: map[string]internalpreflight.ShowTestSuite{
-			"rspec": {
-				Passed:  47,
-				Failed:  2,
-				Skipped: 3,
-				Failures: []internalpreflight.ShowTestFailure{{
-					Name:     "AuthService.validateToken handles expired tokens",
-					Location: "src/auth.test.ts:89",
-					Message:  "Expected 'expired' but got 'invalid'",
-				}},
-			},
+		Tests: map[string]internalpreflight.SummaryTestSuite{
+			"rspec": {Passed: 47, Failed: 2, Skipped: 3},
 		},
+		Failures: []internalpreflight.SummaryTestFailure{{
+			Name:     "AuthService.validateToken handles expired tokens",
+			Location: "src/auth.test.ts:89",
+			Message:  "Expected 'expired' but got 'invalid'",
+		}},
 	}); err != nil {
 		t.Fatalf("Render() error: %v", err)
 	}
@@ -774,9 +766,9 @@ func TestJSONRenderer_Render_BuildSummaryIncludesTests(t *testing.T) {
 	if rspec["passed"] != float64(47) || rspec["failed"] != float64(2) || rspec["skipped"] != float64(3) {
 		t.Fatalf("unexpected rspec summary: %v", rspec)
 	}
-	failures, ok := rspec["failures"].([]any)
+	failures, ok := got["failures"].([]any)
 	if !ok || len(failures) != 1 {
-		t.Fatalf("expected one failure, got %v", rspec["failures"])
+		t.Fatalf("expected one failure, got %v", got["failures"])
 	}
 }
 

@@ -95,7 +95,7 @@ func (r *plainRenderer) Render(e Event) error {
 				return err
 			}
 		}
-		for _, block := range summaryTestBlocks(e.Tests) {
+		for _, block := range summaryTestBlocks(e.Tests, e.Failures) {
 			if _, err := fmt.Fprintf(r.stdout, "%s\n", indentAllLines(block, 2)); err != nil {
 				return err
 			}
@@ -186,8 +186,8 @@ func plural(n int, word string) string {
 
 const summaryTestFailureDisplayLimit = 5
 
-func summaryTestBlocks(tests map[string]internalpreflight.ShowTestSuite) []string {
-	if len(tests) == 0 {
+func summaryTestBlocks(tests map[string]internalpreflight.SummaryTestSuite, failures []internalpreflight.SummaryTestFailure) []string {
+	if len(tests) == 0 && len(failures) == 0 {
 		return nil
 	}
 
@@ -206,25 +206,25 @@ func summaryTestBlocks(tests map[string]internalpreflight.ShowTestSuite) []strin
 			fmt.Sprintf("%d skipped", summary.Skipped),
 		}
 		blocks = append(blocks, fmt.Sprintf("%s tests: %s", suite, strings.Join(parts, ", ")))
+	}
 
-		displayed := min(len(summary.Failures), summaryTestFailureDisplayLimit)
-		for _, failure := range summary.Failures[:displayed] {
-			blocks = append(blocks, summaryTestFailureBlock(failure))
-		}
+	displayed := min(len(failures), summaryTestFailureDisplayLimit)
+	for _, failure := range failures[:displayed] {
+		blocks = append(blocks, summaryTestFailureBlock(failure))
+	}
 
-		remaining := len(summary.Failures) - displayed
-		if totalRemaining := summary.Failed - displayed; totalRemaining > remaining {
-			remaining = totalRemaining
-		}
-		if remaining > 0 {
-			blocks = append(blocks, fmt.Sprintf("... and %d more failed %s", remaining, plural(remaining, "test")))
-		}
+	totalFailed := 0
+	for _, summary := range tests {
+		totalFailed += summary.Failed
+	}
+	if remaining := totalFailed - displayed; remaining > 0 {
+		blocks = append(blocks, fmt.Sprintf("... and %d more failed %s", remaining, plural(remaining, "test")))
 	}
 
 	return blocks
 }
 
-func summaryTestFailureBlock(failure internalpreflight.ShowTestFailure) string {
+func summaryTestFailureBlock(failure internalpreflight.SummaryTestFailure) string {
 	name := strings.TrimSpace(failure.Name)
 	if name == "" {
 		name = "Failed test"

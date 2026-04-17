@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/config"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 
@@ -36,18 +36,6 @@ func (s stubGlobals) EnableDebug() bool      { return false }
 var _ cli.GlobalFlags = stubGlobals{}
 
 func TestPreflightCmd_Run(t *testing.T) {
-	t.Run("returns nil for show subcommand dispatch", func(t *testing.T) {
-		cmd := &PreflightCmd{}
-		ctx := &kong.Context{Path: []*kong.Path{
-			{Command: &kong.Node{Name: "preflight"}},
-			{Command: &kong.Node{Name: "show"}},
-		}}
-
-		if err := cmd.Run(ctx, stubGlobals{}); err != nil {
-			t.Fatalf("expected no error, got: %v", err)
-		}
-	})
-
 	t.Run("returns validation error when experiment disabled", func(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "")
 
@@ -450,7 +438,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 	})
 
-	t.Run("await-test-results retries until timeout expires", func(t *testing.T) {
+	t.Run("await-test-results loads summary after timeout", func(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
 
 		var includeLatestFail atomic.Bool
@@ -514,14 +502,9 @@ func TestPreflightCmd_Run(t *testing.T) {
 				return
 
 			case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/test-org/preflight/runs/build-id-123":
-				reqNum := summaryRequests.Add(1)
+				summaryRequests.Add(1)
 				if r.URL.Query().Get("include") == "latest_fail" {
 					includeLatestFail.Store(true)
-				}
-				if reqNum == 1 {
-					w.WriteHeader(http.StatusNotFound)
-					_, _ = w.Write([]byte(`{"message":"API::Error::NotFound"}`))
-					return
 				}
 				_, _ = w.Write([]byte(`{
 					"tests": {
@@ -578,8 +561,8 @@ func TestPreflightCmd_Run(t *testing.T) {
 		if !includeLatestFail.Load() {
 			t.Fatal("expected preflight summary to request latest_fail details")
 		}
-		if got := summaryRequests.Load(); got != 2 {
-			t.Fatalf("expected one initial and one delayed summary request, got %d", got)
+		if got := summaryRequests.Load(); got != 1 {
+			t.Fatalf("expected one delayed summary request, got %d", got)
 		}
 		if !strings.Contains(stdout, "AuthService.validateToken handles expired tokens") {
 			t.Fatalf("expected endpoint failure name in final summary, got %q", stdout)
@@ -684,8 +667,8 @@ func TestPreflightCmd_Run(t *testing.T) {
 			}
 		})
 
-		if got := summaryRequests.Load(); got != 2 {
-			t.Fatalf("expected one initial and one delayed summary request during await timeout, got %d", got)
+		if got := summaryRequests.Load(); got != 1 {
+			t.Fatalf("expected one delayed summary request during await timeout, got %d", got)
 		}
 		if !strings.Contains(stdout, "❌ Preflight Failed") {
 			t.Fatalf("expected final summary header, got %q", stdout)
@@ -1042,4 +1025,32 @@ func runGit(t *testing.T, dir string, args ...string) string {
 		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
 	}
 	return strings.TrimSpace(string(out))
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+
+	originalStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("creating stdout pipe: %v", err)
+	}
+
+	os.Stdout = w
+	t.Cleanup(func() {
+		os.Stdout = originalStdout
+	})
+
+	fn()
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("closing stdout writer: %v", err)
+	}
+
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("reading captured stdout: %v", err)
+	}
+
+	return string(out)
 }

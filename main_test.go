@@ -69,18 +69,6 @@ func TestApplyExperiments(t *testing.T) {
 		}
 	})
 
-	t.Run("preflight show parses", func(t *testing.T) {
-		cli := &CLI{}
-		parser, err := newKongParser(cli)
-		if err != nil {
-			t.Fatalf("failed to create parser: %v", err)
-		}
-
-		if _, err := parser.Parse([]string{"preflight", "show", "00000000-0000-0000-0000-000000000123"}); err != nil {
-			t.Fatalf("failed to parse preflight show command: %v", err)
-		}
-	})
-
 	t.Run("preflight await-test-results parses without a value", func(t *testing.T) {
 		cli := &CLI{}
 		parser, err := newKongParser(cli)
