@@ -621,6 +621,9 @@ func TestPlainRenderer_Render_BuildSummaryFailed(t *testing.T) {
 	if !strings.Contains(got, "Build #42: https://buildkite.com/buildkite/cli/builds/42") {
 		t.Fatalf("expected build URL in summary, got %q", got)
 	}
+	if !strings.Contains(got, "Build Failures:") {
+		t.Fatalf("expected build failures section, got %q", got)
+	}
 	if !strings.Contains(got, "Lint") {
 		t.Fatalf("expected hard-failed job name, got %q", got)
 	}
@@ -642,29 +645,27 @@ func TestPlainRenderer_Render_BuildSummaryIncludesTests(t *testing.T) {
 			"rspec": {Passed: 47, Failed: 2, Skipped: 3},
 		},
 		Failures: []internalpreflight.SummaryTestFailure{{
-			Name:     "AuthService.validateToken handles expired tokens",
-			Location: "src/auth.test.ts:89",
-			Message:  "Expected 'expired' but got 'invalid'",
+			SuiteSlug: "rspec",
+			Name:      "AuthService.validateToken handles expired tokens",
+			Location:  "src/auth.test.ts:89",
+			Message:   "Expected 'expired' but got 'invalid'",
 		}},
 	}); err != nil {
 		t.Fatalf("Render() error: %v", err)
 	}
 
 	got := out.String()
-	if !strings.Contains(got, "go tests: 12 passed, 1 failed, 0 skipped") {
+	if !strings.Contains(got, "Tests X") {
+		t.Fatalf("expected tests section, got %q", got)
+	}
+	if !strings.Contains(got, "go: 12 passed, 1 failed, 0 skipped") {
 		t.Fatalf("expected go test summary, got %q", got)
 	}
-	if !strings.Contains(got, "rspec tests: 47 passed, 2 failed, 3 skipped") {
+	if !strings.Contains(got, "rspec: 47 passed, 2 failed, 3 skipped") {
 		t.Fatalf("expected rspec test summary, got %q", got)
 	}
-	if !strings.Contains(got, "✗ AuthService.validateToken handles expired tokens") {
-		t.Fatalf("expected failure name from endpoint summary, got %q", got)
-	}
-	if !strings.Contains(got, "src/auth.test.ts:89") {
-		t.Fatalf("expected failure location from endpoint summary, got %q", got)
-	}
-	if !strings.Contains(got, "Expected 'expired' but got 'invalid'") {
-		t.Fatalf("expected failure message from endpoint summary, got %q", got)
+	if !strings.Contains(got, "FAIL [rspec] — src/auth.test.ts:89 — AuthService.validateToken handles expired tokens — Expected 'expired' but got 'invalid'") {
+		t.Fatalf("expected failure header from endpoint summary, got %q", got)
 	}
 }
 
@@ -743,9 +744,10 @@ func TestJSONRenderer_Render_BuildSummaryIncludesTests(t *testing.T) {
 			"rspec": {Passed: 47, Failed: 2, Skipped: 3},
 		},
 		Failures: []internalpreflight.SummaryTestFailure{{
-			Name:     "AuthService.validateToken handles expired tokens",
-			Location: "src/auth.test.ts:89",
-			Message:  "Expected 'expired' but got 'invalid'",
+			SuiteSlug: "rspec",
+			Name:      "AuthService.validateToken handles expired tokens",
+			Location:  "src/auth.test.ts:89",
+			Message:   "Expected 'expired' but got 'invalid'",
 		}},
 	}); err != nil {
 		t.Fatalf("Render() error: %v", err)

@@ -90,15 +90,8 @@ func (r *plainRenderer) Render(e Event) error {
 				return err
 			}
 		}
-		for _, j := range e.FailedJobs {
-			if _, err := fmt.Fprintf(r.stdout, "  %s\n", presenter.Line(j)); err != nil {
-				return err
-			}
-		}
-		for _, block := range summaryTestBlocks(e.Tests, e.Failures) {
-			if _, err := fmt.Fprintf(r.stdout, "%s\n", indentAllLines(block, 2)); err != nil {
-				return err
-			}
+		if _, err := fmt.Fprint(r.stdout, buildSummaryDetails(e, false)); err != nil {
+			return err
 		}
 
 	case EventTestFailure:
@@ -186,9 +179,36 @@ func plural(n int, word string) string {
 
 const summaryTestFailureDisplayLimit = 5
 
-func summaryTestBlocks(tests map[string]internalpreflight.SummaryTestSuite, failures []internalpreflight.SummaryTestFailure) []string {
+func buildSummaryDetails(e Event, colored bool) string {
+	var sections []string
+
+	if len(e.FailedJobs) > 0 {
+		presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
+		lines := []string{"    Build Failures:"}
+		for _, j := range e.FailedJobs {
+			line := presenter.Line(j)
+			if colored {
+				line = presenter.ColoredLine(j)
+			}
+			lines = append(lines, "        "+line)
+		}
+		sections = append(sections, strings.Join(lines, "\n"))
+	}
+
+	if testSection := summaryTestsSection(e.Tests, e.Failures); testSection != "" {
+		sections = append(sections, testSection)
+	}
+
+	if len(sections) == 0 {
+		return ""
+	}
+
+	return "\n\n" + strings.Join(sections, "\n\n") + "\n"
+}
+
+func summaryTestsSection(tests map[string]internalpreflight.SummaryTestSuite, failures []internalpreflight.SummaryTestFailure) string {
 	if len(tests) == 0 && len(failures) == 0 {
-		return nil
+		return ""
 	}
 
 	suites := make([]string, 0, len(tests))
@@ -197,20 +217,18 @@ func summaryTestBlocks(tests map[string]internalpreflight.SummaryTestSuite, fail
 	}
 	slices.Sort(suites)
 
-	blocks := make([]string, 0, len(suites))
+	lines := []string{"    Tests X"}
 	for _, suite := range suites {
 		summary := tests[suite]
-		parts := []string{
-			fmt.Sprintf("%d passed", summary.Passed),
-			fmt.Sprintf("%d failed", summary.Failed),
-			fmt.Sprintf("%d skipped", summary.Skipped),
-		}
-		blocks = append(blocks, fmt.Sprintf("%s tests: %s", suite, strings.Join(parts, ", ")))
+		lines = append(lines, fmt.Sprintf("        %s: %d passed, %d failed, %d skipped", suite, summary.Passed, summary.Failed, summary.Skipped))
 	}
 
 	displayed := min(len(failures), summaryTestFailureDisplayLimit)
-	for _, failure := range failures[:displayed] {
-		blocks = append(blocks, summaryTestFailureBlock(failure))
+	if displayed > 0 {
+		lines = append(lines, "")
+		for _, failure := range failures[:displayed] {
+			lines = append(lines, indentAllLines(summaryTestFailureBlock(failure), 8))
+		}
 	}
 
 	totalFailed := 0
@@ -218,31 +236,32 @@ func summaryTestBlocks(tests map[string]internalpreflight.SummaryTestSuite, fail
 		totalFailed += summary.Failed
 	}
 	if remaining := totalFailed - displayed; remaining > 0 {
-		blocks = append(blocks, fmt.Sprintf("... and %d more failed %s", remaining, plural(remaining, "test")))
+		lines = append(lines, fmt.Sprintf("        ... and %d more failed %s", remaining, plural(remaining, "test")))
 	}
 
-	return blocks
+	return strings.Join(lines, "\n")
 }
 
 func summaryTestFailureBlock(failure internalpreflight.SummaryTestFailure) string {
-	name := strings.TrimSpace(failure.Name)
-	if name == "" {
-		name = "Failed test"
+	parts := []string{"FAIL"}
+	if suite := strings.TrimSpace(failure.SuiteSlug); suite != "" {
+		parts[0] += fmt.Sprintf(" [%s]", suite)
 	}
-
-	lines := []string{fmt.Sprintf("✗ %s", truncateToWidth(name, 80))}
 	if location := strings.TrimSpace(failure.Location); location != "" {
-		lines = append(lines, "  "+location)
+		parts = append(parts, location)
+	}
+	if name := strings.TrimSpace(failure.Name); name != "" {
+		parts = append(parts, truncateToWidth(name, 80))
 	}
 	message := strings.TrimSpace(failure.Message)
 	if message == "" {
 		message = strings.TrimSpace(failure.FailureReason)
 	}
 	if message != "" {
-		lines = append(lines, "  "+message)
+		parts = append(parts, message)
 	}
 
-	return strings.Join(lines, "\n")
+	return strings.Join(parts, " — ")
 }
 
 func jobLogCommand(pipeline string, buildNumber int, jobID string) string {

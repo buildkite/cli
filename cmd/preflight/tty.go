@@ -188,12 +188,7 @@ func (m ttyModel) buildSummaryView(e Event) string {
 	for _, j := range e.PassedJobs {
 		out += "\n  " + presenter.ColoredPassedLine(j, ttyDimStyle)
 	}
-	for _, j := range e.FailedJobs {
-		out += "\n  " + presenter.ColoredLine(j)
-	}
-	for _, block := range summaryTestBlocks(e.Tests, e.Failures) {
-		out += "\n" + indentAllLines(block, 2)
-	}
+	out += buildSummaryDetails(e, true)
 
 	return out
 }

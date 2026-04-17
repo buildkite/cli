@@ -90,12 +90,13 @@ func TestBuildSummaryView_ReturnsOutput(t *testing.T) {
 					"rspec": {Passed: 47, Failed: 2, Skipped: 3},
 				},
 				Failures: []internalpreflight.SummaryTestFailure{{
-					Name:     "AuthService.validateToken handles expired tokens",
-					Location: "src/auth.test.ts:89",
-					Message:  "Expected 'expired' but got 'invalid'",
+					SuiteSlug: "rspec",
+					Name:      "AuthService.validateToken handles expired tokens",
+					Location:  "src/auth.test.ts:89",
+					Message:   "Expected 'expired' but got 'invalid'",
 				}},
 			},
-			contains: []string{"rspec tests: 47 passed, 2 failed, 3 skipped", "AuthService.validateToken handles expired tokens", "src/auth.test.ts:89"},
+			contains: []string{"Tests X", "rspec: 47 passed, 2 failed, 3 skipped", "FAIL [rspec] — src/auth.test.ts:89 — AuthService.validateToken handles expired tokens — Expected 'expired' but got 'invalid'"},
 		},
 	}
 

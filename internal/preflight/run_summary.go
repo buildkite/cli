@@ -25,6 +25,7 @@ type SummaryTestSuite struct {
 }
 
 type SummaryTestFailure struct {
+	SuiteSlug     string                 `json:"suite_slug"`
 	Name          string                 `json:"name"`
 	Location      string                 `json:"location"`
 	Message       string                 `json:"message"`
@@ -139,6 +140,7 @@ func (r RunSummaryResponse) SummaryResult() SummaryResult {
 
 func (f RunSummaryFailure) summaryFailure() SummaryTestFailure {
 	result := SummaryTestFailure{
+		SuiteSlug:     strings.TrimSpace(f.SuiteSlug),
 		Name:          strings.TrimSpace(f.Name),
 		Location:      f.Location,
 		FailureReason: f.FailureReason,
