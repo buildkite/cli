@@ -12,6 +12,7 @@ import (
 const (
 	typeOrganizationMessage = "Pick an organization"
 	typePipelineMessage     = "Select a pipeline"
+	clearLineSequence       = "\x1b[1A\x1b[2K\r"
 )
 
 // PromptForOne will show the list of options to the user, allowing them to select one to return.
@@ -59,7 +60,35 @@ func PromptForOne(resource string, options []string, noInput bool) (string, erro
 		return "", fmt.Errorf("invalid selection")
 	}
 
+	clearPromptLines(len(options) + 2)
+
 	return options[num-1], nil
+}
+
+func clearPromptLines(lines int) {
+	if lines <= 0 {
+		return
+	}
+
+	if !isatty.IsTerminal(os.Stdout.Fd()) && !isatty.IsCygwinTerminal(os.Stdout.Fd()) {
+		return
+	}
+
+	fmt.Fprint(os.Stdout, promptClearSequence(lines))
+}
+
+func promptClearSequence(lines int) string {
+	if lines <= 0 {
+		return ""
+	}
+
+	var builder strings.Builder
+	builder.Grow(len(clearLineSequence) * lines)
+	for i := 0; i < lines; i++ {
+		builder.WriteString(clearLineSequence)
+	}
+
+	return builder.String()
 }
 
 // PromptForInput prompts the user to enter a string value.
