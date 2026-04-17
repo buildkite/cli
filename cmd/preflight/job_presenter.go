@@ -14,16 +14,14 @@ type jobPresenter struct {
 	buildNumber int
 }
 
-func (p jobPresenter) failParts(j buildkite.Job) (symbol, name, detail string) {
+func (p jobPresenter) failParts(j buildkite.Job) (symbol, name, status, logCommand string) {
 	job := watch.NewFormattedJob(j)
 	name = job.DisplayName()
 
-	var status string
+	status = j.State
 	switch {
 	case job.IsSoftFailed():
 		status = "soft failed"
-	default:
-		status = j.State
 	}
 
 	if j.ExitStatus != nil && *j.ExitStatus != 0 {
@@ -35,13 +33,13 @@ func (p jobPresenter) failParts(j buildkite.Job) (symbol, name, detail string) {
 		symbol = "⚠"
 	}
 
-	detail = fmt.Sprintf("%s — %s", status, jobLogCommand(p.pipeline, p.buildNumber, j.ID))
-	return symbol, name, detail
+	logCommand = jobLogCommand(p.pipeline, p.buildNumber, j.ID)
+	return symbol, name, status, logCommand
 }
 
 func (p jobPresenter) Line(j buildkite.Job) string {
-	symbol, name, detail := p.failParts(j)
-	return fmt.Sprintf("%s %s %s", symbol, name, detail)
+	symbol, name, status, logCommand := p.failParts(j)
+	return fmt.Sprintf("%s %s %s — %s", symbol, name, status, logCommand)
 }
 
 func (p jobPresenter) PassedLine(j buildkite.Job) string {
@@ -61,7 +59,7 @@ func (p jobPresenter) ColoredPassedLine(j buildkite.Job, style lipgloss.Style) s
 // Kitty/iTerm2 graphics escape sequences breaking lipgloss styling.
 func (p jobPresenter) ColoredLine(j buildkite.Job) string {
 	job := watch.NewFormattedJob(j)
-	symbol, name, detail := p.failParts(j)
+	symbol, name, status, _ := p.failParts(j)
 
 	emojiPrefix, textName := emoji.Split(name)
 
@@ -71,7 +69,7 @@ func (p jobPresenter) ColoredLine(j buildkite.Job) string {
 	}
 
 	if emojiPrefix != "" {
-		return style.Render(symbol+" ") + emoji.Render(emojiPrefix) + " " + style.Render(fmt.Sprintf("%s %s", textName, detail))
+		return style.Render(symbol+" ") + emoji.Render(emojiPrefix) + " " + style.Render(fmt.Sprintf("%s %s", textName, status))
 	}
-	return style.Render(fmt.Sprintf("%s %s %s", symbol, textName, detail))
+	return style.Render(fmt.Sprintf("%s %s %s", symbol, textName, status))
 }

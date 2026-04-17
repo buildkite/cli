@@ -94,6 +94,9 @@ func TestJobPresenter_ColoredLine(t *testing.T) {
 	}.ColoredLine(scriptJob("job-1", "Test", "failed", false, &startedAt, &finishedAt, &exitStatus))
 
 	assertStringContainsAll(t, line, []string{"✗", "Test", "failed with exit 1"})
+	if strings.Contains(line, "bk job log") {
+		t.Fatalf("did not expect job log command in colored line: %q", line)
+	}
 }
 
 func TestJobPresenter_ColoredLine_SoftFailed(t *testing.T) {
@@ -106,6 +109,9 @@ func TestJobPresenter_ColoredLine_SoftFailed(t *testing.T) {
 	}.ColoredLine(scriptJob("job-1", "Audit", "failed", true, &startedAt, &finishedAt, nil))
 
 	assertStringContainsAll(t, line, []string{"⚠", "Audit", "soft failed"})
+	if strings.Contains(line, "bk job log") {
+		t.Fatalf("did not expect job log command in colored line: %q", line)
+	}
 }
 
 func TestJobPresenter_ColoredLine_WithEmoji(t *testing.T) {

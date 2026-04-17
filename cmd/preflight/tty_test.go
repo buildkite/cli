@@ -70,6 +70,9 @@ func TestBuildSummaryView_ReturnsOutput(t *testing.T) {
 					t.Errorf("missing %q in output:\n%s", want, got)
 				}
 			}
+			if strings.Contains(got, "bk job log") {
+				t.Errorf("did not expect job log command in TTY summary output:\n%s", got)
+			}
 		})
 	}
 }
