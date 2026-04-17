@@ -368,7 +368,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 				}})
 				return
 
-			case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/test-org/preflight/runs/build-id-123":
+			case r.Method == http.MethodGet && r.URL.Path == "/v2/analytics/organizations/test-org/builds/build-id-123/preflight":
 				summaryRequests.Add(1)
 				if r.URL.Query().Get("include") == "latest_fail" {
 					includeLatestFail.Store(true)
@@ -589,7 +589,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 				}})
 				return
 
-			case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/test-org/preflight/runs/build-id-123":
+			case r.Method == http.MethodGet && r.URL.Path == "/v2/analytics/organizations/test-org/builds/build-id-123/preflight":
 				summaryRequests.Add(1)
 				if r.URL.Query().Get("include") == "latest_fail" {
 					includeLatestFail.Store(true)
@@ -722,7 +722,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 				}})
 				return
 
-			case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/test-org/preflight/runs/build-id-123":
+			case r.Method == http.MethodGet && r.URL.Path == "/v2/analytics/organizations/test-org/builds/build-id-123/preflight":
 				summaryRequests.Add(1)
 				w.WriteHeader(http.StatusNotFound)
 				_, _ = w.Write([]byte(`{"message":"API::Error::NotFound"}`))
@@ -820,7 +820,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 				}})
 				return
 
-			case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/test-org/preflight/runs/build-id-123":
+			case r.Method == http.MethodGet && r.URL.Path == "/v2/analytics/organizations/test-org/builds/build-id-123/preflight":
 				summaryRequests.Add(1)
 				_, _ = w.Write([]byte(`{"tests":{"runs":{},"failures":[]}}`))
 				return

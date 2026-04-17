@@ -14,16 +14,16 @@ type SummaryOptions struct {
 }
 
 type SummaryResult struct {
-	Tests    map[string]SummaryTestRun   `json:"tests"`
-	Failures []SummaryTestFailure        `json:"failures"`
+	Tests    map[string]SummaryTestRun `json:"tests"`
+	Failures []SummaryTestFailure      `json:"failures"`
 }
 
 type SummaryTestRun struct {
 	RunID     string `json:"run_id"`
 	SuiteSlug string `json:"suite_slug"`
-	Passed  int `json:"passed"`
-	Failed  int `json:"failed"`
-	Skipped int `json:"skipped"`
+	Passed    int    `json:"passed"`
+	Failed    int    `json:"failed"`
+	Skipped   int    `json:"skipped"`
 }
 
 type SummaryTestFailure struct {
@@ -102,7 +102,7 @@ func (s *RunSummaryService) Get(ctx context.Context, org, buildID string, opt *R
 		}
 	}
 
-	u := fmt.Sprintf("v2/organizations/%s/preflight/runs/%s?%s", org, buildID, query.Encode())
+	u := fmt.Sprintf("v2/analytics/organizations/%s/builds/%s/preflight?%s", org, buildID, query.Encode())
 
 	req, err := s.client.NewRequest(ctx, "GET", u, nil)
 	if err != nil {
@@ -125,9 +125,9 @@ func (r RunSummaryResponse) SummaryResult() SummaryResult {
 		tests[runID] = SummaryTestRun{
 			RunID:     runID,
 			SuiteSlug: strings.TrimSpace(run.Suite.Slug),
-			Passed:  run.Passed,
-			Failed:  run.Failed,
-			Skipped: run.Skipped,
+			Passed:    run.Passed,
+			Failed:    run.Failed,
+			Skipped:   run.Skipped,
 		}
 	}
 
