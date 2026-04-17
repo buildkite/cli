@@ -2,6 +2,7 @@ package preflight
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/buildkite/cli/v3/internal/build/watch"
 	"github.com/buildkite/cli/v3/internal/emoji"
@@ -14,13 +15,13 @@ type jobPresenter struct {
 	buildNumber int
 }
 
-func (p jobPresenter) failParts(j buildkite.Job) (symbol, name, detail string) {
+func (p jobPresenter) failParts(j buildkite.Job) (symbol, name, status, command string, softFailed bool) {
 	job := watch.NewFormattedJob(j)
 	name = job.DisplayName()
+	softFailed = job.IsSoftFailed()
 
-	var status string
 	switch {
-	case job.IsSoftFailed():
+	case softFailed:
 		status = "soft failed"
 	default:
 		status = j.State
@@ -31,17 +32,17 @@ func (p jobPresenter) failParts(j buildkite.Job) (symbol, name, detail string) {
 	}
 
 	symbol = "✗"
-	if job.IsSoftFailed() {
+	if softFailed {
 		symbol = "⚠"
 	}
 
-	detail = fmt.Sprintf("%s — %s", status, jobLogCommand(p.pipeline, p.buildNumber, j.ID))
-	return symbol, name, detail
+	command = jobLogCommand(p.pipeline, p.buildNumber, j.ID)
+	return symbol, name, status, command, softFailed
 }
 
 func (p jobPresenter) Line(j buildkite.Job) string {
-	symbol, name, detail := p.failParts(j)
-	return fmt.Sprintf("%s %s %s", symbol, name, detail)
+	symbol, name, status, command, _ := p.failParts(j)
+	return fmt.Sprintf("%s %s %s — %s", symbol, name, status, command)
 }
 
 func (p jobPresenter) PassedLine(j buildkite.Job) string {
@@ -60,18 +61,41 @@ func (p jobPresenter) ColoredPassedLine(j buildkite.Job, style lipgloss.Style) s
 // ColoredLine renders emoji outside the ANSI colour span to avoid
 // Kitty/iTerm2 graphics escape sequences breaking lipgloss styling.
 func (p jobPresenter) ColoredLine(j buildkite.Job) string {
-	job := watch.NewFormattedJob(j)
-	symbol, name, detail := p.failParts(j)
-
-	emojiPrefix, textName := emoji.Split(name)
-
+	symbol, name, status, command, softFailed := p.failParts(j)
 	style := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
-	if job.IsSoftFailed() {
+	if softFailed {
 		style = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
 	}
 
-	if emojiPrefix != "" {
-		return style.Render(symbol+" ") + emoji.Render(emojiPrefix) + " " + style.Render(fmt.Sprintf("%s %s", textName, detail))
+	return style.Render(symbol+" ") + renderDisplayName(name, style) + style.Render(fmt.Sprintf(" %s — %s", status, command))
+}
+
+func (p jobPresenter) ttyBlock(j buildkite.Job) string {
+	_, name, status, command, softFailed := p.failParts(j)
+
+	labelStyle := ttyFailureStyle.Bold(true)
+	statusStyle := ttyFailureStyle
+	if softFailed {
+		labelStyle = ttySoftFailureStyle.Bold(true)
+		statusStyle = ttySoftFailureStyle
 	}
-	return style.Render(fmt.Sprintf("%s %s %s", symbol, textName, detail))
+
+	lines := []string{
+		labelStyle.Render("● job") + " " + renderDisplayName(name, ttyTitleStyle),
+	}
+	lines = append(lines, ttyContinuationLines(status, statusStyle)...)
+	lines = append(lines, ttyContinuationLines(command, ttyCommandStyle)...)
+
+	return strings.Join(lines, "\n")
+}
+
+func renderDisplayName(name string, style lipgloss.Style) string {
+	emojiPrefix, textName := emoji.Split(name)
+	if emojiPrefix == "" {
+		return style.Render(textName)
+	}
+	if textName == "" {
+		return emoji.Render(emojiPrefix)
+	}
+	return emoji.Render(emojiPrefix) + " " + style.Render(textName)
 }

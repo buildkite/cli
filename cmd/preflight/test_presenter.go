@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
 	buildkite "github.com/buildkite/go-buildkite/v4"
@@ -18,6 +19,33 @@ func (p testPresenter) Line(t buildkite.BuildTest) string {
 
 func (p testPresenter) ColoredLine(t buildkite.BuildTest) string {
 	return p.line(t, true)
+}
+
+func (p testPresenter) ttyBlock(t buildkite.BuildTest) string {
+	name := t.Name
+	if t.Scope != "" {
+		name = t.Scope + " " + name
+	}
+	name = truncateToWidth(name, 80)
+
+	latestExecution := latestTestExecution(t)
+	lines := []string{ttyTestStyle.Render("● test") + " " + ttyTitleStyle.Render(name)}
+
+	if !isFailedTestExecution(latestExecution) {
+		return strings.Join(lines, "\n")
+	}
+
+	if location := testLocation(t, latestExecution); location != "" {
+		lines = append(lines, ttyContinuationLines(location, ttyDimStyle)...)
+	}
+	if attemptSummary := testAttemptCounts(t); attemptSummary != "" {
+		lines = append(lines, ttyContinuationLines(attemptSummary, ttyDimStyle)...)
+	}
+	if latestExecution.FailureReason != "" {
+		lines = append(lines, ttyContinuationLines(latestExecution.FailureReason, lipgloss.NewStyle())...)
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func (p testPresenter) line(t buildkite.BuildTest, colored bool) string {
@@ -40,10 +68,8 @@ func (p testPresenter) line(t buildkite.BuildTest, colored bool) string {
 	if attemptSummary := testAttemptCounts(t); attemptSummary != "" {
 		detailParts = append(detailParts, attemptSummary)
 	}
-	if location := latestExecution.Location; location != "" {
+	if location := testLocation(t, latestExecution); location != "" {
 		detailParts = append(detailParts, location)
-	} else if t.Location != "" {
-		detailParts = append(detailParts, t.Location)
 	}
 	if len(detailParts) > 0 {
 		line += fmt.Sprintf("\n    %s", formatTestDetail(strings.Join(detailParts, " — "), colored))
@@ -65,6 +91,13 @@ func testAttemptCounts(t buildkite.BuildTest) string {
 	passed := t.ExecutionsCountByResult.Passed
 	failed := t.ExecutionsCountByResult.Failed
 	return fmt.Sprintf("%d %s (%d passed, %d failed)", attempts, plural(attempts, "attempt"), passed, failed)
+}
+
+func testLocation(t buildkite.BuildTest, latestExecution *buildkite.BuildTestExecution) string {
+	if latestExecution != nil && latestExecution.Location != "" {
+		return latestExecution.Location
+	}
+	return t.Location
 }
 
 func latestTestExecution(t buildkite.BuildTest) *buildkite.BuildTestExecution {
