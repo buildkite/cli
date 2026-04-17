@@ -13,6 +13,15 @@ import (
 
 type testPresenter struct{}
 
+type testOutcome int
+
+const (
+	testOutcomeUnknown testOutcome = iota
+	testOutcomePassed
+	testOutcomeFailed
+	testOutcomeMixed
+)
+
 func (p testPresenter) Line(t buildkite.BuildTest) string {
 	return p.line(t, false)
 }
@@ -29,19 +38,16 @@ func (p testPresenter) ttyBlock(t buildkite.BuildTest) string {
 	name = truncateToWidth(name, 80)
 
 	latestExecution := latestTestExecution(t)
-	lines := []string{ttyTestStyle.Render("● test") + " " + ttyTitleStyle.Render(name)}
-
-	if !isFailedTestExecution(latestExecution) {
-		return strings.Join(lines, "\n")
-	}
+	displayOutcome := testDisplayOutcome(t, latestExecution)
+	lines := []string{ttyTestLabelStyle(displayOutcome).Render("● test") + " " + ttyTitleStyle.Render(name)}
 
 	if location := testLocation(t, latestExecution); location != "" {
 		lines = append(lines, ttyContinuationLines(location, ttyDimStyle)...)
 	}
-	if attemptSummary := testAttemptCounts(t); attemptSummary != "" {
-		lines = append(lines, ttyContinuationLines(attemptSummary, ttyDimStyle)...)
+	if executionSummary := testExecutionSummary(t); executionSummary != "" {
+		lines = append(lines, ttyContinuationLines(executionSummary, ttyDimStyle)...)
 	}
-	if latestExecution.FailureReason != "" {
+	if latestExecution != nil && isFailedTestExecution(latestExecution) && latestExecution.FailureReason != "" {
 		lines = append(lines, ttyContinuationLines(latestExecution.FailureReason, lipgloss.NewStyle())...)
 	}
 
@@ -56,17 +62,14 @@ func (p testPresenter) line(t buildkite.BuildTest, colored bool) string {
 	name = truncateToWidth(name, 80)
 
 	latestExecution := latestTestExecution(t)
+	displayOutcome := testDisplayOutcome(t, latestExecution)
 
-	statusIcon := formatTestStatusIcon(latestExecution, colored)
+	statusIcon := formatTestStatusIcon(displayOutcome, colored)
 	line := fmt.Sprintf("%s %s", statusIcon, name)
 
-	if !isFailedTestExecution(latestExecution) {
-		return line
-	}
-
 	detailParts := make([]string, 0, 2)
-	if attemptSummary := testAttemptCounts(t); attemptSummary != "" {
-		detailParts = append(detailParts, attemptSummary)
+	if executionSummary := testExecutionSummary(t); executionSummary != "" {
+		detailParts = append(detailParts, executionSummary)
 	}
 	if location := testLocation(t, latestExecution); location != "" {
 		detailParts = append(detailParts, location)
@@ -75,22 +78,68 @@ func (p testPresenter) line(t buildkite.BuildTest, colored bool) string {
 		line += fmt.Sprintf("\n    %s", formatTestDetail(strings.Join(detailParts, " — "), colored))
 	}
 
-	if latestExecution.FailureReason != "" {
+	if latestExecution != nil && isFailedTestExecution(latestExecution) && latestExecution.FailureReason != "" {
 		line += fmt.Sprintf("\n    %s", formatTestDetail(latestExecution.FailureReason, colored))
 	}
 
 	return line
 }
 
-func testAttemptCounts(t buildkite.BuildTest) string {
-	attempts := t.ExecutionsCount
-	if attempts == 0 {
+func testExecutionSummary(t buildkite.BuildTest) string {
+	totalExecutions := testExecutionCount(t)
+	if totalExecutions == 0 {
 		return ""
 	}
 
 	passed := t.ExecutionsCountByResult.Passed
 	failed := t.ExecutionsCountByResult.Failed
-	return fmt.Sprintf("%d %s (%d passed, %d failed)", attempts, plural(attempts, "attempt"), passed, failed)
+
+	switch testOutcomeStatus(t) {
+	case testOutcomeFailed:
+		return fmt.Sprintf("%d failed %s", failed, plural(failed, "execution"))
+	case testOutcomePassed:
+		return fmt.Sprintf("%d passed %s", passed, plural(passed, "execution"))
+	case testOutcomeMixed:
+		return fmt.Sprintf("%d %s · %d passed, %d failed", totalExecutions, plural(totalExecutions, "execution"), passed, failed)
+	default:
+		return fmt.Sprintf("%d %s", totalExecutions, plural(totalExecutions, "execution"))
+	}
+}
+
+func testExecutionCount(t buildkite.BuildTest) int {
+	if t.ExecutionsCount > 0 {
+		return t.ExecutionsCount
+	}
+
+	counts := t.ExecutionsCountByResult
+	return counts.Passed + counts.Failed + counts.Skipped + counts.Pending + counts.Unknown
+}
+
+func testOutcomeStatus(t buildkite.BuildTest) testOutcome {
+	totalExecutions := testExecutionCount(t)
+	if totalExecutions == 0 {
+		return testOutcomeUnknown
+	}
+
+	counts := t.ExecutionsCountByResult
+	switch {
+	case counts.Failed > 0 && counts.Failed == totalExecutions:
+		return testOutcomeFailed
+	case counts.Passed > 0 && counts.Passed == totalExecutions:
+		return testOutcomePassed
+	case counts.Passed > 0 && counts.Failed > 0:
+		return testOutcomeMixed
+	default:
+		return testOutcomeUnknown
+	}
+}
+
+func testDisplayOutcome(t buildkite.BuildTest, latestExecution *buildkite.BuildTestExecution) testOutcome {
+	outcome := testOutcomeStatus(t)
+	if outcome == testOutcomeMixed && latestExecution != nil && strings.EqualFold(latestExecution.Status, "passed") {
+		return testOutcomePassed
+	}
+	return outcome
 }
 
 func testLocation(t buildkite.BuildTest, latestExecution *buildkite.BuildTestExecution) string {
@@ -151,30 +200,42 @@ func formatTestDetail(text string, colored bool) string {
 	return "\033[2m" + text + "\033[0m"
 }
 
-func formatTestStatusIcon(execution *buildkite.BuildTestExecution, colored bool) string {
-	status := ""
-	if execution != nil {
-		status = execution.Status
-	}
-
+func formatTestStatusIcon(outcome testOutcome, colored bool) string {
 	if !colored {
-		switch {
-		case strings.EqualFold(status, "passed"):
+		switch outcome {
+		case testOutcomePassed:
 			return "✓"
-		case strings.EqualFold(status, "failed"):
+		case testOutcomeFailed:
 			return "✗"
+		case testOutcomeMixed:
+			return "!"
 		default:
 			return "?"
 		}
 	}
 
-	switch {
-	case strings.EqualFold(status, "passed"):
+	switch outcome {
+	case testOutcomePassed:
 		return "\033[32m✓\033[0m"
-	case strings.EqualFold(status, "failed"):
+	case testOutcomeFailed:
 		return "\033[31m✗\033[0m"
+	case testOutcomeMixed:
+		return "\033[33m!\033[0m"
 	default:
 		return "\033[2m?\033[0m"
+	}
+}
+
+func ttyTestLabelStyle(outcome testOutcome) lipgloss.Style {
+	switch outcome {
+	case testOutcomePassed:
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true)
+	case testOutcomeFailed:
+		return ttyFailureStyle.Bold(true)
+	case testOutcomeMixed:
+		return ttySoftFailureStyle.Bold(true)
+	default:
+		return ttyTestStyle
 	}
 }
 

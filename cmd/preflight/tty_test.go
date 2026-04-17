@@ -7,6 +7,7 @@ import (
 
 	"github.com/buildkite/cli/v3/internal/build/watch"
 	buildkite "github.com/buildkite/go-buildkite/v4"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func TestBuildSummaryView_ReturnsOutput(t *testing.T) {
@@ -76,7 +77,7 @@ func TestBuildSummaryView_ReturnsOutput(t *testing.T) {
 	}
 }
 
-func TestTTYModelRender_IncludesTestFailureCount(t *testing.T) {
+func TestTTYModelRender_ShowsJobSummaryWithoutTestFailureCount(t *testing.T) {
 	m := newTTYModel()
 	m.latest = Event{
 		Title: "Watching build #42",
@@ -86,13 +87,38 @@ func TestTTYModelRender_IncludesTestFailureCount(t *testing.T) {
 			Running: 2,
 		},
 	}
-	m.testFailures = 3
 
 	got := stripANSI(m.render())
-	for _, want := range []string{"Watching build #42", "8 passed", "1 failed job", "3 failed tests", "2 running"} {
+	for _, want := range []string{"Watching build #42", "8 passed", "1 failed job", "2 running"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("missing %q in output:\n%s", want, got)
 		}
+	}
+	if strings.Contains(got, "failed tests") {
+		t.Fatalf("did not expect test failure count in output:\n%s", got)
+	}
+}
+
+func TestBuildStateStyle_UsesBuildkiteStateColors(t *testing.T) {
+	tests := []struct {
+		name  string
+		state string
+		want  lipgloss.TerminalColor
+	}{
+		{name: "passed", state: "passed", want: lipgloss.Color("#B0DF21")},
+		{name: "running", state: "running", want: lipgloss.Color("#FFBA03")},
+		{name: "failed", state: "failed", want: lipgloss.Color("#F83F23")},
+		{name: "scheduled", state: "scheduled", want: lipgloss.Color("#BBB")},
+		{name: "skipped", state: "skipped", want: lipgloss.Color("#83B0E4")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			style := buildStateStyle(tt.state)
+			if got := style.GetForeground(); got != tt.want {
+				t.Fatalf("expected foreground %v, got %v", tt.want, got)
+			}
+		})
 	}
 }
 
@@ -135,7 +161,7 @@ func TestTestPresenterTTYBlock_UsesDiagnosticLayout(t *testing.T) {
 	for _, want := range []string{
 		"● test Test A",
 		"│ ./spec/example_spec.rb:10",
-		"│ 1 attempt (0 passed, 1 failed)",
+		"│ 1 failed execution",
 		"│ Failure/Error: expect(false).to eq(true)",
 		"│ expected: true",
 		"│ actual: false",

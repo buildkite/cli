@@ -214,7 +214,7 @@ func TestPlainRenderer_Render_TestFailure(t *testing.T) {
 
 	indent := strings.Repeat(" ", len("10:31:00 "))
 	expected := "10:31:00 ✗ Test A\n" +
-		indent + "    1 attempt (0 passed, 1 failed) — ./spec/example_spec.rb:10\n" +
+		indent + "    1 failed execution — ./spec/example_spec.rb:10\n" +
 		indent + "    Failure/Error: expect(false).to eq(true)\n"
 	if got != expected {
 		t.Fatalf("expected:\n%s\ngot:\n%s", expected, got)
@@ -377,7 +377,7 @@ func TestTestPresenter_Line_FailedAttemptIncludesSummaryAndFailureDetails(t *tes
 	if !strings.Contains(got, "✗ Pipelines::ShardMigration::DeleteOrgan...records for a shard that needs cleaning") {
 		t.Fatalf("expected long name to preserve the start and end, got %q", got)
 	}
-	if !strings.Contains(got, "2 attempts (0 passed, 2 failed) — ./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181") {
+	if !strings.Contains(got, "2 failed executions — ./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181") {
 		t.Fatalf("expected location detail, got %q", got)
 	}
 	if !strings.Contains(got, "Failure/Error: expect(empty_tables).to eq({})") {
@@ -388,46 +388,104 @@ func TestTestPresenter_Line_FailedAttemptIncludesSummaryAndFailureDetails(t *tes
 	}
 }
 
-func TestFormatTestStatusIcon_UsesLatestExecution(t *testing.T) {
+func TestTestDisplayOutcome_UsesLatestPassedExecutionForMixedTests(t *testing.T) {
 	t.Parallel()
-	newest := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}
+	tests := []struct {
+		name string
+		test buildkite.BuildTest
+		want string
+	}{
+		{
+			name: "passed only",
+			test: buildkite.BuildTest{ExecutionsCount: 2, ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{Passed: 2}},
+			want: "✓",
+		},
+		{
+			name: "failed only",
+			test: buildkite.BuildTest{ExecutionsCount: 2, ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{Failed: 2}},
+			want: "✗",
+		},
+		{
+			name: "mixed latest failed",
+			test: buildkite.BuildTest{
+				ExecutionsCount:         3,
+				ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{Passed: 1, Failed: 2},
+				Executions: []buildkite.BuildTestExecution{
+					{Status: "passed", Timestamp: &buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)}},
+					{Status: "failed", Timestamp: &buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}},
+				},
+			},
+			want: "!",
+		},
+		{
+			name: "mixed latest passed",
+			test: buildkite.BuildTest{
+				ExecutionsCount:         3,
+				ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{Passed: 1, Failed: 2},
+				Executions: []buildkite.BuildTestExecution{
+					{Status: "failed", Timestamp: &buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)}},
+					{Status: "passed", Timestamp: &buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}},
+				},
+			},
+			want: "✓",
+		},
+	}
 
-	execution := &buildkite.BuildTestExecution{Status: "passed", Timestamp: &newest}
-	icon := formatTestStatusIcon(execution, false)
-
-	if got, want := icon, "✓"; got != want {
-		t.Fatalf("icon = %q, want %q", got, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			icon := formatTestStatusIcon(testDisplayOutcome(tt.test, latestTestExecution(tt.test)), false)
+			if got, want := icon, tt.want; got != want {
+				t.Fatalf("icon = %q, want %q", got, want)
+			}
+		})
 	}
 }
 
-func TestFormatTestStatusIcon_NilExecution(t *testing.T) {
+func TestFormatTestStatusIcon_UnknownOutcome(t *testing.T) {
 	t.Parallel()
 
-	icon := formatTestStatusIcon(nil, false)
+	icon := formatTestStatusIcon(testOutcomeStatus(buildkite.BuildTest{}), false)
 
 	if got, want := icon, "?"; got != want {
 		t.Fatalf("icon = %q, want %q", got, want)
 	}
 }
 
-func TestTestAttemptCounts_FormatsCorrectly(t *testing.T) {
+func TestTestExecutionSummary_FormatsByAggregateOutcome(t *testing.T) {
 	t.Parallel()
-
-	counts := testAttemptCounts(buildkite.BuildTest{
-		ExecutionsCount: 5,
-		ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{
-			Passed: 3,
-			Failed: 2,
+	tests := []struct {
+		name string
+		test buildkite.BuildTest
+		want string
+	}{
+		{
+			name: "failed only",
+			test: buildkite.BuildTest{ExecutionsCount: 3, ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{Failed: 3}},
+			want: "3 failed executions",
 		},
-		Executions: []buildkite.BuildTestExecution{{Status: "failed"}},
-	})
+		{
+			name: "passed only",
+			test: buildkite.BuildTest{ExecutionsCount: 2, ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{Passed: 2}},
+			want: "2 passed executions",
+		},
+		{
+			name: "mixed",
+			test: buildkite.BuildTest{ExecutionsCount: 3, ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{Passed: 1, Failed: 2}},
+			want: "3 executions · 1 passed, 2 failed",
+		},
+	}
 
-	if got, want := counts, "5 attempts (3 passed, 2 failed)"; got != want {
-		t.Fatalf("counts = %q, want %q", got, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			counts := testExecutionSummary(tt.test)
+			if got, want := counts, tt.want; got != want {
+				t.Fatalf("counts = %q, want %q", got, want)
+			}
+		})
 	}
 }
 
-func TestTestPresenter_Line_PassedLatestAttemptOnlyShowsSummaryLine(t *testing.T) {
+func TestTestPresenter_Line_MixedExecutionsShowSummaryWithoutFailureDetails(t *testing.T) {
 	t.Parallel()
 	oldest := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 29, 0, 0, time.UTC)}
 	middle := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)}
@@ -454,11 +512,14 @@ func TestTestPresenter_Line_PassedLatestAttemptOnlyShowsSummaryLine(t *testing.T
 
 	got := line
 
-	if strings.Contains(got, "./spec/example_spec.rb:10") {
-		t.Fatalf("expected passed attempt to omit location detail, got %q", got)
+	if !strings.Contains(got, "✓ Test A") {
+		t.Fatalf("expected mixed test with latest pass to use passing icon, got %q", got)
+	}
+	if !strings.Contains(got, "3 executions · 1 passed, 2 failed — ./spec/example_spec.rb:10") {
+		t.Fatalf("expected mixed execution summary, got %q", got)
 	}
 	if strings.Contains(got, "Failure/Error:") {
-		t.Fatalf("expected passed attempt to omit failure detail, got %q", got)
+		t.Fatalf("expected passing latest execution to omit failure detail, got %q", got)
 	}
 }
 
@@ -527,7 +588,7 @@ func TestTestPresenter_ColoredLine_AddsANSIStyles(t *testing.T) {
 	if !strings.Contains(got, "✗ Test A") {
 		t.Fatalf("expected colored line to preserve headline text content, got %q", got)
 	}
-	if !strings.Contains(got, "1 attempt (0 passed, 1 failed) — ./spec/example_spec.rb:10") {
+	if !strings.Contains(got, "1 failed execution — ./spec/example_spec.rb:10") {
 		t.Fatalf("expected colored line to preserve text content, got %q", got)
 	}
 }

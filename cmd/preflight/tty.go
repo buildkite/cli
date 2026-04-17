@@ -24,12 +24,11 @@ var (
 )
 
 type ttyModel struct {
-	spinner      spinner.Model
-	latest       Event
-	summary      *Event
-	cancelFunc   context.CancelFunc
-	width        int
-	testFailures int
+	spinner    spinner.Model
+	latest     Event
+	summary    *Event
+	cancelFunc context.CancelFunc
+	width      int
 }
 
 func newTTYModel() ttyModel {
@@ -91,7 +90,6 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case EventTestFailure:
 			if len(msg.TestFailures) > 0 {
-				m.testFailures += len(msg.TestFailures)
 				presenter := testPresenter{}
 				var cmds []tea.Cmd
 				for _, t := range msg.TestFailures {
@@ -121,9 +119,26 @@ func (m ttyModel) statusText() string {
 		return ttyTitleStyle.Render(m.latest.Title)
 	case m.latest.BuildState != "":
 		link := fmt.Sprintf("\033]8;;%s\033\\build #%d\033]8;;\033\\", m.latest.BuildURL, m.latest.BuildNumber)
-		return ttyTitleStyle.Render(fmt.Sprintf("Watching %s", link)) + ttyDimStyle.Render(" · "+m.latest.BuildState)
+		return ttyTitleStyle.Render(fmt.Sprintf("Watching %s", link)) + ttyDimStyle.Render(" · ") + buildStateStyle(m.latest.BuildState).Render(m.latest.BuildState)
 	default:
 		return ttyDimStyle.Render("Starting...")
+	}
+}
+
+func buildStateStyle(state string) lipgloss.Style {
+	switch strings.ToLower(state) {
+	case "passed", "blocked":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#B0DF21"))
+	case "creating", "started", "running":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#FFBA03"))
+	case "failing", "failed":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#F83F23"))
+	case "scheduled", "pending", "canceling", "canceled":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#BBB"))
+	case "skipped", "not_run":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#83B0E4"))
+	default:
+		return ttyDimStyle
 	}
 }
 
@@ -160,25 +175,22 @@ func (m ttyModel) render() string {
 
 	statusLine := fmt.Sprintf("  %s %s", m.spinner.View(), m.statusText())
 
-	if m.latest.Jobs == nil && m.testFailures == 0 {
+	if m.latest.Jobs == nil {
 		return separator + "\n" + statusLine
 	}
 
-	parts := make([]string, 0, 7)
+	parts := make([]string, 0, 6)
 	appendPart := func(count int, text string) {
 		if count > 0 {
 			parts = append(parts, text)
 		}
 	}
-	if m.latest.Jobs != nil {
-		appendPart(m.latest.Jobs.Passed, fmt.Sprintf("%d passed", m.latest.Jobs.Passed))
-		appendPart(m.latest.Jobs.Failed, ttyFailureStyle.Render(fmt.Sprintf("%d failed %s", m.latest.Jobs.Failed, plural(m.latest.Jobs.Failed, "job"))))
-		appendPart(m.latest.Jobs.SoftFailed, ttySoftFailureStyle.Render(fmt.Sprintf("%d soft-failed %s", m.latest.Jobs.SoftFailed, plural(m.latest.Jobs.SoftFailed, "job"))))
-		appendPart(m.latest.Jobs.Running, fmt.Sprintf("%d running", m.latest.Jobs.Running))
-		appendPart(m.latest.Jobs.Scheduled, fmt.Sprintf("%d scheduled", m.latest.Jobs.Scheduled))
-		appendPart(m.latest.Jobs.Waiting, fmt.Sprintf("%d waiting", m.latest.Jobs.Waiting))
-	}
-	appendPart(m.testFailures, ttyTestStyle.Render(fmt.Sprintf("%d failed %s", m.testFailures, plural(m.testFailures, "test"))))
+	appendPart(m.latest.Jobs.Passed, fmt.Sprintf("%d passed", m.latest.Jobs.Passed))
+	appendPart(m.latest.Jobs.Failed, ttyFailureStyle.Render(fmt.Sprintf("%d failed %s", m.latest.Jobs.Failed, plural(m.latest.Jobs.Failed, "job"))))
+	appendPart(m.latest.Jobs.SoftFailed, ttySoftFailureStyle.Render(fmt.Sprintf("%d soft-failed %s", m.latest.Jobs.SoftFailed, plural(m.latest.Jobs.SoftFailed, "job"))))
+	appendPart(m.latest.Jobs.Running, fmt.Sprintf("%d running", m.latest.Jobs.Running))
+	appendPart(m.latest.Jobs.Scheduled, fmt.Sprintf("%d scheduled", m.latest.Jobs.Scheduled))
+	appendPart(m.latest.Jobs.Waiting, fmt.Sprintf("%d waiting", m.latest.Jobs.Waiting))
 
 	if len(parts) == 0 {
 		return separator + "\n" + statusLine
