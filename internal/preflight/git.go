@@ -48,6 +48,27 @@ func RepositoryRoot(dir string, debug bool) (string, error) {
 	return gitOutput(dir, nil, debug, "rev-parse", "--show-toplevel")
 }
 
+// SourceContext describes the original git state that preflight was created from.
+type SourceContext struct {
+	Branch string
+	Commit string
+}
+
+// ResolveSourceContext returns the current branch name (if any) and HEAD commit.
+func ResolveSourceContext(dir string, debug bool) (SourceContext, error) {
+	branch, err := gitOutput(dir, nil, debug, "branch", "--show-current")
+	if err != nil {
+		return SourceContext{}, err
+	}
+
+	commit, err := gitOutput(dir, nil, debug, "rev-parse", "HEAD")
+	if err != nil {
+		return SourceContext{}, err
+	}
+
+	return SourceContext{Branch: branch, Commit: commit}, nil
+}
+
 // tempIndexEnv returns a copy of the current environment with GIT_INDEX_FILE
 // set to path, stripping any existing GIT_INDEX_FILE entry. This is used to
 // direct git commands at a temporary index without affecting the real one.

@@ -81,6 +81,15 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 	startedAt := time.Now()
 
+	sourceContext, err := preflight.ResolveSourceContext(repoRoot, globals.EnableDebug())
+	if err != nil {
+		return bkErrors.NewValidationError(
+			err,
+			"failed to resolve preflight source git context",
+			"Ensure the repository has at least one commit",
+		)
+	}
+
 	renderer := newRenderer(os.Stdout, c.JSON, c.Text, stop)
 
 	rlTransport.OnRateLimit = func(attempt int, delay time.Duration) {
@@ -120,14 +129,20 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name)})
 
+	env := map[string]string{
+		"PREFLIGHT":               "true",
+		"BUILDKITE_PREFLIGHT":     "true", // deprecated
+		"PREFLIGHT_SOURCE_COMMIT": sourceContext.Commit,
+	}
+	if sourceContext.Branch != "" {
+		env["PREFLIGHT_SOURCE_BRANCH"] = sourceContext.Branch
+	}
+
 	build, _, err := f.RestAPIClient.Builds.Create(ctx, resolvedPipeline.Org, resolvedPipeline.Name, buildkite.CreateBuild{
 		Message: fmt.Sprintf("Preflight %s", preflightID),
 		Commit:  result.Commit,
 		Branch:  result.Branch,
-		Env: map[string]string{
-			"PREFLIGHT":           "true",
-			"BUILDKITE_PREFLIGHT": "true", // deprecated
-		},
+		Env:     env,
 	})
 	if err != nil {
 		return bkErrors.WrapAPIError(err, "creating preflight build")
