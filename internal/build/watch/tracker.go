@@ -110,7 +110,7 @@ func (t *JobTracker) Update(b buildkite.Build) BuildStatus {
 
 	// Second pass: detect retry jobs that just reached passed.
 	for _, j := range b.Jobs {
-		if j.Type != "script" || j.State != "passed" || j.RetriesCount == 0 {
+		if j.Type != "script" && j.State != "passed" || j.RetriesCount == 0 {
 			continue
 		}
 		tj := t.jobs[j.ID]
