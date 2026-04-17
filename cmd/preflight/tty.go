@@ -173,7 +173,7 @@ func (m ttyModel) hardwrapLine(s string) string {
 func (m ttyModel) render() string {
 	separator := ttyBorderStyle.Render("─────────────────────────────────────────────")
 
-	statusLine := fmt.Sprintf("  %s %s", m.spinner.View(), m.statusText())
+	statusLine := fmt.Sprintf("%s %s", m.spinner.View(), m.statusText())
 
 	if m.latest.Jobs == nil {
 		return separator + "\n" + statusLine
@@ -196,7 +196,7 @@ func (m ttyModel) render() string {
 		return separator + "\n" + statusLine
 	}
 
-	summaryLine := fmt.Sprintf("  %s", strings.Join(parts, ttyDimStyle.Render(" · ")))
+	summaryLine := strings.Join(parts, ttyDimStyle.Render(" · "))
 	return separator + "\n" + statusLine + "\n" + summaryLine
 }
 

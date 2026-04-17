@@ -94,6 +94,13 @@ func TestTTYModelRender_ShowsJobSummaryWithoutTestFailureCount(t *testing.T) {
 			t.Fatalf("missing %q in output:\n%s", want, got)
 		}
 	}
+	lines := strings.Split(got, "\n")
+	if len(lines) < 3 {
+		t.Fatalf("expected at least 3 footer lines, got %d:\n%s", len(lines), got)
+	}
+	if strings.HasPrefix(lines[1], "  ") || strings.HasPrefix(lines[2], "  ") {
+		t.Fatalf("expected footer text to align with separator, got:\n%s", got)
+	}
 	if strings.Contains(got, "failed tests") {
 		t.Fatalf("did not expect test failure count in output:\n%s", got)
 	}
