@@ -109,6 +109,9 @@ func TestRunCmd_Run(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		expectedSourceBranch := runGit(t, worktree, "branch", "--show-current")
+		expectedSourceCommit := runGit(t, worktree, "rev-parse", "HEAD")
+
 		cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Watch: false, Interval: 2}
 		err := cmd.Run(nil, stubGlobals{})
 		if err != nil {
@@ -130,11 +133,61 @@ func TestRunCmd_Run(t *testing.T) {
 		if gotReq.Env["BUILDKITE_PREFLIGHT"] != "true" {
 			t.Errorf("expected BUILDKITE_PREFLIGHT=true (deprecated), got %#v", gotReq.Env)
 		}
+		if gotReq.Env["PREFLIGHT_SOURCE_BRANCH"] != expectedSourceBranch {
+			t.Errorf("expected PREFLIGHT_SOURCE_BRANCH=%q, got %#v", expectedSourceBranch, gotReq.Env)
+		}
+		if gotReq.Env["PREFLIGHT_SOURCE_COMMIT"] != expectedSourceCommit {
+			t.Errorf("expected PREFLIGHT_SOURCE_COMMIT=%q, got %#v", expectedSourceCommit, gotReq.Env)
+		}
 		if !strings.Contains(gotUserAgent, buildkite.DefaultUserAgent) {
 			t.Errorf("expected User-Agent to contain %q, got %q", buildkite.DefaultUserAgent, gotUserAgent)
 		}
 		if !strings.Contains(gotUserAgent, "buildkite-cli-preflight/") {
 			t.Errorf("expected User-Agent to contain preflight token, got %q", gotUserAgent)
+		}
+	})
+
+	t.Run("omits source branch env when git HEAD is detached", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		var gotReq buildkite.CreateBuild
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == "POST" && strings.Contains(r.URL.Path, "/builds") {
+				json.NewDecoder(r.Body).Decode(&gotReq)
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(buildkite.Build{
+					ID:     "build-id-123",
+					Number: 1,
+					State:  "scheduled",
+					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
+				})
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+		expectedSourceCommit := runGit(t, worktree, "rev-parse", "HEAD")
+		runGit(t, worktree, "checkout", expectedSourceCommit)
+
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Watch: false, Interval: 2}
+		err := cmd.Run(nil, stubGlobals{})
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		if _, ok := gotReq.Env["PREFLIGHT_SOURCE_BRANCH"]; ok {
+			t.Errorf("expected PREFLIGHT_SOURCE_BRANCH to be omitted in detached HEAD, got %#v", gotReq.Env)
+		}
+		if gotReq.Env["PREFLIGHT_SOURCE_COMMIT"] != expectedSourceCommit {
+			t.Errorf("expected PREFLIGHT_SOURCE_COMMIT=%q, got %#v", expectedSourceCommit, gotReq.Env)
 		}
 	})
 
