@@ -95,8 +95,8 @@ func (r *plainRenderer) Render(e Event) error {
 				return err
 			}
 		}
-		for _, line := range summaryTestLines(e.Tests) {
-			if _, err := fmt.Fprintf(r.stdout, "  %s\n", line); err != nil {
+		for _, block := range summaryTestBlocks(e.Tests) {
+			if _, err := fmt.Fprintf(r.stdout, "%s\n", indentAllLines(block, 2)); err != nil {
 				return err
 			}
 		}
@@ -184,7 +184,9 @@ func plural(n int, word string) string {
 	return word + "s"
 }
 
-func summaryTestLines(tests map[string]internalpreflight.ShowTestSuite) []string {
+const summaryTestFailureDisplayLimit = 5
+
+func summaryTestBlocks(tests map[string]internalpreflight.ShowTestSuite) []string {
 	if len(tests) == 0 {
 		return nil
 	}
@@ -195,7 +197,7 @@ func summaryTestLines(tests map[string]internalpreflight.ShowTestSuite) []string
 	}
 	slices.Sort(suites)
 
-	lines := make([]string, 0, len(suites))
+	blocks := make([]string, 0, len(suites))
 	for _, suite := range suites {
 		summary := tests[suite]
 		parts := []string{
@@ -203,10 +205,44 @@ func summaryTestLines(tests map[string]internalpreflight.ShowTestSuite) []string
 			fmt.Sprintf("%d failed", summary.Failed),
 			fmt.Sprintf("%d skipped", summary.Skipped),
 		}
-		lines = append(lines, fmt.Sprintf("%s tests: %s", suite, strings.Join(parts, ", ")))
+		blocks = append(blocks, fmt.Sprintf("%s tests: %s", suite, strings.Join(parts, ", ")))
+
+		displayed := min(len(summary.Failures), summaryTestFailureDisplayLimit)
+		for _, failure := range summary.Failures[:displayed] {
+			blocks = append(blocks, summaryTestFailureBlock(failure))
+		}
+
+		remaining := len(summary.Failures) - displayed
+		if totalRemaining := summary.Failed - displayed; totalRemaining > remaining {
+			remaining = totalRemaining
+		}
+		if remaining > 0 {
+			blocks = append(blocks, fmt.Sprintf("... and %d more failed %s", remaining, plural(remaining, "test")))
+		}
 	}
 
-	return lines
+	return blocks
+}
+
+func summaryTestFailureBlock(failure internalpreflight.ShowTestFailure) string {
+	name := strings.TrimSpace(failure.Name)
+	if name == "" {
+		name = "Failed test"
+	}
+
+	lines := []string{fmt.Sprintf("✗ %s", truncateToWidth(name, 80))}
+	if location := strings.TrimSpace(failure.Location); location != "" {
+		lines = append(lines, "  "+location)
+	}
+	message := strings.TrimSpace(failure.Message)
+	if message == "" {
+		message = strings.TrimSpace(failure.FailureReason)
+	}
+	if message != "" {
+		lines = append(lines, "  "+message)
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func jobLogCommand(pipeline string, buildNumber int, jobID string) string {

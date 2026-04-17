@@ -317,6 +317,471 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 	})
 
+	t.Run("final summary does not retry test results without await flag", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		var includeLatestFail atomic.Bool
+		var summaryRequests atomic.Int32
+		now := time.Now()
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+
+			switch {
+			case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/builds"):
+				json.NewEncoder(w).Encode(buildkite.Build{
+					ID:     "build-id-123",
+					Number: 1,
+					State:  "scheduled",
+					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
+					Pipeline: &buildkite.Pipeline{
+						Slug: "test-pipeline",
+					},
+				})
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1"):
+				json.NewEncoder(w).Encode(buildkite.Build{
+					ID:         "build-id-123",
+					Number:     1,
+					State:      "failed",
+					WebURL:     "https://buildkite.com/test-org/test-pipeline/builds/1",
+					FinishedAt: &buildkite.Timestamp{Time: now},
+					Pipeline: &buildkite.Pipeline{
+						Slug: "test-pipeline",
+					},
+					TestEngine: &buildkite.TestEngineProperty{
+						Runs: []buildkite.TestEngineRun{{
+							ID: "run-1",
+							Suite: buildkite.TestEngineSuite{
+								Slug: "rspec",
+							},
+						}},
+					},
+					Jobs: []buildkite.Job{{
+						ID:    "job-failed",
+						Type:  "script",
+						Name:  "RSpec shard 1",
+						State: "failed",
+					}},
+				})
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tests"):
+				json.NewEncoder(w).Encode([]buildkite.BuildTest{})
+				return
+
+			case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/test-org/builds":
+				json.NewEncoder(w).Encode([]buildkite.Build{{
+					ID:     "build-id-123",
+					Number: 1,
+					Pipeline: &buildkite.Pipeline{
+						Slug: "test-pipeline",
+					},
+				}})
+				return
+
+			case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/test-org/preflight/runs/build-id-123":
+				summaryRequests.Add(1)
+				if r.URL.Query().Get("include") == "latest_fail" {
+					includeLatestFail.Store(true)
+				}
+				if summaryRequests.Load() == 1 {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message":"API::Error::NotFound"}`))
+					return
+				}
+				_, _ = w.Write([]byte(`{
+					"tests": {
+						"runs": {
+							"run-1": {
+								"suite": {"id": "suite-1", "slug": "rspec"},
+								"passed": 47,
+								"failed": 1,
+								"skipped": 12
+							}
+						},
+						"failures": [
+							{
+								"run_id": "run-1",
+								"suite_slug": "rspec",
+								"name": "AuthService.validateToken handles expired tokens",
+								"location": "src/auth.test.ts:89",
+								"latest_fail": {
+									"failure_reason": "Expected 'expired' but got 'invalid'"
+								}
+							}
+						]
+					}
+				}`))
+				return
+			}
+
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		stdout := captureStdout(t, func() {
+			cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01, Text: true}
+			err := cmd.Run(nil, stubGlobals{})
+			var bkErr *bkErrors.Error
+			if !errors.As(err, &bkErr) || !errors.Is(bkErr, bkErrors.ErrPreflightCompletedFailure) {
+				t.Fatalf("expected completed failure error, got %v", err)
+			}
+		})
+
+		if !includeLatestFail.Load() {
+			t.Fatal("expected preflight summary to request latest_fail details")
+		}
+		if got := summaryRequests.Load(); got != 1 {
+			t.Fatalf("expected one summary request without await flag, got %d", got)
+		}
+		if strings.Contains(stdout, "AuthService.validateToken handles expired tokens") {
+			t.Fatalf("expected no endpoint failure name in final summary, got %q", stdout)
+		}
+		if strings.Contains(stdout, "Expected 'expired' but got 'invalid'") {
+			t.Fatalf("expected no endpoint failure message in final summary, got %q", stdout)
+		}
+	})
+
+	t.Run("await-test-results retries until timeout expires", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		var includeLatestFail atomic.Bool
+		var summaryRequests atomic.Int32
+		now := time.Now()
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+
+			switch {
+			case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/builds"):
+				json.NewEncoder(w).Encode(buildkite.Build{
+					ID:     "build-id-123",
+					Number: 1,
+					State:  "scheduled",
+					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
+					Pipeline: &buildkite.Pipeline{
+						Slug: "test-pipeline",
+					},
+				})
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1"):
+				json.NewEncoder(w).Encode(buildkite.Build{
+					ID:         "build-id-123",
+					Number:     1,
+					State:      "failed",
+					WebURL:     "https://buildkite.com/test-org/test-pipeline/builds/1",
+					FinishedAt: &buildkite.Timestamp{Time: now},
+					Pipeline: &buildkite.Pipeline{
+						Slug: "test-pipeline",
+					},
+					TestEngine: &buildkite.TestEngineProperty{
+						Runs: []buildkite.TestEngineRun{{
+							ID: "run-1",
+							Suite: buildkite.TestEngineSuite{
+								Slug: "rspec",
+							},
+						}},
+					},
+					Jobs: []buildkite.Job{{
+						ID:    "job-failed",
+						Type:  "script",
+						Name:  "RSpec shard 1",
+						State: "failed",
+					}},
+				})
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tests"):
+				json.NewEncoder(w).Encode([]buildkite.BuildTest{})
+				return
+
+			case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/test-org/builds":
+				json.NewEncoder(w).Encode([]buildkite.Build{{
+					ID:     "build-id-123",
+					Number: 1,
+					Pipeline: &buildkite.Pipeline{
+						Slug: "test-pipeline",
+					},
+				}})
+				return
+
+			case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/test-org/preflight/runs/build-id-123":
+				reqNum := summaryRequests.Add(1)
+				if r.URL.Query().Get("include") == "latest_fail" {
+					includeLatestFail.Store(true)
+				}
+				if reqNum == 1 {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message":"API::Error::NotFound"}`))
+					return
+				}
+				_, _ = w.Write([]byte(`{
+					"tests": {
+						"runs": {
+							"run-1": {
+								"suite": {"id": "suite-1", "slug": "rspec"},
+								"passed": 47,
+								"failed": 1,
+								"skipped": 12
+							}
+						},
+						"failures": [
+							{
+								"run_id": "run-1",
+								"suite_slug": "rspec",
+								"name": "AuthService.validateToken handles expired tokens",
+								"location": "src/auth.test.ts:89",
+								"latest_fail": {
+									"failure_reason": "Expected 'expired' but got 'invalid'"
+								}
+							}
+						]
+					}
+				}`))
+				return
+			}
+
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		stdout := captureStdout(t, func() {
+			cmd := &PreflightCmd{
+				Pipeline:         "test-org/test-pipeline",
+				Watch:            true,
+				Interval:         0.01,
+				Text:             true,
+				AwaitTestResults: awaitTestResultsFlag{Enabled: true, Duration: 35 * time.Millisecond},
+			}
+			err := cmd.Run(nil, stubGlobals{})
+			var bkErr *bkErrors.Error
+			if !errors.As(err, &bkErr) || !errors.Is(bkErr, bkErrors.ErrPreflightCompletedFailure) {
+				t.Fatalf("expected completed failure error, got %v", err)
+			}
+		})
+
+		if !includeLatestFail.Load() {
+			t.Fatal("expected preflight summary to request latest_fail details")
+		}
+		if got := summaryRequests.Load(); got != 2 {
+			t.Fatalf("expected one initial and one delayed summary request, got %d", got)
+		}
+		if !strings.Contains(stdout, "AuthService.validateToken handles expired tokens") {
+			t.Fatalf("expected endpoint failure name in final summary, got %q", stdout)
+		}
+		if !strings.Contains(stdout, "Expected 'expired' but got 'invalid'") {
+			t.Fatalf("expected endpoint failure message in final summary, got %q", stdout)
+		}
+	})
+
+	t.Run("await-test-results timeout still renders final summary", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		var summaryRequests atomic.Int32
+		now := time.Now()
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+
+			switch {
+			case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/builds"):
+				json.NewEncoder(w).Encode(buildkite.Build{
+					ID:     "build-id-123",
+					Number: 1,
+					State:  "scheduled",
+					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
+					Pipeline: &buildkite.Pipeline{
+						Slug: "test-pipeline",
+					},
+				})
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1"):
+				json.NewEncoder(w).Encode(buildkite.Build{
+					ID:         "build-id-123",
+					Number:     1,
+					State:      "failed",
+					WebURL:     "https://buildkite.com/test-org/test-pipeline/builds/1",
+					FinishedAt: &buildkite.Timestamp{Time: now},
+					Pipeline: &buildkite.Pipeline{
+						Slug: "test-pipeline",
+					},
+					TestEngine: &buildkite.TestEngineProperty{
+						Runs: []buildkite.TestEngineRun{{
+							ID: "run-1",
+							Suite: buildkite.TestEngineSuite{
+								Slug: "rspec",
+							},
+						}},
+					},
+					Jobs: []buildkite.Job{{
+						ID:    "job-failed",
+						Type:  "script",
+						Name:  "RSpec shard 1",
+						State: "failed",
+					}},
+				})
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tests"):
+				json.NewEncoder(w).Encode([]buildkite.BuildTest{})
+				return
+
+			case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/test-org/builds":
+				json.NewEncoder(w).Encode([]buildkite.Build{{
+					ID:     "build-id-123",
+					Number: 1,
+					Pipeline: &buildkite.Pipeline{
+						Slug: "test-pipeline",
+					},
+				}})
+				return
+
+			case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/test-org/preflight/runs/build-id-123":
+				summaryRequests.Add(1)
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"message":"API::Error::NotFound"}`))
+				return
+			}
+
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		stdout := captureStdout(t, func() {
+			cmd := &PreflightCmd{
+				Pipeline:         "test-org/test-pipeline",
+				Watch:            true,
+				Interval:         0.01,
+				Text:             true,
+				AwaitTestResults: awaitTestResultsFlag{Enabled: true, Duration: 35 * time.Millisecond},
+			}
+			err := cmd.Run(nil, stubGlobals{})
+			var bkErr *bkErrors.Error
+			if !errors.As(err, &bkErr) || !errors.Is(bkErr, bkErrors.ErrPreflightCompletedFailure) {
+				t.Fatalf("expected completed failure error, got %v", err)
+			}
+		})
+
+		if got := summaryRequests.Load(); got != 2 {
+			t.Fatalf("expected one initial and one delayed summary request during await timeout, got %d", got)
+		}
+		if !strings.Contains(stdout, "❌ Preflight Failed") {
+			t.Fatalf("expected final summary header, got %q", stdout)
+		}
+		if strings.Contains(stdout, "AuthService.validateToken handles expired tokens") {
+			t.Fatalf("expected no endpoint failure name in final summary, got %q", stdout)
+		}
+	})
+
+	t.Run("await-test-results does not wait when no test runs are expected", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		var summaryRequests atomic.Int32
+		now := time.Now()
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+
+			switch {
+			case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/builds"):
+				json.NewEncoder(w).Encode(buildkite.Build{
+					ID:     "build-id-123",
+					Number: 1,
+					State:  "scheduled",
+					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
+					Pipeline: &buildkite.Pipeline{
+						Slug: "test-pipeline",
+					},
+				})
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1"):
+				json.NewEncoder(w).Encode(buildkite.Build{
+					ID:         "build-id-123",
+					Number:     1,
+					State:      "failed",
+					WebURL:     "https://buildkite.com/test-org/test-pipeline/builds/1",
+					FinishedAt: &buildkite.Timestamp{Time: now},
+					Pipeline: &buildkite.Pipeline{
+						Slug: "test-pipeline",
+					},
+					Jobs: []buildkite.Job{{
+						ID:    "job-failed",
+						Type:  "script",
+						Name:  "RSpec shard 1",
+						State: "failed",
+					}},
+				})
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tests"):
+				json.NewEncoder(w).Encode([]buildkite.BuildTest{})
+				return
+
+			case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/test-org/builds":
+				json.NewEncoder(w).Encode([]buildkite.Build{{
+					ID:     "build-id-123",
+					Number: 1,
+					Pipeline: &buildkite.Pipeline{
+						Slug: "test-pipeline",
+					},
+				}})
+				return
+
+			case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/test-org/preflight/runs/build-id-123":
+				summaryRequests.Add(1)
+				_, _ = w.Write([]byte(`{"tests":{"runs":{},"failures":[]}}`))
+				return
+			}
+
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		cmd := &PreflightCmd{
+			Pipeline:         "test-org/test-pipeline",
+			Watch:            true,
+			Interval:         0.01,
+			AwaitTestResults: awaitTestResultsFlag{Enabled: true, Duration: 35 * time.Millisecond},
+		}
+		err := cmd.Run(nil, stubGlobals{})
+		var bkErr *bkErrors.Error
+		if !errors.As(err, &bkErr) || !errors.Is(bkErr, bkErrors.ErrPreflightCompletedFailure) {
+			t.Fatalf("expected completed failure error, got %v", err)
+		}
+		if got := summaryRequests.Load(); got != 0 {
+			t.Fatalf("expected no summary requests when no test runs are expected, got %d", got)
+		}
+	})
+
 	t.Run("no-cleanup preserves remote branch", func(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
 
