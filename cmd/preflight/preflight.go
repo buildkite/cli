@@ -31,7 +31,7 @@ import (
 type RunCmd struct {
 	Pipeline  string  `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
 	Watch     bool    `help:"Watch the build until completion." default:"true" negatable:""`
-	FastFail  bool    `name:"fail-fast" help:"Exit watch mode as soon as the build enters a failing state."`
+	FailFast  bool    `name:"fail-fast" help:"Exit watch mode as soon as the build enters a failing state."`
 	Interval  float64 `help:"Polling interval in seconds when watching." default:"2"`
 	NoCleanup bool    `help:"Skip deleting the remote preflight branch after the build finishes."`
 	Text      bool    `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
@@ -154,7 +154,7 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			TestFailures: newTestChanges,
 		})
 	})}
-	if c.FastFail {
+	if c.FailFast {
 		watchOpts = append(watchOpts, watch.WithStopStates(buildstate.Failing))
 	}
 
@@ -188,7 +188,7 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	finalErr := buildResult.Error()
 
 	// Emit a final summary showing pass/fail, passed jobs (if ≤10), or hard-failed jobs.
-	if buildstate.IsTerminal(buildstate.State(finalBuild.State)) {
+	if err == nil && (buildstate.IsTerminal(buildstate.State(finalBuild.State)) || buildResult.kind == resultIncompleteFailure && c.FailFast) {
 		summaryEvent := Event{
 			Type:        EventBuildSummary,
 			Time:        time.Now(),
