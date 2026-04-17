@@ -299,6 +299,10 @@ func (c *PreflightCmd) loadFinalResult(ctx context.Context, client *buildkite.Cl
 	buildWithTests, _, buildErr := client.Builds.Get(ctx, org, pipeline, strconv.Itoa(buildNumber), &buildkite.BuildGetOptions{IncludeTestEngine: true})
 	expectTestSummary := buildErr == nil && buildWithTests.TestEngine != nil && len(buildWithTests.TestEngine.Runs) > 0
 
+	if buildErr != nil {
+		return preflight.SummaryResult{}, buildErr
+	}
+
 	if !c.AwaitTestResults.Enabled || c.AwaitTestResults.Duration <= 0 {
 		return c.loadRunSummary(ctx, client, org, buildWithTests.ID)
 	}

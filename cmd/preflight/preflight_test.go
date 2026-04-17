@@ -438,6 +438,94 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 	})
 
+	t.Run("final summary tolerates transient build lookup failure without await flag", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		var buildRequests atomic.Int32
+		now := time.Now()
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+
+			switch {
+			case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/builds"):
+				json.NewEncoder(w).Encode(buildkite.Build{
+					ID:     "build-id-123",
+					Number: 1,
+					State:  "scheduled",
+					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
+					Pipeline: &buildkite.Pipeline{
+						Slug: "test-pipeline",
+					},
+				})
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1"):
+				if buildRequests.Add(1) == 1 {
+					json.NewEncoder(w).Encode(buildkite.Build{
+						ID:         "build-id-123",
+						Number:     1,
+						State:      "failed",
+						WebURL:     "https://buildkite.com/test-org/test-pipeline/builds/1",
+						FinishedAt: &buildkite.Timestamp{Time: now},
+						Pipeline: &buildkite.Pipeline{
+							Slug: "test-pipeline",
+						},
+						Jobs: []buildkite.Job{{
+							ID:    "job-failed",
+							Type:  "script",
+							Name:  "RSpec shard 1",
+							State: "failed",
+						}},
+					})
+					return
+				}
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write([]byte(`{"message":"temporary failure"}`))
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tests"):
+				json.NewEncoder(w).Encode([]buildkite.BuildTest{})
+				return
+
+			case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/test-org/builds":
+				json.NewEncoder(w).Encode([]buildkite.Build{{
+					ID:     "build-id-123",
+					Number: 1,
+					Pipeline: &buildkite.Pipeline{
+						Slug: "test-pipeline",
+					},
+				}})
+				return
+			}
+
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		stdout := captureStdout(t, func() {
+			cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01, Text: true}
+			err := cmd.Run(nil, stubGlobals{})
+			var bkErr *bkErrors.Error
+			if !errors.As(err, &bkErr) || !errors.Is(bkErr, bkErrors.ErrPreflightCompletedFailure) {
+				t.Fatalf("expected completed failure error, got %v", err)
+			}
+		})
+
+		if !strings.Contains(stdout, "❌ Preflight Failed") {
+			t.Fatalf("expected final summary header, got %q", stdout)
+		}
+		if !strings.Contains(stdout, "RSpec shard 1") {
+			t.Fatalf("expected failed job in final summary, got %q", stdout)
+		}
+	})
+
 	t.Run("await-test-results loads summary after timeout", func(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
 
