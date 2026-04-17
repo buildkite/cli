@@ -374,7 +374,7 @@ func TestTestPresenter_Line_FailedAttemptIncludesSummaryAndFailureDetails(t *tes
 
 	got := line
 
-	if !strings.Contains(got, "✗ Pipelines::ShardMigration::DeleteOrgan...records for a shard that needs cleaning") {
+	if !strings.Contains(got, "✗ Pipelines::ShardMigration::DeleteOrgan...records for a shard that needs cleaning [2 failed]") {
 		t.Fatalf("expected long name to preserve the start and end, got %q", got)
 	}
 	if !strings.Contains(got, "2 failed executions — ./spec/workers/pipelines/shard_migration/delete_organization_from_shard_worker_spec.rb:181") {
@@ -515,6 +515,9 @@ func TestTestPresenter_Line_MixedExecutionsShowSummaryWithoutFailureDetails(t *t
 	if !strings.Contains(got, "✓ Test A") {
 		t.Fatalf("expected mixed test with latest pass to use passing icon, got %q", got)
 	}
+	if strings.Contains(got, "[2 failed]") {
+		t.Fatalf("did not expect failed-only badge for mixed test, got %q", got)
+	}
 	if !strings.Contains(got, "3 executions · 1 passed, 2 failed — ./spec/example_spec.rb:10") {
 		t.Fatalf("expected mixed execution summary, got %q", got)
 	}
@@ -590,6 +593,29 @@ func TestTestPresenter_ColoredLine_AddsANSIStyles(t *testing.T) {
 	}
 	if !strings.Contains(got, "1 failed execution — ./spec/example_spec.rb:10") {
 		t.Fatalf("expected colored line to preserve text content, got %q", got)
+	}
+}
+
+func TestTestPresenter_Line_MultipleFailedExecutionsAddBadge(t *testing.T) {
+	t.Parallel()
+	executionTime := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}
+
+	line := testPresenter{}.Line(buildkite.BuildTest{
+		Name:            "Test A",
+		ExecutionsCount: 3,
+		ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{
+			Failed: 3,
+		},
+		Executions: []buildkite.BuildTestExecution{{
+			Status:        "failed",
+			Location:      "./spec/example_spec.rb:10",
+			FailureReason: "Failure/Error: expect(false).to eq(true)",
+			Timestamp:     &executionTime,
+		}},
+	})
+
+	if !strings.Contains(line, "✗ Test A [3 failed]") {
+		t.Fatalf("expected multi-failure badge, got %q", line)
 	}
 }
 

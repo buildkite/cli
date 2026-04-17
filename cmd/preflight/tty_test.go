@@ -178,3 +178,26 @@ func TestTestPresenterTTYBlock_UsesDiagnosticLayout(t *testing.T) {
 		}
 	}
 }
+
+func TestTestPresenterTTYBlock_MultipleFailedExecutionsAddBadge(t *testing.T) {
+	executionTime := buildkite.Timestamp{Time: time.Date(2025, 1, 15, 10, 31, 0, 0, time.UTC)}
+
+	block := testPresenter{}.ttyBlock(buildkite.BuildTest{
+		Name:            "Test A",
+		ExecutionsCount: 3,
+		ExecutionsCountByResult: buildkite.BuildTestExecutionsCount{
+			Failed: 3,
+		},
+		Executions: []buildkite.BuildTestExecution{{
+			Status:        "failed",
+			Location:      "./spec/example_spec.rb:10",
+			FailureReason: "Failure/Error: expect(false).to eq(true)",
+			Timestamp:     &executionTime,
+		}},
+	})
+
+	got := stripANSI(block)
+	if !strings.Contains(got, "● test Test A [3 failed]") {
+		t.Fatalf("expected multi-failure badge, got:\n%s", got)
+	}
+}

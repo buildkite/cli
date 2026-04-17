@@ -39,7 +39,11 @@ func (p testPresenter) ttyBlock(t buildkite.BuildTest) string {
 
 	latestExecution := latestTestExecution(t)
 	displayOutcome := testDisplayOutcome(t, latestExecution)
-	lines := []string{ttyTestLabelStyle(displayOutcome).Render("● test") + " " + ttyTitleStyle.Render(name)}
+	headline := ttyTestLabelStyle(displayOutcome).Render("● test") + " " + ttyTitleStyle.Render(name)
+	if badge := ttyTestFailureBadge(t); badge != "" {
+		headline += " " + badge
+	}
+	lines := []string{headline}
 
 	if location := testLocation(t, latestExecution); location != "" {
 		lines = append(lines, ttyContinuationLines(location, ttyDimStyle)...)
@@ -66,6 +70,9 @@ func (p testPresenter) line(t buildkite.BuildTest, colored bool) string {
 
 	statusIcon := formatTestStatusIcon(displayOutcome, colored)
 	line := fmt.Sprintf("%s %s", statusIcon, name)
+	if badge := testFailureBadge(t, colored); badge != "" {
+		line += " " + badge
+	}
 
 	detailParts := make([]string, 0, 2)
 	if executionSummary := testExecutionSummary(t); executionSummary != "" {
@@ -104,6 +111,30 @@ func testExecutionSummary(t buildkite.BuildTest) string {
 	default:
 		return fmt.Sprintf("%d %s", totalExecutions, plural(totalExecutions, "execution"))
 	}
+}
+
+func testFailureBadge(t buildkite.BuildTest, colored bool) string {
+	failed := t.ExecutionsCountByResult.Failed
+	if failed <= 1 || testOutcomeStatus(t) != testOutcomeFailed {
+		return ""
+	}
+
+	text := fmt.Sprintf("[%d failed]", failed)
+	if !colored {
+		return text
+	}
+
+	return "\033[31;1m" + text + "\033[0m"
+}
+
+func ttyTestFailureBadge(t buildkite.BuildTest) string {
+	failed := t.ExecutionsCountByResult.Failed
+	if failed <= 1 || testOutcomeStatus(t) != testOutcomeFailed {
+		return ""
+	}
+
+	text := fmt.Sprintf("[%d failed]", failed)
+	return ttyFailureStyle.Bold(true).Render(text)
 }
 
 func testExecutionCount(t buildkite.BuildTest) int {
