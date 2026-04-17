@@ -304,7 +304,7 @@ func (c *PreflightCmd) loadFinalResult(ctx context.Context, client *buildkite.Cl
 	}
 
 	if !c.AwaitTestResults.Enabled || c.AwaitTestResults.Duration <= 0 {
-		return c.loadRunSummary(ctx, client, org, buildWithTests.ID)
+		return c.loadSummary(ctx, client, org, buildWithTests.ID)
 	}
 	if !expectTestSummary {
 		return preflight.SummaryResult{Tests: map[string]preflight.SummaryTestSuite{}, Failures: []preflight.SummaryTestFailure{}}, nil
@@ -319,10 +319,10 @@ func (c *PreflightCmd) loadFinalResult(ctx context.Context, client *buildkite.Cl
 	case <-timer.C:
 	}
 
-	return c.loadRunSummary(ctx, client, org, buildWithTests.ID)
+	return c.loadSummary(ctx, client, org, buildWithTests.ID)
 }
 
-func (c *PreflightCmd) loadRunSummary(ctx context.Context, client *buildkite.Client, org, buildID string) (preflight.SummaryResult, error) {
+func (c *PreflightCmd) loadSummary(ctx context.Context, client *buildkite.Client, org, buildID string) (preflight.SummaryResult, error) {
 	if buildID == "" {
 		return preflight.SummaryResult{Tests: map[string]preflight.SummaryTestSuite{}, Failures: []preflight.SummaryTestFailure{}}, nil
 	}
