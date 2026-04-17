@@ -340,7 +340,7 @@ func TestRunCmd_Run(t *testing.T) {
 		}
 	})
 
-	t.Run("exit-on-build-failing exits when build enters failing state", func(t *testing.T) {
+	t.Run("fail-fast exits when build enters failing state", func(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
 
 		pollCount := 0

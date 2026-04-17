@@ -31,7 +31,7 @@ import (
 type RunCmd struct {
 	Pipeline  string  `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
 	Watch     bool    `help:"Watch the build until completion." default:"true" negatable:""`
-	FastFail  bool    `name:"exit-on-build-failing" help:"Exit watch mode as soon as the build enters a failing state."`
+	FastFail  bool    `name:"fail-fast" help:"Exit watch mode as soon as the build enters a failing state."`
 	Interval  float64 `help:"Polling interval in seconds when watching." default:"2"`
 	NoCleanup bool    `help:"Skip deleting the remote preflight branch after the build finishes."`
 	Text      bool    `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
