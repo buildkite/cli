@@ -1,6 +1,8 @@
 agents:
   queue: hosted
 
+cache: ".buildkite/cache-volume"
+
 steps:
   - label: ":terminal: build ({{matrix}})"
     key: build
@@ -11,25 +13,12 @@ steps:
     artifact_paths:
       - dist/**/*
     secrets:
+      - MISE_GITHUB_TOKEN
       - POSTHOG_API_KEY
       - OAUTH_CLIENT_ID
+    command: 'GOOS="{{matrix}}" .buildkite/release.sh release --clean --split'
     plugins:
-      - docker-compose#v5.12.1:
-          command:
-            - .buildkite/release.sh
-            - release
-            - --clean
-            - --split
-          config: .buildkite/docker-compose.yaml
-          entrypoint: /bin/sh
-          env:
-            - GOOS={{matrix}}
-            - POSTHOG_API_KEY
-            - OAUTH_CLIENT_ID
-          mount-buildkite-agent: true
-          run: goreleaser
-          shell: false
-          tty: true
+      - mise#v1.1.1: ~
 
   - label: ":rocket: :package: upload packages ({{matrix}})"
     key: upload_packages
@@ -37,20 +26,11 @@ steps:
     matrix:
       - "deb"
       - "rpm"
+    command: '.buildkite/upload-packages.sh "{{matrix}}"'
     plugins:
       - artifacts#v1.9.4:
           download:
             - dist/linux/*
-      - docker-compose#v5.12.1:
-          command:
-            - .buildkite/upload-packages.sh
-            - "{{matrix}}"
-          config: .buildkite/docker-compose.yaml
-          entrypoint: /bin/sh
-          mount-buildkite-agent: true
-          run: goreleaser
-          shell: false
-          tty: true
 
   - label: ":rocket: :github: release"
     key: release
@@ -60,6 +40,7 @@ steps:
     env:
       AWS_REGION: us-east-1
     secrets:
+      - MISE_GITHUB_TOKEN
       - POSTHOG_API_KEY
       - OAUTH_CLIENT_ID
     plugins:
@@ -77,20 +58,5 @@ steps:
       - artifacts#v1.9.4:
           download:
             - dist/**/*
-      - docker-compose#v5.12.1:
-          command:
-            - .buildkite/release.sh
-            - continue
-            - --merge
-          config: .buildkite/docker-compose.yaml
-          entrypoint: /bin/sh
-          env:
-            - GITHUB_TOKEN
-            - DOCKERHUB_USER
-            - DOCKERHUB_PASSWORD
-            - POSTHOG_API_KEY
-            - OAUTH_CLIENT_ID
-          mount-buildkite-agent: true
-          run: goreleaser
-          shell: false
-          tty: true
+      - mise#v1.1.1: ~
+    command: '.buildkite/release.sh continue --merge'
