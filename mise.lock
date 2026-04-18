@@ -16,6 +16,15 @@ backend = "github:goreleaser/goreleaser-pro"
 "platforms.macos-x64" = { checksum = "sha256:0399c8f5b895ebb00524d7bd973937afb0f185142b24de40a0c032e13a3482b4", url = "https://github.com/goreleaser/goreleaser-pro/releases/download/v2.15.2/goreleaser-pro_Darwin_x86_64.tar.gz", url_api = "https://api.github.com/repos/goreleaser/goreleaser-pro/releases/assets/385669136"}
 "platforms.windows-x64" = { checksum = "sha256:963d3e6262072d08089cd80caf47123d31e76588c9e847a5eaa44709830eaa93", url = "https://github.com/goreleaser/goreleaser-pro/releases/download/v2.15.2/goreleaser-pro_Windows_x86_64.zip", url_api = "https://api.github.com/repos/goreleaser/goreleaser-pro/releases/assets/385669379"}
 
+[[tools."github:goreleaser/goreleaser-pro"]]
+version = "2.15.3"
+backend = "github:goreleaser/goreleaser-pro"
+"platforms.linux-arm64" = { checksum = "sha256:456e4fa11c71323bfce04226988ea91ec83e3fb01ea7d72ff045a944fe2790b0", url = "https://github.com/goreleaser/goreleaser-pro/releases/download/v2.15.3/goreleaser-pro_Linux_arm64.tar.gz", url_api = "https://api.github.com/repos/goreleaser/goreleaser-pro/releases/assets/396561835"}
+"platforms.linux-x64" = { checksum = "sha256:a4731f5727c800ced95bda4b06bf1e283d2ee1982b9468a38f0cda3acb71ef2b", url = "https://github.com/goreleaser/goreleaser-pro/releases/download/v2.15.3/goreleaser-pro_Linux_x86_64.tar.gz", url_api = "https://api.github.com/repos/goreleaser/goreleaser-pro/releases/assets/396561824"}
+"platforms.macos-arm64" = { checksum = "sha256:0f522e5e38dae0d41462c25fc48b5e0cbd85ceb80ec003e4bf4fabe40a486632", url = "https://github.com/goreleaser/goreleaser-pro/releases/download/v2.15.3/goreleaser-pro_Darwin_arm64.tar.gz", url_api = "https://api.github.com/repos/goreleaser/goreleaser-pro/releases/assets/396561787"}
+"platforms.macos-x64" = { checksum = "sha256:b3e984ed1087a266464ae3475bd7ec034393f9c805222b111ed75cdc6a4bcb76", url = "https://github.com/goreleaser/goreleaser-pro/releases/download/v2.15.3/goreleaser-pro_Darwin_x86_64.tar.gz", url_api = "https://api.github.com/repos/goreleaser/goreleaser-pro/releases/assets/396561802"}
+"platforms.windows-x64" = { checksum = "sha256:08b76e32fed67c20e27810da4c0ae839ea78c5b217072b2a8907820487b236e1", url = "https://github.com/goreleaser/goreleaser-pro/releases/download/v2.15.3/goreleaser-pro_Windows_x86_64.zip", url_api = "https://api.github.com/repos/goreleaser/goreleaser-pro/releases/assets/396561959"}
+
 [[tools.go]]
 version = "1.26.2"
 backend = "core:go"
@@ -55,3 +64,12 @@ backend = "aqua:evilmartians/lefthook"
 "platforms.macos-arm64" = { checksum = "sha256:f3aeef5fc287c6619a2f043ce3199e514bfc0639739be393a3759dd4470ee292", url = "https://github.com/evilmartians/lefthook/releases/download/v2.1.5/lefthook_2.1.5_MacOS_arm64.gz"}
 "platforms.macos-x64" = { checksum = "sha256:27e48734de8f632e64fff07e8ae9f82514713b9f77e7bf91d8925ef1ea59a901", url = "https://github.com/evilmartians/lefthook/releases/download/v2.1.5/lefthook_2.1.5_MacOS_x86_64.gz"}
 "platforms.windows-x64" = { checksum = "sha256:bf14d028984d24a72887f4f73d8899f5879c11786f4ba79a81c676fb3cefce1e", url = "https://github.com/evilmartians/lefthook/releases/download/v2.1.5/lefthook_2.1.5_Windows_x86_64.gz"}
+
+[[tools.lefthook]]
+version = "2.1.6"
+backend = "aqua:evilmartians/lefthook"
+"platforms.linux-arm64" = { checksum = "sha256:f85cc031da8e3571418170ab53f1e6e184a086b58683e13660bd5248974159a4", url = "https://github.com/evilmartians/lefthook/releases/download/v2.1.6/lefthook_2.1.6_Linux_aarch64.gz"}
+"platforms.linux-x64" = { checksum = "sha256:fab3d2715a922d9625c9024e6ffb6e1271edd613aa9b213c2049482cde8ae183", url = "https://github.com/evilmartians/lefthook/releases/download/v2.1.6/lefthook_2.1.6_Linux_x86_64.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:f07c97c32376749edb5b34179c16c6d87dd3e7ca0040aee911f38c821de0daab", url = "https://github.com/evilmartians/lefthook/releases/download/v2.1.6/lefthook_2.1.6_MacOS_arm64.gz"}
+"platforms.macos-x64" = { checksum = "sha256:93c6d51823f94a7f26a2bbb84f59504378b178f55d6c90744169693ed3e89013", url = "https://github.com/evilmartians/lefthook/releases/download/v2.1.6/lefthook_2.1.6_MacOS_x86_64.gz"}
+"platforms.windows-x64" = { checksum = "sha256:6704b01a72414affcc921740a7d6c621fe60c3082b291c9730900a2c6a352516", url = "https://github.com/evilmartians/lefthook/releases/download/v2.1.6/lefthook_2.1.6_Windows_x86_64.gz"}
