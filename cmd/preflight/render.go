@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
 	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
 	"github.com/mattn/go-isatty"
+	"github.com/mattn/go-runewidth"
 )
 
 type renderer interface {
@@ -89,7 +91,7 @@ func (r *plainRenderer) Render(e Event) error {
 				return err
 			}
 		}
-		if _, err := fmt.Fprint(r.stdout, buildSummaryDetails(e, false)); err != nil {
+		if _, err := fmt.Fprint(r.stdout, buildSummaryDetails(e, false, 0)); err != nil {
 			return err
 		}
 
@@ -178,7 +180,7 @@ func plural(n int, word string) string {
 
 const summaryTestFailureDisplayLimit = 5
 
-func buildSummaryDetails(e Event, colored bool) string {
+func buildSummaryDetails(e Event, colored bool, width int) string {
 	var sections []string
 
 	if len(e.FailedJobs) > 0 {
@@ -194,7 +196,7 @@ func buildSummaryDetails(e Event, colored bool) string {
 		sections = append(sections, strings.Join(lines, "\n"))
 	}
 
-	if testSection := summaryTestsSection(e.Tests, e.Failures, !colored); testSection != "" {
+	if testSection := summaryTestsSection(e.Tests, e.Failures, width); testSection != "" {
 		sections = append(sections, testSection)
 	}
 
@@ -205,28 +207,39 @@ func buildSummaryDetails(e Event, colored bool) string {
 	return "\n\n" + strings.Join(sections, "\n\n") + "\n"
 }
 
-func summaryTestsSection(tests map[string]internalpreflight.SummaryTestRun, failures []internalpreflight.SummaryTestFailure, includeRunID bool) string {
+func summaryTestsSection(tests map[string]internalpreflight.SummaryTestRun, failures []internalpreflight.SummaryTestFailure, width int) string {
 	if len(tests) == 0 && len(failures) == 0 {
 		return ""
 	}
 
-	lines := []string{"    Tests"}
-	for _, summary := range tests {
-		lines = append(lines, fmt.Sprintf("        %s: %d passed, %d failed, %d skipped", summarySuiteLabel(summary.SuiteName, summary.SuiteSlug, "unknown"), summary.Passed, summary.Failed, summary.Skipped))
+	presenter := testPresenter{}
+	summaries := orderedSummaryTestRuns(tests)
+	header := "    Tests Passed ✓"
+	if summaryHasFailedTests(summaries, failures) {
+		header = "    Tests Failed ✗"
+	}
+	lines := []string{header}
+
+	if len(summaries) > 0 {
+		widths := summarySuiteWidths(summaries)
+		for _, summary := range summaries {
+			lines = append(lines, "        "+presenter.SummarySuiteLine(summary, widths))
+		}
 	}
 
 	displayed := min(len(failures), summaryTestFailureDisplayLimit)
 	if displayed > 0 {
 		lines = append(lines, "")
 		for _, failure := range failures[:displayed] {
-			lines = append(lines, indentAllLines(summaryTestFailureBlock(failure, includeRunID), 8))
+			lines = append(lines, presenter.SummaryFailureLine(failure, width, "        "))
 		}
 	}
 
 	totalFailed := 0
-	for _, summary := range tests {
+	for _, summary := range summaries {
 		totalFailed += summary.Failed
 	}
+	totalFailed = max(totalFailed, len(failures))
 	if remaining := totalFailed - displayed; remaining > 0 {
 		lines = append(lines, fmt.Sprintf("        ... and %d more failed %s", remaining, plural(remaining, "test")))
 	}
@@ -234,26 +247,51 @@ func summaryTestsSection(tests map[string]internalpreflight.SummaryTestRun, fail
 	return strings.Join(lines, "\n")
 }
 
-func summaryTestFailureBlock(failure internalpreflight.SummaryTestFailure, includeRunID bool) string {
-	parts := []string{"FAIL"}
-	if label := summarySuiteLabel(failure.SuiteName, failure.SuiteSlug, ""); label != "" {
-		parts[0] += fmt.Sprintf(" [%s]", label)
-	}
-	if location := strings.TrimSpace(failure.Location); location != "" {
-		parts = append(parts, location)
-	}
-	if name := strings.TrimSpace(failure.Name); name != "" {
-		parts = append(parts, truncateToWidth(name, 80))
-	}
-	message := strings.TrimSpace(failure.Message)
-	if message == "" {
-		message = strings.TrimSpace(failure.FailureReason)
-	}
-	if message != "" {
-		parts = append(parts, message)
+func orderedSummaryTestRuns(tests map[string]internalpreflight.SummaryTestRun) []internalpreflight.SummaryTestRun {
+	summaries := make([]internalpreflight.SummaryTestRun, 0, len(tests))
+	for _, summary := range tests {
+		summaries = append(summaries, summary)
 	}
 
-	return strings.Join(parts, " — ")
+	sort.SliceStable(summaries, func(i, j int) bool {
+		leftFailed := summaries[i].Failed > 0
+		rightFailed := summaries[j].Failed > 0
+		if leftFailed != rightFailed {
+			return leftFailed
+		}
+
+		leftLabel := strings.ToLower(summarySuiteLabel(summaries[i].SuiteName, summaries[i].SuiteSlug, "unknown"))
+		rightLabel := strings.ToLower(summarySuiteLabel(summaries[j].SuiteName, summaries[j].SuiteSlug, "unknown"))
+		return leftLabel < rightLabel
+	})
+
+	return summaries
+}
+
+func summaryHasFailedTests(tests []internalpreflight.SummaryTestRun, failures []internalpreflight.SummaryTestFailure) bool {
+	if len(failures) > 0 {
+		return true
+	}
+
+	for _, summary := range tests {
+		if summary.Failed > 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
+func summarySuiteWidths(tests []internalpreflight.SummaryTestRun) summarySuiteColumnWidths {
+	widths := summarySuiteColumnWidths{Failed: 1, Passed: 1, Skipped: 1}
+	for _, summary := range tests {
+		widths.Label = max(widths.Label, runewidth.StringWidth(summarySuiteLabel(summary.SuiteName, summary.SuiteSlug, "unknown")))
+		widths.Failed = max(widths.Failed, len(fmt.Sprintf("%d", summary.Failed)))
+		widths.Passed = max(widths.Passed, len(fmt.Sprintf("%d", summary.Passed)))
+		widths.Skipped = max(widths.Skipped, len(fmt.Sprintf("%d", summary.Skipped)))
+	}
+
+	return widths
 }
 
 func summarySuiteLabel(name, slug, fallback string) string {

@@ -657,16 +657,16 @@ func TestPlainRenderer_Render_BuildSummaryIncludesTests(t *testing.T) {
 	}
 
 	got := out.String()
-	if !strings.Contains(got, "Tests") {
+	if !strings.Contains(got, "Tests Failed ✗") {
 		t.Fatalf("expected tests section, got %q", got)
 	}
-	if !strings.Contains(got, "Go: 12 passed, 1 failed, 0 skipped") {
+	if !strings.Contains(got, "✗ Go     1 failed  12 passed  0 skipped") {
 		t.Fatalf("expected go test summary, got %q", got)
 	}
-	if !strings.Contains(got, "RSpec: 47 passed, 2 failed, 3 skipped") {
+	if !strings.Contains(got, "✗ RSpec  2 failed  47 passed  3 skipped") {
 		t.Fatalf("expected rspec test summary, got %q", got)
 	}
-	if !strings.Contains(got, "FAIL [RSpec] — src/auth.test.ts:89 — AuthService.validateToken handles expired tokens — Expected 'expired' but got 'invalid'") {
+	if !strings.Contains(got, "✗ [RSpec] src/auth.test.ts:89 — AuthService.validateToken handles expired tokens — Expected 'expired' but got 'invalid'") {
 		t.Fatalf("expected failure header from endpoint summary, got %q", got)
 	}
 }

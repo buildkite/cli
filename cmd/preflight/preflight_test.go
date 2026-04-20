@@ -654,10 +654,10 @@ func TestPreflightCmd_Run(t *testing.T) {
 		if got := summaryRequests.Load(); got != 1 {
 			t.Fatalf("expected one delayed summary request, got %d", got)
 		}
-		if !strings.Contains(stdout, "RSpec: 47 passed, 1 failed, 12 skipped") {
+		if !strings.Contains(stdout, "✗ RSpec  1 failed  47 passed  12 skipped") {
 			t.Fatalf("expected suite name in final summary, got %q", stdout)
 		}
-		if !strings.Contains(stdout, "FAIL [RSpec]") {
+		if !strings.Contains(stdout, "✗ [RSpec]") {
 			t.Fatalf("expected suite name in failure label, got %q", stdout)
 		}
 		if !strings.Contains(stdout, "AuthService.validateToken handles expired tokens") {

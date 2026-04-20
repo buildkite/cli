@@ -98,13 +98,13 @@ func TestBuildSummaryView_ReturnsOutput(t *testing.T) {
 					Message:   "Expected 'expired' but got 'invalid'",
 				}},
 			},
-			contains: []string{"Tests", "RSpec: 47 passed, 2 failed, 3 skipped", "FAIL [RSpec] — src/auth.test.ts:89 — AuthService.validateToken handles expired tokens — Expected 'expired' but got 'invalid'"},
+			contains: []string{"Tests Failed ✗", "✗ RSpec  2 failed  47 passed  3 skipped", "✗ [RSpec] src/auth.test.ts:89 — AuthService.validateToken handles expired tokens — Expected 'expired' but got 'invalid'"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := (ttyModel{width: tt.width}).buildSummaryView(tt.event)
+			got := buildSummaryView(tt.event, tt.width)
 			if got == "" {
 				t.Fatal("expected non-empty summary view")
 			}

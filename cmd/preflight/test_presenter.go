@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 
+	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
 
 	buildkite "github.com/buildkite/go-buildkite/v4"
@@ -12,12 +14,88 @@ import (
 
 type testPresenter struct{}
 
+type summarySuiteColumnWidths struct {
+	Label   int
+	Failed  int
+	Passed  int
+	Skipped int
+}
+
 func (p testPresenter) Line(t buildkite.BuildTest) string {
 	return p.line(t, false)
 }
 
 func (p testPresenter) ColoredLine(t buildkite.BuildTest) string {
 	return p.line(t, true)
+}
+
+func (p testPresenter) SummarySuiteLine(summary internalpreflight.SummaryTestRun, widths summarySuiteColumnWidths) string {
+	label := padRightToWidth(summarySuiteLabel(summary.SuiteName, summary.SuiteSlug, "unknown"), widths.Label)
+	icon := "✓"
+	if summary.Failed > 0 {
+		icon = "✗"
+	}
+
+	return fmt.Sprintf(
+		"%s %s  %*d failed  %*d passed  %*d skipped",
+		icon,
+		label,
+		widths.Failed,
+		summary.Failed,
+		widths.Passed,
+		summary.Passed,
+		widths.Skipped,
+		summary.Skipped,
+	)
+}
+
+func (p testPresenter) SummaryFailureLine(failure internalpreflight.SummaryTestFailure, width int, indent string) string {
+	suite := summarySuiteLabel(failure.SuiteName, failure.SuiteSlug, "")
+	parts := make([]string, 0, 3)
+	if location := strings.TrimSpace(failure.Location); location != "" {
+		parts = append(parts, location)
+	}
+	if name := strings.TrimSpace(failure.Name); name != "" {
+		parts = append(parts, truncateToWidth(name, 80))
+	}
+	message := strings.TrimSpace(failure.Message)
+	if message == "" {
+		message = strings.TrimSpace(failure.FailureReason)
+	}
+	if message != "" {
+		parts = append(parts, message)
+	}
+
+	line := "✗"
+	if suite != "" {
+		line += fmt.Sprintf(" [%s]", suite)
+	}
+	if len(parts) > 0 {
+		line += " " + strings.Join(parts, " — ")
+	}
+
+	if indent == "" {
+		if width <= 0 {
+			return line
+		}
+		return ansi.Hardwrap(line, width, false)
+	}
+
+	if width <= runewidth.StringWidth(indent) {
+		return indent + line
+	}
+
+	if width <= 0 {
+		return indent + line
+	}
+
+	wrapped := ansi.Hardwrap(line, width-runewidth.StringWidth(indent), false)
+	lines := strings.Split(wrapped, "\n")
+	for i := range lines {
+		lines[i] = indent + lines[i]
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func (p testPresenter) line(t buildkite.BuildTest, colored bool) string {
@@ -197,4 +275,13 @@ func trimRightToWidth(s string, width int) string {
 	}
 
 	return string(runes[start:])
+}
+
+func padRightToWidth(s string, width int) string {
+	padding := width - runewidth.StringWidth(s)
+	if padding <= 0 {
+		return s
+	}
+
+	return s + strings.Repeat(" ", padding)
 }
