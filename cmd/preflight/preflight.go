@@ -32,7 +32,7 @@ type PreflightCmd struct {
 	Watch            bool                 `help:"Watch the build until completion." default:"true" negatable:""`
 	Interval         float64              `help:"Polling interval in seconds when watching." default:"2"`
 	NoCleanup        bool                 `help:"Skip deleting the remote preflight branch after the build finishes."`
-	AwaitTestResults awaitTestResultsFlag `name:"await-test-results" help:"After the build finishes, keep polling for final test summary data. Provide a duration like 10s, or omit the value to wait 10s."`
+	AwaitTestResults awaitTestResultsFlag `name:"await-test-results" help:"After the build finishes, wait for tests results to be processed by Test Engine. Provide a duration like 10s, or omit the value to wait 30s."`
 	Text             bool                 `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
 	JSON             bool                 `help:"Emit one JSON object per event (JSONL)." xor:"output"`
 	Default          PreflightDefaultCmd  `cmd:"" optional:"" hidden:"" default:"1"`
@@ -45,7 +45,7 @@ var (
 	newFactory    = factory.New
 )
 
-const defaultAwaitTestResultsDuration = 10 * time.Second
+const defaultAwaitTestResultsDuration = 30 * time.Second
 
 type awaitTestResultsFlag struct {
 	Enabled  bool
