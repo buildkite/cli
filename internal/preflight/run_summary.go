@@ -48,7 +48,7 @@ type RunSummaryService struct {
 }
 
 type RunSummaryGetOptions struct {
-	FailedResult    string
+	Result    string
 	IncludeFailures bool
 }
 
@@ -96,8 +96,8 @@ func NewRunSummaryService(client *buildkite.Client) *RunSummaryService {
 func (s *RunSummaryService) Get(ctx context.Context, org, buildID string, opt *RunSummaryGetOptions) (*RunSummaryResponse, error) {
 	query := url.Values{}
 	if opt != nil {
-		if opt.FailedResult != "" {
-			query.Set("failed_result", opt.FailedResult)
+		if opt.Result != "" {
+			query.Set("result", opt.Result)
 		}
 		if opt.IncludeFailures {
 			query.Set("include", "latest_fail")
@@ -142,7 +142,7 @@ func (r RunSummaryResponse) SummaryResult() SummaryResult {
 		failures = append(failures, failure.summaryFailure())
 	}
 
-	return SummaryResult{Tests: tests, Failures: failures}
+	return SummaryResult{Tests: SummaryTests{Runs: tests, Failures: failures}}
 }
 
 func (f RunSummaryFailure) summaryFailure() SummaryTestFailure {

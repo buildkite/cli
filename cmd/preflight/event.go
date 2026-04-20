@@ -56,8 +56,5 @@ type Event struct {
 	TestFailures []buildkite.BuildTest `json:"test_failures,omitempty"`
 
 	// Tests is set for build_summary events when aggregated test summary data is available.
-	Tests map[string]internalpreflight.SummaryTestRun `json:"tests,omitempty"`
-
-	// Failures is set for build_summary events when aggregated failed test data is available.
-	Failures []internalpreflight.SummaryTestFailure `json:"failures,omitempty"`
+	Tests internalpreflight.SummaryTests `json:"tests,omitempty"`
 }

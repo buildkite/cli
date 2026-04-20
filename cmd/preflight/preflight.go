@@ -328,7 +328,7 @@ func (c *PreflightCmd) loadSummary(ctx context.Context, client *buildkite.Client
 	}
 
 	summary, err := preflight.NewRunSummaryService(client).Get(ctx, org, buildID, &preflight.RunSummaryGetOptions{
-		FailedResult:    "^failed",
+		Result:    "^failed",
 		IncludeFailures: true,
 	})
 	if err != nil {
