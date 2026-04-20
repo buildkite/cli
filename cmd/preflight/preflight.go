@@ -28,7 +28,7 @@ import (
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
-type PreflightCmd struct {
+type RunCmd struct {
 	Pipeline         string               `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
 	Watch            bool                 `help:"Watch the build until completion." default:"true" negatable:""`
 	Interval         float64              `help:"Polling interval in seconds when watching." default:"2"`
@@ -36,10 +36,7 @@ type PreflightCmd struct {
 	AwaitTestResults awaitTestResultsFlag `name:"await-test-results" help:"After the build finishes, wait for tests results to be processed by Test Engine. Provide a duration like 10s, or omit the value to wait 30s."`
 	Text             bool                 `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
 	JSON             bool                 `help:"Emit one JSON object per event (JSONL)." xor:"output"`
-	Default          PreflightDefaultCmd  `cmd:"" optional:"" hidden:"" default:"1"`
 }
-
-type PreflightDefaultCmd struct{}
 
 var (
 	notifyContext = signal.NotifyContext
@@ -84,11 +81,11 @@ func (f *awaitTestResultsFlag) Decode(ctx *kong.DecodeContext) error {
 
 func (f awaitTestResultsFlag) IsBool() bool { return true }
 
-func (c *PreflightCmd) Help() string {
+func (c *RunCmd) Help() string {
 	return `Snapshots your working tree (uncommitted, staged, and untracked changes) and pushes it to a bk/preflight/<id> branch. If there are no local changes, pushes HEAD directly.`
 }
 
-func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	if c.Interval <= 0 {
 		return bkErrors.NewValidationError(fmt.Errorf("interval must be greater than 0"), "invalid polling interval")
 	}
@@ -304,7 +301,7 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	return finalErr
 }
 
-func (c *PreflightCmd) loadFinalResult(ctx context.Context, client *buildkite.Client, org, pipeline string, buildNumber int) (preflight.SummaryResult, error) {
+func (c *RunCmd) loadFinalResult(ctx context.Context, client *buildkite.Client, org, pipeline string, buildNumber int) (preflight.SummaryResult, error) {
 	buildWithTests, _, buildErr := client.Builds.Get(ctx, org, pipeline, strconv.Itoa(buildNumber), &buildkite.BuildGetOptions{IncludeTestEngine: true})
 	expectTestSummary := buildErr == nil && buildWithTests.TestEngine != nil && len(buildWithTests.TestEngine.Runs) > 0
 
@@ -331,7 +328,7 @@ func (c *PreflightCmd) loadFinalResult(ctx context.Context, client *buildkite.Cl
 	return c.loadSummary(ctx, client, org, buildWithTests.ID)
 }
 
-func (c *PreflightCmd) loadSummary(ctx context.Context, client *buildkite.Client, org, buildID string) (preflight.SummaryResult, error) {
+func (c *RunCmd) loadSummary(ctx context.Context, client *buildkite.Client, org, buildID string) (preflight.SummaryResult, error) {
 	if buildID == "" {
 		return preflight.SummaryResult{Tests: preflight.SummaryTests{Runs: map[string]preflight.SummaryTestRun{}, Failures: []preflight.SummaryTestFailure{}}}, nil
 	}

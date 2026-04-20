@@ -417,7 +417,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 
 		stdout := captureStdout(t, func() {
-			cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01, Text: true}
+			cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01, Text: true}
 			err := cmd.Run(nil, stubGlobals{})
 			var bkErr *bkErrors.Error
 			if !errors.As(err, &bkErr) || !errors.Is(bkErr, bkErrors.ErrPreflightCompletedFailure) {
@@ -511,7 +511,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 
 		stdout := captureStdout(t, func() {
-			cmd := &PreflightCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01, Text: true}
+			cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01, Text: true}
 			err := cmd.Run(nil, stubGlobals{})
 			var bkErr *bkErrors.Error
 			if !errors.As(err, &bkErr) || !errors.Is(bkErr, bkErrors.ErrPreflightCompletedFailure) {
@@ -634,7 +634,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 
 		stdout := captureStdout(t, func() {
-			cmd := &PreflightCmd{
+			cmd := &RunCmd{
 				Pipeline:         "test-org/test-pipeline",
 				Watch:            true,
 				Interval:         0.01,
@@ -749,7 +749,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 
 		stdout := captureStdout(t, func() {
-			cmd := &PreflightCmd{
+			cmd := &RunCmd{
 				Pipeline:         "test-org/test-pipeline",
 				Watch:            true,
 				Interval:         0.01,
@@ -845,7 +845,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		cmd := &PreflightCmd{
+		cmd := &RunCmd{
 			Pipeline:         "test-org/test-pipeline",
 			Watch:            true,
 			Interval:         0.01,

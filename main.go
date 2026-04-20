@@ -150,7 +150,7 @@ type (
 		View     pipeline.ViewCmd     `cmd:"" help:"View a pipeline."`
 	}
 	PreflightCmd struct {
-		Run     preflight.PreflightCmd `cmd:"" default:"withargs" help:"Run a preflight check"`
+		Run     preflight.RunCmd       `cmd:"" default:"withargs" help:"Run a preflight check"`
 		Cleanup preflight.CleanupCmd   `cmd:"" help:"Clean up completed preflight branches"`
 	}
 	UserCmd struct {
