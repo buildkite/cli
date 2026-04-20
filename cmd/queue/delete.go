@@ -65,6 +65,6 @@ func (c *DeleteCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return fmt.Errorf("error deleting cluster queue: %w", err)
 	}
 
-	fmt.Fprintln(os.Stderr, "Queue deleted successfully.")
+	fmt.Fprintf(os.Stderr, "Queue %s deleted successfully.\n", c.QueueUUID)
 	return nil
 }

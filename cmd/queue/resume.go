@@ -16,30 +16,26 @@ import (
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
-type PauseCmd struct {
+type ResumeCmd struct {
 	ClusterUUID string `arg:"" help:"Cluster UUID the queue belongs to" name:"cluster-uuid"`
-	QueueUUID   string `arg:"" help:"Queue UUID to pause" name:"queue-uuid"`
-	Note        string `help:"Optional note explaining why the queue is being paused" optional:"" name:"note"`
+	QueueUUID   string `arg:"" help:"Queue UUID to resume" name:"queue-uuid"`
 	output.OutputFlags
 }
 
-func (c *PauseCmd) Help() string {
+func (c *ResumeCmd) Help() string {
 	return `
-The queue remains paused until it is resumed with "bk queue resume".
+Resumes dispatch for a paused cluster queue.
 
 Examples:
-  # Pause a queue
-  $ bk queue pause my-cluster-uuid my-queue-uuid
+  # Resume a queue
+  $ bk queue resume my-cluster-uuid my-queue-uuid
 
-  # Pause a queue with a note
-  $ bk queue pause my-cluster-uuid my-queue-uuid --note "Pausing for maintenance"
-
-  # Output the paused queue as JSON
-  $ bk queue pause my-cluster-uuid my-queue-uuid --note "Maintenance" -o json
+  # Output the resumed queue as JSON
+  $ bk queue resume my-cluster-uuid my-queue-uuid -o json
 `
 }
 
-func (c *PauseCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+func (c *ResumeCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
 	if err != nil {
 		return err
@@ -59,17 +55,20 @@ func (c *PauseCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	input := buildkite.ClusterQueuePause{
-		Note: c.Note,
+	if err = bkIO.SpinWhile(f, "Resuming cluster queue", func() error {
+		_, apiErr := f.RestAPIClient.ClusterQueues.Resume(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, c.QueueUUID)
+		return apiErr
+	}); err != nil {
+		return fmt.Errorf("error resuming cluster queue: %w", err)
 	}
 
 	var queue buildkite.ClusterQueue
-	if err = bkIO.SpinWhile(f, "Pausing cluster queue", func() error {
+	if err = bkIO.SpinWhile(f, "Loading queue", func() error {
 		var apiErr error
-		queue, _, apiErr = f.RestAPIClient.ClusterQueues.Pause(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, c.QueueUUID, input)
+		queue, _, apiErr = f.RestAPIClient.ClusterQueues.Get(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, c.QueueUUID)
 		return apiErr
 	}); err != nil {
-		return fmt.Errorf("error pausing cluster queue: %w", err)
+		return fmt.Errorf("error fetching cluster queue: %w", err)
 	}
 
 	queueView := output.Viewable[buildkite.ClusterQueue]{
@@ -84,6 +83,6 @@ func (c *PauseCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	writer, cleanup := bkIO.Pager(f.NoPager, f.Config.Pager())
 	defer func() { _ = cleanup() }()
 
-	fmt.Fprintf(writer, "Queue %s paused successfully\n\n", queue.Key)
+	fmt.Fprintf(writer, "Queue %s resumed successfully\n\n", queue.Key)
 	return output.Write(writer, queueView, format)
 }
