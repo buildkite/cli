@@ -21,6 +21,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	bkhttp "github.com/buildkite/cli/v3/internal/http"
+	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/preflight"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -46,6 +47,17 @@ var (
 )
 
 const defaultAwaitTestResultsDuration = 30 * time.Second
+
+func preflightUserAgentSuffix() string {
+	major := strings.TrimPrefix(version.Version, "v")
+	if i := strings.IndexByte(major, '.'); i >= 0 {
+		major = major[:i]
+	}
+	if major == "" || major == "DEV" {
+		major = "DEV"
+	}
+	return "buildkite-cli-preflight/" + major + ".x"
+}
 
 type awaitTestResultsFlag struct {
 	Enabled  bool
@@ -77,10 +89,8 @@ func (c *PreflightCmd) Help() string {
 }
 
 func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	rlTransport := bkhttp.NewRateLimitTransport(http.DefaultTransport)
-	f, err := newFactory(factory.WithDebug(globals.EnableDebug()), factory.WithTransport(rlTransport))
-	if err != nil {
-		return bkErrors.NewInternalError(err, "failed to initialize CLI", "This is likely a bug", "Report to Buildkite")
+	if c.Interval <= 0 {
+		return bkErrors.NewValidationError(fmt.Errorf("interval must be greater than 0"), "invalid polling interval")
 	}
 
 	pCtx, err := setup(c.Pipeline, globals)
@@ -335,6 +345,70 @@ func (c *PreflightCmd) loadSummary(ctx context.Context, client *buildkite.Client
 	}
 
 	return summary.SummaryResult(), nil
+}
+
+// preflightContext holds the common dependencies for preflight subcommands.
+type preflightContext struct {
+	Factory            *factory.Factory
+	RepoRoot           string
+	Pipeline           *pipeline.Pipeline
+	Ctx                context.Context
+	Stop               context.CancelFunc
+	RateLimitTransport *bkhttp.RateLimitTransport
+}
+
+// setup initializes the common preflight dependencies: factory, experiment
+// gate, repository root, signal context, and pipeline resolution.
+func setup(pipelineFlag string, globals cli.GlobalFlags) (*preflightContext, error) {
+	rlTransport := bkhttp.NewRateLimitTransport(http.DefaultTransport)
+	f, err := newFactory(
+		factory.WithDebug(globals.EnableDebug()),
+		factory.WithTransport(rlTransport),
+		factory.WithUserAgentSuffix(preflightUserAgentSuffix()),
+	)
+	if err != nil {
+		return nil, bkErrors.NewInternalError(err, "failed to initialize CLI", "This is likely a bug", "Report to Buildkite")
+	}
+
+	if !f.Config.HasExperiment("preflight") {
+		return nil, bkErrors.NewValidationError(
+			fmt.Errorf("experiment not enabled"),
+			"the preflight command is under development and requires the 'preflight' experiment to opt in. Run: bk config set experiments preflight or set BUILDKITE_EXPERIMENTS=preflight")
+	}
+
+	repoRoot, err := resolveRepositoryRoot(f, globals.EnableDebug())
+	if err != nil {
+		return nil, bkErrors.NewValidationError(
+			fmt.Errorf("not in a git repository: %w", err),
+			"preflight must be run from a git repository",
+			"Run this command from inside a git repository",
+		)
+	}
+
+	ctx, stop := notifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+
+	resolvers := resolver.NewAggregateResolver(
+		resolver.ResolveFromFlag(pipelineFlag, f.Config),
+		resolver.ResolveFromConfig(f.Config, resolver.PickOneWithFactory(f)),
+		resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOneWithFactory(f))),
+	)
+
+	resolvedPipeline, err := resolvers.Resolve(ctx)
+	if err != nil {
+		stop()
+		return nil, bkErrors.NewValidationError(err, "could not resolve a pipeline",
+			"Specify a pipeline with --pipeline or link your repository to a pipeline",
+		)
+	}
+
+	return &preflightContext{
+		Factory:            f,
+		RepoRoot:           repoRoot,
+		Pipeline:           resolvedPipeline,
+		Ctx:                ctx,
+		Stop:               stop,
+		RateLimitTransport: rlTransport,
+	}, nil
 }
 
 func resolveRepositoryRoot(f *factory.Factory, debug bool) (string, error) {
