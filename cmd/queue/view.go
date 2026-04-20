@@ -56,12 +56,12 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	defer stop()
 
 	var queue buildkite.ClusterQueue
-	if err = bkIO.SpinWhile(f, "Loading queue information", func() error {
+	if err = bkIO.SpinWhile(f, "Loading cluster queue", func() error {
 		var apiErr error
 		queue, _, apiErr = f.RestAPIClient.ClusterQueues.Get(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, c.QueueUUID)
 		return apiErr
 	}); err != nil {
-		return err
+		return fmt.Errorf("error loading cluster queue: %w", err)
 	}
 
 	queueView := output.Viewable[buildkite.ClusterQueue]{

@@ -63,7 +63,7 @@ func (c *ResumeCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	var queue buildkite.ClusterQueue
-	if err = bkIO.SpinWhile(f, "Loading queue", func() error {
+	if err = bkIO.SpinWhile(f, "Loading cluster queue", func() error {
 		var apiErr error
 		queue, _, apiErr = f.RestAPIClient.ClusterQueues.Get(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, c.QueueUUID)
 		return apiErr
