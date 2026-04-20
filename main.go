@@ -115,6 +115,7 @@ type (
 		List   queue.ListCmd   `cmd:"" help:"List cluster queues." aliases:"ls"`
 		View   queue.ViewCmd   `cmd:"" help:"View a cluster queue."`
 		Create queue.CreateCmd `cmd:"" help:"Create a new cluster queue."`
+		Update queue.UpdateCmd `cmd:"" help:"Update a cluster queue."`
 		Delete queue.DeleteCmd `cmd:"" help:"Delete a cluster queue." aliases:"rm"`
 	}
 	SecretCmd struct {

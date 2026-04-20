@@ -25,11 +25,15 @@ type CreateCmd struct {
 }
 
 func (c *CreateCmd) Validate() error {
-	switch c.RetryAgentAffinity {
-	case "", "prefer-warmest", "prefer-different": // doing this to avoid enum which clashes with Kong as a value must be present, when this will default on the API side if not provided.
+	switch buildkite.RetryAgentAffinity(c.RetryAgentAffinity) {
+	case "", buildkite.RetryAgentAffinityPreferWarmest, buildkite.RetryAgentAffinityPreferDifferent:
 		return nil
 	default:
-		return fmt.Errorf("invalid --retry-agent-affinity value %q: must be prefer-warmest or prefer-different", c.RetryAgentAffinity)
+		return fmt.Errorf("invalid --retry-agent-affinity value %q: must be %s or %s",
+			c.RetryAgentAffinity,
+			buildkite.RetryAgentAffinityPreferWarmest,
+			buildkite.RetryAgentAffinityPreferDifferent,
+		)
 	}
 }
 
