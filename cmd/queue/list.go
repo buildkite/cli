@@ -37,8 +37,6 @@ func (c *ListCmd) Validate() error {
 
 func (c *ListCmd) Help() string {
 	return `
-List cluster queues.
-
 Examples:
   # List all queues for a cluster
   $ bk queue list my-cluster-uuid

@@ -35,8 +35,6 @@ func (c *CreateCmd) Validate() error {
 
 func (c *CreateCmd) Help() string {
 	return `
-Create a new queue in a cluster.
-
 Examples:
   # Create a queue with just a key
   $ bk queue create my-cluster-uuid --key my-queue
