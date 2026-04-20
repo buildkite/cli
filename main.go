@@ -23,6 +23,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/pipeline"
 	"github.com/buildkite/cli/v3/cmd/pkg"
 	"github.com/buildkite/cli/v3/cmd/preflight"
+	"github.com/buildkite/cli/v3/cmd/queue"
 	"github.com/buildkite/cli/v3/cmd/secret"
 	"github.com/buildkite/cli/v3/cmd/use"
 	"github.com/buildkite/cli/v3/cmd/user"
@@ -49,6 +50,7 @@ type CLI struct {
 	Build        BuildCmd           `cmd:"" help:"Manage pipeline builds"`
 	Cluster      ClusterCmd         `cmd:"" help:"Manage organization clusters"`
 	Maintainer   MaintainerCmd      `cmd:"" help:"Manage cluster maintainers"`
+	Queue        QueueCmd           `cmd:"" help:"Manage cluster queues"`
 	Secret       SecretCmd          `cmd:"" help:"Manage cluster secrets"`
 	Config       bkConfig.ConfigCmd `cmd:"" help:"Manage CLI configuration"`
 	Configure    ConfigureCmd       `cmd:"" help:"Configure Buildkite API token" hidden:""`
@@ -108,6 +110,9 @@ type (
 		List   maintainer.ListCmd   `cmd:"" help:"List cluster maintainers." aliases:"ls"`
 		Create maintainer.CreateCmd `cmd:"" help:"Create a cluster maintainer."`
 		Delete maintainer.DeleteCmd `cmd:"" help:"Delete a cluster maintainer." aliases:"rm"`
+	}
+	QueueCmd struct {
+		View   queue.ViewCmd   `cmd:"" help:"View a cluster queue."`
 	}
 	SecretCmd struct {
 		List   secret.ListCmd   `cmd:"" help:"List secrets for a cluster." aliases:"ls"`
