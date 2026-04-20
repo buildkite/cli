@@ -81,25 +81,26 @@ func TestBuildSummaryView_ReturnsOutput(t *testing.T) {
 			},
 			contains: []string{"Build #42", "https://buildkite.com/", "buildkite/cli/builds/42"},
 		},
-			{
-				name: "build with tests",
-				event: Event{
-					Type:       EventBuildSummary,
-					BuildState: "failed",
-					Tests: map[string]internalpreflight.SummaryTestRun{
-						"run-rspec": {RunID: "run-rspec", SuiteSlug: "rspec", Passed: 47, Failed: 2, Skipped: 3},
-					},
-					Failures: []internalpreflight.SummaryTestFailure{{
-						RunID:     "run-rspec",
-						SuiteSlug: "rspec",
-						Name:      "AuthService.validateToken handles expired tokens",
-						Location:  "src/auth.test.ts:89",
-						Message:   "Expected 'expired' but got 'invalid'",
-					}},
+		{
+			name: "build with tests",
+			event: Event{
+				Type:       EventBuildSummary,
+				BuildState: "failed",
+				Tests: map[string]internalpreflight.SummaryTestRun{
+					"run-rspec": {RunID: "run-rspec", SuiteName: "RSpec", SuiteSlug: "rspec", Passed: 47, Failed: 2, Skipped: 3},
 				},
-				contains: []string{"Tests X", "rspec: 47 passed, 2 failed, 3 skipped", "FAIL [rspec] — src/auth.test.ts:89 — AuthService.validateToken handles expired tokens — Expected 'expired' but got 'invalid'"},
+				Failures: []internalpreflight.SummaryTestFailure{{
+					RunID:     "run-rspec",
+					SuiteName: "RSpec",
+					SuiteSlug: "rspec",
+					Name:      "AuthService.validateToken handles expired tokens",
+					Location:  "src/auth.test.ts:89",
+					Message:   "Expected 'expired' but got 'invalid'",
+				}},
 			},
-		}
+			contains: []string{"Tests", "RSpec: 47 passed, 2 failed, 3 skipped", "FAIL [RSpec] — src/auth.test.ts:89 — AuthService.validateToken handles expired tokens — Expected 'expired' but got 'invalid'"},
+		},
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

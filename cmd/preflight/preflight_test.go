@@ -382,7 +382,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 					"tests": {
 						"runs": {
 							"run-1": {
-								"suite": {"id": "suite-1", "slug": "rspec"},
+								"suite": {"id": "suite-1", "slug": "rspec", "name": "RSpec"},
 								"passed": 47,
 								"failed": 1,
 								"skipped": 12
@@ -391,6 +391,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 						"failures": [
 							{
 								"run_id": "run-1",
+								"suite_name": "RSpec",
 								"suite_slug": "rspec",
 								"name": "AuthService.validateToken handles expired tokens",
 								"location": "src/auth.test.ts:89",
@@ -598,7 +599,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 					"tests": {
 						"runs": {
 							"run-1": {
-								"suite": {"id": "suite-1", "slug": "rspec"},
+								"suite": {"id": "suite-1", "slug": "rspec", "name": "RSpec"},
 								"passed": 47,
 								"failed": 1,
 								"skipped": 12
@@ -607,6 +608,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 						"failures": [
 							{
 								"run_id": "run-1",
+								"suite_name": "RSpec",
 								"suite_slug": "rspec",
 								"name": "AuthService.validateToken handles expired tokens",
 								"location": "src/auth.test.ts:89",
@@ -651,6 +653,12 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 		if got := summaryRequests.Load(); got != 1 {
 			t.Fatalf("expected one delayed summary request, got %d", got)
+		}
+		if !strings.Contains(stdout, "RSpec: 47 passed, 1 failed, 12 skipped") {
+			t.Fatalf("expected suite name in final summary, got %q", stdout)
+		}
+		if !strings.Contains(stdout, "FAIL [RSpec]") {
+			t.Fatalf("expected suite name in failure label, got %q", stdout)
 		}
 		if !strings.Contains(stdout, "AuthService.validateToken handles expired tokens") {
 			t.Fatalf("expected endpoint failure name in final summary, got %q", stdout)

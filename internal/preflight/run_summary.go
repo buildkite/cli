@@ -20,6 +20,7 @@ type SummaryResult struct {
 
 type SummaryTestRun struct {
 	RunID     string `json:"run_id"`
+	SuiteName string `json:"suite_name,omitempty"`
 	SuiteSlug string `json:"suite_slug"`
 	Passed    int    `json:"passed"`
 	Failed    int    `json:"failed"`
@@ -28,6 +29,7 @@ type SummaryTestRun struct {
 
 type SummaryTestFailure struct {
 	RunID         string                 `json:"run_id"`
+	SuiteName     string                 `json:"suite_name,omitempty"`
 	SuiteSlug     string                 `json:"suite_slug"`
 	Name          string                 `json:"name"`
 	Location      string                 `json:"location"`
@@ -69,10 +71,12 @@ type RunSummaryRun struct {
 type RunSummarySuite struct {
 	ID   string `json:"id"`
 	Slug string `json:"slug"`
+	Name string `json:"name"`
 }
 
 type RunSummaryFailure struct {
 	RunID         string                `json:"run_id"`
+	SuiteName     string                `json:"suite_name"`
 	SuiteSlug     string                `json:"suite_slug"`
 	Name          string                `json:"name"`
 	Location      string                `json:"location"`
@@ -125,6 +129,7 @@ func (r RunSummaryResponse) SummaryResult() SummaryResult {
 	for runID, run := range r.Tests.Runs {
 		tests[runID] = SummaryTestRun{
 			RunID:     runID,
+			SuiteName: strings.TrimSpace(run.Suite.Name),
 			SuiteSlug: strings.TrimSpace(run.Suite.Slug),
 			Passed:    run.Passed,
 			Failed:    run.Failed,
@@ -143,6 +148,7 @@ func (r RunSummaryResponse) SummaryResult() SummaryResult {
 func (f RunSummaryFailure) summaryFailure() SummaryTestFailure {
 	result := SummaryTestFailure{
 		RunID:         strings.TrimSpace(f.RunID),
+		SuiteName:     strings.TrimSpace(f.SuiteName),
 		SuiteSlug:     strings.TrimSpace(f.SuiteSlug),
 		Name:          strings.TrimSpace(f.Name),
 		Location:      f.Location,

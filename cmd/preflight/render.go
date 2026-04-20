@@ -210,12 +210,12 @@ func summaryTestsSection(tests map[string]internalpreflight.SummaryTestRun, fail
 		return ""
 	}
 
-	lines := []string{"    Tests X"}
+	lines := []string{"    Tests"}
 	for _, summary := range tests {
-		lines = append(lines, fmt.Sprintf("        %s: %d passed, %d failed, %d skipped", summaryTestRunLabel(summary, includeRunID), summary.Passed, summary.Failed, summary.Skipped))
+		lines = append(lines, fmt.Sprintf("        %s: %d passed, %d failed, %d skipped", summarySuiteLabel(summary.SuiteName, summary.SuiteSlug, "unknown"), summary.Passed, summary.Failed, summary.Skipped))
 	}
 
-		displayed := min(len(failures), summaryTestFailureDisplayLimit)
+	displayed := min(len(failures), summaryTestFailureDisplayLimit)
 	if displayed > 0 {
 		lines = append(lines, "")
 		for _, failure := range failures[:displayed] {
@@ -234,19 +234,9 @@ func summaryTestsSection(tests map[string]internalpreflight.SummaryTestRun, fail
 	return strings.Join(lines, "\n")
 }
 
-func summaryTestRunLabel(run internalpreflight.SummaryTestRun, includeRunID bool) string {
-	suite := strings.TrimSpace(run.SuiteSlug)
-	switch {
-	case suite != "":
-		return suite
-	default:
-		return "unknown"
-	}
-}
-
 func summaryTestFailureBlock(failure internalpreflight.SummaryTestFailure, includeRunID bool) string {
 	parts := []string{"FAIL"}
-	if label := summaryTestFailureLabel(failure, includeRunID); label != "" {
+	if label := summarySuiteLabel(failure.SuiteName, failure.SuiteSlug, ""); label != "" {
 		parts[0] += fmt.Sprintf(" [%s]", label)
 	}
 	if location := strings.TrimSpace(failure.Location); location != "" {
@@ -266,14 +256,16 @@ func summaryTestFailureBlock(failure internalpreflight.SummaryTestFailure, inclu
 	return strings.Join(parts, " — ")
 }
 
-func summaryTestFailureLabel(failure internalpreflight.SummaryTestFailure, includeRunID bool) string {
-	suite := strings.TrimSpace(failure.SuiteSlug)
-	switch {
-	case suite != "":
-		return suite
-	default:
-		return ""
+func summarySuiteLabel(name, slug, fallback string) string {
+	if name = strings.TrimSpace(name); name != "" {
+		return name
 	}
+
+	if slug = strings.TrimSpace(slug); slug != "" {
+		return slug
+	}
+
+	return fallback
 }
 
 func jobLogCommand(pipeline string, buildNumber int, jobID string) string {
