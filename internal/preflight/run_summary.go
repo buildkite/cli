@@ -91,8 +91,6 @@ func NewRunSummaryService(client *buildkite.Client) *RunSummaryService {
 
 func (s *RunSummaryService) Get(ctx context.Context, org, buildID string, opt *RunSummaryGetOptions) (*RunSummaryResponse, error) {
 	query := url.Values{}
-	query.Set("build_id", buildID)
-
 	if opt != nil {
 		if opt.FailedResult != "" {
 			query.Set("failed_result", opt.FailedResult)
@@ -102,7 +100,7 @@ func (s *RunSummaryService) Get(ctx context.Context, org, buildID string, opt *R
 		}
 	}
 
-	u := fmt.Sprintf("v2/analytics/organizations/%s/builds/%s/preflight?%s", org, buildID, query.Encode())
+	u := fmt.Sprintf("v2/analytics/organizations/%s/builds/%s/preflight/v1", org, buildID, query.Encode())
 
 	req, err := s.client.NewRequest(ctx, "GET", u, nil)
 	if err != nil {
