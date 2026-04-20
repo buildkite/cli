@@ -1,8 +1,46 @@
 package preflight
 
-import "testing"
+import (
+	"net/url"
+	"testing"
+)
+
+func TestBuildRunSummaryPath(t *testing.T) {
+	t.Parallel()
+
+	testcases := map[string]struct {
+		query url.Values
+		want  string
+	}{
+		"without query": {
+			query: nil,
+			want:  "v2/analytics/organizations/test-org/builds/build-id-123/preflight/v1",
+		},
+		"with query": {
+			query: url.Values{
+				"failed_result": {"^failed"},
+				"include":       {"latest_fail"},
+			},
+			want: "v2/analytics/organizations/test-org/builds/build-id-123/preflight/v1?failed_result=%5Efailed&include=latest_fail",
+		},
+	}
+
+	for name, tc := range testcases {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			got := buildRunSummaryPath("test-org", "build-id-123", tc.query)
+			if got != tc.want {
+				t.Fatalf("buildRunSummaryPath() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
 
 func TestRunSummaryResponse_SummaryResult_PreservesRunsByRunID(t *testing.T) {
+	t.Parallel()
+
 	result := RunSummaryResponse{
 		Tests: RunSummaryTests{
 			Runs: map[string]RunSummaryRun{

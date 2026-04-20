@@ -100,7 +100,10 @@ func (s *RunSummaryService) Get(ctx context.Context, org, buildID string, opt *R
 		}
 	}
 
-	u := fmt.Sprintf("v2/analytics/organizations/%s/builds/%s/preflight/v1", org, buildID, query.Encode())
+	u := fmt.Sprintf("v2/analytics/organizations/%s/builds/%s/preflight/v1", org, buildID)
+	if encoded := query.Encode(); encoded != "" {
+		u += "?" + encoded
+	}
 
 	req, err := s.client.NewRequest(ctx, "GET", u, nil)
 	if err != nil {
