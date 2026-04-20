@@ -112,6 +112,7 @@ type (
 		Delete maintainer.DeleteCmd `cmd:"" help:"Delete a cluster maintainer." aliases:"rm"`
 	}
 	QueueCmd struct {
+		List   queue.ListCmd   `cmd:"" help:"List cluster queues." aliases:"ls"`
 		View   queue.ViewCmd   `cmd:"" help:"View a cluster queue."`
 		Create queue.CreateCmd `cmd:"" help:"Create a new cluster queue."`
 	}
