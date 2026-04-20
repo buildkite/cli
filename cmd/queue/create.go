@@ -83,12 +83,12 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	var queue buildkite.ClusterQueue
-	if err = bkIO.SpinWhile(f, "Creating queue", func() error {
+	if err = bkIO.SpinWhile(f, "Creating cluster queue", func() error {
 		var apiErr error
 		queue, _, apiErr = f.RestAPIClient.ClusterQueues.Create(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, input)
 		return apiErr
 	}); err != nil {
-		return fmt.Errorf("error creating queue: %w", err)
+		return fmt.Errorf("error creating cluster queue: %w", err)
 	}
 
 	queueView := output.Viewable[buildkite.ClusterQueue]{
@@ -100,6 +100,9 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return output.Write(os.Stdout, queueView, format)
 	}
 
-	fmt.Fprintf(os.Stdout, "Queue %s created successfully\n\n", queue.Key)
-	return output.Write(os.Stdout, queueView, format)
+	writer, cleanup := bkIO.Pager(f.NoPager, f.Config.Pager())
+	defer func() { _ = cleanup() }()
+
+	fmt.Fprintf(writer, "Queue %s created successfully\n\n", queue.Key)
+	return output.Write(writer, queueView, format)
 }
