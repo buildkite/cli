@@ -79,11 +79,11 @@ func TestApplyExperiments(t *testing.T) {
 		if _, err := parser.Parse([]string{"preflight", "--await-test-results"}); err != nil {
 			t.Fatalf("failed to parse preflight await-test-results flag: %v", err)
 		}
-		if !cli.Preflight.AwaitTestResults.Enabled {
+		if !cli.Preflight.Run.AwaitTestResults.Enabled {
 			t.Fatal("expected await-test-results to be enabled")
 		}
-		if cli.Preflight.AwaitTestResults.Duration != 30*time.Second {
-			t.Fatalf("expected default await-test-results duration, got %s", cli.Preflight.AwaitTestResults.Duration)
+		if cli.Preflight.Run.AwaitTestResults.Duration != 30*time.Second {
+			t.Fatalf("expected default await-test-results duration, got %s", cli.Preflight.Run.AwaitTestResults.Duration)
 		}
 	})
 
@@ -97,11 +97,11 @@ func TestApplyExperiments(t *testing.T) {
 		if _, err := parser.Parse([]string{"preflight", "--await-test-results=45s"}); err != nil {
 			t.Fatalf("failed to parse preflight await-test-results duration: %v", err)
 		}
-		if !cli.Preflight.AwaitTestResults.Enabled {
+		if !cli.Preflight.Run.AwaitTestResults.Enabled {
 			t.Fatal("expected await-test-results to be enabled")
 		}
-		if cli.Preflight.AwaitTestResults.Duration != 45*time.Second {
-			t.Fatalf("expected explicit await-test-results duration, got %s", cli.Preflight.AwaitTestResults.Duration)
+		if cli.Preflight.Run.AwaitTestResults.Duration != 45*time.Second {
+			t.Fatalf("expected explicit await-test-results duration, got %s", cli.Preflight.Run.AwaitTestResults.Duration)
 		}
 	})
 }
