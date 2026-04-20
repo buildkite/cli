@@ -113,6 +113,7 @@ type (
 	}
 	QueueCmd struct {
 		View   queue.ViewCmd   `cmd:"" help:"View a cluster queue."`
+		Create queue.CreateCmd `cmd:"" help:"Create a new cluster queue."`
 	}
 	SecretCmd struct {
 		List   secret.ListCmd   `cmd:"" help:"List secrets for a cluster." aliases:"ls"`
