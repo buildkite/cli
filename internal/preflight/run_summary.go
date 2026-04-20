@@ -52,7 +52,7 @@ type RunSummaryService struct {
 }
 
 type RunSummaryGetOptions struct {
-	Result    string
+	Result          string
 	IncludeFailures bool
 }
 

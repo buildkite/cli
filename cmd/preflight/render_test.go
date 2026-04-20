@@ -640,18 +640,20 @@ func TestPlainRenderer_Render_BuildSummaryIncludesTests(t *testing.T) {
 		Type:       EventBuildSummary,
 		Time:       time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
 		BuildState: "failed",
-		Tests: map[string]internalpreflight.SummaryTestRun{
-			"run-go":    {RunID: "run-go", SuiteName: "Go", SuiteSlug: "go", Passed: 12, Failed: 1, Skipped: 0},
-			"run-rspec": {RunID: "run-rspec", SuiteName: "RSpec", SuiteSlug: "rspec", Passed: 47, Failed: 2, Skipped: 3},
+		Tests: internalpreflight.SummaryTests{
+			Runs: map[string]internalpreflight.SummaryTestRun{
+				"run-go":    {RunID: "run-go", SuiteName: "Go", SuiteSlug: "go", Passed: 12, Failed: 1, Skipped: 0},
+				"run-rspec": {RunID: "run-rspec", SuiteName: "RSpec", SuiteSlug: "rspec", Passed: 47, Failed: 2, Skipped: 3},
+			},
+			Failures: []internalpreflight.SummaryTestFailure{{
+				RunID:     "run-rspec",
+				SuiteName: "RSpec",
+				SuiteSlug: "rspec",
+				Name:      "AuthService.validateToken handles expired tokens",
+				Location:  "src/auth.test.ts:89",
+				Message:   "Expected 'expired' but got 'invalid'",
+			}},
 		},
-		Failures: []internalpreflight.SummaryTestFailure{{
-			RunID:     "run-rspec",
-			SuiteName: "RSpec",
-			SuiteSlug: "rspec",
-			Name:      "AuthService.validateToken handles expired tokens",
-			Location:  "src/auth.test.ts:89",
-			Message:   "Expected 'expired' but got 'invalid'",
-		}},
 	}); err != nil {
 		t.Fatalf("Render() error: %v", err)
 	}
@@ -742,17 +744,19 @@ func TestJSONRenderer_Render_BuildSummaryIncludesTests(t *testing.T) {
 		Time:        time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
 		PreflightID: "pfid-123",
 		BuildState:  "failed",
-		Tests: map[string]internalpreflight.SummaryTestRun{
-			"run-rspec": {RunID: "run-rspec", SuiteName: "RSpec", SuiteSlug: "rspec", Passed: 47, Failed: 2, Skipped: 3},
+		Tests: internalpreflight.SummaryTests{
+			Runs: map[string]internalpreflight.SummaryTestRun{
+				"run-rspec": {RunID: "run-rspec", SuiteName: "RSpec", SuiteSlug: "rspec", Passed: 47, Failed: 2, Skipped: 3},
+			},
+			Failures: []internalpreflight.SummaryTestFailure{{
+				RunID:     "run-rspec",
+				SuiteName: "RSpec",
+				SuiteSlug: "rspec",
+				Name:      "AuthService.validateToken handles expired tokens",
+				Location:  "src/auth.test.ts:89",
+				Message:   "Expected 'expired' but got 'invalid'",
+			}},
 		},
-		Failures: []internalpreflight.SummaryTestFailure{{
-			RunID:     "run-rspec",
-			SuiteName: "RSpec",
-			SuiteSlug: "rspec",
-			Name:      "AuthService.validateToken handles expired tokens",
-			Location:  "src/auth.test.ts:89",
-			Message:   "Expected 'expired' but got 'invalid'",
-		}},
 	}); err != nil {
 		t.Fatalf("Render() error: %v", err)
 	}
@@ -765,9 +769,13 @@ func TestJSONRenderer_Render_BuildSummaryIncludesTests(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected tests object, got %v", got["tests"])
 	}
-	rspec, ok := tests["run-rspec"].(map[string]any)
+	runs, ok := tests["runs"].(map[string]any)
 	if !ok {
-		t.Fatalf("expected rspec summary, got %v", tests["run-rspec"])
+		t.Fatalf("expected tests.runs object, got %v", tests["runs"])
+	}
+	rspec, ok := runs["run-rspec"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected rspec summary, got %v", runs["run-rspec"])
 	}
 	if rspec["passed"] != float64(47) || rspec["failed"] != float64(2) || rspec["skipped"] != float64(3) {
 		t.Fatalf("unexpected rspec summary: %v", rspec)
@@ -775,9 +783,9 @@ func TestJSONRenderer_Render_BuildSummaryIncludesTests(t *testing.T) {
 	if rspec["suite_name"] != "RSpec" || rspec["suite_slug"] != "rspec" || rspec["run_id"] != "run-rspec" {
 		t.Fatalf("unexpected rspec identifiers: %v", rspec)
 	}
-	failures, ok := got["failures"].([]any)
+	failures, ok := tests["failures"].([]any)
 	if !ok || len(failures) != 1 {
-		t.Fatalf("expected one failure, got %v", got["failures"])
+		t.Fatalf("expected one failure, got %v", tests["failures"])
 	}
 	failure, ok := failures[0].(map[string]any)
 	if !ok {

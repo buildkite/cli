@@ -86,17 +86,19 @@ func TestBuildSummaryView_ReturnsOutput(t *testing.T) {
 			event: Event{
 				Type:       EventBuildSummary,
 				BuildState: "failed",
-				Tests: map[string]internalpreflight.SummaryTestRun{
-					"run-rspec": {RunID: "run-rspec", SuiteName: "RSpec", SuiteSlug: "rspec", Passed: 47, Failed: 2, Skipped: 3},
+				Tests: internalpreflight.SummaryTests{
+					Runs: map[string]internalpreflight.SummaryTestRun{
+						"run-rspec": {RunID: "run-rspec", SuiteName: "RSpec", SuiteSlug: "rspec", Passed: 47, Failed: 2, Skipped: 3},
+					},
+					Failures: []internalpreflight.SummaryTestFailure{{
+						RunID:     "run-rspec",
+						SuiteName: "RSpec",
+						SuiteSlug: "rspec",
+						Name:      "AuthService.validateToken handles expired tokens",
+						Location:  "src/auth.test.ts:89",
+						Message:   "Expected 'expired' but got 'invalid'",
+					}},
 				},
-				Failures: []internalpreflight.SummaryTestFailure{{
-					RunID:     "run-rspec",
-					SuiteName: "RSpec",
-					SuiteSlug: "rspec",
-					Name:      "AuthService.validateToken handles expired tokens",
-					Location:  "src/auth.test.ts:89",
-					Message:   "Expected 'expired' but got 'invalid'",
-				}},
 			},
 			contains: []string{"Tests Failed ✗", "✗ RSpec  2 failed  47 passed  3 skipped", "✗ [RSpec] src/auth.test.ts:89 — AuthService.validateToken handles expired tokens — Expected 'expired' but got 'invalid'"},
 		},
