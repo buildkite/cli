@@ -234,7 +234,6 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 		showResult, showErr := c.loadFinalResult(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number)
 		if showErr == nil {
 			summaryEvent.Tests = showResult.Tests
-			summaryEvent.Failures = showResult.Failures
 		} else if globals.EnableDebug() {
 			_ = renderer.Render(Event{
 				Type:        EventOperation,
@@ -306,9 +305,9 @@ func (c *PreflightCmd) loadFinalResult(ctx context.Context, client *buildkite.Cl
 	if !c.AwaitTestResults.Enabled || c.AwaitTestResults.Duration <= 0 {
 		return c.loadSummary(ctx, client, org, buildWithTests.ID)
 	}
-		if !expectTestSummary {
-			return preflight.SummaryResult{Tests: map[string]preflight.SummaryTestRun{}, Failures: []preflight.SummaryTestFailure{}}, nil
-		}
+	if !expectTestSummary {
+		return preflight.SummaryResult{Tests: preflight.SummaryTests{Runs: map[string]preflight.SummaryTestRun{}, Failures: []preflight.SummaryTestFailure{}}}, nil
+	}
 
 	timer := time.NewTimer(c.AwaitTestResults.Duration)
 	defer timer.Stop()
@@ -324,7 +323,7 @@ func (c *PreflightCmd) loadFinalResult(ctx context.Context, client *buildkite.Cl
 
 func (c *PreflightCmd) loadSummary(ctx context.Context, client *buildkite.Client, org, buildID string) (preflight.SummaryResult, error) {
 	if buildID == "" {
-		return preflight.SummaryResult{Tests: map[string]preflight.SummaryTestRun{}, Failures: []preflight.SummaryTestFailure{}}, nil
+		return preflight.SummaryResult{Tests: preflight.SummaryTests{Runs: map[string]preflight.SummaryTestRun{}, Failures: []preflight.SummaryTestFailure{}}}, nil
 	}
 
 	summary, err := preflight.NewRunSummaryService(client).Get(ctx, org, buildID, &preflight.RunSummaryGetOptions{

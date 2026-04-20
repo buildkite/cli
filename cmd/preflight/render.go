@@ -196,7 +196,7 @@ func buildSummaryDetails(e Event, colored bool, width int) string {
 		sections = append(sections, strings.Join(lines, "\n"))
 	}
 
-	if testSection := summaryTestsSection(e.Tests, e.Failures, width); testSection != "" {
+	if testSection := summaryTestsSection(e.Tests.Runs, e.Tests.Failures, width); testSection != "" {
 		sections = append(sections, testSection)
 	}
 

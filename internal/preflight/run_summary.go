@@ -14,7 +14,11 @@ type SummaryOptions struct {
 }
 
 type SummaryResult struct {
-	Tests    map[string]SummaryTestRun `json:"tests"`
+	Tests SummaryTests `json:"tests"`
+}
+
+type SummaryTests struct {
+	Runs     map[string]SummaryTestRun `json:"runs"`
 	Failures []SummaryTestFailure      `json:"failures"`
 }
 

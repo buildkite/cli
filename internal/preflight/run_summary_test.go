@@ -21,11 +21,11 @@ func TestRunSummaryResponse_SummaryResult_PreservesRunsByRunID(t *testing.T) {
 		},
 	}.SummaryResult()
 
-	if len(result.Tests) != 2 {
-		t.Fatalf("expected 2 runs, got %d", len(result.Tests))
+	if len(result.Tests.Runs) != 2 {
+		t.Fatalf("expected 2 runs, got %d", len(result.Tests.Runs))
 	}
 
-	run1, ok := result.Tests["run-1"]
+	run1, ok := result.Tests.Runs["run-1"]
 	if !ok {
 		t.Fatal("expected run-1 summary")
 	}
@@ -33,7 +33,7 @@ func TestRunSummaryResponse_SummaryResult_PreservesRunsByRunID(t *testing.T) {
 		t.Fatalf("unexpected run-1 summary: %+v", run1)
 	}
 
-	run2, ok := result.Tests["run-2"]
+	run2, ok := result.Tests.Runs["run-2"]
 	if !ok {
 		t.Fatal("expected run-2 summary")
 	}
@@ -41,10 +41,10 @@ func TestRunSummaryResponse_SummaryResult_PreservesRunsByRunID(t *testing.T) {
 		t.Fatalf("unexpected run-2 summary: %+v", run2)
 	}
 
-	if len(result.Failures) != 1 {
-		t.Fatalf("expected 1 failure, got %d", len(result.Failures))
+	if len(result.Tests.Failures) != 1 {
+		t.Fatalf("expected 1 failure, got %d", len(result.Tests.Failures))
 	}
-	if result.Failures[0].RunID != "run-1" || result.Failures[0].SuiteName != "RSpec" {
-		t.Fatalf("expected failure run_id to be preserved, got %+v", result.Failures[0])
+	if result.Tests.Failures[0].RunID != "run-1" || result.Tests.Failures[0].SuiteName != "RSpec" {
+		t.Fatalf("expected failure run_id to be preserved, got %+v", result.Tests.Failures[0])
 	}
 }
