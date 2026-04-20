@@ -82,7 +82,7 @@ func TestApplyExperiments(t *testing.T) {
 		if !cli.Preflight.AwaitTestResults.Enabled {
 			t.Fatal("expected await-test-results to be enabled")
 		}
-		if cli.Preflight.AwaitTestResults.Duration != 10*time.Second {
+		if cli.Preflight.AwaitTestResults.Duration != 30*time.Second {
 			t.Fatalf("expected default await-test-results duration, got %s", cli.Preflight.AwaitTestResults.Duration)
 		}
 	})
