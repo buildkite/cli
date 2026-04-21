@@ -54,6 +54,7 @@ type RunSummaryService struct {
 type RunSummaryGetOptions struct {
 	Result          string
 	IncludeFailures bool
+	State 		string
 }
 
 type RunSummaryResponse struct {
@@ -105,6 +106,9 @@ func (s *RunSummaryService) Get(ctx context.Context, org, buildID string, opt *R
 		}
 		if opt.IncludeFailures {
 			query.Set("include", "latest_fail")
+		}
+		if opt.State != "" {
+			query.Set("state", opt.State)
 		}
 	}
 

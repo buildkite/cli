@@ -531,6 +531,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
 
 		var includeLatestFail atomic.Bool
+		var stateEnabled atomic.Bool
 		var summaryRequests atomic.Int32
 		now := time.Now()
 		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -595,8 +596,11 @@ func TestPreflightCmd_Run(t *testing.T) {
 				if r.URL.Query().Get("include") == "latest_fail" {
 					includeLatestFail.Store(true)
 				}
+				if r.URL.Query().Get("state") == "enabled" {
+					stateEnabled.Store(true)
+				}
 				_, _ = w.Write([]byte(`{
-					"tests": {
+						"tests": {
 						"runs": {
 							"run-1": {
 								"suite": {"id": "suite-1", "slug": "rspec", "name": "RSpec"},
@@ -650,6 +654,9 @@ func TestPreflightCmd_Run(t *testing.T) {
 
 		if !includeLatestFail.Load() {
 			t.Fatal("expected preflight summary to request latest_fail details")
+		}
+		if !stateEnabled.Load() {
+			t.Fatal("expected preflight summary to request state=enabled")
 		}
 		if got := summaryRequests.Load(); got != 1 {
 			t.Fatalf("expected one delayed summary request, got %d", got)
