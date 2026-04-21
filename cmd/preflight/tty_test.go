@@ -10,21 +10,24 @@ import (
 func TestBuildSummaryView_ReturnsOutput(t *testing.T) {
 	tests := []struct {
 		name     string
+		width    int
 		event    Event
 		contains []string
 	}{
 		{
-			name: "passed build no jobs",
+			name:  "passed build no jobs",
+			width: 0,
 			event: Event{
 				Type:        EventBuildSummary,
 				BuildState:  "passed",
 				BuildNumber: 42,
 				BuildURL:    "https://buildkite.com/buildkite/cli/builds/42",
 			},
-			contains: []string{"─────", "Build #42: https://buildkite.com/buildkite/cli/builds/42"},
+			contains: []string{"─────", "Build #42", "https://buildkite.com/buildkite/cli/builds/42"},
 		},
 		{
-			name: "passed build with jobs",
+			name:  "passed build with jobs",
+			width: 0,
 			event: Event{
 				Type:        EventBuildSummary,
 				BuildState:  "passed",
@@ -35,20 +38,22 @@ func TestBuildSummaryView_ReturnsOutput(t *testing.T) {
 					{ID: "j2", Name: "Test", Type: "script", State: "passed"},
 				},
 			},
-			contains: []string{"Build #42: https://buildkite.com/buildkite/cli/builds/42", "✔ Lint", "✔ Test"},
+			contains: []string{"Build #42", "https://buildkite.com/buildkite/cli/builds/42", "✔ Lint", "✔ Test"},
 		},
 		{
-			name: "failed build no jobs",
+			name:  "failed build no jobs",
+			width: 0,
 			event: Event{
 				Type:        EventBuildSummary,
 				BuildState:  "failed",
 				BuildNumber: 42,
 				BuildURL:    "https://buildkite.com/buildkite/cli/builds/42",
 			},
-			contains: []string{"─────", "Build #42: https://buildkite.com/buildkite/cli/builds/42"},
+			contains: []string{"─────", "Build #42", "https://buildkite.com/buildkite/cli/builds/42"},
 		},
 		{
-			name: "failed build with jobs",
+			name:  "failed build with jobs",
+			width: 0,
 			event: Event{
 				Type:        EventBuildSummary,
 				BuildState:  "failed",
@@ -62,13 +67,24 @@ func TestBuildSummaryView_ReturnsOutput(t *testing.T) {
 					}
 				}(),
 			},
-			contains: []string{"Build #42: https://buildkite.com/buildkite/cli/builds/42", "✗", "Lint", "failed with exit 1"},
+			contains: []string{"Build #42", "https://buildkite.com/buildkite/cli/builds/42", "✗", "Lint", "failed with exit 1"},
+		},
+		{
+			name:  "wraps build url on narrow terminals",
+			width: 24,
+			event: Event{
+				Type:        EventBuildSummary,
+				BuildState:  "passed",
+				BuildNumber: 42,
+				BuildURL:    "https://buildkite.com/buildkite/cli/builds/42",
+			},
+			contains: []string{"Build #42", "https://buildkite.com/", "buildkite/cli/builds/42"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := buildSummaryView(tt.event)
+			got := (ttyModel{width: tt.width}).buildSummaryView(tt.event)
 			if got == "" {
 				t.Fatal("expected non-empty summary view")
 			}

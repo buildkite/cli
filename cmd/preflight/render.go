@@ -137,13 +137,18 @@ func summaryHeader(e Event) string {
 }
 
 func summaryBuildLine(e Event) string {
-	if e.BuildURL == "" {
+	label := summaryBuildLabel(e)
+	if e.BuildURL == "" || label == "" {
 		return ""
 	}
+	return fmt.Sprintf("%s: %s", label, e.BuildURL)
+}
+
+func summaryBuildLabel(e Event) string {
 	if e.BuildNumber > 0 {
-		return fmt.Sprintf("Build #%d: %s", e.BuildNumber, e.BuildURL)
+		return fmt.Sprintf("Build #%d", e.BuildNumber)
 	}
-	return fmt.Sprintf("Build: %s", e.BuildURL)
+	return ""
 }
 
 func formatDuration(d time.Duration) string {
