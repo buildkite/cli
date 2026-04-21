@@ -77,6 +77,11 @@ func (r *plainRenderer) Render(e Event) error {
 		if _, err := fmt.Fprintf(r.stdout, "\n%s\n", header); err != nil {
 			return err
 		}
+		if line := summaryBuildLine(e); line != "" {
+			if _, err := fmt.Fprintf(r.stdout, "  %s\n", line); err != nil {
+				return err
+			}
+		}
 		presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
 		for _, j := range e.PassedJobs {
 			if _, err := fmt.Fprintf(r.stdout, "  %s\n", presenter.PassedLine(j)); err != nil {
@@ -129,6 +134,21 @@ func summaryHeader(e Event) string {
 		return fmt.Sprintf("%s (%s)", verdict, formatDuration(e.Duration))
 	}
 	return verdict
+}
+
+func summaryBuildLine(e Event) string {
+	label := summaryBuildLabel(e)
+	if e.BuildURL == "" || label == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s: %s", label, e.BuildURL)
+}
+
+func summaryBuildLabel(e Event) string {
+	if e.BuildNumber > 0 {
+		return fmt.Sprintf("Build #%d", e.BuildNumber)
+	}
+	return ""
 }
 
 func formatDuration(d time.Duration) string {
