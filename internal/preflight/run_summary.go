@@ -54,7 +54,7 @@ type RunSummaryService struct {
 type RunSummaryGetOptions struct {
 	Result          string
 	IncludeFailures bool
-	State 		string
+	State           string
 }
 
 type RunSummaryResponse struct {

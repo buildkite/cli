@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -215,7 +216,12 @@ func summaryTestsSection(tests map[string]internalpreflight.SummaryTestRun, fail
 	presenter := testPresenter{}
 	summaries := orderedSummaryTestRuns(tests)
 	header := "    Tests Passed ✓"
-	if summaryHasFailedTests(summaries, failures) {
+	failedTests := 0
+	for _, summary := range summaries {
+		failedTests += summary.Failed
+	}
+	totalFailed := max(failedTests, len(failures))
+	if totalFailed > 0 {
 		header = "    Tests Failed ✗"
 	}
 	lines := []string{header}
@@ -235,11 +241,6 @@ func summaryTestsSection(tests map[string]internalpreflight.SummaryTestRun, fail
 		}
 	}
 
-	totalFailed := 0
-	for _, summary := range summaries {
-		totalFailed += summary.Failed
-	}
-	totalFailed = max(totalFailed, len(failures))
 	if remaining := totalFailed - displayed; remaining > 0 {
 		lines = append(lines, fmt.Sprintf("        ... and %d more failed %s", remaining, plural(remaining, "test")))
 	}
@@ -268,27 +269,13 @@ func orderedSummaryTestRuns(tests map[string]internalpreflight.SummaryTestRun) [
 	return summaries
 }
 
-func summaryHasFailedTests(tests []internalpreflight.SummaryTestRun, failures []internalpreflight.SummaryTestFailure) bool {
-	if len(failures) > 0 {
-		return true
-	}
-
-	for _, summary := range tests {
-		if summary.Failed > 0 {
-			return true
-		}
-	}
-
-	return false
-}
-
 func summarySuiteWidths(tests []internalpreflight.SummaryTestRun) summarySuiteColumnWidths {
 	widths := summarySuiteColumnWidths{Failed: 1, Passed: 1, Skipped: 1}
 	for _, summary := range tests {
 		widths.Label = max(widths.Label, runewidth.StringWidth(summarySuiteLabel(summary.SuiteName, summary.SuiteSlug, "unknown")))
-		widths.Failed = max(widths.Failed, len(fmt.Sprintf("%d", summary.Failed)))
-		widths.Passed = max(widths.Passed, len(fmt.Sprintf("%d", summary.Passed)))
-		widths.Skipped = max(widths.Skipped, len(fmt.Sprintf("%d", summary.Skipped)))
+		widths.Failed = max(widths.Failed, len(strconv.Itoa(summary.Failed)))
+		widths.Passed = max(widths.Passed, len(strconv.Itoa(summary.Passed)))
+		widths.Skipped = max(widths.Skipped, len(strconv.Itoa(summary.Skipped)))
 	}
 
 	return widths
@@ -320,16 +307,12 @@ func formatTimestampedDetail(title, detail string, t time.Time) string {
 
 func formatTimestampedBlock(text string, t time.Time) string {
 	prefix := timestampPrefix(t)
-	lines := strings.Split(text, "\n")
-	if len(lines) == 0 {
-		return prefix
+	head, tail, ok := strings.Cut(text, "\n")
+	if !ok {
+		return prefix + head
 	}
 
-	if len(lines) == 1 {
-		return prefix + lines[0]
-	}
-
-	return prefix + lines[0] + "\n" + indentAllLines(strings.Join(lines[1:], "\n"), len(prefix))
+	return prefix + head + "\n" + indentAllLines(tail, len(prefix))
 }
 
 func indentAllLines(text string, indentWidth int) string {
