@@ -29,18 +29,21 @@ import (
 )
 
 type RunCmd struct {
-	Pipeline  string  `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
-	Watch     bool    `help:"Watch the build until completion." default:"true" negatable:""`
-	Interval  float64 `help:"Polling interval in seconds when watching." default:"2"`
-	NoCleanup bool    `help:"Skip deleting the remote preflight branch after the build finishes."`
-	Text      bool    `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
-	JSON      bool    `help:"Emit one JSON object per event (JSONL)." xor:"output"`
+	Pipeline         string               `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
+	Watch            bool                 `help:"Watch the build until completion." default:"true" negatable:""`
+	Interval         float64              `help:"Polling interval in seconds when watching." default:"2"`
+	NoCleanup        bool                 `help:"Skip deleting the remote preflight branch after the build finishes."`
+	AwaitTestResults awaitTestResultsFlag `name:"await-test-results" help:"After the build finishes, wait for tests results to be processed by Test Engine. Provide a duration like 10s, or omit the value to wait 30s."`
+	Text             bool                 `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
+	JSON             bool                 `help:"Emit one JSON object per event (JSONL)." xor:"output"`
 }
 
 var (
 	notifyContext = signal.NotifyContext
 	newFactory    = factory.New
 )
+
+const defaultAwaitTestResultsDuration = 30 * time.Second
 
 func preflightUserAgentSuffix() string {
 	major := strings.TrimPrefix(version.Version, "v")
@@ -52,6 +55,31 @@ func preflightUserAgentSuffix() string {
 	}
 	return "buildkite-cli-preflight/" + major + ".x"
 }
+
+type awaitTestResultsFlag struct {
+	Enabled  bool
+	Duration time.Duration
+}
+
+func (f *awaitTestResultsFlag) Decode(ctx *kong.DecodeContext) error {
+	var value string
+	if err := ctx.Scan.PopValueInto("duration", &value); err != nil {
+		f.Enabled = true
+		f.Duration = defaultAwaitTestResultsDuration
+		return nil
+	}
+
+	duration, err := time.ParseDuration(value)
+	if err != nil {
+		return err
+	}
+
+	f.Enabled = true
+	f.Duration = duration
+	return nil
+}
+
+func (f awaitTestResultsFlag) IsBool() bool { return true }
 
 func (c *RunCmd) Help() string {
 	return `Snapshots your working tree (uncommitted, staged, and untracked changes) and pushes it to a bk/preflight/<id> branch. If there are no local changes, pushes HEAD directly.`
@@ -209,6 +237,19 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			BuildState:  finalBuild.State,
 			Duration:    time.Since(startedAt),
 		}
+
+		showResult, showErr := c.loadFinalResult(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number)
+		if showErr == nil {
+			summaryEvent.Tests = showResult.Tests
+		} else if globals.EnableDebug() {
+			_ = renderer.Render(Event{
+				Type:        EventOperation,
+				Time:        time.Now(),
+				PreflightID: preflightID.String(),
+				Title:       fmt.Sprintf("Debug: failed to load final test summary: %v", showErr),
+			})
+		}
+
 		if buildResult.Passed() {
 			if passed := tracker.PassedJobs(); len(passed) <= 10 {
 				summaryEvent.PassedJobs = passed
@@ -258,6 +299,50 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	return finalErr
+}
+
+func (c *RunCmd) loadFinalResult(ctx context.Context, client *buildkite.Client, org, pipeline string, buildNumber int) (preflight.SummaryResult, error) {
+	buildWithTests, _, buildErr := client.Builds.Get(ctx, org, pipeline, strconv.Itoa(buildNumber), &buildkite.BuildGetOptions{IncludeTestEngine: true})
+	expectTestSummary := buildErr == nil && buildWithTests.TestEngine != nil && len(buildWithTests.TestEngine.Runs) > 0
+
+	if buildErr != nil {
+		return preflight.SummaryResult{}, buildErr
+	}
+
+	if !c.AwaitTestResults.Enabled || c.AwaitTestResults.Duration <= 0 {
+		return c.loadSummary(ctx, client, org, buildWithTests.ID)
+	}
+	if !expectTestSummary {
+		return preflight.SummaryResult{Tests: preflight.SummaryTests{Runs: map[string]preflight.SummaryTestRun{}, Failures: []preflight.SummaryTestFailure{}}}, nil
+	}
+
+	timer := time.NewTimer(c.AwaitTestResults.Duration)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return preflight.SummaryResult{}, ctx.Err()
+	case <-timer.C:
+	}
+
+	return c.loadSummary(ctx, client, org, buildWithTests.ID)
+}
+
+func (c *RunCmd) loadSummary(ctx context.Context, client *buildkite.Client, org, buildID string) (preflight.SummaryResult, error) {
+	if buildID == "" {
+		return preflight.SummaryResult{Tests: preflight.SummaryTests{Runs: map[string]preflight.SummaryTestRun{}, Failures: []preflight.SummaryTestFailure{}}}, nil
+	}
+
+	summary, err := preflight.NewRunSummaryService(client).Get(ctx, org, buildID, &preflight.RunSummaryGetOptions{
+		Result:          "^failed",
+		State:           "enabled",
+		IncludeFailures: true,
+	})
+	if err != nil {
+		return preflight.SummaryResult{}, err
+	}
+
+	return summary.SummaryResult(), nil
 }
 
 // preflightContext holds the common dependencies for preflight subcommands.

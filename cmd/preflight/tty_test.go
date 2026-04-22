@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
@@ -80,11 +81,32 @@ func TestBuildSummaryView_ReturnsOutput(t *testing.T) {
 			},
 			contains: []string{"Build #42", "https://buildkite.com/", "buildkite/cli/builds/42"},
 		},
+		{
+			name: "build with tests",
+			event: Event{
+				Type:       EventBuildSummary,
+				BuildState: "failed",
+				Tests: internalpreflight.SummaryTests{
+					Runs: map[string]internalpreflight.SummaryTestRun{
+						"run-rspec": {RunID: "run-rspec", SuiteName: "RSpec", SuiteSlug: "rspec", Passed: 47, Failed: 2, Skipped: 3},
+					},
+					Failures: []internalpreflight.SummaryTestFailure{{
+						RunID:     "run-rspec",
+						SuiteName: "RSpec",
+						SuiteSlug: "rspec",
+						Name:      "AuthService.validateToken handles expired tokens",
+						Location:  "src/auth.test.ts:89",
+						Message:   "Expected 'expired' but got 'invalid'",
+					}},
+				},
+			},
+			contains: []string{"Tests Failed ✗", "✗ RSpec  2 failed  47 passed  3 skipped", "✗ [RSpec] src/auth.test.ts:89 — AuthService.validateToken handles expired tokens"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := (ttyModel{width: tt.width}).buildSummaryView(tt.event)
+			got := buildSummaryView(tt.event, tt.width)
 			if got == "" {
 				t.Fatal("expected non-empty summary view")
 			}
