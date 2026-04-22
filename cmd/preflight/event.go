@@ -34,19 +34,19 @@ type Event struct {
 	// Detail is supplementary information printed to the scrollback log.
 	Detail string `json:"detail,omitempty"`
 
-	Pipeline      string `json:"pipeline,omitempty"`
-	BuildNumber   int    `json:"build_number,omitempty"`
-	BuildURL      string `json:"build_url,omitempty"`
-	BuildState    string `json:"build_state,omitempty"`
+	Pipeline    string `json:"pipeline,omitempty"`
+	BuildNumber int    `json:"build_number,omitempty"`
+	BuildURL    string `json:"build_url,omitempty"`
+	BuildState  string `json:"build_state,omitempty"`
 
 	// Incomplete is set for build_summary events when the CLI stops before a terminal build state.
-	Incomplete    bool   `json:"incomplete,omitempty"`
+	Incomplete bool `json:"incomplete,omitempty"`
 
 	// StopReason describes why the summary was emitted early.
-	StopReason    string `json:"stop_reason,omitempty"`
+	StopReason string `json:"stop_reason,omitempty"`
 
 	// BuildCanceled is set when the CLI attempted early-exit cleanup that cancels the remote build.
-	BuildCanceled *bool  `json:"build_canceled,omitempty"`
+	BuildCanceled *bool `json:"build_canceled,omitempty"`
 
 	Jobs *watch.JobSummary `json:"jobs,omitempty"`
 
