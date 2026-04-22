@@ -35,6 +35,48 @@ func (s stubGlobals) EnableDebug() bool      { return false }
 
 var _ cli.GlobalFlags = stubGlobals{}
 
+func TestParseExitConditions(t *testing.T) {
+	tests := []struct {
+		name        string
+		values      []string
+		watch       bool
+		wantPolicy  stopPolicy
+		wantErrText string
+	}{
+		{name: "defaults to build-failing", watch: true, wantPolicy: stopOnBuildFailing},
+		{name: "accepts build-failing", values: []string{"build-failing"}, watch: true, wantPolicy: stopOnBuildFailing},
+		{name: "accepts build-terminal", values: []string{"build-terminal"}, watch: true, wantPolicy: stopOnBuildTerminal},
+		{name: "rejects mixed lifecycle policies", values: []string{"build-failing", "build-terminal"}, watch: true, wantErrText: "build-failing and build-terminal cannot be used together"},
+		{name: "rejects unknown conditions", values: []string{"test-failed:3"}, watch: true, wantErrText: `unsupported --exit-on value "test-failed:3"`},
+		{name: "rejects exit-on when watch disabled", values: []string{"build-failing"}, watch: false, wantErrText: "--exit-on requires --watch"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseExitConditions(tt.values, tt.watch)
+			if tt.wantErrText != "" {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if !errors.Is(err, bkErrors.ErrValidation) {
+					t.Fatalf("expected validation error, got %T: %v", err, err)
+				}
+				if !strings.Contains(err.Error(), tt.wantErrText) {
+					t.Fatalf("expected error containing %q, got %q", tt.wantErrText, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if got.build != tt.wantPolicy {
+				t.Fatalf("policy = %v, want %v", got.build, tt.wantPolicy)
+			}
+		})
+	}
+}
+
 func TestPreflightCmd_Run(t *testing.T) {
 	t.Run("returns validation error when experiment disabled", func(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "")
@@ -299,6 +341,340 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 
 		// Verify the remote preflight branch was deleted.
+		refs := runGit(t, worktree, "ls-remote", "--heads", "origin")
+		if strings.Contains(refs, "bk/preflight/") {
+			t.Errorf("expected preflight branch to be cleaned up, but found: %s", refs)
+		}
+	})
+
+	t.Run("defaults to stopping early on failing builds", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		var buildCancelRequests atomic.Int32
+		var buildPolls atomic.Int32
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+
+			switch {
+			case r.Method == http.MethodPut && strings.Contains(r.URL.Path, "/builds/1/cancel"):
+				buildCancelRequests.Add(1)
+				json.NewEncoder(w).Encode(buildkite.Build{Number: 1, State: "canceling"})
+				return
+
+			case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/builds"):
+				json.NewEncoder(w).Encode(buildkite.Build{
+					ID:     "build-id-123",
+					Number: 1,
+					State:  "scheduled",
+					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
+				})
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1"):
+				poll := buildPolls.Add(1)
+				build := buildkite.Build{
+					ID:     "build-id-123",
+					Number: 1,
+					State:  "running",
+					Jobs: []buildkite.Job{{
+						ID:    "job-running",
+						Type:  "script",
+						Name:  "Lint",
+						State: "running",
+					}},
+				}
+				if poll >= 2 {
+					exitOne := 1
+					build.State = "failing"
+					build.Jobs = []buildkite.Job{{
+						ID:         "job-failed",
+						Type:       "script",
+						Name:       "Lint",
+						State:      "failed",
+						ExitStatus: &exitOne,
+					}}
+				}
+				json.NewEncoder(w).Encode(build)
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tests"):
+				json.NewEncoder(w).Encode([]buildkite.BuildTest{})
+				return
+			}
+
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		stdout := captureStdout(t, func() {
+			cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01, JSON: true}
+			err := cmd.Run(nil, stubGlobals{})
+			var bkErr *bkErrors.Error
+			if !errors.As(err, &bkErr) || !errors.Is(bkErr, bkErrors.ErrPreflightIncompleteFailure) {
+				t.Fatalf("expected incomplete failure error, got %v", err)
+			}
+		})
+
+		events := decodeJSONLEvents(t, stdout)
+		var buildStatusCount int
+		var summaries []Event
+		for _, event := range events {
+			if event.Type == EventBuildStatus {
+				buildStatusCount++
+			}
+			if event.Type == EventBuildSummary {
+				summaries = append(summaries, event)
+			}
+		}
+
+		if buildStatusCount != 2 {
+			t.Fatalf("expected 2 build status events before early stop, got %d", buildStatusCount)
+		}
+		if len(summaries) != 1 {
+			t.Fatalf("expected exactly 1 build summary event, got %d", len(summaries))
+		}
+		summary := summaries[0]
+		if !summary.Incomplete {
+			t.Fatal("expected summary to be marked incomplete")
+		}
+		if summary.StopReason != "build-failing" {
+			t.Fatalf("expected stop reason build-failing, got %q", summary.StopReason)
+		}
+		if summary.BuildCanceled == nil || !*summary.BuildCanceled {
+			t.Fatalf("expected build_canceled=true, got %#v", summary.BuildCanceled)
+		}
+		if summary.BuildState != "failing" {
+			t.Fatalf("expected failing build state, got %q", summary.BuildState)
+		}
+		if len(summary.FailedJobs) != 1 || summary.FailedJobs[0].Name != "Lint" {
+			t.Fatalf("expected failed jobs in summary, got %#v", summary.FailedJobs)
+		}
+		if buildCancelRequests.Load() != 1 {
+			t.Fatalf("expected one build cancel request, got %d", buildCancelRequests.Load())
+		}
+		if buildPolls.Load() != 2 {
+			t.Fatalf("expected two build polls before exit, got %d", buildPolls.Load())
+		}
+
+		refs := runGit(t, worktree, "ls-remote", "--heads", "origin")
+		if strings.Contains(refs, "bk/preflight/") {
+			t.Errorf("expected preflight branch to be cleaned up, but found: %s", refs)
+		}
+	})
+
+	t.Run("no-cleanup leaves branch and build running after early stop", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		var buildCancelRequests atomic.Int32
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+
+			switch {
+			case r.Method == http.MethodPut && strings.Contains(r.URL.Path, "/builds/1/cancel"):
+				buildCancelRequests.Add(1)
+				json.NewEncoder(w).Encode(buildkite.Build{Number: 1, State: "canceling"})
+				return
+
+			case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/builds"):
+				json.NewEncoder(w).Encode(buildkite.Build{
+					ID:     "build-id-123",
+					Number: 1,
+					State:  "scheduled",
+					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
+				})
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1"):
+				exitOne := 1
+				json.NewEncoder(w).Encode(buildkite.Build{
+					ID:     "build-id-123",
+					Number: 1,
+					State:  "failing",
+					Jobs: []buildkite.Job{{
+						ID:         "job-failed",
+						Type:       "script",
+						Name:       "Lint",
+						State:      "failed",
+						ExitStatus: &exitOne,
+					}},
+				})
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tests"):
+				json.NewEncoder(w).Encode([]buildkite.BuildTest{})
+				return
+			}
+
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		stdout := captureStdout(t, func() {
+			cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01, JSON: true, NoCleanup: true}
+			err := cmd.Run(nil, stubGlobals{})
+			var bkErr *bkErrors.Error
+			if !errors.As(err, &bkErr) || !errors.Is(bkErr, bkErrors.ErrPreflightIncompleteFailure) {
+				t.Fatalf("expected incomplete failure error, got %v", err)
+			}
+		})
+
+		events := decodeJSONLEvents(t, stdout)
+		var summaries []Event
+		for _, event := range events {
+			if event.Type == EventBuildSummary {
+				summaries = append(summaries, event)
+			}
+		}
+
+		if len(summaries) != 1 {
+			t.Fatalf("expected exactly 1 build summary event, got %d", len(summaries))
+		}
+		summary := summaries[0]
+		if summary.BuildCanceled == nil || *summary.BuildCanceled {
+			t.Fatalf("expected build_canceled=false, got %#v", summary.BuildCanceled)
+		}
+		if buildCancelRequests.Load() != 0 {
+			t.Fatalf("expected no build cancel requests, got %d", buildCancelRequests.Load())
+		}
+
+		refs := runGit(t, worktree, "ls-remote", "--heads", "origin")
+		if !strings.Contains(refs, "bk/preflight/") {
+			t.Error("expected preflight branch to still exist with --no-cleanup")
+		}
+	})
+
+	t.Run("build-terminal waits for terminal completion", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		var buildCancelRequests atomic.Int32
+		var buildPolls atomic.Int32
+		now := time.Now()
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+
+			switch {
+			case r.Method == http.MethodPut && strings.Contains(r.URL.Path, "/builds/1/cancel"):
+				buildCancelRequests.Add(1)
+				json.NewEncoder(w).Encode(buildkite.Build{Number: 1, State: "canceling"})
+				return
+
+			case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/builds"):
+				json.NewEncoder(w).Encode(buildkite.Build{
+					ID:     "build-id-123",
+					Number: 1,
+					State:  "scheduled",
+					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
+				})
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1"):
+				poll := buildPolls.Add(1)
+				exitOne := 1
+				build := buildkite.Build{
+					ID:     "build-id-123",
+					Number: 1,
+					State:  "running",
+					Jobs: []buildkite.Job{{
+						ID:    "job-running",
+						Type:  "script",
+						Name:  "Lint",
+						State: "running",
+					}},
+				}
+				if poll >= 2 {
+					build.State = "failing"
+					build.Jobs = []buildkite.Job{{
+						ID:         "job-failed",
+						Type:       "script",
+						Name:       "Lint",
+						State:      "failed",
+						ExitStatus: &exitOne,
+					}}
+				}
+				if poll >= 3 {
+					build.State = "failed"
+					build.FinishedAt = &buildkite.Timestamp{Time: now}
+				}
+				json.NewEncoder(w).Encode(build)
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tests"):
+				json.NewEncoder(w).Encode([]buildkite.BuildTest{})
+				return
+			}
+
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		stdout := captureStdout(t, func() {
+			cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01, JSON: true, ExitOn: []string{"build-terminal"}}
+			err := cmd.Run(nil, stubGlobals{})
+			var bkErr *bkErrors.Error
+			if !errors.As(err, &bkErr) || !errors.Is(bkErr, bkErrors.ErrPreflightCompletedFailure) {
+				t.Fatalf("expected completed failure error, got %v", err)
+			}
+		})
+
+		events := decodeJSONLEvents(t, stdout)
+		var buildStatusCount int
+		var summaries []Event
+		for _, event := range events {
+			if event.Type == EventBuildStatus {
+				buildStatusCount++
+			}
+			if event.Type == EventBuildSummary {
+				summaries = append(summaries, event)
+			}
+		}
+
+		if buildStatusCount != 3 {
+			t.Fatalf("expected 3 build status events before terminal exit, got %d", buildStatusCount)
+		}
+		if len(summaries) != 1 {
+			t.Fatalf("expected exactly 1 build summary event, got %d", len(summaries))
+		}
+		summary := summaries[0]
+		if summary.Incomplete {
+			t.Fatal("expected terminal summary, got incomplete=true")
+		}
+		if summary.StopReason != "" {
+			t.Fatalf("expected empty stop reason, got %q", summary.StopReason)
+		}
+		if summary.BuildCanceled != nil {
+			t.Fatalf("expected no build_canceled metadata for terminal summary, got %#v", summary.BuildCanceled)
+		}
+		if summary.BuildState != "failed" {
+			t.Fatalf("expected failed build state, got %q", summary.BuildState)
+		}
+		if buildCancelRequests.Load() != 0 {
+			t.Fatalf("expected no build cancel requests, got %d", buildCancelRequests.Load())
+		}
+		if buildPolls.Load() < 3 {
+			t.Fatalf("expected to keep polling through terminal state, got %d polls", buildPolls.Load())
+		}
+
 		refs := runGit(t, worktree, "ls-remote", "--heads", "origin")
 		if strings.Contains(refs, "bk/preflight/") {
 			t.Errorf("expected preflight branch to be cleaned up, but found: %s", refs)
@@ -1156,4 +1532,21 @@ func captureStdout(t *testing.T, fn func()) string {
 	}
 
 	return string(out)
+}
+
+func decodeJSONLEvents(t *testing.T, output string) []Event {
+	t.Helper()
+
+	decoder := json.NewDecoder(strings.NewReader(output))
+	var events []Event
+	for {
+		var event Event
+		if err := decoder.Decode(&event); err != nil {
+			if errors.Is(err, io.EOF) {
+				return events
+			}
+			t.Fatalf("decode JSONL event: %v\noutput:\n%s", err, output)
+		}
+		events = append(events, event)
+	}
 }

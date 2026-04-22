@@ -34,10 +34,13 @@ type Event struct {
 	// Detail is supplementary information printed to the scrollback log.
 	Detail string `json:"detail,omitempty"`
 
-	Pipeline    string `json:"pipeline,omitempty"`
-	BuildNumber int    `json:"build_number,omitempty"`
-	BuildURL    string `json:"build_url,omitempty"`
-	BuildState  string `json:"build_state,omitempty"`
+	Pipeline      string `json:"pipeline,omitempty"`
+	BuildNumber   int    `json:"build_number,omitempty"`
+	BuildURL      string `json:"build_url,omitempty"`
+	BuildState    string `json:"build_state,omitempty"`
+	Incomplete    bool   `json:"incomplete,omitempty"`
+	StopReason    string `json:"stop_reason,omitempty"`
+	BuildCanceled *bool  `json:"build_canceled,omitempty"`
 
 	Jobs *watch.JobSummary `json:"jobs,omitempty"`
 
@@ -52,6 +55,10 @@ type Event struct {
 
 	// Duration is set for build_summary events. Total elapsed time of the preflight run.
 	Duration time.Duration `json:"duration_ns,omitempty"`
+
+	// Incomplete is set for build_summary events when the CLI stops before a terminal build state.
+	// StopReason describes why the summary was emitted early.
+	// BuildCanceled is set when the CLI attempted early-exit cleanup that cancels the remote build.
 
 	// TestFailures is set for test_failure events.
 	TestFailures []buildkite.BuildTest `json:"test_failures,omitempty"`

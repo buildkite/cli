@@ -31,8 +31,9 @@ import (
 type RunCmd struct {
 	Pipeline         string               `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
 	Watch            bool                 `help:"Watch the build until completion." default:"true" negatable:""`
+	ExitOn           []string             `help:"Exit when a condition is met. Options: build-failing (default, exits when a build enters the failing state), build-terminal (exits when the build reaches a terminal state)."`
 	Interval         float64              `help:"Polling interval in seconds when watching." default:"2"`
-	NoCleanup        bool                 `help:"Skip deleting the remote preflight branch after the build finishes."`
+	NoCleanup        bool                 `help:"Skip cleanup after completion or early exit. The preflight branch remains and the build keeps running if exiting early."`
 	AwaitTestResults awaitTestResultsFlag `name:"await-test-results" help:"After the build finishes, wait for tests results to be processed by Test Engine. Provide a duration like 10s, or omit the value to wait 30s."`
 	Text             bool                 `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
 	JSON             bool                 `help:"Emit one JSON object per event (JSONL)." xor:"output"`
@@ -41,9 +42,28 @@ type RunCmd struct {
 var (
 	notifyContext = signal.NotifyContext
 	newFactory    = factory.New
+
+	errExitOnBuildFailing = errors.New("exit-on build-failing")
 )
 
 const defaultAwaitTestResultsDuration = 30 * time.Second
+
+type stopPolicy int
+
+const (
+	stopOnBuildFailing stopPolicy = iota
+	stopOnBuildTerminal
+)
+
+type stopConfig struct {
+	build stopPolicy
+}
+
+type summaryMeta struct {
+	Incomplete    bool
+	StopReason    string
+	BuildCanceled bool
+}
 
 func preflightUserAgentSuffix() string {
 	major := strings.TrimPrefix(version.Version, "v")
@@ -85,9 +105,48 @@ func (c *RunCmd) Help() string {
 	return `Snapshots your working tree (uncommitted, staged, and untracked changes) and pushes it to a bk/preflight/<id> branch. If there are no local changes, pushes HEAD directly.`
 }
 
+func parseExitConditions(values []string, watch bool) (stopConfig, error) {
+	config := stopConfig{build: stopOnBuildFailing}
+
+	if len(values) == 0 {
+		return config, nil
+	}
+	if !watch {
+		return stopConfig{}, bkErrors.NewValidationError(fmt.Errorf("--exit-on requires --watch"), "exit conditions require watch mode")
+	}
+
+	var stopOnFailing bool
+	var stopOnTerminal bool
+	for _, value := range values {
+		name, _, _ := strings.Cut(value, ":")
+		switch name {
+		case "build-failing":
+			stopOnFailing = true
+		case "build-terminal":
+			stopOnTerminal = true
+		default:
+			return stopConfig{}, bkErrors.NewValidationError(fmt.Errorf("unsupported --exit-on value %q", value), "invalid exit condition")
+		}
+	}
+
+	if stopOnFailing && stopOnTerminal {
+		return stopConfig{}, bkErrors.NewValidationError(fmt.Errorf("build-failing and build-terminal cannot be used together"), "invalid exit conditions")
+	}
+	if stopOnTerminal {
+		config.build = stopOnBuildTerminal
+	}
+
+	return config, nil
+}
+
 func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	if c.Interval <= 0 {
 		return bkErrors.NewValidationError(fmt.Errorf("interval must be greater than 0"), "invalid polling interval")
+	}
+
+	stopConfig, err := parseExitConditions(c.ExitOn, c.Watch)
+	if err != nil {
+		return err
 	}
 
 	pCtx, err := setup(c.Pipeline, globals)
@@ -213,7 +272,7 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 				return err
 			}
 		}
-		return renderer.Render(Event{
+		if err := renderer.Render(Event{
 			Type:        EventBuildStatus,
 			Time:        time.Now(),
 			PreflightID: preflightID.String(),
@@ -222,7 +281,13 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			BuildURL:    build.WebURL,
 			BuildState:  b.State,
 			Jobs:        &status.Summary,
-		})
+		}); err != nil {
+			return err
+		}
+		if stopConfig.build == stopOnBuildFailing && buildstate.State(b.State) == buildstate.Failing {
+			return errExitOnBuildFailing
+		}
+		return nil
 	}, watch.WithRetriedJobs(), watch.WithTestTracking(func(newTestChanges []buildkite.BuildTest) error {
 		return renderer.Render(Event{
 			Type:         EventTestFailure,
@@ -234,21 +299,47 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		})
 	}))
 
-	buildResult := NewResult(finalBuild)
-	finalErr := buildResult.Error()
+	finalErr := NewResult(finalBuild).Error()
+	cleanupBranch := func() {
+		if c.NoCleanup {
+			return
+		}
+		cleanupRemoteBranch(renderer, repoRoot, result.Branch, result.Ref, preflightID.String(), globals.EnableDebug())
+	}
+
+	if errors.Is(err, context.Canceled) {
+		cleanupBranch()
+		if finalBuild.FinishedAt == nil && !buildstate.IsTerminal(buildstate.State(finalBuild.State)) && !c.NoCleanup {
+			cancelBuild(f, renderer, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, preflightID.String(), globals.EnableDebug())
+		}
+		_ = renderer.Close()
+		return bkErrors.NewUserAbortedError(context.Canceled, "preflight canceled by user")
+	}
+
+	if errors.Is(err, errExitOnBuildFailing) {
+		buildCanceled := false
+		if !c.NoCleanup {
+			buildCanceled = cancelBuild(f, renderer, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, preflightID.String(), globals.EnableDebug())
+		}
+
+		_ = renderer.Render(buildSummaryEvent(
+			finalBuild,
+			tracker,
+			preflightID.String(),
+			pipelineName,
+			build.Number,
+			build.WebURL,
+			startedAt,
+			summaryMeta{Incomplete: true, StopReason: "build-failing", BuildCanceled: buildCanceled},
+		))
+		cleanupBranch()
+		_ = renderer.Close()
+		return finalErr
+	}
 
 	// Emit a final summary showing pass/fail, passed jobs (if ≤10), or hard-failed jobs.
 	if buildstate.IsTerminal(buildstate.State(finalBuild.State)) {
-		summaryEvent := Event{
-			Type:        EventBuildSummary,
-			Time:        time.Now(),
-			PreflightID: preflightID.String(),
-			Pipeline:    pipelineName,
-			BuildNumber: build.Number,
-			BuildURL:    build.WebURL,
-			BuildState:  finalBuild.State,
-			Duration:    time.Since(startedAt),
-		}
+		summaryEvent := buildSummaryEvent(finalBuild, tracker, preflightID.String(), pipelineName, build.Number, build.WebURL, startedAt, summaryMeta{})
 
 		showResult, showErr := c.loadFinalResult(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number)
 		if showErr == nil {
@@ -261,46 +352,10 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 				Title:       fmt.Sprintf("Debug: failed to load final test summary: %v", showErr),
 			})
 		}
-
-		if buildResult.Passed() {
-			if passed := tracker.PassedJobs(); len(passed) <= 10 {
-				summaryEvent.PassedJobs = passed
-			}
-		} else {
-			summaryEvent.FailedJobs = tracker.FailedJobs()
-		}
 		_ = renderer.Render(summaryEvent)
 	}
 
-	if !c.NoCleanup {
-		_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Cleaning up remote branch %s...", result.Branch)})
-		if cleanupErr := preflight.Cleanup(repoRoot, result.Ref, globals.EnableDebug()); cleanupErr != nil {
-			_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Warning: failed to delete remote branch %s: %v", result.Ref, cleanupErr)})
-		} else {
-			_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Deleted remote branch %s", result.Branch)})
-		}
-	}
-
-	if errors.Is(err, context.Canceled) {
-		if finalBuild.FinishedAt == nil && !buildstate.IsTerminal(buildstate.State(finalBuild.State)) {
-			cancelCtx, cancelStop := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancelStop()
-			if _, cancelErr := f.RestAPIClient.Builds.Cancel(cancelCtx, resolvedPipeline.Org, resolvedPipeline.Name, strconv.Itoa(build.Number)); cancelErr != nil {
-				var apiErr *buildkite.ErrorResponse
-				if errors.As(cancelErr, &apiErr) && apiErr.Response.StatusCode == http.StatusUnprocessableEntity && apiErr.Message == "Build can't be canceled because it's already finished." {
-					if globals.EnableDebug() {
-						_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Debug: build #%d already finished, skipping cancel", build.Number)})
-					}
-				} else {
-					_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Warning: failed to cancel build #%d: %v", build.Number, cancelErr)})
-				}
-			} else {
-				_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Cancelled build #%d", build.Number)})
-			}
-		}
-		_ = renderer.Close()
-		return bkErrors.NewUserAbortedError(context.Canceled, "preflight canceled by user")
-	}
+	cleanupBranch()
 	_ = renderer.Close()
 
 	if err != nil {
@@ -311,6 +366,66 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	return finalErr
+}
+
+func cleanupRemoteBranch(renderer renderer, repoRoot, branch, ref, preflightID string, debug bool) {
+	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID, Title: fmt.Sprintf("Cleaning up remote branch %s...", branch)})
+	if cleanupErr := preflight.Cleanup(repoRoot, ref, debug); cleanupErr != nil {
+		_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID, Title: fmt.Sprintf("Warning: failed to delete remote branch %s: %v", ref, cleanupErr)})
+		return
+	}
+	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID, Title: fmt.Sprintf("Deleted remote branch %s", branch)})
+}
+
+func cancelBuild(f *factory.Factory, renderer renderer, org, pipeline string, buildNumber int, preflightID string, debug bool) bool {
+	cancelCtx, cancelStop := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelStop()
+
+	if _, err := f.RestAPIClient.Builds.Cancel(cancelCtx, org, pipeline, strconv.Itoa(buildNumber)); err != nil {
+		var apiErr *buildkite.ErrorResponse
+		if errors.As(err, &apiErr) && apiErr.Response.StatusCode == http.StatusUnprocessableEntity && apiErr.Message == "Build can't be canceled because it's already finished." {
+			if debug {
+				_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID, Title: fmt.Sprintf("Debug: build #%d already finished, skipping cancel", buildNumber)})
+			}
+			return false
+		}
+
+		_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID, Title: fmt.Sprintf("Warning: failed to cancel build #%d: %v", buildNumber, err)})
+		return false
+	}
+
+	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID, Title: fmt.Sprintf("Cancelled build #%d", buildNumber)})
+	return true
+}
+
+func buildSummaryEvent(finalBuild buildkite.Build, tracker *watch.JobTracker, preflightID, pipeline string, buildNumber int, buildURL string, startedAt time.Time, meta summaryMeta) Event {
+	event := Event{
+		Type:        EventBuildSummary,
+		Time:        time.Now(),
+		PreflightID: preflightID,
+		Pipeline:    pipeline,
+		BuildNumber: buildNumber,
+		BuildURL:    buildURL,
+		BuildState:  finalBuild.State,
+		Duration:    time.Since(startedAt),
+		Incomplete:  meta.Incomplete,
+		StopReason:  meta.StopReason,
+	}
+
+	if meta.StopReason != "" {
+		buildCanceled := meta.BuildCanceled
+		event.BuildCanceled = &buildCanceled
+	}
+
+	if NewResult(finalBuild).Passed() {
+		if passed := tracker.PassedJobs(); len(passed) <= 10 {
+			event.PassedJobs = passed
+		}
+		return event
+	}
+
+	event.FailedJobs = tracker.FailedJobs()
+	return event
 }
 
 func (c *RunCmd) loadFinalResult(ctx context.Context, client *buildkite.Client, org, pipeline string, buildNumber int) (preflight.SummaryResult, error) {
