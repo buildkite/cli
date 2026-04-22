@@ -3,6 +3,7 @@ package validation
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/buildkite/cli/v3/internal/config"
@@ -58,7 +59,7 @@ func validateConfiguration(conf *config.Config, commandPath, orgOverride string)
 		return errors.New("you are not authenticated. Run bk auth login to authenticate")
 	// an organization may not be present if the user is only viewing public resources
 	case missingOrg:
-		fmt.Println("Warning: no organization set, only public pipelines will be visible. Run bk auth login, or bk use, to set an organization")
+		fmt.Fprintln(os.Stderr, "Warning: no organization set, only public pipelines will be visible. Run bk auth login, or bk use, to set an organization")
 		return nil
 	}
 

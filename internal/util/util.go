@@ -3,6 +3,7 @@ package util
 import (
 	"encoding/base64"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/pkg/browser"
@@ -21,7 +22,7 @@ func OpenInWebBrowser(openInWeb bool, webUrl string) error {
 	if openInWeb {
 		err := browser.OpenURL(webUrl)
 		if err != nil {
-			fmt.Println("Error opening browser: ", err)
+			fmt.Fprintf(os.Stderr, "Error opening browser: %v\n", err)
 			return err
 		}
 	}

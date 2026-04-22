@@ -21,25 +21,29 @@ import (
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	bkhttp "github.com/buildkite/cli/v3/internal/http"
+	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/preflight"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
-type PreflightCmd struct {
-	Pipeline  string  `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
-	Watch     bool    `help:"Watch the build until completion." default:"true" negatable:""`
-	Interval  float64 `help:"Polling interval in seconds when watching." default:"2"`
-	NoCleanup bool    `help:"Skip deleting the remote preflight branch after the build finishes."`
-	Text      bool    `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
-	JSON      bool    `help:"Emit one JSON object per event (JSONL)." xor:"output"`
+type RunCmd struct {
+	Pipeline         string               `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
+	Watch            bool                 `help:"Watch the build until completion." default:"true" negatable:""`
+	Interval         float64              `help:"Polling interval in seconds when watching." default:"2"`
+	NoCleanup        bool                 `help:"Skip deleting the remote preflight branch after the build finishes."`
+	AwaitTestResults awaitTestResultsFlag `name:"await-test-results" help:"After the build finishes, wait for tests results to be processed by Test Engine. Provide a duration like 10s, or omit the value to wait 30s."`
+	Text             bool                 `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
+	JSON             bool                 `help:"Emit one JSON object per event (JSONL)." xor:"output"`
 }
 
 var (
 	notifyContext = signal.NotifyContext
 	newFactory    = factory.New
 )
+
+const defaultAwaitTestResultsDuration = 30 * time.Second
 
 func preflightUserAgentSuffix() string {
 	major := strings.TrimPrefix(version.Version, "v")
@@ -52,35 +56,52 @@ func preflightUserAgentSuffix() string {
 	return "buildkite-cli-preflight/" + major + ".x"
 }
 
-func (c *PreflightCmd) Help() string {
+type awaitTestResultsFlag struct {
+	Enabled  bool
+	Duration time.Duration
+}
+
+func (f *awaitTestResultsFlag) Decode(ctx *kong.DecodeContext) error {
+	var value string
+	if err := ctx.Scan.PopValueInto("duration", &value); err != nil {
+		f.Enabled = true
+		f.Duration = defaultAwaitTestResultsDuration
+		return nil
+	}
+
+	duration, err := time.ParseDuration(value)
+	if err != nil {
+		return err
+	}
+
+	f.Enabled = true
+	f.Duration = duration
+	return nil
+}
+
+func (f awaitTestResultsFlag) IsBool() bool { return true }
+
+func (c *RunCmd) Help() string {
 	return `Snapshots your working tree (uncommitted, staged, and untracked changes) and pushes it to a bk/preflight/<id> branch. If there are no local changes, pushes HEAD directly.`
 }
 
-func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	rlTransport := bkhttp.NewRateLimitTransport(http.DefaultTransport)
-	f, err := newFactory(
-		factory.WithDebug(globals.EnableDebug()),
-		factory.WithTransport(rlTransport),
-		factory.WithUserAgentSuffix(preflightUserAgentSuffix()),
-	)
-	if err != nil {
-		return bkErrors.NewInternalError(err, "failed to initialize CLI", "This is likely a bug", "Report to Buildkite")
+func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	if c.Interval <= 0 {
+		return bkErrors.NewValidationError(fmt.Errorf("interval must be greater than 0"), "invalid polling interval")
 	}
 
-	if !f.Config.HasExperiment("preflight") {
-		return bkErrors.NewValidationError(
-			fmt.Errorf("experiment not enabled"),
-			"the preflight command is under development and requires the 'preflight' experiment to opt in. Run: bk config set experiments preflight or set BUILDKITE_EXPERIMENTS=preflight")
-	}
-
-	repoRoot, err := resolveRepositoryRoot(f, globals.EnableDebug())
+	pCtx, err := setup(c.Pipeline, globals)
 	if err != nil {
-		return bkErrors.NewValidationError(
-			fmt.Errorf("not in a git repository: %w", err),
-			"preflight must be run from a git repository",
-			"Run this command from inside a git repository",
-		)
+		return err
 	}
+	defer pCtx.Stop()
+
+	f := pCtx.Factory
+	repoRoot := pCtx.RepoRoot
+	resolvedPipeline := pCtx.Pipeline
+	ctx := pCtx.Ctx
+	stop := pCtx.Stop
+	rlTransport := pCtx.RateLimitTransport
 
 	preflightID, err := uuid.NewV7()
 	if err != nil {
@@ -88,22 +109,12 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	}
 	startedAt := time.Now()
 
-	if c.Interval <= 0 {
-		return bkErrors.NewValidationError(fmt.Errorf("interval must be greater than 0"), "invalid polling interval")
-	}
-	// Resolve the pipeline to create a build against.
-	ctx, stop := notifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	resolvers := resolver.NewAggregateResolver(
-		resolver.ResolveFromFlag(c.Pipeline, f.Config),
-		resolver.ResolveFromConfig(f.Config, resolver.PickOneWithFactory(f)),
-		resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOneWithFactory(f))),
-	)
-
-	resolvedPipeline, err := resolvers.Resolve(ctx)
+	sourceContext, err := preflight.ResolveSourceContext(repoRoot, globals.EnableDebug())
 	if err != nil {
-		return bkErrors.NewValidationError(err, "could not resolve a pipeline",
-			"Specify a pipeline in .bk.yaml or link your repository to a pipeline",
+		return bkErrors.NewValidationError(
+			err,
+			"failed to resolve preflight source git context",
+			"Ensure the repository has at least one commit",
 		)
 	}
 
@@ -146,14 +157,20 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 
 	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name)})
 
+	env := map[string]string{
+		"PREFLIGHT":               "true",
+		"BUILDKITE_PREFLIGHT":     "true", // deprecated
+		"PREFLIGHT_SOURCE_COMMIT": sourceContext.Commit,
+	}
+	if sourceContext.Branch != "" {
+		env["PREFLIGHT_SOURCE_BRANCH"] = sourceContext.Branch
+	}
+
 	build, _, err := f.RestAPIClient.Builds.Create(ctx, resolvedPipeline.Org, resolvedPipeline.Name, buildkite.CreateBuild{
 		Message: fmt.Sprintf("Preflight %s", preflightID),
 		Commit:  result.Commit,
 		Branch:  result.Branch,
-		Env: map[string]string{
-			"PREFLIGHT":           "true",
-			"BUILDKITE_PREFLIGHT": "true", // deprecated
-		},
+		Env:     env,
 	})
 	if err != nil {
 		return bkErrors.WrapAPIError(err, "creating preflight build")
@@ -232,6 +249,19 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 			BuildState:  finalBuild.State,
 			Duration:    time.Since(startedAt),
 		}
+
+		showResult, showErr := c.loadFinalResult(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number)
+		if showErr == nil {
+			summaryEvent.Tests = showResult.Tests
+		} else if globals.EnableDebug() {
+			_ = renderer.Render(Event{
+				Type:        EventOperation,
+				Time:        time.Now(),
+				PreflightID: preflightID.String(),
+				Title:       fmt.Sprintf("Debug: failed to load final test summary: %v", showErr),
+			})
+		}
+
 		if buildResult.Passed() {
 			if passed := tracker.PassedJobs(); len(passed) <= 10 {
 				summaryEvent.PassedJobs = passed
@@ -281,6 +311,114 @@ func (c *PreflightCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error
 	}
 
 	return finalErr
+}
+
+func (c *RunCmd) loadFinalResult(ctx context.Context, client *buildkite.Client, org, pipeline string, buildNumber int) (preflight.SummaryResult, error) {
+	buildWithTests, _, buildErr := client.Builds.Get(ctx, org, pipeline, strconv.Itoa(buildNumber), &buildkite.BuildGetOptions{IncludeTestEngine: true})
+	expectTestSummary := buildErr == nil && buildWithTests.TestEngine != nil && len(buildWithTests.TestEngine.Runs) > 0
+
+	if buildErr != nil {
+		return preflight.SummaryResult{}, buildErr
+	}
+
+	if !c.AwaitTestResults.Enabled || c.AwaitTestResults.Duration <= 0 {
+		return c.loadSummary(ctx, client, org, buildWithTests.ID)
+	}
+	if !expectTestSummary {
+		return preflight.SummaryResult{Tests: preflight.SummaryTests{Runs: map[string]preflight.SummaryTestRun{}, Failures: []preflight.SummaryTestFailure{}}}, nil
+	}
+
+	timer := time.NewTimer(c.AwaitTestResults.Duration)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return preflight.SummaryResult{}, ctx.Err()
+	case <-timer.C:
+	}
+
+	return c.loadSummary(ctx, client, org, buildWithTests.ID)
+}
+
+func (c *RunCmd) loadSummary(ctx context.Context, client *buildkite.Client, org, buildID string) (preflight.SummaryResult, error) {
+	if buildID == "" {
+		return preflight.SummaryResult{Tests: preflight.SummaryTests{Runs: map[string]preflight.SummaryTestRun{}, Failures: []preflight.SummaryTestFailure{}}}, nil
+	}
+
+	summary, err := preflight.NewRunSummaryService(client).Get(ctx, org, buildID, &preflight.RunSummaryGetOptions{
+		Result:          "^failed",
+		State:           "enabled",
+		IncludeFailures: true,
+	})
+	if err != nil {
+		return preflight.SummaryResult{}, err
+	}
+
+	return summary.SummaryResult(), nil
+}
+
+// preflightContext holds the common dependencies for preflight subcommands.
+type preflightContext struct {
+	Factory            *factory.Factory
+	RepoRoot           string
+	Pipeline           *pipeline.Pipeline
+	Ctx                context.Context
+	Stop               context.CancelFunc
+	RateLimitTransport *bkhttp.RateLimitTransport
+}
+
+// setup initializes the common preflight dependencies: factory, experiment
+// gate, repository root, signal context, and pipeline resolution.
+func setup(pipelineFlag string, globals cli.GlobalFlags) (*preflightContext, error) {
+	rlTransport := bkhttp.NewRateLimitTransport(http.DefaultTransport)
+	f, err := newFactory(
+		factory.WithDebug(globals.EnableDebug()),
+		factory.WithTransport(rlTransport),
+		factory.WithUserAgentSuffix(preflightUserAgentSuffix()),
+	)
+	if err != nil {
+		return nil, bkErrors.NewInternalError(err, "failed to initialize CLI", "This is likely a bug", "Report to Buildkite")
+	}
+
+	if !f.Config.HasExperiment("preflight") {
+		return nil, bkErrors.NewValidationError(
+			fmt.Errorf("experiment not enabled"),
+			"the preflight command is under development and requires the 'preflight' experiment to opt in. Run: bk config set experiments preflight or set BUILDKITE_EXPERIMENTS=preflight")
+	}
+
+	repoRoot, err := resolveRepositoryRoot(f, globals.EnableDebug())
+	if err != nil {
+		return nil, bkErrors.NewValidationError(
+			fmt.Errorf("not in a git repository: %w", err),
+			"preflight must be run from a git repository",
+			"Run this command from inside a git repository",
+		)
+	}
+
+	ctx, stop := notifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+
+	resolvers := resolver.NewAggregateResolver(
+		resolver.ResolveFromFlag(pipelineFlag, f.Config),
+		resolver.ResolveFromConfig(f.Config, resolver.PickOneWithFactory(f)),
+		resolver.ResolveFromRepository(f, resolver.CachedPicker(f.Config, resolver.PickOneWithFactory(f))),
+	)
+
+	resolvedPipeline, err := resolvers.Resolve(ctx)
+	if err != nil {
+		stop()
+		return nil, bkErrors.NewValidationError(err, "could not resolve a pipeline",
+			"Specify a pipeline with --pipeline or link your repository to a pipeline",
+		)
+	}
+
+	return &preflightContext{
+		Factory:            f,
+		RepoRoot:           repoRoot,
+		Pipeline:           resolvedPipeline,
+		Ctx:                ctx,
+		Stop:               stop,
+		RateLimitTransport: rlTransport,
+	}, nil
 }
 
 func resolveRepositoryRoot(f *factory.Factory, debug bool) (string, error) {

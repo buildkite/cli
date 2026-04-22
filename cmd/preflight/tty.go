@@ -87,7 +87,7 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// cursor tracking, causing lines to vanish on re-render.
 			m.summary = &msg
 			return m, tea.Sequence(
-				tea.Printf("%s", buildSummaryView(msg)),
+				tea.Printf("%s", buildSummaryView(msg, m.width)),
 				tea.Quit,
 			)
 
@@ -177,8 +177,8 @@ func (m ttyModel) View() string {
 	return m.hardwrapLine(m.render())
 }
 
-// buildSummaryView renders the final build summary as a string for use in View().
-func buildSummaryView(e Event) string {
+// buildSummaryView renders the final build summary for TTY output.
+func buildSummaryView(e Event, width int) string {
 	style := ttyFailureStyle
 	if e.BuildState == "passed" {
 		style = ttyStatusStyle
@@ -186,14 +186,20 @@ func buildSummaryView(e Event) string {
 
 	separator := ttyBorderStyle.Render("─────────────────────────────────────────────")
 	out := separator + "\n" + style.Render(summaryHeader(e))
+	if label := summaryBuildLabel(e); label != "" && e.BuildURL != "" {
+		out += "\n  " + ttyDimStyle.Render(label)
+		buildURL := "  " + ttyDimStyle.Render(e.BuildURL)
+		if width > 0 {
+			buildURL = ansi.Hardwrap(buildURL, width, false)
+		}
+		out += "\n" + buildURL
+	}
 
 	presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
 	for _, j := range e.PassedJobs {
 		out += "\n  " + presenter.ColoredPassedLine(j, ttyDimStyle)
 	}
-	for _, j := range e.FailedJobs {
-		out += "\n  " + presenter.ColoredLine(j)
-	}
+	out += buildSummaryDetails(e, true, width)
 
 	return out
 }

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/buildkite/cli/v3/internal/build/watch"
+	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
@@ -54,4 +55,7 @@ type Event struct {
 
 	// TestFailures is set for test_failure events.
 	TestFailures []buildkite.BuildTest `json:"test_failures,omitempty"`
+
+	// Tests is set for build_summary events when aggregated test summary data is available.
+	Tests internalpreflight.SummaryTests `json:"tests,omitempty"`
 }

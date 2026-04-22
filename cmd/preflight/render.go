@@ -6,10 +6,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
+	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
 	"github.com/mattn/go-isatty"
+	"github.com/mattn/go-runewidth"
 )
 
 type renderer interface {
@@ -84,16 +88,19 @@ func (r *plainRenderer) Render(e Event) error {
 		if _, err := fmt.Fprintf(r.stdout, "\n%s\n", header); err != nil {
 			return err
 		}
+		if line := summaryBuildLine(e); line != "" {
+			if _, err := fmt.Fprintf(r.stdout, "  %s\n", line); err != nil {
+				return err
+			}
+		}
 		presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
 		for _, j := range e.PassedJobs {
 			if _, err := fmt.Fprintf(r.stdout, "  %s\n", presenter.PassedLine(j)); err != nil {
 				return err
 			}
 		}
-		for _, j := range e.FailedJobs {
-			if _, err := fmt.Fprintf(r.stdout, "  %s\n", presenter.Line(j)); err != nil {
-				return err
-			}
+		if _, err := fmt.Fprint(r.stdout, buildSummaryDetails(e, false, 0)); err != nil {
+			return err
 		}
 
 	case EventTestFailure:
@@ -138,6 +145,21 @@ func summaryHeader(e Event) string {
 	return verdict
 }
 
+func summaryBuildLine(e Event) string {
+	label := summaryBuildLabel(e)
+	if e.BuildURL == "" || label == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s: %s", label, e.BuildURL)
+}
+
+func summaryBuildLabel(e Event) string {
+	if e.BuildNumber > 0 {
+		return fmt.Sprintf("Build #%d", e.BuildNumber)
+	}
+	return ""
+}
+
 func formatDuration(d time.Duration) string {
 	d = d.Round(time.Second)
 	h := int(d.Hours())
@@ -164,6 +186,120 @@ func plural(n int, word string) string {
 	return word + "s"
 }
 
+const summaryTestFailureDisplayLimit = 10
+
+func buildSummaryDetails(e Event, colored bool, width int) string {
+	var sections []string
+
+	if len(e.FailedJobs) > 0 {
+		presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
+		lines := []string{"    Build Failures:"}
+		for _, j := range e.FailedJobs {
+			line := presenter.Line(j)
+			if colored {
+				line = presenter.ColoredLine(j)
+			}
+			lines = append(lines, "        "+line)
+		}
+		sections = append(sections, strings.Join(lines, "\n"))
+	}
+
+	if testSection := summaryTestsSection(e.Tests.Runs, e.Tests.Failures, width); testSection != "" {
+		sections = append(sections, testSection)
+	}
+
+	if len(sections) == 0 {
+		return ""
+	}
+
+	return "\n\n" + strings.Join(sections, "\n\n") + "\n"
+}
+
+func summaryTestsSection(tests map[string]internalpreflight.SummaryTestRun, failures []internalpreflight.SummaryTestFailure, width int) string {
+	if len(tests) == 0 && len(failures) == 0 {
+		return ""
+	}
+
+	presenter := testPresenter{}
+	summaries := orderedSummaryTestRuns(tests)
+	header := "    Tests Passed ✓"
+	failedTests := 0
+	for _, summary := range summaries {
+		failedTests += summary.Failed
+	}
+	totalFailed := max(failedTests, len(failures))
+	if totalFailed > 0 {
+		header = "    Tests Failed ✗"
+	}
+	lines := []string{header}
+
+	if len(summaries) > 0 {
+		widths := summarySuiteWidths(summaries)
+		for _, summary := range summaries {
+			lines = append(lines, "        "+presenter.SummarySuiteLine(summary, widths))
+		}
+	}
+
+	displayed := min(len(failures), summaryTestFailureDisplayLimit)
+	if displayed > 0 {
+		lines = append(lines, "")
+		for _, failure := range failures[:displayed] {
+			lines = append(lines, presenter.SummaryFailureLine(failure, width, "        "))
+		}
+	}
+
+	if remaining := totalFailed - displayed; remaining > 0 {
+		lines = append(lines, fmt.Sprintf("        ... and %d more failed %s", remaining, plural(remaining, "test")))
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func orderedSummaryTestRuns(tests map[string]internalpreflight.SummaryTestRun) []internalpreflight.SummaryTestRun {
+	summaries := make([]internalpreflight.SummaryTestRun, 0, len(tests))
+	for _, summary := range tests {
+		summaries = append(summaries, summary)
+	}
+
+	sort.SliceStable(summaries, func(i, j int) bool {
+		leftFailed := summaries[i].Failed > 0
+		rightFailed := summaries[j].Failed > 0
+		if leftFailed != rightFailed {
+			return leftFailed
+		}
+
+		leftLabel := strings.ToLower(summarySuiteLabel(summaries[i].SuiteName, summaries[i].SuiteSlug, "unknown"))
+		rightLabel := strings.ToLower(summarySuiteLabel(summaries[j].SuiteName, summaries[j].SuiteSlug, "unknown"))
+		return leftLabel < rightLabel
+	})
+
+	return summaries
+}
+
+func summarySuiteWidths(tests []internalpreflight.SummaryTestRun) summarySuiteColumnWidths {
+	widths := summarySuiteColumnWidths{Failed: 1, Passed: 1, Skipped: 1}
+	for _, summary := range tests {
+		widths.Label = max(widths.Label, runewidth.StringWidth(summarySuiteLabel(summary.SuiteName, summary.SuiteSlug, "unknown")))
+		widths.Failed = max(widths.Failed, len(strconv.Itoa(summary.Failed)))
+		widths.Passed = max(widths.Passed, len(strconv.Itoa(summary.Passed)))
+		widths.Skipped = max(widths.Skipped, len(strconv.Itoa(summary.Skipped)))
+	}
+
+	return widths
+}
+
+func summarySuiteLabel(name, slug, fallback string) string {
+	if name = strings.TrimSpace(name); name != "" {
+		return name
+	}
+
+	if slug = strings.TrimSpace(slug); slug != "" {
+		return slug
+	}
+
+	return fallback
+}
+
 func jobLogCommand(pipeline string, buildNumber int, jobID string) string {
 	return fmt.Sprintf("bk job log -b %d -p %s %s", buildNumber, pipeline, jobID)
 }
@@ -178,16 +314,12 @@ func formatTimestampedDetail(title, detail string, t time.Time) string {
 
 func formatTimestampedBlock(text string, t time.Time) string {
 	prefix := timestampPrefix(t)
-	lines := strings.Split(text, "\n")
-	if len(lines) == 0 {
-		return prefix
+	head, tail, ok := strings.Cut(text, "\n")
+	if !ok {
+		return prefix + head
 	}
 
-	if len(lines) == 1 {
-		return prefix + lines[0]
-	}
-
-	return prefix + lines[0] + "\n" + indentAllLines(strings.Join(lines[1:], "\n"), len(prefix))
+	return prefix + head + "\n" + indentAllLines(tail, len(prefix))
 }
 
 func indentAllLines(text string, indentWidth int) string {

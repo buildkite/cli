@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/buildkite/cli/v3/internal/build/watch"
+	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
@@ -635,6 +636,7 @@ func TestPlainRenderer_Render_BuildSummaryPassed(t *testing.T) {
 		Time:        time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
 		Pipeline:    "buildkite/cli",
 		BuildNumber: 42,
+		BuildURL:    "https://buildkite.com/buildkite/cli/builds/42",
 		BuildState:  "passed",
 		PassedJobs: []buildkite.Job{
 			{ID: "job-1", Name: "Lint", Type: "script", State: "passed"},
@@ -647,6 +649,9 @@ func TestPlainRenderer_Render_BuildSummaryPassed(t *testing.T) {
 	got := out.String()
 	if !strings.Contains(got, "✅ Preflight Passed") {
 		t.Fatalf("expected passed header, got %q", got)
+	}
+	if !strings.Contains(got, "Build #42: https://buildkite.com/buildkite/cli/builds/42") {
+		t.Fatalf("expected build URL in summary, got %q", got)
 	}
 	if !strings.Contains(got, "Lint") {
 		t.Fatalf("expected passed job name, got %q", got)
@@ -666,6 +671,7 @@ func TestPlainRenderer_Render_BuildSummaryFailed(t *testing.T) {
 		Time:        time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
 		Pipeline:    "buildkite/cli",
 		BuildNumber: 42,
+		BuildURL:    "https://buildkite.com/buildkite/cli/builds/42",
 		BuildState:  "failed",
 		FailedJobs: []buildkite.Job{
 			{ID: "job-1", Name: "Lint", Type: "script", State: "failed", ExitStatus: &exitOne},
@@ -678,11 +684,61 @@ func TestPlainRenderer_Render_BuildSummaryFailed(t *testing.T) {
 	if !strings.Contains(got, "❌ Preflight Failed") {
 		t.Fatalf("expected failed header, got %q", got)
 	}
+	if !strings.Contains(got, "Build #42: https://buildkite.com/buildkite/cli/builds/42") {
+		t.Fatalf("expected build URL in summary, got %q", got)
+	}
+	if !strings.Contains(got, "Build Failures:") {
+		t.Fatalf("expected build failures section, got %q", got)
+	}
 	if !strings.Contains(got, "Lint") {
 		t.Fatalf("expected hard-failed job name, got %q", got)
 	}
 	if strings.Contains(got, "Optional check") {
 		t.Fatalf("soft-failed job should not appear in summary, got %q", got)
+	}
+}
+
+func TestPlainRenderer_Render_BuildSummaryIncludesTests(t *testing.T) {
+	var out bytes.Buffer
+	r := newPlainRenderer(&out)
+
+	if err := r.Render(Event{
+		Type:       EventBuildSummary,
+		Time:       time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
+		BuildState: "failed",
+		Tests: internalpreflight.SummaryTests{
+			Runs: map[string]internalpreflight.SummaryTestRun{
+				"run-go":    {RunID: "run-go", SuiteName: "Go", SuiteSlug: "go", Passed: 12, Failed: 1, Skipped: 0},
+				"run-rspec": {RunID: "run-rspec", SuiteName: "RSpec", SuiteSlug: "rspec", Passed: 47, Failed: 2, Skipped: 3},
+			},
+			Failures: []internalpreflight.SummaryTestFailure{{
+				RunID:     "run-rspec",
+				SuiteName: "RSpec",
+				SuiteSlug: "rspec",
+				Name:      "AuthService.validateToken handles expired tokens",
+				Location:  "src/auth.test.ts:89",
+				Message:   "Expected 'expired' but got 'invalid'",
+			}},
+		},
+	}); err != nil {
+		t.Fatalf("Render() error: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "Tests Failed ✗") {
+		t.Fatalf("expected tests section, got %q", got)
+	}
+	if !strings.Contains(got, "✗ Go     1 failed  12 passed  0 skipped") {
+		t.Fatalf("expected go test summary, got %q", got)
+	}
+	if !strings.Contains(got, "✗ RSpec  2 failed  47 passed  3 skipped") {
+		t.Fatalf("expected rspec test summary, got %q", got)
+	}
+	if !strings.Contains(got, "✗ [RSpec] src/auth.test.ts:89 — AuthService.validateToken handles expired tokens") {
+		t.Fatalf("expected failure header from endpoint summary, got %q", got)
+	}
+	if strings.Contains(got, "Expected 'expired' but got 'invalid'") {
+		t.Fatalf("expected summary failure line to omit failure message, got %q", got)
 	}
 }
 
@@ -745,6 +801,67 @@ func TestJSONRenderer_Render_BuildSummaryFailed(t *testing.T) {
 	failedJobs, ok := got["failed_jobs"].([]any)
 	if !ok || len(failedJobs) != 1 {
 		t.Fatalf("expected 1 failed job, got %v", got["failed_jobs"])
+	}
+}
+
+func TestJSONRenderer_Render_BuildSummaryIncludesTests(t *testing.T) {
+	var out bytes.Buffer
+	r := newJSONRenderer(&out)
+
+	if err := r.Render(Event{
+		Type:        EventBuildSummary,
+		Time:        time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
+		PreflightID: "pfid-123",
+		BuildState:  "failed",
+		Tests: internalpreflight.SummaryTests{
+			Runs: map[string]internalpreflight.SummaryTestRun{
+				"run-rspec": {RunID: "run-rspec", SuiteName: "RSpec", SuiteSlug: "rspec", Passed: 47, Failed: 2, Skipped: 3},
+			},
+			Failures: []internalpreflight.SummaryTestFailure{{
+				RunID:     "run-rspec",
+				SuiteName: "RSpec",
+				SuiteSlug: "rspec",
+				Name:      "AuthService.validateToken handles expired tokens",
+				Location:  "src/auth.test.ts:89",
+				Message:   "Expected 'expired' but got 'invalid'",
+			}},
+		},
+	}); err != nil {
+		t.Fatalf("Render() error: %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
+	}
+	tests, ok := got["tests"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected tests object, got %v", got["tests"])
+	}
+	runs, ok := tests["runs"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected tests.runs object, got %v", tests["runs"])
+	}
+	rspec, ok := runs["run-rspec"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected rspec summary, got %v", runs["run-rspec"])
+	}
+	if rspec["passed"] != float64(47) || rspec["failed"] != float64(2) || rspec["skipped"] != float64(3) {
+		t.Fatalf("unexpected rspec summary: %v", rspec)
+	}
+	if rspec["suite_name"] != "RSpec" || rspec["suite_slug"] != "rspec" || rspec["run_id"] != "run-rspec" {
+		t.Fatalf("unexpected rspec identifiers: %v", rspec)
+	}
+	failures, ok := tests["failures"].([]any)
+	if !ok || len(failures) != 1 {
+		t.Fatalf("expected one failure, got %v", tests["failures"])
+	}
+	failure, ok := failures[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected failure object, got %v", failures[0])
+	}
+	if failure["suite_name"] != "RSpec" || failure["suite_slug"] != "rspec" || failure["run_id"] != "run-rspec" {
+		t.Fatalf("unexpected failure identifiers: %v", failure)
 	}
 }
 
