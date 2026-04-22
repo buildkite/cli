@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/buildkite/cli/v3/internal/config"
+	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 
 	"github.com/buildkite/cli/v3/internal/build/watch"
@@ -38,22 +39,21 @@ var _ cli.GlobalFlags = stubGlobals{}
 func TestParseExitConditions(t *testing.T) {
 	tests := []struct {
 		name        string
-		values      []string
-		watch       bool
-		wantPolicy  stopPolicy
+		cmd         RunCmd
+		wantPolicy  internalpreflight.ExitPolicy
 		wantErrText string
 	}{
-		{name: "defaults to build-failing", watch: true, wantPolicy: stopOnBuildFailing},
-		{name: "accepts build-failing", values: []string{"build-failing"}, watch: true, wantPolicy: stopOnBuildFailing},
-		{name: "accepts build-terminal", values: []string{"build-terminal"}, watch: true, wantPolicy: stopOnBuildTerminal},
-		{name: "rejects mixed lifecycle policies", values: []string{"build-failing", "build-terminal"}, watch: true, wantErrText: "build-failing and build-terminal cannot be used together"},
-		{name: "rejects unknown conditions", values: []string{"test-failed:3"}, watch: true, wantErrText: `unsupported --exit-on value "test-failed:3"`},
-		{name: "rejects exit-on when watch disabled", values: []string{"build-failing"}, watch: false, wantErrText: "--exit-on requires --watch"},
+		{name: "defaults to build-failing", cmd: RunCmd{Watch: true, Interval: 1}, wantPolicy: internalpreflight.ExitOnBuildFailing},
+		{name: "accepts build-failing", cmd: RunCmd{Watch: true, Interval: 1, ExitOn: []internalpreflight.ExitPolicy{internalpreflight.ExitOnBuildFailing}}, wantPolicy: internalpreflight.ExitOnBuildFailing},
+		{name: "accepts build-terminal", cmd: RunCmd{Watch: true, Interval: 1, ExitOn: []internalpreflight.ExitPolicy{internalpreflight.ExitOnBuildTerminal}}, wantPolicy: internalpreflight.ExitOnBuildTerminal},
+		{name: "accepts repeated build-terminal", cmd: RunCmd{Watch: true, Interval: 1, ExitOn: []internalpreflight.ExitPolicy{internalpreflight.ExitOnBuildTerminal, internalpreflight.ExitOnBuildTerminal}}, wantPolicy: internalpreflight.ExitOnBuildTerminal},
+		{name: "rejects mixed lifecycle policies", cmd: RunCmd{Watch: true, Interval: 1, ExitOn: []internalpreflight.ExitPolicy{internalpreflight.ExitOnBuildFailing, internalpreflight.ExitOnBuildTerminal}}, wantErrText: "build-failing and build-terminal cannot be used together"},
+		{name: "rejects exit-on when watch disabled", cmd: RunCmd{Watch: false, Interval: 1, ExitOn: []internalpreflight.ExitPolicy{internalpreflight.ExitOnBuildFailing}}, wantErrText: "--exit-on requires --watch"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseExitConditions(tt.values, tt.watch)
+			err := tt.cmd.Validate()
 			if tt.wantErrText != "" {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -70,8 +70,9 @@ func TestParseExitConditions(t *testing.T) {
 			if err != nil {
 				t.Fatalf("expected no error, got %v", err)
 			}
-			if got.build != tt.wantPolicy {
-				t.Fatalf("policy = %v, want %v", got.build, tt.wantPolicy)
+			got := internalpreflight.EffectiveExitPolicy(tt.cmd.ExitOn)
+			if got != tt.wantPolicy {
+				t.Fatalf("policy = %v, want %v", got, tt.wantPolicy)
 			}
 		})
 	}
@@ -629,7 +630,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 
 		stdout := captureStdout(t, func() {
-			cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01, JSON: true, ExitOn: []string{"build-terminal"}}
+			cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01, JSON: true, ExitOn: []internalpreflight.ExitPolicy{internalpreflight.ExitOnBuildTerminal}}
 			err := cmd.Run(nil, stubGlobals{})
 			var bkErr *bkErrors.Error
 			if !errors.As(err, &bkErr) || !errors.Is(bkErr, bkErrors.ErrPreflightCompletedFailure) {

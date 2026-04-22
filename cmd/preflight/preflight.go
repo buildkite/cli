@@ -23,20 +23,20 @@ import (
 	bkhttp "github.com/buildkite/cli/v3/internal/http"
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
-	"github.com/buildkite/cli/v3/internal/preflight"
+	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
 type RunCmd struct {
-	Pipeline         string               `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
-	Watch            bool                 `help:"Watch the build until completion." default:"true" negatable:""`
-	ExitOn           []string             `help:"Exit when a condition is met. Options: build-failing (default, exits when a build enters the failing state), build-terminal (exits when the build reaches a terminal state)."`
-	Interval         float64              `help:"Polling interval in seconds when watching." default:"2"`
-	NoCleanup        bool                 `help:"Skip cleanup after completion or early exit. The preflight branch remains and the build keeps running if exiting early."`
-	AwaitTestResults awaitTestResultsFlag `name:"await-test-results" help:"After the build finishes, wait for tests results to be processed by Test Engine. Provide a duration like 10s, or omit the value to wait 30s."`
-	Text             bool                 `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
-	JSON             bool                 `help:"Emit one JSON object per event (JSONL)." xor:"output"`
+	Pipeline         string                         `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
+	Watch            bool                           `help:"Watch the build until completion." default:"true" negatable:""`
+	ExitOn           []internalpreflight.ExitPolicy `help:"Exit when a condition is met. Options: build-failing (default, exits when a build enters the failing state), build-terminal (exits when the build reaches a terminal state)."`
+	Interval         float64                        `help:"Polling interval in seconds when watching." default:"2"`
+	NoCleanup        bool                           `help:"Skip cleanup after completion or early exit. The preflight branch remains and the build keeps running if exiting early."`
+	AwaitTestResults awaitTestResultsFlag           `name:"await-test-results" help:"After the build finishes, wait for tests results to be processed by Test Engine. Provide a duration like 10s, or omit the value to wait 30s."`
+	Text             bool                           `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
+	JSON             bool                           `help:"Emit one JSON object per event (JSONL)." xor:"output"`
 }
 
 var (
@@ -47,17 +47,6 @@ var (
 )
 
 const defaultAwaitTestResultsDuration = 30 * time.Second
-
-type stopPolicy int
-
-const (
-	stopOnBuildFailing stopPolicy = iota
-	stopOnBuildTerminal
-)
-
-type stopConfig struct {
-	build stopPolicy
-}
 
 type summaryMeta struct {
 	Incomplete    bool
@@ -105,49 +94,19 @@ func (c *RunCmd) Help() string {
 	return `Snapshots your working tree (uncommitted, staged, and untracked changes) and pushes it to a bk/preflight/<id> branch. If there are no local changes, pushes HEAD directly.`
 }
 
-func parseExitConditions(values []string, watch bool) (stopConfig, error) {
-	config := stopConfig{build: stopOnBuildFailing}
-
-	if len(values) == 0 {
-		return config, nil
-	}
-	if !watch {
-		return stopConfig{}, bkErrors.NewValidationError(fmt.Errorf("--exit-on requires --watch"), "exit conditions require watch mode")
-	}
-
-	var stopOnFailing bool
-	var stopOnTerminal bool
-	for _, value := range values {
-		name, _, _ := strings.Cut(value, ":")
-		switch name {
-		case "build-failing":
-			stopOnFailing = true
-		case "build-terminal":
-			stopOnTerminal = true
-		default:
-			return stopConfig{}, bkErrors.NewValidationError(fmt.Errorf("unsupported --exit-on value %q", value), "invalid exit condition")
-		}
-	}
-
-	if stopOnFailing && stopOnTerminal {
-		return stopConfig{}, bkErrors.NewValidationError(fmt.Errorf("build-failing and build-terminal cannot be used together"), "invalid exit conditions")
-	}
-	if stopOnTerminal {
-		config.build = stopOnBuildTerminal
-	}
-
-	return config, nil
-}
-
-func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+func (c *RunCmd) Validate() error {
 	if c.Interval <= 0 {
 		return bkErrors.NewValidationError(fmt.Errorf("interval must be greater than 0"), "invalid polling interval")
 	}
+	return internalpreflight.ValidateExitPolicies(c.ExitOn, c.Watch)
+}
 
-	stopConfig, err := parseExitConditions(c.ExitOn, c.Watch)
-	if err != nil {
+func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	if err := c.Validate(); err != nil {
 		return err
 	}
+
+	exitPolicy := internalpreflight.EffectiveExitPolicy(c.ExitOn)
 
 	pCtx, err := setup(c.Pipeline, globals)
 	if err != nil {
@@ -168,7 +127,7 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 	startedAt := time.Now()
 
-	sourceContext, err := preflight.ResolveSourceContext(repoRoot, globals.EnableDebug())
+	sourceContext, err := internalpreflight.ResolveSourceContext(repoRoot, globals.EnableDebug())
 	if err != nil {
 		return bkErrors.NewValidationError(
 			err,
@@ -192,12 +151,12 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: "Pushing snapshot of working tree..."})
 
-	var opts []preflight.SnapshotOption
+	var opts []internalpreflight.SnapshotOption
 	if globals.EnableDebug() {
-		opts = append(opts, preflight.WithDebug())
+		opts = append(opts, internalpreflight.WithDebug())
 	}
 
-	result, err := preflight.Snapshot(repoRoot, preflightID, opts...)
+	result, err := internalpreflight.Snapshot(repoRoot, preflightID, opts...)
 	if err != nil {
 		return bkErrors.NewSnapshotError(err, "failed to create preflight snapshot",
 			"Ensure you have uncommitted or committed changes to snapshot",
@@ -284,7 +243,7 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		}); err != nil {
 			return err
 		}
-		if stopConfig.build == stopOnBuildFailing && buildstate.State(b.State) == buildstate.Failing {
+		if exitPolicy == internalpreflight.ExitOnBuildFailing && buildstate.State(b.State) == buildstate.Failing {
 			return errExitOnBuildFailing
 		}
 		return nil
@@ -370,7 +329,7 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 func cleanupRemoteBranch(renderer renderer, repoRoot, branch, ref, preflightID string, debug bool) {
 	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID, Title: fmt.Sprintf("Cleaning up remote branch %s...", branch)})
-	if cleanupErr := preflight.Cleanup(repoRoot, ref, debug); cleanupErr != nil {
+	if cleanupErr := internalpreflight.Cleanup(repoRoot, ref, debug); cleanupErr != nil {
 		_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID, Title: fmt.Sprintf("Warning: failed to delete remote branch %s: %v", ref, cleanupErr)})
 		return
 	}
@@ -428,19 +387,19 @@ func buildSummaryEvent(finalBuild buildkite.Build, tracker *watch.JobTracker, pr
 	return event
 }
 
-func (c *RunCmd) loadFinalResult(ctx context.Context, client *buildkite.Client, org, pipeline string, buildNumber int) (preflight.SummaryResult, error) {
+func (c *RunCmd) loadFinalResult(ctx context.Context, client *buildkite.Client, org, pipeline string, buildNumber int) (internalpreflight.SummaryResult, error) {
 	buildWithTests, _, buildErr := client.Builds.Get(ctx, org, pipeline, strconv.Itoa(buildNumber), &buildkite.BuildGetOptions{IncludeTestEngine: true})
 	expectTestSummary := buildErr == nil && buildWithTests.TestEngine != nil && len(buildWithTests.TestEngine.Runs) > 0
 
 	if buildErr != nil {
-		return preflight.SummaryResult{}, buildErr
+		return internalpreflight.SummaryResult{}, buildErr
 	}
 
 	if !c.AwaitTestResults.Enabled || c.AwaitTestResults.Duration <= 0 {
 		return c.loadSummary(ctx, client, org, buildWithTests.ID)
 	}
 	if !expectTestSummary {
-		return preflight.SummaryResult{Tests: preflight.SummaryTests{Runs: map[string]preflight.SummaryTestRun{}, Failures: []preflight.SummaryTestFailure{}}}, nil
+		return internalpreflight.SummaryResult{Tests: internalpreflight.SummaryTests{Runs: map[string]internalpreflight.SummaryTestRun{}, Failures: []internalpreflight.SummaryTestFailure{}}}, nil
 	}
 
 	timer := time.NewTimer(c.AwaitTestResults.Duration)
@@ -448,25 +407,25 @@ func (c *RunCmd) loadFinalResult(ctx context.Context, client *buildkite.Client, 
 
 	select {
 	case <-ctx.Done():
-		return preflight.SummaryResult{}, ctx.Err()
+		return internalpreflight.SummaryResult{}, ctx.Err()
 	case <-timer.C:
 	}
 
 	return c.loadSummary(ctx, client, org, buildWithTests.ID)
 }
 
-func (c *RunCmd) loadSummary(ctx context.Context, client *buildkite.Client, org, buildID string) (preflight.SummaryResult, error) {
+func (c *RunCmd) loadSummary(ctx context.Context, client *buildkite.Client, org, buildID string) (internalpreflight.SummaryResult, error) {
 	if buildID == "" {
-		return preflight.SummaryResult{Tests: preflight.SummaryTests{Runs: map[string]preflight.SummaryTestRun{}, Failures: []preflight.SummaryTestFailure{}}}, nil
+		return internalpreflight.SummaryResult{Tests: internalpreflight.SummaryTests{Runs: map[string]internalpreflight.SummaryTestRun{}, Failures: []internalpreflight.SummaryTestFailure{}}}, nil
 	}
 
-	summary, err := preflight.NewRunSummaryService(client).Get(ctx, org, buildID, &preflight.RunSummaryGetOptions{
+	summary, err := internalpreflight.NewRunSummaryService(client).Get(ctx, org, buildID, &internalpreflight.RunSummaryGetOptions{
 		Result:          "^failed",
 		State:           "enabled",
 		IncludeFailures: true,
 	})
 	if err != nil {
-		return preflight.SummaryResult{}, err
+		return internalpreflight.SummaryResult{}, err
 	}
 
 	return summary.SummaryResult(), nil
@@ -544,5 +503,5 @@ func resolveRepositoryRoot(f *factory.Factory, debug bool) (string, error) {
 		}
 	}
 
-	return preflight.RepositoryRoot(".", debug)
+	return internalpreflight.RepositoryRoot(".", debug)
 }

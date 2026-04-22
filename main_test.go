@@ -104,4 +104,43 @@ func TestApplyExperiments(t *testing.T) {
 			t.Fatalf("expected explicit await-test-results duration, got %s", cli.Preflight.Run.AwaitTestResults.Duration)
 		}
 	})
+
+	t.Run("preflight exit-on parses repeated flags", func(t *testing.T) {
+		cli := &CLI{}
+		parser, err := newKongParser(cli)
+		if err != nil {
+			t.Fatalf("failed to create parser: %v", err)
+		}
+
+		if _, err := parser.Parse([]string{"preflight", "--exit-on=build-failing", "--exit-on=build-failing"}); err != nil {
+			t.Fatalf("failed to parse repeated preflight exit-on flags: %v", err)
+		}
+		if len(cli.Preflight.Run.ExitOn) != 2 {
+			t.Fatalf("expected 2 exit-on values, got %d", len(cli.Preflight.Run.ExitOn))
+		}
+	})
+
+	t.Run("preflight exit-on rejects unknown values", func(t *testing.T) {
+		cli := &CLI{}
+		parser, err := newKongParser(cli)
+		if err != nil {
+			t.Fatalf("failed to create parser: %v", err)
+		}
+
+		if _, err := parser.Parse([]string{"preflight", "--exit-on=test-failed:3"}); err == nil {
+			t.Fatal("expected parse error for invalid exit-on value")
+		}
+	})
+
+	t.Run("preflight exit-on rejects incompatible combinations", func(t *testing.T) {
+		cli := &CLI{}
+		parser, err := newKongParser(cli)
+		if err != nil {
+			t.Fatalf("failed to create parser: %v", err)
+		}
+
+		if _, err := parser.Parse([]string{"preflight", "--exit-on=build-failing", "--exit-on=build-terminal"}); err == nil {
+			t.Fatal("expected parse error for incompatible exit-on values")
+		}
+	})
 }
