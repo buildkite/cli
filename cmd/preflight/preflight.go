@@ -281,16 +281,10 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			buildCanceled = cancelBuild(f, renderer, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, preflightID.String(), globals.EnableDebug())
 		}
 
-		_ = renderer.Render(buildSummaryEvent(
-			finalBuild,
-			tracker,
-			preflightID.String(),
-			pipelineName,
-			build.Number,
-			build.WebURL,
-			startedAt,
-			summaryMeta{Incomplete: true, StopReason: "build-failing", BuildCanceled: buildCanceled},
-		))
+		summaryEvent := newBuildSummaryEvent(preflightID.String(), pipelineName, build.Number, build.WebURL, finalBuild, startedAt)
+		summaryEvent.ApplySummaryMeta(summaryMeta{Incomplete: true, StopReason: "build-failing", BuildCanceled: buildCanceled})
+		summaryEvent.ApplyJobResults(finalBuild, tracker)
+		_ = renderer.Render(summaryEvent)
 		cleanupBranch()
 		_ = renderer.Close()
 		return finalErr
@@ -298,7 +292,9 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	// Emit a final summary showing pass/fail, passed jobs (if ≤10), or hard-failed jobs.
 	if buildstate.IsTerminal(buildstate.State(finalBuild.State)) {
-		summaryEvent := buildSummaryEvent(finalBuild, tracker, preflightID.String(), pipelineName, build.Number, build.WebURL, startedAt, summaryMeta{})
+		summaryEvent := newBuildSummaryEvent(preflightID.String(), pipelineName, build.Number, build.WebURL, finalBuild, startedAt)
+		summaryEvent.ApplySummaryMeta(summaryMeta{})
+		summaryEvent.ApplyJobResults(finalBuild, tracker)
 
 		showResult, showErr := c.loadFinalResult(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number)
 		if showErr == nil {
@@ -355,36 +351,6 @@ func cancelBuild(f *factory.Factory, renderer renderer, org, pipeline string, bu
 
 	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID, Title: fmt.Sprintf("Cancelled build #%d", buildNumber)})
 	return true
-}
-
-func buildSummaryEvent(finalBuild buildkite.Build, tracker *watch.JobTracker, preflightID, pipeline string, buildNumber int, buildURL string, startedAt time.Time, meta summaryMeta) Event {
-	event := Event{
-		Type:        EventBuildSummary,
-		Time:        time.Now(),
-		PreflightID: preflightID,
-		Pipeline:    pipeline,
-		BuildNumber: buildNumber,
-		BuildURL:    buildURL,
-		BuildState:  finalBuild.State,
-		Duration:    time.Since(startedAt),
-		Incomplete:  meta.Incomplete,
-		StopReason:  meta.StopReason,
-	}
-
-	if meta.StopReason != "" {
-		buildCanceled := meta.BuildCanceled
-		event.BuildCanceled = &buildCanceled
-	}
-
-	if NewResult(finalBuild).Passed() {
-		if passed := tracker.PassedJobs(); len(passed) <= 10 {
-			event.PassedJobs = passed
-		}
-		return event
-	}
-
-	event.FailedJobs = tracker.FailedJobs()
-	return event
 }
 
 func (c *RunCmd) loadFinalResult(ctx context.Context, client *buildkite.Client, org, pipeline string, buildNumber int) (internalpreflight.SummaryResult, error) {

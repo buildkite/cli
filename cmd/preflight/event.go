@@ -68,3 +68,39 @@ type Event struct {
 	// Tests is set for build_summary events when aggregated test summary data is available.
 	Tests internalpreflight.SummaryTests `json:"tests,omitempty"`
 }
+
+func newBuildSummaryEvent(preflightID, pipeline string, buildNumber int, buildURL string, finalBuild buildkite.Build, startedAt time.Time) Event {
+	return Event{
+		Type:        EventBuildSummary,
+		Time:        time.Now(),
+		PreflightID: preflightID,
+		Pipeline:    pipeline,
+		BuildNumber: buildNumber,
+		BuildURL:    buildURL,
+		BuildState:  finalBuild.State,
+		Duration:    time.Since(startedAt),
+	}
+}
+
+func (e *Event) ApplySummaryMeta(meta summaryMeta) {
+	e.Incomplete = meta.Incomplete
+	e.StopReason = meta.StopReason
+
+	if meta.StopReason == "" {
+		return
+	}
+
+	buildCanceled := meta.BuildCanceled
+	e.BuildCanceled = &buildCanceled
+}
+
+func (e *Event) ApplyJobResults(finalBuild buildkite.Build, tracker *watch.JobTracker) {
+	if NewResult(finalBuild).Passed() {
+		if passed := tracker.PassedJobs(); len(passed) <= 10 {
+			e.PassedJobs = passed
+		}
+		return
+	}
+
+	e.FailedJobs = tracker.FailedJobs()
+}
