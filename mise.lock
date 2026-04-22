@@ -38,6 +38,10 @@ backend = "core:go"
 version = "1.5.1"
 backend = "go:github.com/nikolaydubina/go-cover-treemap"
 
+[[tools."go:golang.org/x/vuln/cmd/govulncheck"]]
+version = "1.3.0"
+backend = "go:golang.org/x/vuln/cmd/govulncheck"
+
 [[tools.golangci-lint]]
 version = "2.11.4"
 backend = "aqua:golangci/golangci-lint"
