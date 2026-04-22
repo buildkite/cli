@@ -32,7 +32,16 @@ type TestStatusFunc func(newTestChanges []buildkite.BuildTest) error
 type WatchOpt func(*watchConfig)
 
 type watchConfig struct {
-	onTestStatus TestStatusFunc
+	onTestStatus       TestStatusFunc
+	includeRetriedJobs bool
+}
+
+// WithRetriedJobs includes retried (superseded) jobs in each poll so the
+// tracker can correlate original failures with their retry outcomes.
+func WithRetriedJobs() WatchOpt {
+	return func(c *watchConfig) {
+		c.includeRetriedJobs = true
+	}
 }
 
 // WithTestTracking enables polling BuildTests.List for failed tests on each
@@ -77,7 +86,15 @@ func WatchBuild(
 		}
 
 		reqCtx, cancel := context.WithTimeout(ctx, DefaultRequestTimeout)
-		b, _, err := client.Builds.Get(reqCtx, org, pipeline, fmt.Sprint(buildNumber), nil)
+		var getOpts *buildkite.BuildGetOptions
+		if cfg.includeRetriedJobs {
+			getOpts = &buildkite.BuildGetOptions{
+				BuildsListOptions: buildkite.BuildsListOptions{
+					IncludeRetriedJobs: true,
+				},
+			}
+		}
+		b, _, err := client.Builds.Get(reqCtx, org, pipeline, fmt.Sprint(buildNumber), getOpts)
 		cancel()
 
 		if err != nil {

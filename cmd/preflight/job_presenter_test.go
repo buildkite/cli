@@ -83,6 +83,42 @@ func TestJobPresenter_PassedLine_WithEmoji(t *testing.T) {
 	}
 }
 
+func TestJobPresenter_RetryPassedLine(t *testing.T) {
+	line := jobPresenter{
+		pipeline:    "buildkite/cli",
+		buildNumber: 42,
+	}.RetryPassedLine(buildkite.Job{ID: "retry-1", Name: "Lint", Type: "script", State: "passed", RetriesCount: 1})
+
+	assertStringContainsAll(t, line, []string{"✔ Lint", "passed on retry", "attempt 2"})
+}
+
+func TestJobPresenter_RetryPassedLine_MultipleRetries(t *testing.T) {
+	line := jobPresenter{
+		pipeline:    "buildkite/cli",
+		buildNumber: 42,
+	}.RetryPassedLine(buildkite.Job{ID: "retry-2", Name: "Test", Type: "script", State: "passed", RetriesCount: 2})
+
+	assertStringContainsAll(t, line, []string{"✔ Test", "passed on retry", "attempt 3"})
+}
+
+func TestJobPresenter_ColoredRetryPassedLine(t *testing.T) {
+	line := jobPresenter{
+		pipeline:    "buildkite/cli",
+		buildNumber: 42,
+	}.ColoredRetryPassedLine(buildkite.Job{ID: "retry-1", Name: "Lint", Type: "script", State: "passed", RetriesCount: 1})
+
+	assertStringContainsAll(t, line, []string{"✔", "Lint", "passed on retry", "attempt 2"})
+}
+
+func TestJobPresenter_ColoredRetryPassedLine_WithEmoji(t *testing.T) {
+	line := jobPresenter{
+		pipeline:    "buildkite/cli",
+		buildNumber: 42,
+	}.ColoredRetryPassedLine(buildkite.Job{ID: "retry-1", Name: ":docker: Build image", Type: "script", State: "passed", RetriesCount: 1})
+
+	assertStringContainsAll(t, line, []string{"✔", "Build image", "passed on retry"})
+}
+
 func TestJobPresenter_ColoredLine(t *testing.T) {
 	startedAt := buildkite.Timestamp{Time: time.Now().Add(-90 * time.Second)}
 	finishedAt := buildkite.Timestamp{Time: time.Now().Add(-15 * time.Second)}

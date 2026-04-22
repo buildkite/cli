@@ -237,6 +237,140 @@ func TestJobTracker_Update(t *testing.T) {
 	})
 }
 
+func TestJobTracker_Update_RetriedJobs(t *testing.T) {
+	t.Run("superseded job still reported as newly failed", func(t *testing.T) {
+		tracker := NewJobTracker()
+		// Poll 1: job already failed and retried (e.g. automatic retry)
+		status := tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "orig", Type: "script", State: "failed", Retried: true, RetriedInJobID: "retry-1"},
+				{ID: "retry-1", Type: "script", State: "running", RetriesCount: 1},
+			},
+		})
+		if len(status.NewlyFailed) != 1 {
+			t.Fatalf("expected 1 newly failed (even though superseded), got %d", len(status.NewlyFailed))
+		}
+		if status.NewlyFailed[0].ID != "orig" {
+			t.Errorf("expected orig, got %s", status.NewlyFailed[0].ID)
+		}
+
+		// Poll 2: same state, not re-reported
+		status = tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "orig", Type: "script", State: "failed", Retried: true, RetriedInJobID: "retry-1"},
+				{ID: "retry-1", Type: "script", State: "running", RetriesCount: 1},
+			},
+		})
+		if len(status.NewlyFailed) != 0 {
+			t.Errorf("expected 0 newly failed on re-poll, got %d", len(status.NewlyFailed))
+		}
+	})
+
+	t.Run("retry passed detected when retry job reaches passed", func(t *testing.T) {
+		tracker := NewJobTracker()
+		// Poll 1: job fails
+		tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "orig", Type: "script", State: "failed"},
+			},
+		})
+
+		// Poll 2: original retried, retry running
+		tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "orig", Type: "script", State: "failed", Retried: true, RetriedInJobID: "retry-1"},
+				{ID: "retry-1", Type: "script", State: "running", RetriesCount: 1},
+			},
+		})
+
+		// Poll 3: retry passes
+		status := tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "orig", Type: "script", State: "failed", Retried: true, RetriedInJobID: "retry-1"},
+				{ID: "retry-1", Type: "script", State: "passed", RetriesCount: 1},
+			},
+		})
+		if len(status.NewlyRetryPassed) != 1 {
+			t.Fatalf("expected 1 retry passed, got %d", len(status.NewlyRetryPassed))
+		}
+		if status.NewlyRetryPassed[0].ID != "retry-1" {
+			t.Errorf("expected retry-1, got %s", status.NewlyRetryPassed[0].ID)
+		}
+	})
+
+	t.Run("retry passed reported only once", func(t *testing.T) {
+		tracker := NewJobTracker()
+		tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "orig", Type: "script", State: "failed"},
+			},
+		})
+		tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "orig", Type: "script", State: "failed", Retried: true, RetriedInJobID: "retry-1"},
+				{ID: "retry-1", Type: "script", State: "passed", RetriesCount: 1},
+			},
+		})
+		// Second poll with same passed state
+		status := tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "orig", Type: "script", State: "failed", Retried: true, RetriedInJobID: "retry-1"},
+				{ID: "retry-1", Type: "script", State: "passed", RetriesCount: 1},
+			},
+		})
+		if len(status.NewlyRetryPassed) != 0 {
+			t.Errorf("expected 0 retry passed on second poll, got %d", len(status.NewlyRetryPassed))
+		}
+	})
+
+	t.Run("chained retries: second retry passes", func(t *testing.T) {
+		tracker := NewJobTracker()
+		// Poll 1: original fails
+		tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "orig", Type: "script", State: "failed"},
+			},
+		})
+		// Poll 2: original retried, first retry also fails
+		tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "orig", Type: "script", State: "failed", Retried: true, RetriedInJobID: "retry-1"},
+				{ID: "retry-1", Type: "script", State: "failed", RetriesCount: 1},
+			},
+		})
+		// Poll 3: first retry retried, second retry passes
+		status := tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "orig", Type: "script", State: "failed", Retried: true, RetriedInJobID: "retry-1"},
+				{ID: "retry-1", Type: "script", State: "failed", Retried: true, RetriedInJobID: "retry-2", RetriesCount: 1},
+				{ID: "retry-2", Type: "script", State: "passed", RetriesCount: 2},
+			},
+		})
+		if len(status.NewlyRetryPassed) != 1 {
+			t.Fatalf("expected 1 retry passed, got %d", len(status.NewlyRetryPassed))
+		}
+		if status.NewlyRetryPassed[0].ID != "retry-2" {
+			t.Errorf("expected retry-2, got %s", status.NewlyRetryPassed[0].ID)
+		}
+	})
+
+	t.Run("summary excludes superseded jobs", func(t *testing.T) {
+		tracker := NewJobTracker()
+		status := tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "orig", Type: "script", State: "failed", Retried: true, RetriedInJobID: "retry-1"},
+				{ID: "retry-1", Type: "script", State: "passed", RetriesCount: 1},
+			},
+		})
+		if status.Summary.Failed != 0 {
+			t.Errorf("expected 0 failed (superseded excluded), got %d", status.Summary.Failed)
+		}
+		if status.Summary.Passed != 1 {
+			t.Errorf("expected 1 passed, got %d", status.Summary.Passed)
+		}
+	})
+}
+
 func TestJobTracker_FailedJobs(t *testing.T) {
 	t.Run("returns hard failed jobs and excludes soft failures", func(t *testing.T) {
 		tracker := NewJobTracker()
@@ -282,6 +416,43 @@ func TestJobTracker_FailedJobs(t *testing.T) {
 			t.Errorf("expected failed job 3, got %s", failedJobs[0].ID)
 		}
 	})
+
+	t.Run("excludes superseded (retried) jobs", func(t *testing.T) {
+		tracker := NewJobTracker()
+		tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "orig", Type: "script", State: "failed", Retried: true, RetriedInJobID: "retry-1"},
+				{ID: "still-failed", Type: "script", State: "failed"},
+				{ID: "retry-1", Type: "script", State: "passed", RetriesCount: 1},
+			},
+		})
+
+		failedJobs := tracker.FailedJobs()
+		if len(failedJobs) != 1 {
+			t.Fatalf("expected 1 failed job (superseded excluded), got %d", len(failedJobs))
+		}
+		if failedJobs[0].ID != "still-failed" {
+			t.Errorf("expected still-failed, got %s", failedJobs[0].ID)
+		}
+	})
+}
+
+func TestJobTracker_PassedJobs_ExcludesSuperseded(t *testing.T) {
+	tracker := NewJobTracker()
+	tracker.Update(buildkite.Build{
+		Jobs: []buildkite.Job{
+			{ID: "orig", Type: "script", State: "passed", Retried: true, RetriedInJobID: "retry-1"},
+			{ID: "retry-1", Type: "script", State: "passed", RetriesCount: 1},
+		},
+	})
+
+	jobs := tracker.PassedJobs()
+	if len(jobs) != 1 {
+		t.Fatalf("expected 1 passed job (superseded excluded), got %d", len(jobs))
+	}
+	if jobs[0].ID != "retry-1" {
+		t.Errorf("expected retry-1, got %s", jobs[0].ID)
+	}
 }
 
 func TestJobTracker_PassedJobs_SortedByStartTime(t *testing.T) {

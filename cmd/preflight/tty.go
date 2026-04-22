@@ -73,6 +73,13 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Printf("%s", m.hardwrapLine(line))
 			}
 
+		case EventJobRetryPassed:
+			if msg.Job != nil {
+				presenter := jobPresenter{pipeline: msg.Pipeline, buildNumber: msg.BuildNumber}
+				line := timestampPrefix(msg.Time) + presenter.ColoredRetryPassedLine(*msg.Job)
+				return m, tea.Printf("%s", m.hardwrapLine(line))
+			}
+
 		case EventBuildSummary:
 			// Print the summary via Printf (which scrolls it above the
 			// view) instead of rendering it through View(). Inline-image

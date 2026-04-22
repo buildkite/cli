@@ -10,9 +10,10 @@ import (
 
 // trackedJob holds a job and its lifecycle state across polls.
 type trackedJob struct {
-	Job       buildkite.Job
-	PrevState string // state from previous poll, "" if first seen
-	Reported  bool   // true once surfaced to caller as failed
+	Job           buildkite.Job
+	PrevState     string // state from previous poll, "" if first seen
+	Reported      bool   // true once surfaced to caller as failed
+	RetryReported bool   // true once surfaced to caller as retry-passed
 }
 
 // JobSummary aggregates job counts by high-level state.
@@ -54,11 +55,12 @@ func (s JobSummary) String() string {
 
 // BuildStatus is the output of JobTracker.Update().
 type BuildStatus struct {
-	NewlyFailed  []buildkite.Job
-	Running      []buildkite.Job
-	TotalRunning int
-	Summary      JobSummary
-	Build        buildkite.Build
+	NewlyFailed      []buildkite.Job
+	NewlyRetryPassed []buildkite.Job
+	Running          []buildkite.Job
+	TotalRunning     int
+	Summary          JobSummary
+	Build            buildkite.Build
 }
 
 // JobTracker tracks job state changes across polls.
@@ -106,6 +108,24 @@ func (t *JobTracker) Update(b buildkite.Build) BuildStatus {
 		}
 	}
 
+	// Second pass: detect retry jobs that just reached passed.
+	for _, j := range b.Jobs {
+		if j.Type != "script" || j.State != "passed" || j.RetriesCount == 0 {
+			continue
+		}
+		tj := t.jobs[j.ID]
+		if tj == nil || tj.RetryReported {
+			continue
+		}
+		for _, orig := range t.jobs {
+			if orig.Job.RetriedInJobID == j.ID && orig.Reported {
+				status.NewlyRetryPassed = append(status.NewlyRetryPassed, j)
+				tj.RetryReported = true
+				break
+			}
+		}
+	}
+
 	status.Summary = t.summarize(b)
 	status.TotalRunning = len(running)
 	status.Running = running
@@ -113,11 +133,11 @@ func (t *JobTracker) Update(b buildkite.Build) BuildStatus {
 	return status
 }
 
-// PassedJobs returns all jobs that passed, sorted by start time.
+// PassedJobs returns all non-superseded jobs that passed, sorted by start time.
 func (t *JobTracker) PassedJobs() []buildkite.Job {
 	var result []buildkite.Job
 	for _, tj := range t.jobs {
-		if tj.Job.State == "passed" {
+		if tj.Job.State == "passed" && !tj.Job.Retried {
 			result = append(result, tj.Job)
 		}
 	}
@@ -125,12 +145,13 @@ func (t *JobTracker) PassedJobs() []buildkite.Job {
 	return result
 }
 
-// FailedJobs returns all hard-failed jobs (excludes soft failures), sorted by start time.
+// FailedJobs returns all hard-failed, non-superseded jobs (excludes soft failures),
+// sorted by start time.
 func (t *JobTracker) FailedJobs() []buildkite.Job {
 	var result []buildkite.Job
 	for _, tj := range t.jobs {
 		job := NewFormattedJob(tj.Job)
-		if job.IsFailed() && !job.IsSoftFailed() {
+		if job.IsFailed() && !job.IsSoftFailed() && !tj.Job.Retried {
 			result = append(result, tj.Job)
 		}
 	}
@@ -159,7 +180,7 @@ func sortJobsByStartTime(jobs []buildkite.Job) {
 func (t *JobTracker) summarize(b buildkite.Build) JobSummary {
 	var s JobSummary
 	for _, j := range b.Jobs {
-		if j.Type != "script" {
+		if j.Type != "script" || j.Retried {
 			continue
 		}
 		job := NewFormattedJob(j)
