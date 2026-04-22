@@ -668,8 +668,11 @@ func TestPlainRenderer_Render_BuildSummaryIncludesTests(t *testing.T) {
 	if !strings.Contains(got, "✗ RSpec  2 failed  47 passed  3 skipped") {
 		t.Fatalf("expected rspec test summary, got %q", got)
 	}
-	if !strings.Contains(got, "✗ [RSpec] src/auth.test.ts:89 — AuthService.validateToken handles expired tokens — Expected 'expired' but got 'invalid'") {
+	if !strings.Contains(got, "✗ [RSpec] src/auth.test.ts:89 — AuthService.validateToken handles expired tokens") {
 		t.Fatalf("expected failure header from endpoint summary, got %q", got)
+	}
+	if strings.Contains(got, "Expected 'expired' but got 'invalid'") {
+		t.Fatalf("expected summary failure line to omit failure message, got %q", got)
 	}
 }
 

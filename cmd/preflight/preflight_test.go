@@ -670,8 +670,8 @@ func TestPreflightCmd_Run(t *testing.T) {
 		if !strings.Contains(stdout, "AuthService.validateToken handles expired tokens") {
 			t.Fatalf("expected endpoint failure name in final summary, got %q", stdout)
 		}
-		if !strings.Contains(stdout, "Expected 'expired' but got 'invalid'") {
-			t.Fatalf("expected endpoint failure message in final summary, got %q", stdout)
+		if strings.Contains(stdout, "Expected 'expired' but got 'invalid'") {
+			t.Fatalf("expected final summary to omit endpoint failure message, got %q", stdout)
 		}
 	})
 

@@ -40,4 +40,7 @@ func TestTestPresenter_SummaryFailureLine_WrapsAndIndents(t *testing.T) {
 	if !strings.Contains(got, "✗ [RSpec] src/auth.test.ts:89") {
 		t.Fatalf("expected suite-prefixed failure line, got %q", got)
 	}
+	if strings.Contains(got, "Expected 'expired' but got 'invalid'") {
+		t.Fatalf("expected summary failure line to omit failure message, got %q", got)
+	}
 }

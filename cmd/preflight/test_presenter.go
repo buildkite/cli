@@ -51,19 +51,12 @@ func (p testPresenter) SummarySuiteLine(summary internalpreflight.SummaryTestRun
 
 func (p testPresenter) SummaryFailureLine(failure internalpreflight.SummaryTestFailure, width int, indent string) string {
 	suite := summarySuiteLabel(failure.SuiteName, failure.SuiteSlug, "")
-	parts := make([]string, 0, 3)
+	parts := make([]string, 0, 2)
 	if location := strings.TrimSpace(failure.Location); location != "" {
 		parts = append(parts, location)
 	}
 	if name := strings.TrimSpace(failure.Name); name != "" {
 		parts = append(parts, truncateToWidth(name, 80))
-	}
-	message := strings.TrimSpace(failure.Message)
-	if message == "" {
-		message = strings.TrimSpace(failure.FailureReason)
-	}
-	if message != "" {
-		parts = append(parts, message)
 	}
 
 	line := "✗"

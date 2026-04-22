@@ -100,7 +100,7 @@ func TestBuildSummaryView_ReturnsOutput(t *testing.T) {
 					}},
 				},
 			},
-			contains: []string{"Tests Failed ✗", "✗ RSpec  2 failed  47 passed  3 skipped", "✗ [RSpec] src/auth.test.ts:89 — AuthService.validateToken handles expired tokens — Expected 'expired' but got 'invalid'"},
+			contains: []string{"Tests Failed ✗", "✗ RSpec  2 failed  47 passed  3 skipped", "✗ [RSpec] src/auth.test.ts:89 — AuthService.validateToken handles expired tokens"},
 		},
 	}
 
