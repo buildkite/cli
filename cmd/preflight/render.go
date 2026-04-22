@@ -179,7 +179,7 @@ func plural(n int, word string) string {
 	return word + "s"
 }
 
-const summaryTestFailureDisplayLimit = 5
+const summaryTestFailureDisplayLimit = 10
 
 func buildSummaryDetails(e Event, colored bool, width int) string {
 	var sections []string
