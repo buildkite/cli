@@ -284,6 +284,17 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		summaryEvent := newBuildSummaryEvent(preflightID.String(), pipelineName, build.Number, build.WebURL, finalBuild, startedAt)
 		summaryEvent.ApplySummaryMeta(summaryMeta{Incomplete: true, StopReason: "build-failing", BuildCanceled: buildCanceled})
 		summaryEvent.ApplyJobResults(finalBuild, tracker)
+		showResult, showErr := c.loadFinalResult(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number)
+		if showErr == nil {
+			summaryEvent.Tests = showResult.Tests
+		} else if globals.EnableDebug() {
+			_ = renderer.Render(Event{
+				Type:        EventOperation,
+				Time:        time.Now(),
+				PreflightID: preflightID.String(),
+				Title:       fmt.Sprintf("Debug: failed to load final test summary: %v", showErr),
+			})
+		}
 		_ = renderer.Render(summaryEvent)
 		cleanupBranch()
 		_ = renderer.Close()

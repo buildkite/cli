@@ -118,6 +118,188 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 	})
 
+	t.Run("build-failing early exit enriches summary with test results", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		var buildCancelRequests atomic.Int32
+		var buildPolls atomic.Int32
+		var summaryRequests atomic.Int32
+		var includeLatestFail atomic.Bool
+		var stateEnabled atomic.Bool
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+
+			switch {
+			case r.Method == http.MethodPut && strings.Contains(r.URL.Path, "/builds/1/cancel"):
+				buildCancelRequests.Add(1)
+				json.NewEncoder(w).Encode(buildkite.Build{Number: 1, State: "canceling"})
+				return
+
+			case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/builds"):
+				json.NewEncoder(w).Encode(buildkite.Build{
+					ID:     "build-id-123",
+					Number: 1,
+					State:  "scheduled",
+					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
+				})
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1"):
+				poll := buildPolls.Add(1)
+				exitOne := 1
+				build := buildkite.Build{
+					ID:     "build-id-123",
+					Number: 1,
+					State:  "running",
+					Jobs: []buildkite.Job{{
+						ID:    "job-running",
+						Type:  "script",
+						Name:  "Lint",
+						State: "running",
+					}},
+				}
+				if poll >= 2 {
+					build.State = "failing"
+					build.TestEngine = &buildkite.TestEngineProperty{
+						Runs: []buildkite.TestEngineRun{{
+							ID: "run-1",
+							Suite: buildkite.TestEngineSuite{
+								Slug: "rspec",
+							},
+						}},
+					}
+					build.Jobs = []buildkite.Job{{
+						ID:         "job-failed",
+						Type:       "script",
+						Name:       "Lint",
+						State:      "failed",
+						ExitStatus: &exitOne,
+					}}
+				}
+				json.NewEncoder(w).Encode(build)
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tests"):
+				json.NewEncoder(w).Encode([]buildkite.BuildTest{})
+				return
+
+			case r.Method == http.MethodGet && r.URL.Path == "/v2/analytics/organizations/test-org/builds/build-id-123/preflight/v1":
+				summaryRequests.Add(1)
+				if r.URL.Query().Get("include") == "latest_fail" {
+					includeLatestFail.Store(true)
+				}
+				if r.URL.Query().Get("state") == "enabled" {
+					stateEnabled.Store(true)
+				}
+				_, _ = w.Write([]byte(`{
+					"tests": {
+						"runs": {
+							"run-1": {
+								"suite": {"id": "suite-1", "slug": "rspec", "name": "RSpec"},
+								"passed": 47,
+								"failed": 1,
+								"skipped": 12
+							}
+						},
+						"failures": [
+							{
+								"run_id": "run-1",
+								"suite_name": "RSpec",
+								"suite_slug": "rspec",
+								"name": "AuthService.validateToken handles expired tokens",
+								"location": "src/auth.test.ts:89",
+								"latest_fail": {
+									"failure_reason": "Expected 'expired' but got 'invalid'"
+								}
+							}
+						]
+					}
+				}`))
+				return
+			}
+
+			http.NotFound(w, r)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		stdout := captureStdout(t, func() {
+			cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01, JSON: true}
+			err := cmd.Run(nil, stubGlobals{})
+			var bkErr *bkErrors.Error
+			if !errors.As(err, &bkErr) || !errors.Is(bkErr, bkErrors.ErrPreflightIncompleteFailure) {
+				t.Fatalf("expected incomplete failure error, got %v", err)
+			}
+		})
+
+		events := decodeJSONLEvents(t, stdout)
+		var buildStatusCount int
+		var summaries []Event
+		for _, event := range events {
+			if event.Type == EventBuildStatus {
+				buildStatusCount++
+			}
+			if event.Type == EventBuildSummary {
+				summaries = append(summaries, event)
+			}
+		}
+
+		if buildStatusCount != 2 {
+			t.Fatalf("expected 2 build status events before early stop, got %d", buildStatusCount)
+		}
+		if len(summaries) != 1 {
+			t.Fatalf("expected exactly 1 build summary event, got %d", len(summaries))
+		}
+		summary := summaries[0]
+		if !summary.Incomplete {
+			t.Fatal("expected summary to be marked incomplete")
+		}
+		if summary.StopReason != "build-failing" {
+			t.Fatalf("expected stop reason build-failing, got %q", summary.StopReason)
+		}
+		if summary.BuildCanceled == nil || !*summary.BuildCanceled {
+			t.Fatalf("expected build_canceled=true, got %#v", summary.BuildCanceled)
+		}
+		if summary.BuildState != "failing" {
+			t.Fatalf("expected failing build state, got %q", summary.BuildState)
+		}
+		if len(summary.FailedJobs) != 1 || summary.FailedJobs[0].Name != "Lint" {
+			t.Fatalf("expected failed jobs in summary, got %#v", summary.FailedJobs)
+		}
+		if got := summary.Tests.Runs["run-1"]; got.SuiteName != "RSpec" || got.Failed != 1 || got.Passed != 47 || got.Skipped != 12 {
+			t.Fatalf("expected enriched test run summary, got %#v", got)
+		}
+		if len(summary.Tests.Failures) != 1 || summary.Tests.Failures[0].Name != "AuthService.validateToken handles expired tokens" {
+			t.Fatalf("expected enriched test failures, got %#v", summary.Tests.Failures)
+		}
+		if !includeLatestFail.Load() {
+			t.Fatal("expected early-exit summary to request latest_fail details")
+		}
+		if !stateEnabled.Load() {
+			t.Fatal("expected early-exit summary to request state=enabled")
+		}
+		if summaryRequests.Load() != 1 {
+			t.Fatalf("expected one preflight summary request, got %d", summaryRequests.Load())
+		}
+		if buildCancelRequests.Load() != 1 {
+			t.Fatalf("expected one build cancel request, got %d", buildCancelRequests.Load())
+		}
+		if buildPolls.Load() != 3 {
+			t.Fatalf("expected three build polls including final summary fetch, got %d", buildPolls.Load())
+		}
+
+		refs := runGit(t, worktree, "ls-remote", "--heads", "origin")
+		if strings.Contains(refs, "bk/preflight/") {
+			t.Errorf("expected preflight branch to be cleaned up, but found: %s", refs)
+		}
+	})
+
 	t.Run("snapshots and creates build", func(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
 
@@ -348,11 +530,12 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 	})
 
-	t.Run("defaults to stopping early on failing builds", func(t *testing.T) {
+	t.Run("early exit summary tolerates summary endpoint failure", func(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
 
 		var buildCancelRequests atomic.Int32
 		var buildPolls atomic.Int32
+		var summaryRequests atomic.Int32
 		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 
@@ -400,6 +583,12 @@ func TestPreflightCmd_Run(t *testing.T) {
 
 			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tests"):
 				json.NewEncoder(w).Encode([]buildkite.BuildTest{})
+				return
+
+			case r.Method == http.MethodGet && r.URL.Path == "/v2/analytics/organizations/test-org/builds/build-id-123/preflight/v1":
+				summaryRequests.Add(1)
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"message":"API::Error::NotFound"}`))
 				return
 			}
 
@@ -457,11 +646,17 @@ func TestPreflightCmd_Run(t *testing.T) {
 		if len(summary.FailedJobs) != 1 || summary.FailedJobs[0].Name != "Lint" {
 			t.Fatalf("expected failed jobs in summary, got %#v", summary.FailedJobs)
 		}
+		if len(summary.Tests.Runs) != 0 || len(summary.Tests.Failures) != 0 {
+			t.Fatalf("expected no enriched tests when summary endpoint fails, got %#v", summary.Tests)
+		}
+		if summaryRequests.Load() != 1 {
+			t.Fatalf("expected one preflight summary request, got %d", summaryRequests.Load())
+		}
 		if buildCancelRequests.Load() != 1 {
 			t.Fatalf("expected one build cancel request, got %d", buildCancelRequests.Load())
 		}
-		if buildPolls.Load() != 2 {
-			t.Fatalf("expected two build polls before exit, got %d", buildPolls.Load())
+		if buildPolls.Load() != 3 {
+			t.Fatalf("expected three build polls including final summary fetch, got %d", buildPolls.Load())
 		}
 
 		refs := runGit(t, worktree, "ls-remote", "--heads", "origin")
