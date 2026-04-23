@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mattn/go-isatty"
+	"github.com/mattn/go-runewidth"
 )
 
 const (
@@ -26,7 +26,7 @@ func PromptForOne(resource string, options []string, noInput bool) (string, erro
 	}
 
 	// Check if we have a TTY available - if not, treat it as if noInput is true
-	if !isatty.IsTerminal(os.Stdin.Fd()) {
+	if !isTerminal(os.Stdin) {
 		return "", fmt.Errorf("interactive input required but no TTY available")
 	}
 
@@ -48,7 +48,8 @@ func PromptForOne(resource string, options []string, noInput bool) (string, erro
 	for i, option := range options {
 		fmt.Printf("  %d. %s\n", i+1, option)
 	}
-	fmt.Printf("Enter number (1-%d): ", len(options))
+	prompt := fmt.Sprintf("Enter number (1-%d): ", len(options))
+	fmt.Print(prompt)
 
 	response, err := ReadLine()
 	if err != nil {
@@ -59,7 +60,31 @@ func PromptForOne(resource string, options []string, noInput bool) (string, erro
 		return "", fmt.Errorf("invalid selection")
 	}
 
+	clearPreviousLines(os.Stdout, renderedLineCount(message, options, prompt+response, terminalWidth(os.Stdout)))
+
 	return options[num-1], nil
+}
+
+func renderedLineCount(message string, options []string, prompt string, width int) int {
+	lines := wrappedLineCount(message+":", width)
+	for i, option := range options {
+		lines += wrappedLineCount(fmt.Sprintf("  %d. %s", i+1, option), width)
+	}
+	lines += wrappedLineCount(prompt, width)
+	return lines
+}
+
+func wrappedLineCount(s string, width int) int {
+	if width <= 0 {
+		return 1
+	}
+
+	lineWidth := runewidth.StringWidth(s)
+	if lineWidth == 0 {
+		return 1
+	}
+
+	return (lineWidth-1)/width + 1
 }
 
 // PromptForInput prompts the user to enter a string value.

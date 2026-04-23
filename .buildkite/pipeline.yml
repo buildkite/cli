@@ -32,7 +32,7 @@ steps:
     key: vulncheck
     secrets:
       - MISE_GITHUB_TOKEN
-    command: 'govulncheck ./...'
+    command: 'mise run vulncheck'
     plugins:
       - mise#v1.1.1: ~
 
