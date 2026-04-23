@@ -136,13 +136,31 @@ func (r *jsonRenderer) Close() error { return nil }
 
 func summaryHeader(e Event) string {
 	verdict := "❌ Preflight Failed"
-	if e.BuildState == "passed" {
+	if e.Incomplete {
+		verdict = "❌ Preflight Incomplete"
+		if reason := summaryStopReasonLabel(e.StopReason); reason != "" {
+			verdict = fmt.Sprintf("%s (%s)", verdict, reason)
+		}
+	} else if e.BuildState == "passed" {
 		verdict = "✅ Preflight Passed"
 	}
 	if e.Duration > 0 {
 		return fmt.Sprintf("%s (%s)", verdict, formatDuration(e.Duration))
 	}
 	return verdict
+}
+
+func summaryStopReasonLabel(reason string) string {
+	if reason == "" {
+		return ""
+	}
+
+	switch reason {
+	case "build-failing":
+		return "build failing"
+	default:
+		return strings.ReplaceAll(reason, "-", " ")
+	}
 }
 
 func summaryBuildLine(e Event) string {

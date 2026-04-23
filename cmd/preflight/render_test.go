@@ -698,6 +698,41 @@ func TestPlainRenderer_Render_BuildSummaryFailed(t *testing.T) {
 	}
 }
 
+func TestPlainRenderer_Render_BuildSummaryStoppedEarly(t *testing.T) {
+	var out bytes.Buffer
+	r := newPlainRenderer(&out)
+
+	buildCanceled := false
+	exitOne := 1
+	if err := r.Render(Event{
+		Type:          EventBuildSummary,
+		Time:          time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
+		Pipeline:      "buildkite/cli",
+		BuildNumber:   42,
+		BuildURL:      "https://buildkite.com/buildkite/cli/builds/42",
+		BuildState:    "failing",
+		Incomplete:    true,
+		StopReason:    "build-failing",
+		BuildCanceled: &buildCanceled,
+		FailedJobs: []buildkite.Job{
+			{ID: "job-1", Name: "Lint", Type: "script", State: "failed", ExitStatus: &exitOne},
+		},
+	}); err != nil {
+		t.Fatalf("Render() error: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "❌ Preflight Incomplete (build failing)") {
+		t.Fatalf("expected early-stop header, got %q", got)
+	}
+	if !strings.Contains(got, "Build Failures:") {
+		t.Fatalf("expected build failures section, got %q", got)
+	}
+	if !strings.Contains(got, "Lint") {
+		t.Fatalf("expected failed job name, got %q", got)
+	}
+}
+
 func TestPlainRenderer_Render_BuildSummaryIncludesTests(t *testing.T) {
 	var out bytes.Buffer
 	r := newPlainRenderer(&out)
@@ -801,6 +836,43 @@ func TestJSONRenderer_Render_BuildSummaryFailed(t *testing.T) {
 	failedJobs, ok := got["failed_jobs"].([]any)
 	if !ok || len(failedJobs) != 1 {
 		t.Fatalf("expected 1 failed job, got %v", got["failed_jobs"])
+	}
+}
+
+func TestJSONRenderer_Render_BuildSummaryStoppedEarly(t *testing.T) {
+	var out bytes.Buffer
+	r := newJSONRenderer(&out)
+
+	buildCanceled := false
+	if err := r.Render(Event{
+		Type:          EventBuildSummary,
+		Time:          time.Date(2025, 1, 15, 10, 32, 0, 0, time.UTC),
+		PreflightID:   "pfid-123",
+		Pipeline:      "buildkite/cli",
+		BuildNumber:   42,
+		BuildState:    "failing",
+		Incomplete:    true,
+		StopReason:    "build-failing",
+		BuildCanceled: &buildCanceled,
+	}); err != nil {
+		t.Fatalf("Render() error: %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
+	}
+	if got["type"] != "build_summary" {
+		t.Fatalf("expected type build_summary, got %v", got["type"])
+	}
+	if got["incomplete"] != true {
+		t.Fatalf("expected incomplete=true, got %v", got["incomplete"])
+	}
+	if got["stop_reason"] != "build-failing" {
+		t.Fatalf("expected stop_reason=build-failing, got %v", got["stop_reason"])
+	}
+	if got["build_canceled"] != false {
+		t.Fatalf("expected build_canceled=false, got %v", got["build_canceled"])
 	}
 }
 
