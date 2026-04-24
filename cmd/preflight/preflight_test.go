@@ -1663,6 +1663,55 @@ func TestPreflightCmd_Run(t *testing.T) {
 			t.Fatalf("expected build creation error, got: %v", err)
 		}
 	})
+
+	t.Run("closes renderer when build creation fails", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		originalRendererFactory := rendererFactory
+		fakeRenderer := &recordingRenderer{}
+		rendererFactory = func(io.Writer, bool, bool, context.CancelFunc) renderer {
+			return fakeRenderer
+		}
+		t.Cleanup(func() { rendererFactory = originalRendererFactory })
+
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"message":"Authentication required"}`))
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Interval: 2}
+		err := cmd.Run(nil, stubGlobals{})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "creating preflight build") {
+			t.Fatalf("expected build creation error, got: %v", err)
+		}
+		if fakeRenderer.closeCalls != 1 {
+			t.Fatalf("expected renderer to be closed once, got %d", fakeRenderer.closeCalls)
+		}
+	})
+}
+
+type recordingRenderer struct {
+	closeCalls int
+}
+
+func (r *recordingRenderer) Render(Event) error { return nil }
+
+func (r *recordingRenderer) Close() error {
+	r.closeCalls++
+	return nil
 }
 
 func initTestRepo(t *testing.T) string {

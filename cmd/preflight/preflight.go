@@ -40,8 +40,9 @@ type RunCmd struct {
 }
 
 var (
-	notifyContext = signal.NotifyContext
-	newFactory    = factory.New
+	notifyContext   = signal.NotifyContext
+	newFactory      = factory.New
+	rendererFactory = newRenderer
 
 	errExitOnBuildFailing = errors.New("exit-on build-failing")
 )
@@ -136,7 +137,8 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		)
 	}
 
-	renderer := newRenderer(os.Stdout, c.JSON, c.Text, stop)
+	renderer := rendererFactory(os.Stdout, c.JSON, c.Text, stop)
+	defer renderer.Close()
 
 	rlTransport.OnRateLimit = func(attempt int, delay time.Duration) {
 		if globals.EnableDebug() {
@@ -198,7 +200,6 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Created build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name), Detail: fmt.Sprintf("Build:  %s", build.WebURL)})
 
 	if !c.Watch {
-		_ = renderer.Close()
 		return nil
 	}
 
@@ -262,7 +263,6 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		if finalBuild.FinishedAt == nil && !buildstate.IsTerminal(buildstate.State(finalBuild.State)) && !c.NoCleanup {
 			cancelBuild(f, renderer, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, preflightID.String(), globals.EnableDebug())
 		}
-		_ = renderer.Close()
 		return bkErrors.NewUserAbortedError(context.Canceled, "preflight canceled by user")
 	}
 
@@ -288,7 +288,6 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		}
 		_ = renderer.Render(summaryEvent)
 		cleanupBranch()
-		_ = renderer.Close()
 		return finalErr
 	}
 
@@ -313,7 +312,6 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	cleanupBranch()
-	_ = renderer.Close()
 
 	if err != nil {
 		return bkErrors.NewInternalError(err, "watching build failed",
