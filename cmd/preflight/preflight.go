@@ -247,16 +247,7 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			return errExitOnBuildFailing
 		}
 		return nil
-	}, watch.WithRetriedJobs(), watch.WithTestTracking(func(newTestChanges []buildkite.BuildTest) error {
-		return renderer.Render(Event{
-			Type:         EventTestFailure,
-			Time:         time.Now(),
-			PreflightID:  preflightID.String(),
-			Pipeline:     pipelineName,
-			BuildNumber:  build.Number,
-			TestFailures: newTestChanges,
-		})
-	}))
+	}, watch.WithRetriedJobs())
 
 	finalErr := NewResult(finalBuild).Error()
 	cleanupBranch := func() {
