@@ -71,6 +71,19 @@ func TestBuildSummaryView_ReturnsOutput(t *testing.T) {
 			contains: []string{"Build #42", "https://buildkite.com/buildkite/cli/builds/42", "✗", "Lint", "failed with exit 1"},
 		},
 		{
+			name:  "build stopped early",
+			width: 0,
+			event: Event{
+				Type:        EventBuildSummary,
+				BuildState:  "failing",
+				BuildNumber: 42,
+				BuildURL:    "https://buildkite.com/buildkite/cli/builds/42",
+				Incomplete:  true,
+				StopReason:  "build-failing",
+			},
+			contains: []string{"Preflight Incomplete (build failing)", "Build #42", "https://buildkite.com/buildkite/cli/builds/42"},
+		},
+		{
 			name:  "wraps build url on narrow terminals",
 			width: 24,
 			event: Event{

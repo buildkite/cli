@@ -78,3 +78,31 @@ func TestEvent_JobFailure(t *testing.T) {
 		t.Fatalf("expected job ID job-1, got %q", e.Job.ID)
 	}
 }
+
+func TestEvent_BuildSummaryStoppedEarly(t *testing.T) {
+	buildCanceled := false
+	e := Event{
+		Type:          EventBuildSummary,
+		Time:          time.Now(),
+		PreflightID:   "preflight-123",
+		Pipeline:      "buildkite/cli",
+		BuildNumber:   42,
+		BuildState:    "failing",
+		Incomplete:    true,
+		StopReason:    "build-failing",
+		BuildCanceled: &buildCanceled,
+	}
+
+	if e.Type != EventBuildSummary {
+		t.Fatalf("expected EventBuildSummary, got %q", e.Type)
+	}
+	if !e.Incomplete {
+		t.Fatal("expected Incomplete to be set")
+	}
+	if e.StopReason != "build-failing" {
+		t.Fatalf("expected stop reason build-failing, got %q", e.StopReason)
+	}
+	if e.BuildCanceled == nil || *e.BuildCanceled {
+		t.Fatalf("expected BuildCanceled=false, got %#v", e.BuildCanceled)
+	}
+}

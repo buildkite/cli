@@ -23,27 +23,36 @@ import (
 	bkhttp "github.com/buildkite/cli/v3/internal/http"
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
-	"github.com/buildkite/cli/v3/internal/preflight"
+	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
 type RunCmd struct {
-	Pipeline         string               `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
-	Watch            bool                 `help:"Watch the build until completion." default:"true" negatable:""`
-	Interval         float64              `help:"Polling interval in seconds when watching." default:"2"`
-	NoCleanup        bool                 `help:"Skip deleting the remote preflight branch after the build finishes."`
-	AwaitTestResults awaitTestResultsFlag `name:"await-test-results" help:"After the build finishes, wait for tests results to be processed by Test Engine. Provide a duration like 10s, or omit the value to wait 30s."`
-	Text             bool                 `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
-	JSON             bool                 `help:"Emit one JSON object per event (JSONL)." xor:"output"`
+	Pipeline         string                         `help:"The pipeline to build. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
+	Watch            bool                           `help:"Watch the build until completion." default:"true" negatable:""`
+	ExitOn           []internalpreflight.ExitPolicy `help:"Exit when a condition is met. Options: build-failing (default, exits when a build enters the failing state), build-terminal (exits when the build reaches a terminal state)."`
+	Interval         float64                        `help:"Polling interval in seconds when watching." default:"2"`
+	NoCleanup        bool                           `help:"Skip cleanup after completion or early exit. The preflight branch remains and the build keeps running if exiting early."`
+	AwaitTestResults awaitTestResultsFlag           `name:"await-test-results" help:"After the build finishes, wait for tests results to be processed by Test Engine. Provide a duration like 10s, or omit the value to wait 30s."`
+	Text             bool                           `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
+	JSON             bool                           `help:"Emit one JSON object per event (JSONL)." xor:"output"`
 }
 
 var (
 	notifyContext = signal.NotifyContext
 	newFactory    = factory.New
+
+	errExitOnBuildFailing = errors.New("exit-on build-failing")
 )
 
 const defaultAwaitTestResultsDuration = 30 * time.Second
+
+type summaryMeta struct {
+	Incomplete    bool
+	StopReason    string
+	BuildCanceled bool
+}
 
 func preflightUserAgentSuffix() string {
 	major := strings.TrimPrefix(version.Version, "v")
@@ -85,10 +94,19 @@ func (c *RunCmd) Help() string {
 	return `Snapshots your working tree (uncommitted, staged, and untracked changes) and pushes it to a bk/preflight/<id> branch. If there are no local changes, pushes HEAD directly.`
 }
 
-func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+func (c *RunCmd) Validate() error {
 	if c.Interval <= 0 {
 		return bkErrors.NewValidationError(fmt.Errorf("interval must be greater than 0"), "invalid polling interval")
 	}
+	return internalpreflight.ValidateExitPolicies(c.ExitOn, c.Watch)
+}
+
+func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	if err := c.Validate(); err != nil {
+		return err
+	}
+
+	exitPolicy := internalpreflight.EffectiveExitPolicy(c.ExitOn)
 
 	pCtx, err := setup(c.Pipeline, globals)
 	if err != nil {
@@ -109,7 +127,7 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 	startedAt := time.Now()
 
-	sourceContext, err := preflight.ResolveSourceContext(repoRoot, globals.EnableDebug())
+	sourceContext, err := internalpreflight.ResolveSourceContext(repoRoot, globals.EnableDebug())
 	if err != nil {
 		return bkErrors.NewValidationError(
 			err,
@@ -133,12 +151,12 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: "Pushing snapshot of working tree..."})
 
-	var opts []preflight.SnapshotOption
+	var opts []internalpreflight.SnapshotOption
 	if globals.EnableDebug() {
-		opts = append(opts, preflight.WithDebug())
+		opts = append(opts, internalpreflight.WithDebug())
 	}
 
-	result, err := preflight.Snapshot(repoRoot, preflightID, opts...)
+	result, err := internalpreflight.Snapshot(repoRoot, preflightID, opts...)
 	if err != nil {
 		return bkErrors.NewSnapshotError(err, "failed to create preflight snapshot",
 			"Ensure you have uncommitted or committed changes to snapshot",
@@ -213,7 +231,7 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 				return err
 			}
 		}
-		return renderer.Render(Event{
+		if err := renderer.Render(Event{
 			Type:        EventBuildStatus,
 			Time:        time.Now(),
 			PreflightID: preflightID.String(),
@@ -222,7 +240,13 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			BuildURL:    build.WebURL,
 			BuildState:  b.State,
 			Jobs:        &status.Summary,
-		})
+		}); err != nil {
+			return err
+		}
+		if exitPolicy == internalpreflight.ExitOnBuildFailing && buildstate.State(b.State) == buildstate.Failing {
+			return errExitOnBuildFailing
+		}
+		return nil
 	}, watch.WithRetriedJobs(), watch.WithTestTracking(func(newTestChanges []buildkite.BuildTest) error {
 		return renderer.Render(Event{
 			Type:         EventTestFailure,
@@ -234,21 +258,54 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		})
 	}))
 
-	buildResult := NewResult(finalBuild)
-	finalErr := buildResult.Error()
+	finalErr := NewResult(finalBuild).Error()
+	cleanupBranch := func() {
+		if c.NoCleanup {
+			return
+		}
+		cleanupRemoteBranch(renderer, repoRoot, result.Branch, result.Ref, preflightID.String(), globals.EnableDebug())
+	}
+
+	if errors.Is(err, context.Canceled) {
+		cleanupBranch()
+		if finalBuild.FinishedAt == nil && !buildstate.IsTerminal(buildstate.State(finalBuild.State)) && !c.NoCleanup {
+			cancelBuild(f, renderer, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, preflightID.String(), globals.EnableDebug())
+		}
+		_ = renderer.Close()
+		return bkErrors.NewUserAbortedError(context.Canceled, "preflight canceled by user")
+	}
+
+	if errors.Is(err, errExitOnBuildFailing) {
+		buildCanceled := false
+		if !c.NoCleanup {
+			buildCanceled = cancelBuild(f, renderer, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, preflightID.String(), globals.EnableDebug())
+		}
+
+		summaryEvent := newBuildSummaryEvent(preflightID.String(), pipelineName, build.Number, build.WebURL, finalBuild, startedAt)
+		summaryEvent.ApplySummaryMeta(summaryMeta{Incomplete: true, StopReason: "build-failing", BuildCanceled: buildCanceled})
+		summaryEvent.ApplyJobResults(finalBuild, tracker)
+		showResult, showErr := c.loadFinalResult(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number)
+		if showErr == nil {
+			summaryEvent.Tests = showResult.Tests
+		} else if globals.EnableDebug() {
+			_ = renderer.Render(Event{
+				Type:        EventOperation,
+				Time:        time.Now(),
+				PreflightID: preflightID.String(),
+				Title:       fmt.Sprintf("Debug: failed to load final test summary: %v", showErr),
+			})
+		}
+		_ = renderer.Render(summaryEvent)
+		cleanupBranch()
+		_ = renderer.Close()
+		return finalErr
+	}
 
 	// Emit a final summary showing pass/fail, passed jobs (if ≤10), or hard-failed jobs.
 	if buildstate.IsTerminal(buildstate.State(finalBuild.State)) {
-		summaryEvent := Event{
-			Type:        EventBuildSummary,
-			Time:        time.Now(),
-			PreflightID: preflightID.String(),
-			Pipeline:    pipelineName,
-			BuildNumber: build.Number,
-			BuildURL:    build.WebURL,
-			BuildState:  finalBuild.State,
-			Duration:    time.Since(startedAt),
-		}
+		summaryEvent := newBuildSummaryEvent(preflightID.String(), pipelineName, build.Number, build.WebURL, finalBuild, startedAt)
+		summaryEvent.ApplySummaryMeta(summaryMeta{})
+		summaryEvent.ApplyJobResults(finalBuild, tracker)
 
 		showResult, showErr := c.loadFinalResult(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number)
 		if showErr == nil {
@@ -261,46 +318,10 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 				Title:       fmt.Sprintf("Debug: failed to load final test summary: %v", showErr),
 			})
 		}
-
-		if buildResult.Passed() {
-			if passed := tracker.PassedJobs(); len(passed) <= 10 {
-				summaryEvent.PassedJobs = passed
-			}
-		} else {
-			summaryEvent.FailedJobs = tracker.FailedJobs()
-		}
 		_ = renderer.Render(summaryEvent)
 	}
 
-	if !c.NoCleanup {
-		_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Cleaning up remote branch %s...", result.Branch)})
-		if cleanupErr := preflight.Cleanup(repoRoot, result.Ref, globals.EnableDebug()); cleanupErr != nil {
-			_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Warning: failed to delete remote branch %s: %v", result.Ref, cleanupErr)})
-		} else {
-			_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Deleted remote branch %s", result.Branch)})
-		}
-	}
-
-	if errors.Is(err, context.Canceled) {
-		if finalBuild.FinishedAt == nil && !buildstate.IsTerminal(buildstate.State(finalBuild.State)) {
-			cancelCtx, cancelStop := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancelStop()
-			if _, cancelErr := f.RestAPIClient.Builds.Cancel(cancelCtx, resolvedPipeline.Org, resolvedPipeline.Name, strconv.Itoa(build.Number)); cancelErr != nil {
-				var apiErr *buildkite.ErrorResponse
-				if errors.As(cancelErr, &apiErr) && apiErr.Response.StatusCode == http.StatusUnprocessableEntity && apiErr.Message == "Build can't be canceled because it's already finished." {
-					if globals.EnableDebug() {
-						_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Debug: build #%d already finished, skipping cancel", build.Number)})
-					}
-				} else {
-					_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Warning: failed to cancel build #%d: %v", build.Number, cancelErr)})
-				}
-			} else {
-				_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Cancelled build #%d", build.Number)})
-			}
-		}
-		_ = renderer.Close()
-		return bkErrors.NewUserAbortedError(context.Canceled, "preflight canceled by user")
-	}
+	cleanupBranch()
 	_ = renderer.Close()
 
 	if err != nil {
@@ -313,19 +334,49 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	return finalErr
 }
 
-func (c *RunCmd) loadFinalResult(ctx context.Context, client *buildkite.Client, org, pipeline string, buildNumber int) (preflight.SummaryResult, error) {
+func cleanupRemoteBranch(renderer renderer, repoRoot, branch, ref, preflightID string, debug bool) {
+	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID, Title: fmt.Sprintf("Cleaning up remote branch %s...", branch)})
+	if cleanupErr := internalpreflight.Cleanup(repoRoot, ref, debug); cleanupErr != nil {
+		_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID, Title: fmt.Sprintf("Warning: failed to delete remote branch %s: %v", ref, cleanupErr)})
+		return
+	}
+	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID, Title: fmt.Sprintf("Deleted remote branch %s", branch)})
+}
+
+func cancelBuild(f *factory.Factory, renderer renderer, org, pipeline string, buildNumber int, preflightID string, debug bool) bool {
+	cancelCtx, cancelStop := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelStop()
+
+	if _, err := f.RestAPIClient.Builds.Cancel(cancelCtx, org, pipeline, strconv.Itoa(buildNumber)); err != nil {
+		var apiErr *buildkite.ErrorResponse
+		if errors.As(err, &apiErr) && apiErr.Response.StatusCode == http.StatusUnprocessableEntity && apiErr.Message == "Build can't be canceled because it's already finished." {
+			if debug {
+				_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID, Title: fmt.Sprintf("Debug: build #%d already finished, skipping cancel", buildNumber)})
+			}
+			return false
+		}
+
+		_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID, Title: fmt.Sprintf("Warning: failed to cancel build #%d: %v", buildNumber, err)})
+		return false
+	}
+
+	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID, Title: fmt.Sprintf("Cancelled build #%d", buildNumber)})
+	return true
+}
+
+func (c *RunCmd) loadFinalResult(ctx context.Context, client *buildkite.Client, org, pipeline string, buildNumber int) (internalpreflight.SummaryResult, error) {
 	buildWithTests, _, buildErr := client.Builds.Get(ctx, org, pipeline, strconv.Itoa(buildNumber), &buildkite.BuildGetOptions{IncludeTestEngine: true})
 	expectTestSummary := buildErr == nil && buildWithTests.TestEngine != nil && len(buildWithTests.TestEngine.Runs) > 0
 
 	if buildErr != nil {
-		return preflight.SummaryResult{}, buildErr
+		return internalpreflight.SummaryResult{}, buildErr
 	}
 
 	if !c.AwaitTestResults.Enabled || c.AwaitTestResults.Duration <= 0 {
 		return c.loadSummary(ctx, client, org, buildWithTests.ID)
 	}
 	if !expectTestSummary {
-		return preflight.SummaryResult{Tests: preflight.SummaryTests{Runs: map[string]preflight.SummaryTestRun{}, Failures: []preflight.SummaryTestFailure{}}}, nil
+		return internalpreflight.SummaryResult{Tests: internalpreflight.SummaryTests{Runs: map[string]internalpreflight.SummaryTestRun{}, Failures: []internalpreflight.SummaryTestFailure{}}}, nil
 	}
 
 	timer := time.NewTimer(c.AwaitTestResults.Duration)
@@ -333,25 +384,25 @@ func (c *RunCmd) loadFinalResult(ctx context.Context, client *buildkite.Client, 
 
 	select {
 	case <-ctx.Done():
-		return preflight.SummaryResult{}, ctx.Err()
+		return internalpreflight.SummaryResult{}, ctx.Err()
 	case <-timer.C:
 	}
 
 	return c.loadSummary(ctx, client, org, buildWithTests.ID)
 }
 
-func (c *RunCmd) loadSummary(ctx context.Context, client *buildkite.Client, org, buildID string) (preflight.SummaryResult, error) {
+func (c *RunCmd) loadSummary(ctx context.Context, client *buildkite.Client, org, buildID string) (internalpreflight.SummaryResult, error) {
 	if buildID == "" {
-		return preflight.SummaryResult{Tests: preflight.SummaryTests{Runs: map[string]preflight.SummaryTestRun{}, Failures: []preflight.SummaryTestFailure{}}}, nil
+		return internalpreflight.SummaryResult{Tests: internalpreflight.SummaryTests{Runs: map[string]internalpreflight.SummaryTestRun{}, Failures: []internalpreflight.SummaryTestFailure{}}}, nil
 	}
 
-	summary, err := preflight.NewRunSummaryService(client).Get(ctx, org, buildID, &preflight.RunSummaryGetOptions{
+	summary, err := internalpreflight.NewRunSummaryService(client).Get(ctx, org, buildID, &internalpreflight.RunSummaryGetOptions{
 		Result:          "^failed",
 		State:           "enabled",
 		IncludeFailures: true,
 	})
 	if err != nil {
-		return preflight.SummaryResult{}, err
+		return internalpreflight.SummaryResult{}, err
 	}
 
 	return summary.SummaryResult(), nil
@@ -429,5 +480,5 @@ func resolveRepositoryRoot(f *factory.Factory, debug bool) (string, error) {
 		}
 	}
 
-	return preflight.RepositoryRoot(".", debug)
+	return internalpreflight.RepositoryRoot(".", debug)
 }
