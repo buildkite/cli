@@ -34,7 +34,7 @@ type RunCmd struct {
 	ExitOn           []internalpreflight.ExitPolicy `help:"Exit when a condition is met. Options: build-failing (default, exits when a build enters the failing state), build-terminal (exits when the build reaches a terminal state)."`
 	Interval         float64                        `help:"Polling interval in seconds when watching." default:"2"`
 	NoCleanup        bool                           `help:"Skip cleanup after completion or early exit. The preflight branch remains and the build keeps running if exiting early."`
-	AwaitTestResults awaitTestResultsFlag           `name:"await-test-results" help:"After the build finishes, wait for tests results to be processed by Test Engine. Provide a duration like 10s, or omit the value to wait 30s."`
+	AwaitTestResults awaitTestResultsFlag           `name:"await-test-results" help:"After the build finishes, wait for test results to be processed by Test Engine. Provide a duration like 10s, or omit the value to wait 30s."`
 	Text             bool                           `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
 	JSON             bool                           `help:"Emit one JSON object per event (JSONL)." xor:"output"`
 }
@@ -92,7 +92,9 @@ func (f *awaitTestResultsFlag) Decode(ctx *kong.DecodeContext) error {
 func (f awaitTestResultsFlag) IsBool() bool { return true }
 
 func (c *RunCmd) Help() string {
-	return `Snapshots your working tree (uncommitted, staged, and untracked changes) and pushes it to a bk/preflight/<id> branch. If there are no local changes, pushes HEAD directly.`
+	return `Preflight is an experimental preview and subject to change without notice.
+
+Snapshots your working tree (staged, unstaged, and untracked files) to a temporary commit on a bk/preflight/<id> branch, triggers a build on the selected pipeline, monitors failures, exits as soon as the build starts failing, and cleans up the temporary branch when finished.`
 }
 
 func (c *RunCmd) Validate() error {
