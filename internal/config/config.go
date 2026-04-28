@@ -342,12 +342,15 @@ func (conf *Config) SetTelemetry(v bool) error {
 }
 
 // Experiments returns the comma-separated list of enabled experiments.
-// Precedence: env (even if empty) > user config
+// Precedence: env (even if empty) > user config > default
 func (conf *Config) Experiments() string {
 	if v, ok := os.LookupEnv("BUILDKITE_EXPERIMENTS"); ok {
 		return v
 	}
-	return conf.user.Experiments
+	if conf.user.Experiments != "" {
+		return conf.user.Experiments
+	}
+	return "preflight"
 }
 
 // HasExperiment reports whether the given experiment name is enabled.

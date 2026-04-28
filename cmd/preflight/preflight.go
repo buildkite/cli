@@ -423,7 +423,7 @@ func setup(pipelineFlag string, globals cli.GlobalFlags) (*preflightContext, err
 	if !f.Config.HasExperiment("preflight") {
 		return nil, bkErrors.NewValidationError(
 			fmt.Errorf("experiment not enabled"),
-			"the preflight command is under development and requires the 'preflight' experiment to opt in. Run: bk config set experiments preflight or set BUILDKITE_EXPERIMENTS=preflight")
+			"preflight is disabled by the current experiments override. Add `preflight` to `BUILDKITE_EXPERIMENTS` or run `bk config set experiments preflight` to re-enable it")
 	}
 
 	repoRoot, err := resolveRepositoryRoot(f, globals.EnableDebug())
