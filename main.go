@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -172,16 +173,71 @@ func handleError(err error) {
 	bkErrors.NewHandler().Handle(err)
 }
 
-func newKongParser(cli *CLI) (*kong.Kong, error) {
-	return kong.New(
-		cli,
+func newKongParser(cli *CLI, options ...kong.Option) (*kong.Kong, error) {
+	baseOptions := []kong.Option{
 		kong.Name("bk"),
 		kong.Description("Work with Buildkite from the command line."),
 		kong.Vars{
 			// Empty default allows commands to fall back to config value
 			"output_default_format": "",
 		},
+	}
+	baseOptions = append(baseOptions, options...)
+
+	return kong.New(cli, baseOptions...)
+}
+
+func renderHelp(args []string) (string, error) {
+	cli := &CLI{}
+	var stdout, stderr bytes.Buffer
+	parser, err := newKongParser(
+		cli,
+		kong.Writers(&stdout, &stderr),
+		kong.Exit(func(int) {}),
 	)
+	if err != nil {
+		return "", err
+	}
+	applyExperiments(parser, config.New(nil, nil))
+	if _, err := parser.Parse(args); err != nil {
+		if stdout.Len() > 0 {
+			return stdout.String(), nil
+		}
+		return "", err
+	}
+	return stdout.String(), nil
+}
+
+func renderPreflightHelp() (string, error) {
+	parentHelp, err := renderHelp([]string{"preflight", "--help"})
+	if err != nil {
+		return "", err
+	}
+
+	runHelp, err := renderHelp([]string{"preflight", "run", "--help"})
+	if err != nil {
+		return "", err
+	}
+
+	parentFlagsStart := strings.Index(parentHelp, "\nFlags:\n")
+	parentCommandsStart := strings.Index(parentHelp, "\nCommands:\n")
+	runFlagsStart := strings.Index(runHelp, "\nFlags:\n")
+	if parentFlagsStart == -1 || parentCommandsStart == -1 || runFlagsStart == -1 {
+		return parentHelp, nil
+	}
+
+	return parentHelp[:parentFlagsStart] + runHelp[runFlagsStart:] + parentHelp[parentCommandsStart:], nil
+}
+
+func isPreflightHelpRequest(args []string) bool {
+	switch {
+	case len(args) == 2 && args[0] == "preflight" && (args[1] == "--help" || args[1] == "-h"):
+		return true
+	case len(args) == 2 && args[0] == "help" && args[1] == "preflight":
+		return true
+	default:
+		return false
+	}
 }
 
 // applyExperiments toggles visibility of experimental commands based on config.
@@ -219,6 +275,18 @@ func run() int {
 		return 0
 	}
 
+	args := os.Args[1:]
+
+	if isPreflightHelpRequest(args) {
+		help, err := renderPreflightHelp()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return 1
+		}
+		fmt.Print(help)
+		return 0
+	}
+
 	cliInstance := &CLI{}
 
 	conf := config.New(nil, nil)
@@ -233,9 +301,9 @@ func run() int {
 		return 1
 	}
 	applyExperiments(parser, conf)
-	ctx, err := parser.Parse(os.Args[1:])
+	ctx, err := parser.Parse(args)
 	if err != nil {
-		tracker.TrackCommand("unknown command", os.Args[1:], nil)
+		tracker.TrackCommand("unknown command", args, nil)
 
 		var parseErr *kong.ParseError
 		if errors.As(err, &parseErr) && !strings.Contains(err.Error(), "did you mean") {
@@ -247,7 +315,7 @@ func run() int {
 		return 1
 	}
 
-	tracker.TrackCommand(analytics.ParseSubcommand(ctx.Command()), os.Args[1:], nil)
+	tracker.TrackCommand(analytics.ParseSubcommand(ctx.Command()), args, nil)
 
 	globals := cli.Globals{
 		Yes:     cliInstance.Yes,
