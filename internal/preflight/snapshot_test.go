@@ -27,6 +27,7 @@ func initTestRepo(t *testing.T) string {
 	runGit(t, "", "init", worktree)
 	runGit(t, worktree, "config", "user.email", "test@test.com")
 	runGit(t, worktree, "config", "user.name", "Test")
+	runGit(t, worktree, "config", "commit.gpgsign", "false")
 
 	// Create an initial commit so HEAD exists.
 	initial := filepath.Join(worktree, "README.md")

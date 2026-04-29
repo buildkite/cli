@@ -361,8 +361,8 @@ func TestExperiments(t *testing.T) {
 		fs := afero.NewMemMapFs()
 		conf := New(fs, nil)
 
-		if got := conf.Experiments(); got != "preflight" {
-			t.Errorf("Experiments() = %q, want %q", got, "preflight")
+		if got := conf.Experiments(); got != DefaultExperiments {
+			t.Errorf("Experiments() = %q, want %q", got, DefaultExperiments)
 		}
 	})
 
@@ -419,6 +419,19 @@ func TestExperiments(t *testing.T) {
 	})
 }
 
+func TestHasExperimentEnvOverride(t *testing.T) {
+	t.Run("empty env override disables default experiments", func(t *testing.T) {
+		setEnv(t, "BUILDKITE_EXPERIMENTS", "")
+
+		fs := afero.NewMemMapFs()
+		conf := New(fs, nil)
+
+		if conf.HasExperiment(ExperimentPreflight) {
+			t.Errorf("HasExperiment(%q) = true, want false", ExperimentPreflight)
+		}
+	})
+}
+
 func TestHasExperiment(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -426,7 +439,7 @@ func TestHasExperiment(t *testing.T) {
 		query       string
 		want        bool
 	}{
-		{"preflight defaults on", "", "preflight", true},
+		{"preflight defaults on", "", ExperimentPreflight, true},
 		{"single match", "preflight", "preflight", true},
 		{"multiple with match", "foo,preflight,bar", "preflight", true},
 		{"override without match", "foo,bar", "preflight", false},

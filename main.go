@@ -184,8 +184,8 @@ func newKongParser(cli *CLI) (*kong.Kong, error) {
 func applyExperiments(parser *kong.Kong, conf *config.Config) {
 	for _, node := range parser.Model.Children {
 		switch node.Name {
-		case "preflight":
-			node.Hidden = !conf.HasExperiment("preflight")
+		case config.ExperimentPreflight:
+			node.Hidden = !conf.HasExperiment(config.ExperimentPreflight)
 		}
 	}
 }

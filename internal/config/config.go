@@ -34,6 +34,11 @@ var (
 const (
 	DefaultGraphQLEndpoint = "https://graphql.buildkite.com/v1"
 
+	// ExperimentPreflight is the experiment flag name for the preflight command.
+	ExperimentPreflight = "preflight"
+	// DefaultExperiments is the comma-separated experiment list enabled out-of-the-box.
+	DefaultExperiments = ExperimentPreflight
+
 	appData             = "AppData"
 	configFilePath      = "bk.yaml"
 	localConfigFilePath = "." + configFilePath
@@ -350,7 +355,7 @@ func (conf *Config) Experiments() string {
 	if conf.user.Experiments != "" {
 		return conf.user.Experiments
 	}
-	return "preflight"
+	return DefaultExperiments
 }
 
 // HasExperiment reports whether the given experiment name is enabled.

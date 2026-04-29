@@ -19,6 +19,7 @@ import (
 	buildstate "github.com/buildkite/cli/v3/internal/build/state"
 	"github.com/buildkite/cli/v3/internal/build/watch"
 	"github.com/buildkite/cli/v3/internal/cli"
+	internalconfig "github.com/buildkite/cli/v3/internal/config"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	bkhttp "github.com/buildkite/cli/v3/internal/http"
 	"github.com/buildkite/cli/v3/internal/pipeline"
@@ -420,7 +421,7 @@ func setup(pipelineFlag string, globals cli.GlobalFlags) (*preflightContext, err
 		return nil, bkErrors.NewInternalError(err, "failed to initialize CLI", "This is likely a bug", "Report to Buildkite")
 	}
 
-	if !f.Config.HasExperiment("preflight") {
+	if !f.Config.HasExperiment(internalconfig.ExperimentPreflight) {
 		return nil, bkErrors.NewValidationError(
 			fmt.Errorf("experiment not enabled"),
 			"preflight is disabled by the current experiments override. Add `preflight` to `BUILDKITE_EXPERIMENTS` or run `bk config set experiments preflight` to re-enable it")
