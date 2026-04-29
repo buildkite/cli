@@ -355,14 +355,14 @@ func TestAPITokenForOrgNoKeyring(t *testing.T) {
 }
 
 func TestExperiments(t *testing.T) {
-	t.Run("defaults to empty", func(t *testing.T) {
+	t.Run("defaults to preflight", func(t *testing.T) {
 		unsetEnv(t, "BUILDKITE_EXPERIMENTS")
 
 		fs := afero.NewMemMapFs()
 		conf := New(fs, nil)
 
-		if got := conf.Experiments(); got != "" {
-			t.Errorf("Experiments() = %q, want %q", got, "")
+		if got := conf.Experiments(); got != DefaultExperiments {
+			t.Errorf("Experiments() = %q, want %q", got, DefaultExperiments)
 		}
 	})
 
@@ -390,15 +390,15 @@ func TestExperiments(t *testing.T) {
 		}
 	})
 
-	t.Run("config value is used", func(t *testing.T) {
+	t.Run("config overrides the default", func(t *testing.T) {
 		unsetEnv(t, "BUILDKITE_EXPERIMENTS")
 
 		fs := afero.NewMemMapFs()
 		conf := New(fs, nil)
-		conf.SetExperiments("preflight")
+		conf.SetExperiments("beta")
 
-		if got := conf.Experiments(); got != "preflight" {
-			t.Errorf("Experiments() = %q, want %q", got, "preflight")
+		if got := conf.Experiments(); got != "beta" {
+			t.Errorf("Experiments() = %q, want %q", got, "beta")
 		}
 	})
 
@@ -419,6 +419,19 @@ func TestExperiments(t *testing.T) {
 	})
 }
 
+func TestHasExperimentEnvOverride(t *testing.T) {
+	t.Run("empty env override disables default experiments", func(t *testing.T) {
+		setEnv(t, "BUILDKITE_EXPERIMENTS", "")
+
+		fs := afero.NewMemMapFs()
+		conf := New(fs, nil)
+
+		if conf.HasExperiment(ExperimentPreflight) {
+			t.Errorf("HasExperiment(%q) = true, want false", ExperimentPreflight)
+		}
+	})
+}
+
 func TestHasExperiment(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -426,11 +439,12 @@ func TestHasExperiment(t *testing.T) {
 		query       string
 		want        bool
 	}{
+		{"preflight defaults on", "", ExperimentPreflight, true},
 		{"single match", "preflight", "preflight", true},
 		{"multiple with match", "foo,preflight,bar", "preflight", true},
-		{"multiple without match", "foo,bar", "preflight", false},
+		{"override without match", "foo,bar", "preflight", false},
 		{"whitespace handling", " preflight , bar ", "preflight", true},
-		{"empty string", "", "preflight", false},
+		{"other experiments still default off", "", "beta", false},
 		{"partial name no match", "preflightx", "preflight", false},
 	}
 

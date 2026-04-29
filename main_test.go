@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -8,9 +9,54 @@ import (
 	"github.com/spf13/afero"
 )
 
+func unsetEnv(t *testing.T, key string) {
+	t.Helper()
+	original, had := os.LookupEnv(key)
+	if had {
+		if err := os.Unsetenv(key); err != nil {
+			t.Fatalf("failed to unset env %s: %v", key, err)
+		}
+	}
+	t.Cleanup(func() {
+		var err error
+		if had {
+			err = os.Setenv(key, original)
+		} else {
+			err = os.Unsetenv(key)
+		}
+		if err != nil {
+			t.Fatalf("failed to restore env %s: %v", key, err)
+		}
+	})
+}
+
 func TestApplyExperiments(t *testing.T) {
+	t.Run("preflight visible by default", func(t *testing.T) {
+		unsetEnv(t, "BUILDKITE_EXPERIMENTS")
+		fs := afero.NewMemMapFs()
+		conf := config.New(fs, nil)
+
+		cli := &CLI{}
+		parser, err := newKongParser(cli)
+		if err != nil {
+			t.Fatalf("failed to create parser: %v", err)
+		}
+
+		applyExperiments(parser, conf)
+
+		for _, node := range parser.Model.Children {
+			if node.Name == "preflight" {
+				if node.Hidden {
+					t.Error("preflight should be visible by default")
+				}
+				return
+			}
+		}
+		t.Fatal("preflight command not found in parser")
+	})
+
 	t.Run("preflight hidden when experiment disabled", func(t *testing.T) {
-		t.Setenv("BUILDKITE_EXPERIMENTS", "")
+		t.Setenv("BUILDKITE_EXPERIMENTS", "alpha")
 		fs := afero.NewMemMapFs()
 		conf := config.New(fs, nil)
 
@@ -33,7 +79,31 @@ func TestApplyExperiments(t *testing.T) {
 		t.Fatal("preflight command not found in parser")
 	})
 
-	t.Run("preflight visible when experiment enabled", func(t *testing.T) {
+	t.Run("preflight hidden when experiments override is empty", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "")
+		fs := afero.NewMemMapFs()
+		conf := config.New(fs, nil)
+
+		cli := &CLI{}
+		parser, err := newKongParser(cli)
+		if err != nil {
+			t.Fatalf("failed to create parser: %v", err)
+		}
+
+		applyExperiments(parser, conf)
+
+		for _, node := range parser.Model.Children {
+			if node.Name == "preflight" {
+				if !node.Hidden {
+					t.Error("preflight should be hidden when experiments override is empty")
+				}
+				return
+			}
+		}
+		t.Fatal("preflight command not found in parser")
+	})
+
+	t.Run("preflight visible when experiment enabled explicitly", func(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
 		fs := afero.NewMemMapFs()
 		conf := config.New(fs, nil)
