@@ -164,6 +164,10 @@ type (
 	}
 )
 
+func (c PreflightCmd) Help() string {
+	return preflight.HelpText()
+}
+
 func handleError(err error) {
 	bkErrors.NewHandler().Handle(err)
 }

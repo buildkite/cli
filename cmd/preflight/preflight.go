@@ -49,6 +49,12 @@ var (
 
 const defaultAwaitTestResultsDuration = 30 * time.Second
 
+func HelpText() string {
+	return `Preflight is an experimental preview and subject to change without notice.
+
+Snapshots your working tree (staged, unstaged, and untracked files) to a temporary commit on a bk/preflight/<id> branch, triggers a build on the selected pipeline, monitors failures, exits as soon as the build starts failing, and cleans up the temporary branch when finished.`
+}
+
 type summaryMeta struct {
 	Incomplete    bool
 	StopReason    string
@@ -92,9 +98,7 @@ func (f *awaitTestResultsFlag) Decode(ctx *kong.DecodeContext) error {
 func (f awaitTestResultsFlag) IsBool() bool { return true }
 
 func (c *RunCmd) Help() string {
-	return `Preflight is an experimental preview and subject to change without notice.
-
-Snapshots your working tree (staged, unstaged, and untracked files) to a temporary commit on a bk/preflight/<id> branch, triggers a build on the selected pipeline, monitors failures, exits as soon as the build starts failing, and cleans up the temporary branch when finished.`
+	return HelpText()
 }
 
 func (c *RunCmd) Validate() error {
