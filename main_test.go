@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -211,6 +212,60 @@ func TestApplyExperiments(t *testing.T) {
 
 		if _, err := parser.Parse([]string{"preflight", "--exit-on=build-failing", "--exit-on=build-terminal"}); err == nil {
 			t.Fatal("expected parse error for incompatible exit-on values")
+		}
+	})
+
+	t.Run("preflight run subcommand still parses", func(t *testing.T) {
+		cli := &CLI{}
+		parser, err := newKongParser(cli)
+		if err != nil {
+			t.Fatalf("failed to create parser: %v", err)
+		}
+
+		if _, err := parser.Parse([]string{"preflight", "run", "--await-test-results=45s"}); err != nil {
+			t.Fatalf("failed to parse preflight run subcommand: %v", err)
+		}
+		if !cli.Preflight.Run.AwaitTestResults.Enabled {
+			t.Fatal("expected run subcommand await-test-results to be enabled")
+		}
+		if cli.Preflight.Run.AwaitTestResults.Duration != 45*time.Second {
+			t.Fatalf("expected explicit run subcommand await-test-results duration, got %s", cli.Preflight.Run.AwaitTestResults.Duration)
+		}
+	})
+
+	t.Run("preflight help includes mirrored run flags", func(t *testing.T) {
+		help, err := renderPreflightHelp()
+		if err != nil {
+			t.Fatalf("failed to render preflight help: %v", err)
+		}
+		for _, want := range []string{
+			"--[no-]watch",
+			"--exit-on=EXIT-ON,...",
+			"--await-test-results",
+			"--no-cleanup",
+			"preflight cleanup [flags]",
+		} {
+			if !strings.Contains(help, want) {
+				t.Fatalf("expected preflight help to contain %q, got:\n%s", want, help)
+			}
+		}
+	})
+
+	t.Run("preflight help requests are detected", func(t *testing.T) {
+		tests := []struct {
+			args []string
+			want bool
+		}{
+			{args: []string{"preflight", "--help"}, want: true},
+			{args: []string{"preflight", "-h"}, want: true},
+			{args: []string{"help", "preflight"}, want: true},
+			{args: []string{"preflight", "run", "--help"}, want: false},
+		}
+
+		for _, tt := range tests {
+			if got := isPreflightHelpRequest(tt.args); got != tt.want {
+				t.Fatalf("isPreflightHelpRequest(%q) = %v, want %v", tt.args, got, tt.want)
+			}
 		}
 	})
 }
