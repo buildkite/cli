@@ -59,7 +59,7 @@ type CLI struct {
 	Organization OrganizationCmd    `cmd:"" help:"Manage organizations" aliases:"org"`
 	Pipeline     PipelineCmd        `cmd:"" help:"Manage pipelines"`
 	Package      PackageCmd         `cmd:"" help:"Manage packages"`
-	Preflight    PreflightCmd       `cmd:"" help:"Validate pre-commit changes"`
+	Preflight    PreflightCmd       `cmd:"" help:"Run a build against a snapshot of the local working tree (experimental)"`
 	Use          use.UseCmd         `cmd:"" help:"Select an organization" hidden:""`
 	User         UserCmd            `cmd:"" help:"Invite users to the organization"`
 	Version      VersionCmd         `cmd:"" help:"Print the version of the CLI being used"`
@@ -150,8 +150,8 @@ type (
 		View     pipeline.ViewCmd     `cmd:"" help:"View a pipeline."`
 	}
 	PreflightCmd struct {
-		Run     preflight.RunCmd     `cmd:"" default:"withargs" help:"Run a preflight check"`
-		Cleanup preflight.CleanupCmd `cmd:"" help:"Clean up completed preflight branches"`
+		Run     preflight.RunCmd     `cmd:"" default:"withargs" help:"Run a build against a snapshot of the local working tree (experimental)"`
+		Cleanup preflight.CleanupCmd `cmd:"" help:"Clean up completed preflight branches (experimental)"`
 	}
 	UserCmd struct {
 		Invite user.InviteCmd `cmd:"" help:"Invite users to your organization."`
@@ -163,6 +163,10 @@ type (
 		configure.ConfigureCmd `cmd:"" help:"Configure Buildkite API token"`
 	}
 )
+
+func (c PreflightCmd) Help() string {
+	return preflight.HelpText()
+}
 
 func handleError(err error) {
 	bkErrors.NewHandler().Handle(err)
