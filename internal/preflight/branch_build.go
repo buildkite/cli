@@ -3,6 +3,8 @@ package preflight
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strconv"
 	"strings"
 
 	buildstate "github.com/buildkite/cli/v3/internal/build/state"
@@ -77,7 +79,11 @@ func lsRemotePreflightBranches(dir, pattern string, debug bool) ([]BranchBuild, 
 // maxResolveBuildPages is the maximum number of API pages to fetch when
 // resolving builds. This prevents runaway pagination when orphaned branches
 // have no matching builds.
-const maxResolveBuildPages = 10
+const (
+	maxResolveBuildPages       = 10
+	resolveBuildsPerPage       = 100
+	maxResolveBuildQueryLength = 6000
+)
 
 // ResolveBuilds looks up the most recent build for each preflight branch and
 // populates the Build field. Branches with no matching build retain a nil Build.
@@ -86,33 +92,34 @@ func ResolveBuilds(ctx context.Context, client *buildkite.Client, org, pipeline 
 		return nil
 	}
 
-	branchNames := make([]string, len(branches))
-	for i := range branches {
-		branchNames[i] = branches[i].Branch
-	}
-
 	resolved := make(map[string]*buildkite.Build, len(branches))
-	opts := &buildkite.BuildsListOptions{
-		Branch:      branchNames,
-		ListOptions: buildkite.ListOptions{PerPage: 100},
-	}
-
-	for page := 0; page < maxResolveBuildPages; page++ {
-		builds, resp, err := client.Builds.ListByPipeline(ctx, org, pipeline, opts)
-		if err != nil {
-			return fmt.Errorf("listing builds for preflight branches: %w", err)
+	for _, branchBatch := range resolveBuildBranchBatches(branches) {
+		opts := &buildkite.BuildsListOptions{
+			Branch:      branchBatch,
+			ListOptions: buildkite.ListOptions{PerPage: resolveBuildsPerPage},
 		}
 
-		for i := range builds {
-			if _, exists := resolved[builds[i].Branch]; !exists {
-				resolved[builds[i].Branch] = &builds[i]
+		for page := 0; page < maxResolveBuildPages; page++ {
+			builds, resp, err := client.Builds.ListByPipeline(ctx, org, pipeline, opts)
+			if err != nil {
+				return fmt.Errorf("listing builds for preflight branches: %w", err)
 			}
+
+			for i := range builds {
+				if _, exists := resolved[builds[i].Branch]; !exists {
+					resolved[builds[i].Branch] = &builds[i]
+				}
+			}
+
+			if len(builds) == 0 || len(resolved) >= len(branches) || resp.NextPage == 0 {
+				break
+			}
+			opts.Page = resp.NextPage
 		}
 
-		if len(builds) == 0 || len(resolved) >= len(branches) || resp.NextPage == 0 {
+		if len(resolved) >= len(branches) {
 			break
 		}
-		opts.Page = resp.NextPage
 	}
 
 	for i := range branches {
@@ -120,4 +127,37 @@ func ResolveBuilds(ctx context.Context, client *buildkite.Client, org, pipeline 
 	}
 
 	return nil
+}
+
+func resolveBuildBranchBatches(branches []BranchBuild) [][]string {
+	if len(branches) == 0 {
+		return nil
+	}
+
+	batches := make([][]string, 0, 1)
+	current := make([]string, 0, len(branches))
+	for i := range branches {
+		branch := branches[i].Branch
+		if len(current) > 0 && resolveBuildQueryLength(append(current, branch)) > maxResolveBuildQueryLength {
+			batches = append(batches, current)
+			current = []string{branch}
+			continue
+		}
+		current = append(current, branch)
+	}
+
+	if len(current) > 0 {
+		batches = append(batches, current)
+	}
+
+	return batches
+}
+
+func resolveBuildQueryLength(branches []string) int {
+	query := url.Values{
+		"branch[]": append([]string(nil), branches...),
+	}
+	query.Set("per_page", strconv.Itoa(resolveBuildsPerPage))
+	query.Set("page", strconv.Itoa(maxResolveBuildPages))
+	return len(query.Encode())
 }
