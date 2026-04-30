@@ -89,6 +89,9 @@ type (
 		Stop    agent.StopCmd    `cmd:"" help:"Stop Buildkite agents."`
 		View    agent.ViewCmd    `cmd:"" help:"View details of an agent."`
 	}
+	ApiCmd struct {
+		api.ApiCmd `cmd:"" help:"Interact with the Buildkite API"`
+	}
 	ArtifactsCmd struct {
 		Download artifacts.DownloadCmd `cmd:"" help:"Download artifacts from a build."`
 		List     artifacts.ListCmd     `cmd:"" help:"List artifacts for a build or a job in a build." aliases:"ls"`
@@ -109,10 +112,39 @@ type (
 		Update cluster.UpdateCmd `cmd:"" help:"Update a cluster."`
 		Delete cluster.DeleteCmd `cmd:"" help:"Delete a cluster." aliases:"rm"`
 	}
+	ConfigureCmd struct {
+		configure.ConfigureCmd `cmd:"" help:"Configure Buildkite API token"`
+	}
+	JobCmd struct {
+		Cancel       job.CancelCmd       `cmd:"" help:"Cancel a job."`
+		List         job.ListCmd         `cmd:"" help:"List jobs." aliases:"ls"`
+		Log          job.LogCmd          `cmd:"" help:"Get logs for a job."`
+		Reprioritize job.ReprioritizeCmd `cmd:"" help:"Reprioritize a job." aliases:"priority"`
+		Retry        job.RetryCmd        `cmd:"" help:"Retry a job."`
+		Unblock      job.UnblockCmd      `cmd:"" help:"Unblock a job."`
+	}
 	MaintainerCmd struct {
 		List   maintainer.ListCmd   `cmd:"" help:"List cluster maintainers." aliases:"ls"`
 		Create maintainer.CreateCmd `cmd:"" help:"Create a cluster maintainer."`
 		Delete maintainer.DeleteCmd `cmd:"" help:"Delete a cluster maintainer." aliases:"rm"`
+	}
+	OrganizationCmd struct {
+		List organization.ListCmd `cmd:"" help:"List configured organizations." aliases:"ls"`
+	}
+	PackageCmd struct {
+		Push pkg.PushCmd `cmd:"" help:"Push a new package to a Buildkite registry"`
+	}
+	PipelineCmd struct {
+		Copy     pipeline.CopyCmd     `cmd:"" help:"Copy an existing pipeline." aliases:"cp"`
+		Create   pipeline.CreateCmd   `cmd:"" help:"Create a new pipeline."`
+		List     pipeline.ListCmd     `cmd:"" help:"List pipelines." aliases:"ls"`
+		Convert  pipeline.ConvertCmd  `cmd:"" help:"Convert a CI/CD pipeline configuration to Buildkite format." aliases:"migrate"`
+		Validate pipeline.ValidateCmd `cmd:"" help:"Validate a pipeline YAML file."`
+		View     pipeline.ViewCmd     `cmd:"" help:"View a pipeline."`
+	}
+	PreflightCmd struct {
+		Run     preflight.RunCmd     `cmd:"" default:"withargs" help:"Run a build against a snapshot of the local working tree (experimental)"`
+		Cleanup preflight.CleanupCmd `cmd:"" help:"Clean up completed preflight branches (experimental)"`
 	}
 	QueueCmd struct {
 		List   queue.ListCmd   `cmd:"" help:"List cluster queues." aliases:"ls"`
@@ -135,40 +167,8 @@ type (
 		Update skill.UpdateCmd `cmd:"" help:"Update an installed Buildkite skill."`
 		Delete skill.DeleteCmd `cmd:"" help:"Delete an installed Buildkite skill." aliases:"rm"`
 	}
-	JobCmd struct {
-		Cancel       job.CancelCmd       `cmd:"" help:"Cancel a job."`
-		List         job.ListCmd         `cmd:"" help:"List jobs." aliases:"ls"`
-		Log          job.LogCmd          `cmd:"" help:"Get logs for a job."`
-		Reprioritize job.ReprioritizeCmd `cmd:"" help:"Reprioritize a job." aliases:"priority"`
-		Retry        job.RetryCmd        `cmd:"" help:"Retry a job."`
-		Unblock      job.UnblockCmd      `cmd:"" help:"Unblock a job."`
-	}
-	OrganizationCmd struct {
-		List organization.ListCmd `cmd:"" help:"List configured organizations." aliases:"ls"`
-	}
-	PackageCmd struct {
-		Push pkg.PushCmd `cmd:"" help:"Push a new package to a Buildkite registry"`
-	}
-	PipelineCmd struct {
-		Copy     pipeline.CopyCmd     `cmd:"" help:"Copy an existing pipeline." aliases:"cp"`
-		Create   pipeline.CreateCmd   `cmd:"" help:"Create a new pipeline."`
-		List     pipeline.ListCmd     `cmd:"" help:"List pipelines." aliases:"ls"`
-		Convert  pipeline.ConvertCmd  `cmd:"" help:"Convert a CI/CD pipeline configuration to Buildkite format." aliases:"migrate"`
-		Validate pipeline.ValidateCmd `cmd:"" help:"Validate a pipeline YAML file."`
-		View     pipeline.ViewCmd     `cmd:"" help:"View a pipeline."`
-	}
-	PreflightCmd struct {
-		Run     preflight.RunCmd     `cmd:"" default:"withargs" help:"Run a build against a snapshot of the local working tree (experimental)"`
-		Cleanup preflight.CleanupCmd `cmd:"" help:"Clean up completed preflight branches (experimental)"`
-	}
 	UserCmd struct {
 		Invite user.InviteCmd `cmd:"" help:"Invite users to your organization."`
-	}
-	ApiCmd struct {
-		api.ApiCmd `cmd:"" help:"Interact with the Buildkite API"`
-	}
-	ConfigureCmd struct {
-		configure.ConfigureCmd `cmd:"" help:"Configure Buildkite API token"`
 	}
 )
 
