@@ -26,6 +26,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/preflight"
 	"github.com/buildkite/cli/v3/cmd/queue"
 	"github.com/buildkite/cli/v3/cmd/secret"
+	"github.com/buildkite/cli/v3/cmd/skill"
 	"github.com/buildkite/cli/v3/cmd/use"
 	"github.com/buildkite/cli/v3/cmd/user"
 	versionPkg "github.com/buildkite/cli/v3/cmd/version"
@@ -53,6 +54,7 @@ type CLI struct {
 	Maintainer   MaintainerCmd      `cmd:"" help:"Manage cluster maintainers"`
 	Queue        QueueCmd           `cmd:"" help:"Manage cluster queues"`
 	Secret       SecretCmd          `cmd:"" help:"Manage cluster secrets"`
+	Skill        SkillCmd           `cmd:"" help:"Manage Buildkite skills for AI coding agents"`
 	Config       bkConfig.ConfigCmd `cmd:"" help:"Manage CLI configuration"`
 	Configure    ConfigureCmd       `cmd:"" help:"Configure Buildkite API token" hidden:""`
 	Init         bkInit.InitCmd     `cmd:"" help:"Initialize a pipeline.yaml file"`
@@ -128,6 +130,11 @@ type (
 		Update secret.UpdateCmd `cmd:"" help:"Update a cluster secret."`
 		Delete secret.DeleteCmd `cmd:"" help:"Delete a cluster secret." aliases:"rm"`
 	}
+	SkillCmd struct {
+		Add    skill.AddCmd    `cmd:"" help:"Install a Buildkite skill."`
+		Update skill.UpdateCmd `cmd:"" help:"Update an installed Buildkite skill."`
+		Delete skill.DeleteCmd `cmd:"" help:"Delete an installed Buildkite skill." aliases:"rm"`
+	}
 	JobCmd struct {
 		Cancel       job.CancelCmd       `cmd:"" help:"Cancel a job."`
 		List         job.ListCmd         `cmd:"" help:"List jobs." aliases:"ls"`
@@ -180,6 +187,8 @@ func newKongParser(cli *CLI, options ...kong.Option) (*kong.Kong, error) {
 		kong.Vars{
 			// Empty default allows commands to fall back to config value
 			"output_default_format": "",
+			"skill_repo":            "buildkite/skills",
+			"skill_branch":          "main",
 		},
 	}
 	baseOptions = append(baseOptions, options...)
