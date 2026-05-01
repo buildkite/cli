@@ -9,6 +9,7 @@
   ],
   "labels": ["dependencies"],
   "postUpdateOptions": ["gomodTidy"],
+  "minimumReleaseAge": "3 days",
   "packageRules": [
     {
       "description": "Group Buildkite dependencies",

@@ -28,9 +28,17 @@ steps:
     plugins:
       - mise#v1.1.1: ~
 
+  - name: ":lock: govulncheck"
+    key: vulncheck
+    secrets:
+      - MISE_GITHUB_TOKEN
+    command: 'mise run vulncheck'
+    plugins:
+      - mise#v1.1.1: ~
+
   - label: ":terminal: build ({{matrix}})"
     key: build
-    depends_on: ["lint", "test"]
+    depends_on: ["lint", "test", "vulncheck"]
     branches:
       - main
     matrix:
@@ -49,7 +57,7 @@ steps:
 
   - input: ":package: Create a release?"
     key: release_unblock
-    depends_on: ["lint", "test", "build"]
+    depends_on: ["lint", "test", "vulncheck", "build"]
     prompt: "Select the release type"
     branches:
       - main
