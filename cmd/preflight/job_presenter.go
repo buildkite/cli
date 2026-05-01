@@ -12,9 +12,10 @@ import (
 type jobPresenter struct {
 	pipeline    string
 	buildNumber int
+	buildURL    string
 }
 
-func (p jobPresenter) failParts(j buildkite.Job) (symbol, name, detail string) {
+func (p jobPresenter) failParts(j buildkite.Job, action string) (symbol, name, detail string) {
 	job := watch.NewFormattedJob(j)
 	name = job.DisplayName()
 
@@ -35,12 +36,12 @@ func (p jobPresenter) failParts(j buildkite.Job) (symbol, name, detail string) {
 		symbol = "⚠"
 	}
 
-	detail = fmt.Sprintf("%s — %s", status, jobLogCommand(p.pipeline, p.buildNumber, j.ID))
+	detail = fmt.Sprintf("%s - %s", status, action)
 	return symbol, name, detail
 }
 
 func (p jobPresenter) Line(j buildkite.Job) string {
-	symbol, name, detail := p.failParts(j)
+	symbol, name, detail := p.failParts(j, jobLogCommand(p.pipeline, p.buildNumber, j.ID))
 	return fmt.Sprintf("%s %s %s", symbol, name, detail)
 }
 
@@ -76,7 +77,7 @@ func (p jobPresenter) ColoredPassedLine(j buildkite.Job, style lipgloss.Style) s
 // Kitty/iTerm2 graphics escape sequences breaking lipgloss styling.
 func (p jobPresenter) ColoredLine(j buildkite.Job) string {
 	job := watch.NewFormattedJob(j)
-	symbol, name, detail := p.failParts(j)
+	symbol, name, detail := p.failParts(j, p.jobLink(j))
 
 	emojiPrefix, textName := emoji.Split(name)
 
@@ -89,4 +90,15 @@ func (p jobPresenter) ColoredLine(j buildkite.Job) string {
 		return style.Render(symbol+" ") + emoji.Render(emojiPrefix) + " " + style.Render(fmt.Sprintf("%s %s", textName, detail))
 	}
 	return style.Render(fmt.Sprintf("%s %s %s", symbol, textName, detail))
+}
+
+func (p jobPresenter) jobLink(j buildkite.Job) string {
+	url := j.WebURL
+	if url == "" && p.buildURL != "" && j.ID != "" {
+		url = p.buildURL + "#" + j.ID
+	}
+	if url == "" {
+		return jobLogCommand(p.pipeline, p.buildNumber, j.ID)
+	}
+	return terminalHyperlink("\033[4:4mView job\033[24m", url)
 }

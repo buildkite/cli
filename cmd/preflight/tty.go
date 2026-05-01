@@ -68,14 +68,14 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case EventJobFailure:
 			if msg.Job != nil {
-				presenter := jobPresenter{pipeline: msg.Pipeline, buildNumber: msg.BuildNumber}
+				presenter := jobPresenter{pipeline: msg.Pipeline, buildNumber: msg.BuildNumber, buildURL: msg.BuildURL}
 				line := timestampPrefix(msg.Time) + presenter.ColoredLine(*msg.Job)
 				return m, tea.Printf("%s", m.hardwrapLine(line))
 			}
 
 		case EventJobRetryPassed:
 			if msg.Job != nil {
-				presenter := jobPresenter{pipeline: msg.Pipeline, buildNumber: msg.BuildNumber}
+				presenter := jobPresenter{pipeline: msg.Pipeline, buildNumber: msg.BuildNumber, buildURL: msg.BuildURL}
 				line := timestampPrefix(msg.Time) + presenter.ColoredRetryPassedLine(*msg.Job)
 				return m, tea.Printf("%s", m.hardwrapLine(line))
 			}
@@ -121,7 +121,7 @@ func (m ttyModel) statusText() string {
 	case m.latest.Title != "":
 		return m.latest.Title
 	case m.latest.BuildState != "":
-		link := fmt.Sprintf("\033]8;;%s\033\\build #%d\033]8;;\033\\", m.latest.BuildURL, m.latest.BuildNumber)
+		link := terminalHyperlink(fmt.Sprintf("build #%d", m.latest.BuildNumber), m.latest.BuildURL)
 		return fmt.Sprintf("Watching %s (%s)", link, m.latest.BuildState)
 	default:
 		return "Starting..."
@@ -195,7 +195,7 @@ func buildSummaryView(e Event, width int) string {
 		out += "\n" + buildURL
 	}
 
-	presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
+	presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber, buildURL: e.BuildURL}
 	for _, j := range e.PassedJobs {
 		out += "\n  " + presenter.ColoredPassedLine(j, ttyDimStyle)
 	}
