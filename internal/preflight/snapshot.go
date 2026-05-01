@@ -1,6 +1,7 @@
 package preflight
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -57,6 +58,12 @@ func WithDebug() SnapshotOption {
 // It always creates a distinct commit on top of HEAD (even when the worktree
 // is clean) without touching the real git index.
 func Snapshot(dir string, preflightID uuid.UUID, opts ...SnapshotOption) (*SnapshotResult, error) {
+	return SnapshotContext(context.Background(), dir, preflightID, opts...)
+}
+
+// SnapshotContext pushes the current working tree state to a remote preflight
+// ref, aborting in-flight git commands when ctx is canceled.
+func SnapshotContext(ctx context.Context, dir string, preflightID uuid.UUID, opts ...SnapshotOption) (*SnapshotResult, error) {
 	cfg := &snapshotConfig{}
 	for _, opt := range opts {
 		opt(cfg)
@@ -72,22 +79,22 @@ func Snapshot(dir string, preflightID uuid.UUID, opts ...SnapshotOption) (*Snaps
 	env := tempIndexEnv(tmpIndex)
 
 	// Seed the temp index from HEAD.
-	if err := gitRun(dir, env, cfg.debug, "read-tree", "HEAD"); err != nil {
+	if err := gitRunContext(ctx, dir, env, cfg.debug, "read-tree", "HEAD"); err != nil {
 		return nil, err
 	}
 
 	// Stage the entire worktree into the temp index.
-	if err := gitRun(dir, env, cfg.debug, "add", "-A"); err != nil {
+	if err := gitRunContext(ctx, dir, env, cfg.debug, "add", "-A"); err != nil {
 		return nil, err
 	}
 
 	// Diff the temp index against HEAD to find changed files.
-	files, err := diffFiles(dir, env, cfg.debug)
+	files, err := diffFilesContext(ctx, dir, env, cfg.debug)
 	if err != nil {
 		return nil, err
 	}
 
-	head, err := gitOutput(dir, env, cfg.debug, "rev-parse", "HEAD")
+	head, err := gitOutputContext(ctx, dir, env, cfg.debug, "rev-parse", "HEAD")
 	if err != nil {
 		return nil, err
 	}
@@ -99,20 +106,20 @@ func Snapshot(dir string, preflightID uuid.UUID, opts ...SnapshotOption) (*Snaps
 	// local changes. This ensures the preflight branch always points to a
 	// distinct commit (not shared with HEAD), which allows commit statuses to
 	// be attributed to the preflight run rather than the base commit.
-	tree, err := gitOutput(dir, env, cfg.debug, "write-tree")
+	tree, err := gitOutputContext(ctx, dir, env, cfg.debug, "write-tree")
 	if err != nil {
 		return nil, err
 	}
 
 	msg := fmt.Sprintf("Preflight snapshot\n\nPreflight Run ID: %s\nBase Commit: %s", preflightID, head)
-	commit, err := gitOutput(dir, env, cfg.debug, "commit-tree", tree, "-p", head, "-m", msg)
+	commit, err := gitOutputContext(ctx, dir, env, cfg.debug, "commit-tree", tree, "-p", head, "-m", msg)
 	if err != nil {
 		return nil, err
 	}
 
 	// Push the commit to the remote branch.
 	refspec := fmt.Sprintf("%s:%s", commit, ref)
-	if err := gitRun(dir, env, cfg.debug, "push", "origin", refspec); err != nil {
+	if err := gitRunContext(ctx, dir, env, cfg.debug, "push", "origin", refspec); err != nil {
 		return nil, err
 	}
 
@@ -128,7 +135,11 @@ func Snapshot(dir string, preflightID uuid.UUID, opts ...SnapshotOption) (*Snaps
 // It uses -z for null-terminated output to correctly handle renames, copies,
 // and filenames containing spaces or special characters.
 func diffFiles(dir string, env []string, debug bool) ([]FileChange, error) {
-	out, err := gitOutput(dir, env, debug, "diff-index", "--cached", "--name-status", "-z", "-M", "HEAD")
+	return diffFilesContext(context.Background(), dir, env, debug)
+}
+
+func diffFilesContext(ctx context.Context, dir string, env []string, debug bool) ([]FileChange, error) {
+	out, err := gitOutputContext(ctx, dir, env, debug, "diff-index", "--cached", "--name-status", "-z", "-M", "HEAD")
 	if err != nil {
 		return nil, err
 	}
