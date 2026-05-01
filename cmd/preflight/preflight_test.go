@@ -1692,6 +1692,144 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 	})
 
+	t.Run("returns user aborted when canceled during snapshot push", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		var cancel context.CancelFunc
+		originalNotifyContext := notifyContext
+		notifyContext = func(parent context.Context, signals ...os.Signal) (context.Context, context.CancelFunc) {
+			ctx, stop := context.WithCancel(parent)
+			cancel = stop
+			return ctx, stop
+		}
+		t.Cleanup(func() { notifyContext = originalNotifyContext })
+
+		var apiRequests atomic.Int32
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			apiRequests.Add(1)
+			http.Error(w, "unexpected request after snapshot cancellation", http.StatusInternalServerError)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		gitPath, err := exec.LookPath("git")
+		if err != nil {
+			t.Fatalf("finding git: %v", err)
+		}
+
+		fakeBin := t.TempDir()
+		pushStarted := filepath.Join(fakeBin, "push-started")
+		fakeGit := filepath.Join(fakeBin, "git")
+		if err := os.WriteFile(fakeGit, []byte(`#!/bin/sh
+if [ "$1" = "push" ]; then
+	touch "$PUSH_STARTED"
+	exec /bin/sleep 10
+fi
+exec "$REAL_GIT" "$@"
+`), 0o755); err != nil {
+			t.Fatalf("writing fake git: %v", err)
+		}
+		t.Setenv("REAL_GIT", gitPath)
+		t.Setenv("PUSH_STARTED", pushStarted)
+		t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+		cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Interval: 2}
+		errCh := make(chan error, 1)
+		go func() { errCh <- cmd.Run(nil, stubGlobals{}) }()
+
+		deadline := time.After(2 * time.Second)
+		for {
+			if _, err := os.Stat(pushStarted); err == nil {
+				break
+			} else if !os.IsNotExist(err) {
+				t.Fatalf("checking push marker: %v", err)
+			}
+
+			select {
+			case err := <-errCh:
+				t.Fatalf("Run returned before snapshot push was canceled: %v", err)
+			case <-deadline:
+				t.Fatal("timed out waiting for snapshot push to start")
+			case <-time.After(10 * time.Millisecond):
+			}
+		}
+
+		cancel()
+
+		select {
+		case err := <-errCh:
+			if !errors.Is(err, bkErrors.ErrUserAborted) {
+				t.Fatalf("expected user aborted error, got %T: %v", err, err)
+			}
+			if strings.Contains(err.Error(), "snapshot error") {
+				t.Fatalf("expected cancellation error without snapshot context, got: %v", err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("Run did not return promptly after cancellation")
+		}
+
+		if got := apiRequests.Load(); got != 0 {
+			t.Fatalf("expected no API requests after snapshot cancellation, got %d", got)
+		}
+	})
+
+	t.Run("returns user aborted and cleans up when canceled during build creation", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		var cancel context.CancelFunc
+		originalNotifyContext := notifyContext
+		notifyContext = func(parent context.Context, signals ...os.Signal) (context.Context, context.CancelFunc) {
+			ctx, stop := context.WithCancel(parent)
+			cancel = stop
+			return ctx, stop
+		}
+		t.Cleanup(func() { notifyContext = originalNotifyContext })
+
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/builds") {
+				cancel()
+				time.Sleep(50 * time.Millisecond)
+				json.NewEncoder(w).Encode(buildkite.Build{Number: 1, State: "scheduled"})
+				return
+			}
+
+			http.Error(w, "unexpected request", http.StatusInternalServerError)
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Interval: 2}
+		err := cmd.Run(nil, stubGlobals{})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !errors.Is(err, bkErrors.ErrUserAborted) {
+			t.Fatalf("expected user aborted error, got %T: %v", err, err)
+		}
+		if strings.Contains(err.Error(), "API error") || strings.Contains(err.Error(), "creating preflight build") {
+			t.Fatalf("expected cancellation error without API build creation context, got: %v", err)
+		}
+
+		refs := runGit(t, worktree, "ls-remote", "--heads", "origin")
+		if strings.Contains(refs, "bk/preflight/") {
+			t.Errorf("expected preflight branch to be cleaned up, but found: %s", refs)
+		}
+	})
+
 	t.Run("closes renderer when build creation fails", func(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
 

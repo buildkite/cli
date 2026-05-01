@@ -165,8 +165,11 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		opts = append(opts, internalpreflight.WithDebug())
 	}
 
-	result, err := internalpreflight.Snapshot(repoRoot, preflightID, opts...)
+	result, err := internalpreflight.SnapshotContext(ctx, repoRoot, preflightID, opts...)
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+			return bkErrors.NewUserAbortedError(context.Canceled, "preflight canceled by user")
+		}
 		return bkErrors.NewSnapshotError(err, "failed to create preflight snapshot",
 			"Ensure you have uncommitted or committed changes to snapshot",
 			"Ensure you have push access to the remote repository",
@@ -181,6 +184,13 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		}
 	}
 	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: "Pushed snapshot of working tree...", Detail: snapshotDetail})
+
+	cleanupBranch := func() {
+		if c.NoCleanup {
+			return
+		}
+		cleanupRemoteBranch(renderer, repoRoot, result.Branch, result.Ref, preflightID.String(), globals.EnableDebug())
+	}
 
 	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Creating build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name)})
 
@@ -200,6 +210,10 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		Env:     env,
 	})
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+			cleanupBranch()
+			return bkErrors.NewUserAbortedError(context.Canceled, "preflight canceled by user")
+		}
 		return bkErrors.WrapAPIError(err, "creating preflight build")
 	}
 
@@ -260,12 +274,6 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}, watch.WithRetriedJobs())
 
 	finalErr := NewResult(finalBuild).Error()
-	cleanupBranch := func() {
-		if c.NoCleanup {
-			return
-		}
-		cleanupRemoteBranch(renderer, repoRoot, result.Branch, result.Ref, preflightID.String(), globals.EnableDebug())
-	}
 
 	if errors.Is(err, context.Canceled) {
 		cleanupBranch()
