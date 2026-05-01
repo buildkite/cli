@@ -222,6 +222,7 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 				PreflightID: preflightID.String(),
 				Pipeline:    pipelineName,
 				BuildNumber: build.Number,
+				BuildURL:    build.WebURL,
 				Job:         &failed,
 			}); err != nil {
 				return err
@@ -234,6 +235,7 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 				PreflightID: preflightID.String(),
 				Pipeline:    pipelineName,
 				BuildNumber: build.Number,
+				BuildURL:    build.WebURL,
 				Job:         &retryPassed,
 			}); err != nil {
 				return err

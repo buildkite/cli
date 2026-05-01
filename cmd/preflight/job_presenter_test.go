@@ -21,7 +21,7 @@ func TestJobPresenter_FailedLine(t *testing.T) {
 	assertStringContainsAll(t, line, []string{
 		"✗ Windows smoke tests",
 		"failed with exit 1",
-		"— bk job log -b 183663 -p buildkite/cli failed-windows-smoke-tests",
+		"- bk job log -b 183663 -p buildkite/cli failed-windows-smoke-tests",
 	})
 }
 
@@ -37,7 +37,7 @@ func TestJobPresenter_SoftFailedLine(t *testing.T) {
 	assertStringContainsAll(t, line, []string{
 		"⚠ Bundle Audit",
 		"soft failed",
-		"— bk job log -b 183663 -p buildkite failed-2",
+		"- bk job log -b 183663 -p buildkite failed-2",
 	})
 }
 
@@ -53,7 +53,7 @@ func TestJobPresenter_FailedNoExit(t *testing.T) {
 	assertStringContainsAll(t, line, []string{
 		"✗ Lint",
 		"failed",
-		"— bk job log -b 42 -p buildkite/cli job-1",
+		"- bk job log -b 42 -p buildkite/cli job-1",
 	})
 	if strings.Contains(line, "with exit") {
 		t.Fatalf("did not expect exit status when nil: %q", line)
@@ -130,6 +130,42 @@ func TestJobPresenter_ColoredLine(t *testing.T) {
 	}.ColoredLine(scriptJob("job-1", "Test", "failed", false, &startedAt, &finishedAt, &exitStatus))
 
 	assertStringContainsAll(t, line, []string{"✗", "Test", "failed with exit 1"})
+}
+
+func TestJobPresenter_ColoredLine_UsesClickableJobLink(t *testing.T) {
+	startedAt := buildkite.Timestamp{Time: time.Now().Add(-90 * time.Second)}
+	finishedAt := buildkite.Timestamp{Time: time.Now().Add(-15 * time.Second)}
+	exitStatus := 1
+
+	job := scriptJob("job-1", "Test", "failed", false, &startedAt, &finishedAt, &exitStatus)
+	job.WebURL = "https://buildkite.com/buildkite/cli/builds/42#job-1"
+
+	line := jobPresenter{
+		pipeline:    "buildkite/cli",
+		buildNumber: 42,
+	}.ColoredLine(job)
+
+	assertStringContainsAll(t, line, []string{"✗", "Test", "failed with exit 1 - ", "\033[4:4mView job\033[24m", job.WebURL})
+	if strings.Contains(line, "bk job log") {
+		t.Fatalf("expected clickable job link instead of job log command: %q", line)
+	}
+}
+
+func TestJobPresenter_ColoredLine_DerivesClickableJobLinkFromBuildURL(t *testing.T) {
+	startedAt := buildkite.Timestamp{Time: time.Now().Add(-90 * time.Second)}
+	finishedAt := buildkite.Timestamp{Time: time.Now().Add(-15 * time.Second)}
+	exitStatus := 1
+
+	line := jobPresenter{
+		pipeline:    "buildkite/cli",
+		buildNumber: 42,
+		buildURL:    "https://buildkite.com/buildkite/cli/builds/42",
+	}.ColoredLine(scriptJob("job-1", "Test", "failed", false, &startedAt, &finishedAt, &exitStatus))
+
+	assertStringContainsAll(t, line, []string{"View job", "https://buildkite.com/buildkite/cli/builds/42#job-1"})
+	if strings.Contains(line, "bk job log") {
+		t.Fatalf("expected derived clickable job link instead of job log command: %q", line)
+	}
 }
 
 func TestJobPresenter_ColoredLine_SoftFailed(t *testing.T) {
