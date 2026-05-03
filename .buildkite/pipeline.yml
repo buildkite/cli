@@ -10,7 +10,7 @@ steps:
     secrets:
       - MISE_GITHUB_TOKEN
     plugins:
-      - mise#v1.1.1: ~
+      - mise#v1.1.2: ~
 
   - name: ":go: test"
     key: test
@@ -26,7 +26,7 @@ steps:
       - go-cover-treemap -coverprofile cover.out > cover-tree.svg
       - echo '<details><summary>Coverage tree map</summary><img src="artifact://cover-tree.svg" alt="Test coverage tree map" width="70%"></details>' | buildkite-agent annotate --style "info"
     plugins:
-      - mise#v1.1.1: ~
+      - mise#v1.1.2: ~
 
   - label: ":terminal: build ({{matrix}})"
     key: build
@@ -45,7 +45,7 @@ steps:
       - OAUTH_CLIENT_ID
     command: 'GOOS="{{matrix}}" .buildkite/release.sh release --clean --snapshot --split'
     plugins:
-      - mise#v1.1.1: ~
+      - mise#v1.1.2: ~
 
   - input: ":package: Create a release?"
     key: release_unblock
