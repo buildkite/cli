@@ -27,7 +27,7 @@ func TestResolveBranchFromGitFallback(t *testing.T) {
 	if err := exec.Command("git", "add", filepath.Base(commitFile)).Run(); err != nil {
 		t.Fatalf("git add returned error: %v", err)
 	}
-	if err := exec.Command("git", "-c", "user.name=Person Example", "-c", "user.email=person@example.com", "commit", "-m", "initial").Run(); err != nil {
+	if err := exec.Command("git", "-c", "user.name=Person Example", "-c", "user.email=person@example.com", "-c", "commit.gpgsign=false", "commit", "-m", "initial").Run(); err != nil {
 		t.Fatalf("git commit returned error: %v", err)
 	}
 	if err := exec.Command("git", "checkout", "-b", "feature/test").Run(); err != nil {

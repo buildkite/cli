@@ -19,6 +19,7 @@ import (
 	buildstate "github.com/buildkite/cli/v3/internal/build/state"
 	"github.com/buildkite/cli/v3/internal/build/watch"
 	"github.com/buildkite/cli/v3/internal/cli"
+	internalconfig "github.com/buildkite/cli/v3/internal/config"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	bkhttp "github.com/buildkite/cli/v3/internal/http"
 	"github.com/buildkite/cli/v3/internal/pipeline"
@@ -34,19 +35,26 @@ type RunCmd struct {
 	ExitOn           []internalpreflight.ExitPolicy `help:"Exit when a condition is met. Options: build-failing (default, exits when a build enters the failing state), build-terminal (exits when the build reaches a terminal state)."`
 	Interval         float64                        `help:"Polling interval in seconds when watching." default:"2"`
 	NoCleanup        bool                           `help:"Skip cleanup after completion or early exit. The preflight branch remains and the build keeps running if exiting early."`
-	AwaitTestResults awaitTestResultsFlag           `name:"await-test-results" help:"After the build finishes, wait for tests results to be processed by Test Engine. Provide a duration like 10s, or omit the value to wait 30s."`
+	AwaitTestResults awaitTestResultsFlag           `name:"await-test-results" help:"After the build finishes, wait for test results to be processed by Test Engine. Provide a duration like 10s, or omit the value to wait 30s."`
 	Text             bool                           `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
 	JSON             bool                           `help:"Emit one JSON object per event (JSONL)." xor:"output"`
 }
 
 var (
-	notifyContext = signal.NotifyContext
-	newFactory    = factory.New
+	notifyContext   = signal.NotifyContext
+	newFactory      = factory.New
+	rendererFactory = newRenderer
 
 	errExitOnBuildFailing = errors.New("exit-on build-failing")
 )
 
 const defaultAwaitTestResultsDuration = 30 * time.Second
+
+func HelpText() string {
+	return `Preflight is an experimental preview and subject to change without notice.
+
+Snapshots your working tree (staged, unstaged, and untracked files) to a temporary commit on a bk/preflight/<id> branch, triggers a build on the selected pipeline, monitors failures, exits as soon as the build starts failing, and cleans up the temporary branch when finished.`
+}
 
 type summaryMeta struct {
 	Incomplete    bool
@@ -91,7 +99,7 @@ func (f *awaitTestResultsFlag) Decode(ctx *kong.DecodeContext) error {
 func (f awaitTestResultsFlag) IsBool() bool { return true }
 
 func (c *RunCmd) Help() string {
-	return `Snapshots your working tree (uncommitted, staged, and untracked changes) and pushes it to a bk/preflight/<id> branch. If there are no local changes, pushes HEAD directly.`
+	return HelpText()
 }
 
 func (c *RunCmd) Validate() error {
@@ -136,7 +144,8 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		)
 	}
 
-	renderer := newRenderer(os.Stdout, c.JSON, c.Text, stop)
+	renderer := rendererFactory(os.Stdout, c.JSON, c.Text, stop)
+	defer renderer.Close()
 
 	rlTransport.OnRateLimit = func(attempt int, delay time.Duration) {
 		if globals.EnableDebug() {
@@ -198,7 +207,6 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Created build on %s/%s...", resolvedPipeline.Org, resolvedPipeline.Name), Detail: fmt.Sprintf("Build:  %s", build.WebURL)})
 
 	if !c.Watch {
-		_ = renderer.Close()
 		return nil
 	}
 
@@ -214,6 +222,7 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 				PreflightID: preflightID.String(),
 				Pipeline:    pipelineName,
 				BuildNumber: build.Number,
+				BuildURL:    build.WebURL,
 				Job:         &failed,
 			}); err != nil {
 				return err
@@ -226,6 +235,7 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 				PreflightID: preflightID.String(),
 				Pipeline:    pipelineName,
 				BuildNumber: build.Number,
+				BuildURL:    build.WebURL,
 				Job:         &retryPassed,
 			}); err != nil {
 				return err
@@ -247,16 +257,7 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			return errExitOnBuildFailing
 		}
 		return nil
-	}, watch.WithRetriedJobs(), watch.WithTestTracking(func(newTestChanges []buildkite.BuildTest) error {
-		return renderer.Render(Event{
-			Type:         EventTestFailure,
-			Time:         time.Now(),
-			PreflightID:  preflightID.String(),
-			Pipeline:     pipelineName,
-			BuildNumber:  build.Number,
-			TestFailures: newTestChanges,
-		})
-	}))
+	}, watch.WithRetriedJobs())
 
 	finalErr := NewResult(finalBuild).Error()
 	cleanupBranch := func() {
@@ -271,7 +272,6 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		if finalBuild.FinishedAt == nil && !buildstate.IsTerminal(buildstate.State(finalBuild.State)) && !c.NoCleanup {
 			cancelBuild(f, renderer, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, preflightID.String(), globals.EnableDebug())
 		}
-		_ = renderer.Close()
 		return bkErrors.NewUserAbortedError(context.Canceled, "preflight canceled by user")
 	}
 
@@ -297,7 +297,6 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		}
 		_ = renderer.Render(summaryEvent)
 		cleanupBranch()
-		_ = renderer.Close()
 		return finalErr
 	}
 
@@ -322,7 +321,6 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	cleanupBranch()
-	_ = renderer.Close()
 
 	if err != nil {
 		return bkErrors.NewInternalError(err, "watching build failed",
@@ -431,10 +429,10 @@ func setup(pipelineFlag string, globals cli.GlobalFlags) (*preflightContext, err
 		return nil, bkErrors.NewInternalError(err, "failed to initialize CLI", "This is likely a bug", "Report to Buildkite")
 	}
 
-	if !f.Config.HasExperiment("preflight") {
+	if !f.Config.HasExperiment(internalconfig.ExperimentPreflight) {
 		return nil, bkErrors.NewValidationError(
 			fmt.Errorf("experiment not enabled"),
-			"the preflight command is under development and requires the 'preflight' experiment to opt in. Run: bk config set experiments preflight or set BUILDKITE_EXPERIMENTS=preflight")
+			"preflight is disabled by the current experiments override. Add `preflight` to `BUILDKITE_EXPERIMENTS` or run `bk config set experiments preflight` to re-enable it")
 	}
 
 	repoRoot, err := resolveRepositoryRoot(f, globals.EnableDebug())

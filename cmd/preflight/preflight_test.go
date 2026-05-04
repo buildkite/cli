@@ -36,6 +36,27 @@ func (s stubGlobals) EnableDebug() bool      { return false }
 
 var _ cli.GlobalFlags = stubGlobals{}
 
+func unsetEnv(t *testing.T, key string) {
+	t.Helper()
+
+	original, had := os.LookupEnv(key)
+	if err := os.Unsetenv(key); err != nil {
+		t.Fatalf("failed to unset env %s: %v", key, err)
+	}
+
+	t.Cleanup(func() {
+		var err error
+		if had {
+			err = os.Setenv(key, original)
+		} else {
+			err = os.Unsetenv(key)
+		}
+		if err != nil {
+			t.Fatalf("failed to restore env %s: %v", key, err)
+		}
+	})
+}
+
 func TestParseExitConditions(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -80,9 +101,9 @@ func TestParseExitConditions(t *testing.T) {
 
 func TestPreflightCmd_Run(t *testing.T) {
 	t.Run("returns validation error when experiment disabled", func(t *testing.T) {
-		t.Setenv("BUILDKITE_EXPERIMENTS", "")
+		t.Setenv("BUILDKITE_EXPERIMENTS", "alpha")
 
-		cmd := &RunCmd{}
+		cmd := &RunCmd{Interval: 1}
 		err := cmd.Run(nil, stubGlobals{})
 		if err == nil {
 			t.Fatal("expected error, got nil")
@@ -94,16 +115,20 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 		if !errors.Is(bkErr, bkErrors.ErrValidation) {
 			t.Errorf("expected ErrValidation, got category: %v", bkErr.Category)
+		}
+		if !strings.Contains(bkErr.Details, "preflight is disabled") {
+			t.Errorf("expected disabled experiment validation, got details %q", bkErr.Details)
 		}
 	})
 
-	t.Run("returns validation error when not in git repo", func(t *testing.T) {
-		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+	t.Run("preflight is enabled by default", func(t *testing.T) {
+		unsetEnv(t, "BUILDKITE_EXPERIMENTS")
 
-		// Run from a temp dir that is not a git repo.
+		// Run from a temp dir that is not a git repo. This should pass the
+		// experiment gate and fail on repository validation instead.
 		t.Chdir(t.TempDir())
 
-		cmd := &RunCmd{}
+		cmd := &RunCmd{Interval: 1}
 		err := cmd.Run(nil, stubGlobals{})
 		if err == nil {
 			t.Fatal("expected error, got nil")
@@ -115,6 +140,9 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 		if !errors.Is(bkErr, bkErrors.ErrValidation) {
 			t.Errorf("expected ErrValidation, got category: %v", bkErr.Category)
+		}
+		if !strings.Contains(bkErr.Details, "git repository") {
+			t.Errorf("expected git repository validation after default experiment gate, got details %q", bkErr.Details)
 		}
 	})
 
@@ -1663,6 +1691,55 @@ func TestPreflightCmd_Run(t *testing.T) {
 			t.Fatalf("expected build creation error, got: %v", err)
 		}
 	})
+
+	t.Run("closes renderer when build creation fails", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		originalRendererFactory := rendererFactory
+		fakeRenderer := &recordingRenderer{}
+		rendererFactory = func(io.Writer, bool, bool, context.CancelFunc) renderer {
+			return fakeRenderer
+		}
+		t.Cleanup(func() { rendererFactory = originalRendererFactory })
+
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"message":"Authentication required"}`))
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Interval: 2}
+		err := cmd.Run(nil, stubGlobals{})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "creating preflight build") {
+			t.Fatalf("expected build creation error, got: %v", err)
+		}
+		if fakeRenderer.closeCalls != 1 {
+			t.Fatalf("expected renderer to be closed once, got %d", fakeRenderer.closeCalls)
+		}
+	})
+}
+
+type recordingRenderer struct {
+	closeCalls int
+}
+
+func (r *recordingRenderer) Render(Event) error { return nil }
+
+func (r *recordingRenderer) Close() error {
+	r.closeCalls++
+	return nil
 }
 
 func initTestRepo(t *testing.T) string {
@@ -1676,6 +1753,7 @@ func initTestRepo(t *testing.T) string {
 	runGit(t, "", "init", worktree)
 	runGit(t, worktree, "config", "user.email", "test@test.com")
 	runGit(t, worktree, "config", "user.name", "Test")
+	runGit(t, worktree, "config", "commit.gpgsign", "false")
 
 	initial := filepath.Join(worktree, "README.md")
 	if err := os.WriteFile(initial, []byte("# test\n"), 0o644); err != nil {

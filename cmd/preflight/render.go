@@ -71,14 +71,14 @@ func (r *plainRenderer) Render(e Event) error {
 
 	case EventJobFailure:
 		if e.Job != nil {
-			presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
+			presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber, buildURL: e.BuildURL}
 			_, err := fmt.Fprintf(r.stdout, "%s%s\n", prefix, presenter.Line(*e.Job))
 			return err
 		}
 
 	case EventJobRetryPassed:
 		if e.Job != nil {
-			presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
+			presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber, buildURL: e.BuildURL}
 			_, err := fmt.Fprintf(r.stdout, "%s%s\n", prefix, presenter.RetryPassedLine(*e.Job))
 			return err
 		}
@@ -93,7 +93,7 @@ func (r *plainRenderer) Render(e Event) error {
 				return err
 			}
 		}
-		presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
+		presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber, buildURL: e.BuildURL}
 		for _, j := range e.PassedJobs {
 			if _, err := fmt.Fprintf(r.stdout, "  %s\n", presenter.PassedLine(j)); err != nil {
 				return err
@@ -210,7 +210,7 @@ func buildSummaryDetails(e Event, colored bool, width int) string {
 	var sections []string
 
 	if len(e.FailedJobs) > 0 {
-		presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber}
+		presenter := jobPresenter{pipeline: e.Pipeline, buildNumber: e.BuildNumber, buildURL: e.BuildURL}
 		lines := []string{"    Build Failures:"}
 		for _, j := range e.FailedJobs {
 			line := presenter.Line(j)
@@ -320,6 +320,13 @@ func summarySuiteLabel(name, slug, fallback string) string {
 
 func jobLogCommand(pipeline string, buildNumber int, jobID string) string {
 	return fmt.Sprintf("bk job log -b %d -p %s %s", buildNumber, pipeline, jobID)
+}
+
+func terminalHyperlink(label, url string) string {
+	if url == "" {
+		return label
+	}
+	return fmt.Sprintf("\033]8;;%s\033\\%s\033]8;;\033\\", url, label)
 }
 
 func timestampPrefix(t time.Time) string {

@@ -18,7 +18,7 @@ import (
 
 func TestCleanupCmd_Run(t *testing.T) {
 	t.Run("returns validation error when experiment disabled", func(t *testing.T) {
-		t.Setenv("BUILDKITE_EXPERIMENTS", "")
+		t.Setenv("BUILDKITE_EXPERIMENTS", "alpha")
 
 		cmd := &CleanupCmd{}
 		err := cmd.Run(nil, stubGlobals{})

@@ -18,7 +18,7 @@ steps:
       - OAUTH_CLIENT_ID
     command: 'GOOS="{{matrix}}" .buildkite/release.sh release --clean --split'
     plugins:
-      - mise#v1.1.1: ~
+      - mise#v1.1.2: ~
 
   - label: ":rocket: :package: upload packages ({{matrix}})"
     key: upload_packages
@@ -58,5 +58,5 @@ steps:
       - artifacts#v1.9.4:
           download:
             - dist/**/*
-      - mise#v1.1.1: ~
+      - mise#v1.1.2: ~
     command: '.buildkite/release.sh continue --merge'

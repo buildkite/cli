@@ -70,7 +70,7 @@ func (c *CleanupCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return nil
 	}
 
-	renderer := newRenderer(os.Stdout, c.JSON, c.Text, pCtx.Stop)
+	renderer := rendererFactory(os.Stdout, c.JSON, c.Text, pCtx.Stop)
 	defer renderer.Close()
 
 	_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), Title: fmt.Sprintf("Found %d preflight branch(es), checking build status...", len(branches))})

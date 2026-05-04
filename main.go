@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -25,6 +26,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/preflight"
 	"github.com/buildkite/cli/v3/cmd/queue"
 	"github.com/buildkite/cli/v3/cmd/secret"
+	"github.com/buildkite/cli/v3/cmd/skill"
 	"github.com/buildkite/cli/v3/cmd/use"
 	"github.com/buildkite/cli/v3/cmd/user"
 	versionPkg "github.com/buildkite/cli/v3/cmd/version"
@@ -52,6 +54,7 @@ type CLI struct {
 	Maintainer   MaintainerCmd      `cmd:"" help:"Manage cluster maintainers"`
 	Queue        QueueCmd           `cmd:"" help:"Manage cluster queues"`
 	Secret       SecretCmd          `cmd:"" help:"Manage cluster secrets"`
+	Skill        SkillCmd           `cmd:"" help:"Manage Buildkite skills for AI coding agents"`
 	Config       bkConfig.ConfigCmd `cmd:"" help:"Manage CLI configuration"`
 	Configure    ConfigureCmd       `cmd:"" help:"Configure Buildkite API token" hidden:""`
 	Init         bkInit.InitCmd     `cmd:"" help:"Initialize a pipeline.yaml file"`
@@ -59,7 +62,7 @@ type CLI struct {
 	Organization OrganizationCmd    `cmd:"" help:"Manage organizations" aliases:"org"`
 	Pipeline     PipelineCmd        `cmd:"" help:"Manage pipelines"`
 	Package      PackageCmd         `cmd:"" help:"Manage packages"`
-	Preflight    PreflightCmd       `cmd:"" help:"Validate pre-commit changes"`
+	Preflight    PreflightCmd       `cmd:"" help:"Run a build against a snapshot of the local working tree (experimental)"`
 	Use          use.UseCmd         `cmd:"" help:"Select an organization" hidden:""`
 	User         UserCmd            `cmd:"" help:"Invite users to the organization"`
 	Version      VersionCmd         `cmd:"" help:"Print the version of the CLI being used"`
@@ -86,6 +89,9 @@ type (
 		Stop    agent.StopCmd    `cmd:"" help:"Stop Buildkite agents."`
 		View    agent.ViewCmd    `cmd:"" help:"View details of an agent."`
 	}
+	ApiCmd struct {
+		api.ApiCmd `cmd:"" help:"Interact with the Buildkite API"`
+	}
 	ArtifactsCmd struct {
 		Download artifacts.DownloadCmd `cmd:"" help:"Download artifacts from a build."`
 		List     artifacts.ListCmd     `cmd:"" help:"List artifacts for a build or a job in a build." aliases:"ls"`
@@ -106,10 +112,39 @@ type (
 		Update cluster.UpdateCmd `cmd:"" help:"Update a cluster."`
 		Delete cluster.DeleteCmd `cmd:"" help:"Delete a cluster." aliases:"rm"`
 	}
+	ConfigureCmd struct {
+		configure.ConfigureCmd `cmd:"" help:"Configure Buildkite API token"`
+	}
+	JobCmd struct {
+		Cancel       job.CancelCmd       `cmd:"" help:"Cancel a job."`
+		List         job.ListCmd         `cmd:"" help:"List jobs." aliases:"ls"`
+		Log          job.LogCmd          `cmd:"" help:"Get logs for a job."`
+		Reprioritize job.ReprioritizeCmd `cmd:"" help:"Reprioritize a job." aliases:"priority"`
+		Retry        job.RetryCmd        `cmd:"" help:"Retry a job."`
+		Unblock      job.UnblockCmd      `cmd:"" help:"Unblock a job."`
+	}
 	MaintainerCmd struct {
 		List   maintainer.ListCmd   `cmd:"" help:"List cluster maintainers." aliases:"ls"`
 		Create maintainer.CreateCmd `cmd:"" help:"Create a cluster maintainer."`
 		Delete maintainer.DeleteCmd `cmd:"" help:"Delete a cluster maintainer." aliases:"rm"`
+	}
+	OrganizationCmd struct {
+		List organization.ListCmd `cmd:"" help:"List configured organizations." aliases:"ls"`
+	}
+	PackageCmd struct {
+		Push pkg.PushCmd `cmd:"" help:"Push a new package to a Buildkite registry"`
+	}
+	PipelineCmd struct {
+		Copy     pipeline.CopyCmd     `cmd:"" help:"Copy an existing pipeline." aliases:"cp"`
+		Create   pipeline.CreateCmd   `cmd:"" help:"Create a new pipeline."`
+		List     pipeline.ListCmd     `cmd:"" help:"List pipelines." aliases:"ls"`
+		Convert  pipeline.ConvertCmd  `cmd:"" help:"Convert a CI/CD pipeline configuration to Buildkite format." aliases:"migrate"`
+		Validate pipeline.ValidateCmd `cmd:"" help:"Validate a pipeline YAML file."`
+		View     pipeline.ViewCmd     `cmd:"" help:"View a pipeline."`
+	}
+	PreflightCmd struct {
+		Run     preflight.RunCmd     `cmd:"" default:"withargs" help:"Run a build against a snapshot of the local working tree (experimental)"`
+		Cleanup preflight.CleanupCmd `cmd:"" help:"Clean up completed preflight branches (experimental)"`
 	}
 	QueueCmd struct {
 		List   queue.ListCmd   `cmd:"" help:"List cluster queues." aliases:"ls"`
@@ -127,65 +162,99 @@ type (
 		Update secret.UpdateCmd `cmd:"" help:"Update a cluster secret."`
 		Delete secret.DeleteCmd `cmd:"" help:"Delete a cluster secret." aliases:"rm"`
 	}
-	JobCmd struct {
-		Cancel       job.CancelCmd       `cmd:"" help:"Cancel a job."`
-		List         job.ListCmd         `cmd:"" help:"List jobs." aliases:"ls"`
-		Log          job.LogCmd          `cmd:"" help:"Get logs for a job."`
-		Reprioritize job.ReprioritizeCmd `cmd:"" help:"Reprioritize a job." aliases:"priority"`
-		Retry        job.RetryCmd        `cmd:"" help:"Retry a job."`
-		Unblock      job.UnblockCmd      `cmd:"" help:"Unblock a job."`
-	}
-	OrganizationCmd struct {
-		List organization.ListCmd `cmd:"" help:"List configured organizations." aliases:"ls"`
-	}
-	PackageCmd struct {
-		Push pkg.PushCmd `cmd:"" help:"Push a new package to a Buildkite registry"`
-	}
-	PipelineCmd struct {
-		Copy     pipeline.CopyCmd     `cmd:"" help:"Copy an existing pipeline." aliases:"cp"`
-		Create   pipeline.CreateCmd   `cmd:"" help:"Create a new pipeline."`
-		List     pipeline.ListCmd     `cmd:"" help:"List pipelines." aliases:"ls"`
-		Convert  pipeline.ConvertCmd  `cmd:"" help:"Convert a CI/CD pipeline configuration to Buildkite format." aliases:"migrate"`
-		Validate pipeline.ValidateCmd `cmd:"" help:"Validate a pipeline YAML file."`
-		View     pipeline.ViewCmd     `cmd:"" help:"View a pipeline."`
-	}
-	PreflightCmd struct {
-		Run     preflight.RunCmd     `cmd:"" default:"withargs" help:"Run a preflight check"`
-		Cleanup preflight.CleanupCmd `cmd:"" help:"Clean up completed preflight branches"`
+	SkillCmd struct {
+		Add    skill.AddCmd    `cmd:"" help:"Install a Buildkite skill."`
+		Update skill.UpdateCmd `cmd:"" help:"Update an installed Buildkite skill."`
+		Delete skill.DeleteCmd `cmd:"" help:"Delete an installed Buildkite skill." aliases:"rm"`
 	}
 	UserCmd struct {
 		Invite user.InviteCmd `cmd:"" help:"Invite users to your organization."`
 	}
-	ApiCmd struct {
-		api.ApiCmd `cmd:"" help:"Interact with the Buildkite API"`
-	}
-	ConfigureCmd struct {
-		configure.ConfigureCmd `cmd:"" help:"Configure Buildkite API token"`
-	}
 )
+
+func (c PreflightCmd) Help() string {
+	return preflight.HelpText()
+}
 
 func handleError(err error) {
 	bkErrors.NewHandler().Handle(err)
 }
 
-func newKongParser(cli *CLI) (*kong.Kong, error) {
-	return kong.New(
-		cli,
+func newKongParser(cli *CLI, options ...kong.Option) (*kong.Kong, error) {
+	baseOptions := []kong.Option{
 		kong.Name("bk"),
 		kong.Description("Work with Buildkite from the command line."),
 		kong.Vars{
 			// Empty default allows commands to fall back to config value
 			"output_default_format": "",
+			"skill_repo":            "buildkite/skills",
+			"skill_branch":          "main",
 		},
+	}
+	baseOptions = append(baseOptions, options...)
+
+	return kong.New(cli, baseOptions...)
+}
+
+func renderHelp(args []string) (string, error) {
+	cli := &CLI{}
+	var stdout, stderr bytes.Buffer
+	parser, err := newKongParser(
+		cli,
+		kong.Writers(&stdout, &stderr),
+		kong.Exit(func(int) {}),
 	)
+	if err != nil {
+		return "", err
+	}
+	applyExperiments(parser, config.New(nil, nil))
+	if _, err := parser.Parse(args); err != nil {
+		if stdout.Len() > 0 {
+			return stdout.String(), nil
+		}
+		return "", err
+	}
+	return stdout.String(), nil
+}
+
+func renderPreflightHelp() (string, error) {
+	parentHelp, err := renderHelp([]string{"preflight", "--help"})
+	if err != nil {
+		return "", err
+	}
+
+	runHelp, err := renderHelp([]string{"preflight", "run", "--help"})
+	if err != nil {
+		return "", err
+	}
+
+	parentFlagsStart := strings.Index(parentHelp, "\nFlags:\n")
+	parentCommandsStart := strings.Index(parentHelp, "\nCommands:\n")
+	runFlagsStart := strings.Index(runHelp, "\nFlags:\n")
+	if parentFlagsStart == -1 || parentCommandsStart == -1 || runFlagsStart == -1 {
+		return parentHelp, nil
+	}
+
+	return parentHelp[:parentFlagsStart] + runHelp[runFlagsStart:] + parentHelp[parentCommandsStart:], nil
+}
+
+func isPreflightHelpRequest(args []string) bool {
+	switch {
+	case len(args) == 2 && args[0] == "preflight" && (args[1] == "--help" || args[1] == "-h"):
+		return true
+	case len(args) == 2 && args[0] == "help" && args[1] == "preflight":
+		return true
+	default:
+		return false
+	}
 }
 
 // applyExperiments toggles visibility of experimental commands based on config.
 func applyExperiments(parser *kong.Kong, conf *config.Config) {
 	for _, node := range parser.Model.Children {
 		switch node.Name {
-		case "preflight":
-			node.Hidden = !conf.HasExperiment("preflight")
+		case config.ExperimentPreflight:
+			node.Hidden = !conf.HasExperiment(config.ExperimentPreflight)
 		}
 	}
 }
@@ -215,6 +284,18 @@ func run() int {
 		return 0
 	}
 
+	args := os.Args[1:]
+
+	if isPreflightHelpRequest(args) {
+		help, err := renderPreflightHelp()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return 1
+		}
+		fmt.Print(help)
+		return 0
+	}
+
 	cliInstance := &CLI{}
 
 	conf := config.New(nil, nil)
@@ -229,9 +310,9 @@ func run() int {
 		return 1
 	}
 	applyExperiments(parser, conf)
-	ctx, err := parser.Parse(os.Args[1:])
+	ctx, err := parser.Parse(args)
 	if err != nil {
-		tracker.TrackCommand("unknown command", os.Args[1:], nil)
+		tracker.TrackCommand("unknown command", args, nil)
 
 		var parseErr *kong.ParseError
 		if errors.As(err, &parseErr) && !strings.Contains(err.Error(), "did you mean") {
@@ -243,7 +324,7 @@ func run() int {
 		return 1
 	}
 
-	tracker.TrackCommand(analytics.ParseSubcommand(ctx.Command()), os.Args[1:], nil)
+	tracker.TrackCommand(analytics.ParseSubcommand(ctx.Command()), args, nil)
 
 	globals := cli.Globals{
 		Yes:     cliInstance.Yes,
