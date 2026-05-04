@@ -1,6 +1,7 @@
 package oauth
 
 import (
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -81,6 +82,64 @@ func TestNewFlow_DefaultsToAllScopes(t *testing.T) {
 		if !strings.Contains(authURL, s) {
 			t.Errorf("expected scope %q in URL, got: %s", s, authURL)
 		}
+	}
+}
+
+func TestAuthorizationURL_IncludesOrganizationSlug(t *testing.T) {
+	t.Parallel()
+
+	flow, err := NewFlow(&Config{
+		Host:        "buildkite.com",
+		ClientID:    "test-client",
+		CallbackURL: "http://localhost:9999/callback",
+		OrgSlug:     "buildkite",
+		Scopes:      "read_user",
+	})
+	if err != nil {
+		t.Fatalf("NewFlow: %v", err)
+	}
+
+	authURL, err := url.Parse(flow.AuthorizationURL())
+	if err != nil {
+		t.Fatalf("Parse AuthorizationURL: %v", err)
+	}
+
+	query := authURL.Query()
+	if got := query.Get("organization"); got != "buildkite" {
+		t.Fatalf("organization = %q, want %q", got, "buildkite")
+	}
+	if got := query.Get("organization_uuid"); got != "" {
+		t.Fatalf("organization_uuid = %q, want empty", got)
+	}
+}
+
+func TestAuthorizationURL_IncludesOrganizationUUID(t *testing.T) {
+	t.Parallel()
+
+	const orgUUID = "018f2f7e-7e99-7d77-b4d3-a95cb01805f4"
+
+	flow, err := NewFlow(&Config{
+		Host:        "buildkite.com",
+		ClientID:    "test-client",
+		CallbackURL: "http://localhost:9999/callback",
+		OrgUUID:     orgUUID,
+		Scopes:      "read_user",
+	})
+	if err != nil {
+		t.Fatalf("NewFlow: %v", err)
+	}
+
+	authURL, err := url.Parse(flow.AuthorizationURL())
+	if err != nil {
+		t.Fatalf("Parse AuthorizationURL: %v", err)
+	}
+
+	query := authURL.Query()
+	if got := query.Get("organization_uuid"); got != orgUUID {
+		t.Fatalf("organization_uuid = %q, want %q", got, orgUUID)
+	}
+	if got := query.Get("organization"); got != "" {
+		t.Fatalf("organization = %q, want empty", got)
 	}
 }
 
