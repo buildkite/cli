@@ -544,6 +544,7 @@ func TestLatestTestExecution_PicksNewestTimestamp(t *testing.T) {
 
 	if execution == nil {
 		t.Fatal("expected execution to be present")
+		return
 	}
 	if got, want := execution.Status, "passed"; got != want {
 		t.Fatalf("status = %q, want %q", got, want)

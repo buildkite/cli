@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
+	"strings"
 	"time"
 
 	"github.com/alecthomas/kong"
@@ -14,6 +14,7 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/keyring"
 	"github.com/buildkite/cli/v3/pkg/oauth"
+	"github.com/google/uuid"
 	"github.com/pkg/browser"
 )
 
@@ -23,13 +24,11 @@ type LoginCmd struct {
 	Token  string `help:"API token to store (non-OAuth login, requires --org)" optional:""`
 }
 
-var uuidPattern = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
-
 func organizationIdentifier(org string) (orgSlug, orgUUID string) {
-	if uuidPattern.MatchString(org) {
+	parsedUUID, err := uuid.Parse(org)
+	if err == nil && strings.EqualFold(parsedUUID.String(), org) {
 		return "", org
 	}
-
 	return org, ""
 }
 

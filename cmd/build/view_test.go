@@ -12,6 +12,7 @@ func TestViewCmd_BuildGetOptions_WithJobStates(t *testing.T) {
 	opts := cmd.buildGetOptions()
 	if opts == nil {
 		t.Fatal("Expected non-nil BuildGetOptions")
+		return
 	}
 
 	if len(opts.JobStates) != 2 {
@@ -44,6 +45,7 @@ func TestViewCmd_BuildGetOptions_SingleState(t *testing.T) {
 	opts := cmd.buildGetOptions()
 	if opts == nil {
 		t.Fatal("Expected non-nil BuildGetOptions")
+		return
 	}
 
 	if len(opts.JobStates) != 1 {
