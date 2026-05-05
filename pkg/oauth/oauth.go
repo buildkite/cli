@@ -140,8 +140,8 @@ var DefaultClientID = "5214b230f06b48938ab5"
 type Config struct {
 	Host        string // e.g., "buildkite.com"
 	ClientID    string // OAuth client ID
-	OrgSlug     string // Organization slug (used for organization_uuid lookup)
-	OrgUUID     string // Organization UUID
+	OrgSlug     string // Organization slug to request access for
+	OrgUUID     string // Organization UUID to request access for
 	CallbackURL string // e.g., "http://127.0.0.1:8080/callback"
 	Scopes      string // Space-separated OAuth scopes
 }
@@ -234,6 +234,8 @@ func (f *Flow) AuthorizationURL() string {
 
 	if f.config.OrgUUID != "" {
 		params.Set("organization_uuid", f.config.OrgUUID)
+	} else if f.config.OrgSlug != "" {
+		params.Set("organization", f.config.OrgSlug)
 	}
 
 	return fmt.Sprintf("https://%s/oauth/authorize?%s", f.config.Host, params.Encode())
