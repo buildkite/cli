@@ -32,6 +32,45 @@ url = "https://github.com/mvdan/gofumpt/releases/download/v0.10.0/gofumpt_v0.10.
 checksum = "sha256:20872b464435512b74678b1155b75bd75220de5737ad8c075b9151c846543697"
 url = "https://github.com/mvdan/gofumpt/releases/download/v0.10.0/gofumpt_v0.10.0_windows_amd64.exe"
 
+[[tools."github:goreleaser/goreleaser-pro"]]
+version = "2.15.4"
+backend = "github:goreleaser/goreleaser-pro"
+
+[tools."github:goreleaser/goreleaser-pro"."platforms.linux-arm64"]
+checksum = "sha256:c2714766cd73d45997e10397cf9ed889ef17761e9ffdcb72f179fec605d6155f"
+url = "https://github.com/goreleaser/goreleaser-pro/releases/download/v2.15.4/goreleaser-pro_Linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/goreleaser/goreleaser-pro/releases/assets/401587720"
+
+[tools."github:goreleaser/goreleaser-pro"."platforms.linux-arm64-musl"]
+checksum = "sha256:c2714766cd73d45997e10397cf9ed889ef17761e9ffdcb72f179fec605d6155f"
+url = "https://github.com/goreleaser/goreleaser-pro/releases/download/v2.15.4/goreleaser-pro_Linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/goreleaser/goreleaser-pro/releases/assets/401587720"
+
+[tools."github:goreleaser/goreleaser-pro"."platforms.linux-x64"]
+checksum = "sha256:a7902f82d5afdcc2f43d5333d0f9d77db2d2c261b33189182c5358fc2f0bc1dc"
+url = "https://github.com/goreleaser/goreleaser-pro/releases/download/v2.15.4/goreleaser-pro_Linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/goreleaser/goreleaser-pro/releases/assets/401587704"
+
+[tools."github:goreleaser/goreleaser-pro"."platforms.linux-x64-musl"]
+checksum = "sha256:a7902f82d5afdcc2f43d5333d0f9d77db2d2c261b33189182c5358fc2f0bc1dc"
+url = "https://github.com/goreleaser/goreleaser-pro/releases/download/v2.15.4/goreleaser-pro_Linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/goreleaser/goreleaser-pro/releases/assets/401587704"
+
+[tools."github:goreleaser/goreleaser-pro"."platforms.macos-arm64"]
+checksum = "sha256:f48b6ce7d17d959a2fdb033ece22c09e90e12956cac9c6ab40a7cfe6d6d202d3"
+url = "https://github.com/goreleaser/goreleaser-pro/releases/download/v2.15.4/goreleaser-pro_Darwin_arm64.tar.gz"
+url_api = "https://api.github.com/repos/goreleaser/goreleaser-pro/releases/assets/401587658"
+
+[tools."github:goreleaser/goreleaser-pro"."platforms.macos-x64"]
+checksum = "sha256:0f115ca6678220e06df496c112b7c86f0e059b4e64832f5fce97e31c9027bea0"
+url = "https://github.com/goreleaser/goreleaser-pro/releases/download/v2.15.4/goreleaser-pro_Darwin_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/goreleaser/goreleaser-pro/releases/assets/401587659"
+
+[tools."github:goreleaser/goreleaser-pro"."platforms.windows-x64"]
+checksum = "sha256:3adf85a67efd6c43caaa11256d396c93a8b753bd5d477b1faaea135604a78bc4"
+url = "https://github.com/goreleaser/goreleaser-pro/releases/download/v2.15.4/goreleaser-pro_Windows_x86_64.zip"
+url_api = "https://api.github.com/repos/goreleaser/goreleaser-pro/releases/assets/401587867"
+
 [[tools.go]]
 version = "1.26.3"
 backend = "core:go"

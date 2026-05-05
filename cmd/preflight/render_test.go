@@ -359,10 +359,13 @@ func TestJSONRenderer_Render_JobFailure(t *testing.T) {
 		Pipeline:    "buildkite/cli",
 		BuildNumber: 42,
 		Job: &buildkite.Job{
-			ID:         "job-1",
-			Name:       "Lint",
-			State:      "failed",
-			ExitStatus: &exitOne,
+			ID:              "job-1",
+			Name:            "Lint",
+			Command:         "go test ./...",
+			State:           "failed",
+			ExitStatus:      &exitOne,
+			Agent:           buildkite.Agent{Name: "agent-1"},
+			AgentQueryRules: []string{"queue=large"},
 		},
 	})
 
@@ -382,8 +385,31 @@ func TestJSONRenderer_Render_JobFailure(t *testing.T) {
 	if got.Job.Name != "Lint" {
 		t.Fatalf("expected job name Lint, got %q", got.Job.Name)
 	}
+	if got.Job.Command != "go test ./..." {
+		t.Fatalf("expected job command, got %q", got.Job.Command)
+	}
 	if got.Job.ExitStatus == nil || *got.Job.ExitStatus != 1 {
 		t.Fatalf("expected exit status 1, got %v", got.Job.ExitStatus)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(out.Bytes(), &raw); err != nil {
+		t.Fatalf("invalid JSON map: %v", err)
+	}
+	job, ok := raw["job"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected compact job object, got %v", raw["job"])
+	}
+	for _, omitted := range []string{"agent", "agent_query_rules", "created_at", "scheduled_at", "priority", "step"} {
+		if _, ok := job[omitted]; ok {
+			t.Fatalf("expected compact JSON job to omit %q, got %v", omitted, job)
+		}
+	}
+	if _, ok := job["soft_failed"]; !ok {
+		t.Fatalf("expected compact JSON job to include soft_failed=false, got %v", job)
+	}
+	if _, ok := job["retried"]; !ok {
+		t.Fatalf("expected compact JSON job to include retried=false, got %v", job)
 	}
 }
 
@@ -797,8 +823,8 @@ func TestJSONRenderer_Render_BuildSummaryPassed(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
 	}
-	if got["type"] != "build_summary" {
-		t.Fatalf("expected type build_summary, got %v", got["type"])
+	if got["type"] != "preflight_summary" {
+		t.Fatalf("expected type preflight_summary, got %v", got["type"])
 	}
 	if got["build_state"] != "passed" {
 		t.Fatalf("expected build_state=passed, got %v", got["build_state"])
@@ -821,7 +847,16 @@ func TestJSONRenderer_Render_BuildSummaryFailed(t *testing.T) {
 		BuildNumber: 42,
 		BuildState:  "failed",
 		FailedJobs: []buildkite.Job{
-			{ID: "job-1", Name: "Lint", Type: "script", State: "failed", ExitStatus: &exitOne},
+			{
+				ID:              "job-1",
+				Name:            "Lint",
+				Type:            "script",
+				Command:         "go test ./...",
+				State:           "failed",
+				ExitStatus:      &exitOne,
+				Agent:           buildkite.Agent{Name: "agent-1"},
+				AgentQueryRules: []string{"queue=large"},
+			},
 		},
 	}); err != nil {
 		t.Fatalf("Render() error: %v", err)
@@ -837,6 +872,16 @@ func TestJSONRenderer_Render_BuildSummaryFailed(t *testing.T) {
 	failedJobs, ok := got["failed_jobs"].([]any)
 	if !ok || len(failedJobs) != 1 {
 		t.Fatalf("expected 1 failed job, got %v", got["failed_jobs"])
+	}
+	failedJob, ok := failedJobs[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected failed job object, got %v", failedJobs[0])
+	}
+	if failedJob["command"] != "go test ./..." {
+		t.Fatalf("expected failed job command, got %v", failedJob)
+	}
+	if _, ok := failedJob["agent"]; ok {
+		t.Fatalf("expected failed job JSON to omit agent, got %v", failedJob)
 	}
 }
 
@@ -863,8 +908,8 @@ func TestJSONRenderer_Render_BuildSummaryStoppedEarly(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
 	}
-	if got["type"] != "build_summary" {
-		t.Fatalf("expected type build_summary, got %v", got["type"])
+	if got["type"] != "preflight_summary" {
+		t.Fatalf("expected type preflight_summary, got %v", got["type"])
 	}
 	if got["incomplete"] != true {
 		t.Fatalf("expected incomplete=true, got %v", got["incomplete"])
