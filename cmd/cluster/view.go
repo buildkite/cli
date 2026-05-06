@@ -95,7 +95,8 @@ func renderClusterText(c buildkite.Cluster) string {
 	}
 
 	if c.CreatedBy.ID != "" {
-		rows = append(rows,
+		rows = append(
+			rows,
 			[]string{"Created By Name", output.ValueOrDash(c.CreatedBy.Name)},
 			[]string{"Created By Email", output.ValueOrDash(c.CreatedBy.Email)},
 			[]string{"Created By ID", output.ValueOrDash(c.CreatedBy.ID)},

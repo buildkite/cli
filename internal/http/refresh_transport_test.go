@@ -143,7 +143,6 @@ func TestRefreshTransport_CompareAfterLock_SkipsRedundantRefresh(t *testing.T) {
 }
 
 func TestRefreshTransport_DoesNotDeleteRefreshTokenOnTransientError(t *testing.T) {
-
 	keyring.MockForTesting()
 	defer keyring.ResetForTesting()
 
