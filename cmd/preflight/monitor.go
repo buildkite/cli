@@ -17,12 +17,13 @@ import (
 )
 
 type MonitorCmd struct {
-	Pipeline     string                         `help:"The pipeline to monitor. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
-	ExitOn       []internalpreflight.ExitPolicy `help:"Exit when a condition is met. Options: build-failing (default, exits when a build enters the failing state), build-terminal (exits when the build reaches a terminal state)."`
-	Interval     float64                        `help:"Polling interval in seconds when looking for and watching the build." default:"2"`
-	WaitForBuild time.Duration                  `name:"wait-for-build" help:"How long to wait for the pushed commit's build to appear." default:"2m"`
-	Text         bool                           `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
-	JSON         bool                           `help:"Emit one JSON object per event (JSONL)." xor:"output"`
+	Pipeline         string                         `help:"The pipeline to monitor. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
+	ExitOn           []internalpreflight.ExitPolicy `help:"Exit when a condition is met. Options: build-failing (default, exits when a build enters the failing state), build-terminal (exits when the build reaches a terminal state)."`
+	Interval         float64                        `help:"Polling interval in seconds when looking for and watching the build." default:"2"`
+	WaitForBuild     time.Duration                  `name:"wait-for-build" help:"How long to wait for the pushed commit's build to appear." default:"2m"`
+	AwaitTestResults awaitTestResultsFlag           `name:"await-test-results" help:"After the build finishes, wait for test results to be processed by Test Engine. Provide a duration like 10s, or omit the value to wait 30s."`
+	Text             bool                           `help:"Use plain text output instead of interactive terminal UI." xor:"output"`
+	JSON             bool                           `help:"Emit one JSON object per event (JSONL)." xor:"output"`
 }
 
 func (c *MonitorCmd) Help() string {
@@ -120,17 +121,18 @@ func (c *MonitorCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	})
 
 	watchCtx := buildWatchContext{
-		Context:      ctx,
-		Client:       f.RestAPIClient,
-		Renderer:     renderer,
-		PipelineName: pipelineName,
-		Org:          resolvedPipeline.Org,
-		Pipeline:     resolvedPipeline.Name,
-		Build:        build,
-		StartedAt:    startedAt,
-		Interval:     interval,
-		ExitPolicy:   exitPolicy,
-		Debug:        globals.EnableDebug(),
+		Context:          ctx,
+		Client:           f.RestAPIClient,
+		Renderer:         renderer,
+		PipelineName:     pipelineName,
+		Org:              resolvedPipeline.Org,
+		Pipeline:         resolvedPipeline.Name,
+		Build:            build,
+		StartedAt:        startedAt,
+		Interval:         interval,
+		ExitPolicy:       exitPolicy,
+		AwaitTestResults: c.AwaitTestResults,
+		Debug:            globals.EnableDebug(),
 	}
 	finalBuild, tracker, err := watchCtx.watch()
 	finalErr := NewResult(finalBuild).Error()
