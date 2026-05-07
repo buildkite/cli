@@ -90,7 +90,8 @@ func renderSecretText(s buildkite.ClusterSecret) string {
 	}
 
 	if s.CreatedBy.ID != "" {
-		rows = append(rows,
+		rows = append(
+			rows,
 			[]string{"Created By", output.ValueOrDash(s.CreatedBy.Name)},
 		)
 	}
@@ -100,7 +101,8 @@ func renderSecretText(s buildkite.ClusterSecret) string {
 	}
 
 	if s.UpdatedBy != nil && s.UpdatedBy.ID != "" {
-		rows = append(rows,
+		rows = append(
+			rows,
 			[]string{"Updated By", output.ValueOrDash(s.UpdatedBy.Name)},
 		)
 	}

@@ -29,7 +29,8 @@ func (c *CreateCmd) Validate() error {
 	case "", buildkite.RetryAgentAffinityPreferWarmest, buildkite.RetryAgentAffinityPreferDifferent:
 		return nil
 	default:
-		return fmt.Errorf("invalid --retry-agent-affinity value %q: must be %s or %s",
+		return fmt.Errorf(
+			"invalid --retry-agent-affinity value %q: must be %s or %s",
 			c.RetryAgentAffinity,
 			buildkite.RetryAgentAffinityPreferWarmest,
 			buildkite.RetryAgentAffinityPreferDifferent,
