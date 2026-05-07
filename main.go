@@ -144,6 +144,7 @@ type (
 	}
 	PreflightCmd struct {
 		Run     preflight.RunCmd     `cmd:"" default:"withargs" help:"Run a build against a snapshot of the local working tree (experimental)"`
+		Monitor preflight.MonitorCmd `cmd:"" help:"Monitor the existing build for the current branch and commit (experimental)"`
 		Cleanup preflight.CleanupCmd `cmd:"" help:"Clean up completed preflight branches (experimental)"`
 	}
 	QueueCmd struct {

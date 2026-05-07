@@ -53,7 +53,9 @@ const defaultAwaitTestResultsDuration = 30 * time.Second
 func HelpText() string {
 	return `Preflight is an experimental preview and subject to change without notice.
 
-Snapshots your working tree (staged, unstaged, and untracked files) to a temporary commit on a bk/preflight/<id> branch, triggers a build on the selected pipeline, monitors failures, exits as soon as the build starts failing, and cleans up the temporary branch when finished.`
+Run snapshots your working tree (staged, unstaged, and untracked files) to a temporary commit on a bk/preflight/<id> branch, triggers a build on the selected pipeline, monitors failures, exits as soon as the build starts failing, and cleans up the temporary branch when finished.
+
+Monitor watches the existing CI build for the current pushed branch and commit. It does not create a build or set PREFLIGHT=true.`
 }
 
 type summaryMeta struct {
@@ -170,7 +172,8 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
 			return bkErrors.NewUserAbortedError(context.Canceled, "preflight canceled by user")
 		}
-		return bkErrors.NewSnapshotError(err, "failed to create preflight snapshot",
+		return bkErrors.NewSnapshotError(
+			err, "failed to create preflight snapshot",
 			"Ensure you have uncommitted or committed changes to snapshot",
 			"Ensure you have push access to the remote repository",
 		)
@@ -271,7 +274,8 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	cleanupBranch()
 
 	if err != nil {
-		return bkErrors.NewInternalError(err, "watching build failed",
+		return bkErrors.NewInternalError(
+			err, "watching build failed",
 			"Buildkite API may be unavailable or your network may be unstable",
 			"Retry the preflight command once connectivity is restored",
 		)
@@ -466,7 +470,8 @@ func setup(pipelineFlag string, globals cli.GlobalFlags) (*preflightContext, err
 	if !f.Config.HasExperiment(internalconfig.ExperimentPreflight) {
 		return nil, bkErrors.NewValidationError(
 			fmt.Errorf("experiment not enabled"),
-			"preflight is disabled by the current experiments override. Add `preflight` to `BUILDKITE_EXPERIMENTS` or run `bk config set experiments preflight` to re-enable it")
+			"preflight is disabled by the current experiments override. Add `preflight` to `BUILDKITE_EXPERIMENTS` or run `bk config set experiments preflight` to re-enable it",
+		)
 	}
 
 	repoRoot, err := resolveRepositoryRoot(f, globals.EnableDebug())
@@ -489,7 +494,8 @@ func setup(pipelineFlag string, globals cli.GlobalFlags) (*preflightContext, err
 	resolvedPipeline, err := resolvers.Resolve(ctx)
 	if err != nil {
 		stop()
-		return nil, bkErrors.NewValidationError(err, "could not resolve a pipeline",
+		return nil, bkErrors.NewValidationError(
+			err, "could not resolve a pipeline",
 			"Specify a pipeline with --pipeline or link your repository to a pipeline",
 		)
 	}
