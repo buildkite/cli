@@ -6,7 +6,7 @@ lockfile = true
 
 [tools]
 go = "1.26.2"
-golangci-lint = "2.12.1"
+golangci-lint = "2.12.2"
 lefthook = "2.1.6"
 "aqua:mvdan/gofumpt" = "0.10.0"
 "go:github.com/nikolaydubina/go-cover-treemap" = "1.5.1"
