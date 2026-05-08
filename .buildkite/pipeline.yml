@@ -34,7 +34,7 @@ steps:
       - MISE_GITHUB_TOKEN
     command: 'mise run vulncheck'
     plugins:
-      - mise#v1.1.1: ~
+      - mise#v1.1.2: ~
 
   - label: ":terminal: build ({{matrix}})"
     key: build
