@@ -1,6 +1,7 @@
 package preflight
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -8,9 +9,9 @@ import (
 	"strings"
 )
 
-// gitCmd creates an exec.Command for git with the given dir and env pre-configured.
-func gitCmd(dir string, env []string, args ...string) *exec.Cmd {
-	cmd := exec.Command("git", args...)
+// gitCmdContext creates an exec.Command for git with the given dir and env pre-configured.
+func gitCmdContext(ctx context.Context, dir string, env []string, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
 	cmd.Env = env
 	return cmd
@@ -18,10 +19,18 @@ func gitCmd(dir string, env []string, args ...string) *exec.Cmd {
 
 // gitRun runs a git command, discarding output on success.
 func gitRun(dir string, env []string, debug bool, args ...string) error {
-	cmd := gitCmd(dir, env, args...)
+	return gitRunContext(context.Background(), dir, env, debug, args...)
+}
+
+// gitRunContext runs a git command, discarding output on success.
+func gitRunContext(ctx context.Context, dir string, env []string, debug bool, args ...string) error {
+	cmd := gitCmdContext(ctx, dir, env, args...)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		if debug {
 			os.Stderr.Write(out)
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return fmt.Errorf("git %s: %w", strings.Join(args, " "), ctxErr)
 		}
 		return fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
@@ -30,13 +39,21 @@ func gitRun(dir string, env []string, debug bool, args ...string) error {
 
 // gitOutput runs a git command and returns its trimmed stdout.
 func gitOutput(dir string, env []string, debug bool, args ...string) (string, error) {
-	cmd := gitCmd(dir, env, args...)
+	return gitOutputContext(context.Background(), dir, env, debug, args...)
+}
+
+// gitOutputContext runs a git command and returns its trimmed stdout.
+func gitOutputContext(ctx context.Context, dir string, env []string, debug bool, args ...string) (string, error) {
+	cmd := gitCmdContext(ctx, dir, env, args...)
 	out, err := cmd.Output()
 	if err != nil {
 		if debug {
 			if ee, ok := err.(*exec.ExitError); ok {
 				os.Stderr.Write(ee.Stderr)
 			}
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), ctxErr)
 		}
 		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}

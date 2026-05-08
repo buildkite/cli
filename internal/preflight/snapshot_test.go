@@ -1,11 +1,14 @@
 package preflight
 
 import (
+	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -88,6 +91,71 @@ func TestSnapshot_CommittedChanges(t *testing.T) {
 	remoteCommit := runGit(t, worktree, "ls-remote", "origin", result.Ref)
 	if !strings.Contains(remoteCommit, result.Commit) {
 		t.Errorf("remote branch does not contain commit %s, got %q", result.Commit, remoteCommit)
+	}
+}
+
+func TestSnapshotContext_CancelsPush(t *testing.T) {
+	worktree := initTestRepo(t)
+
+	if err := os.WriteFile(filepath.Join(worktree, "new-file.txt"), []byte("hello\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	gitPath, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatalf("finding git: %v", err)
+	}
+
+	fakeBin := t.TempDir()
+	pushStarted := filepath.Join(fakeBin, "push-started")
+	fakeGit := filepath.Join(fakeBin, "git")
+	if err := os.WriteFile(fakeGit, []byte(`#!/bin/sh
+if [ "$1" = "push" ]; then
+	touch "$PUSH_STARTED"
+	exec /bin/sleep 10
+fi
+exec "$REAL_GIT" "$@"
+`), 0o755); err != nil {
+		t.Fatalf("writing fake git: %v", err)
+	}
+
+	t.Setenv("REAL_GIT", gitPath)
+	t.Setenv("PUSH_STARTED", pushStarted)
+	t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := SnapshotContext(ctx, worktree, uuid.MustParse("00000000-0000-0000-0000-000000000020"))
+		errCh <- err
+	}()
+
+	deadline := time.After(2 * time.Second)
+	for {
+		if _, err := os.Stat(pushStarted); err == nil {
+			break
+		} else if !os.IsNotExist(err) {
+			t.Fatalf("checking push marker: %v", err)
+		}
+
+		select {
+		case err := <-errCh:
+			t.Fatalf("SnapshotContext returned before push was canceled: %v", err)
+		case <-deadline:
+			t.Fatal("timed out waiting for git push to start")
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+
+	cancel()
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected context canceled error, got: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("SnapshotContext did not return promptly after cancellation")
 	}
 }
 

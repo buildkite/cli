@@ -61,11 +61,13 @@ func (r Result) Error() error {
 	case resultIncomplete:
 		return bkErrors.NewPreflightIncompleteError(nil, fmt.Sprintf("build is %s", r.buildState))
 	case resultUnknown:
-		return bkErrors.NewPreflightUnknownError(nil,
+		return bkErrors.NewPreflightUnknownError(
+			nil,
 			fmt.Sprintf("build is %s", r.buildState),
 		)
 	default:
-		return bkErrors.NewInternalError(nil,
+		return bkErrors.NewInternalError(
+			nil,
 			fmt.Sprintf("unexpected result kind %d for build state '%s', unable to coerce to error", r.kind, r.buildState),
 			"This is likely a bug",
 			"Report to Buildkite",

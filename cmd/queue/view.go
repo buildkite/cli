@@ -103,7 +103,8 @@ func renderQueueText(q buildkite.ClusterQueue) string {
 			rows = append(rows, []string{"Dispatch Paused At", q.DispatchPausedAt.Format(time.RFC3339)})
 		}
 		if q.DispatchPausedBy != nil {
-			rows = append(rows,
+			rows = append(
+				rows,
 				[]string{"Dispatch Paused By Name", output.ValueOrDash(q.DispatchPausedBy.Name)},
 				[]string{"Dispatch Paused By Email", output.ValueOrDash(q.DispatchPausedBy.Email)},
 			)
@@ -111,7 +112,8 @@ func renderQueueText(q buildkite.ClusterQueue) string {
 	}
 
 	if q.CreatedBy.ID != "" {
-		rows = append(rows,
+		rows = append(
+			rows,
 			[]string{"Created By Name", output.ValueOrDash(q.CreatedBy.Name)},
 			[]string{"Created By Email", output.ValueOrDash(q.CreatedBy.Email)},
 			[]string{"Created By ID", output.ValueOrDash(q.CreatedBy.ID)},
