@@ -5,7 +5,7 @@ experimental = true
 lockfile = true
 
 [tools]
-go = "1.26.2"
+go = "1.26.3"
 golangci-lint = "2.12.2"
 lefthook = "2.1.6"
 "aqua:mvdan/gofumpt" = "0.10.0"
