@@ -9,7 +9,7 @@ aqua.github_attestations = false
 aqua.slsa = false
 
 [tools]
-go = "1.26.3"
+go = "1.26.4"
 golangci-lint = "2.12.2"
 lefthook = "2.1.9"
 "aqua:mvdan/gofumpt" = "0.10.0"

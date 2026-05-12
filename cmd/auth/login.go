@@ -22,6 +22,7 @@ type LoginCmd struct {
 	Scopes string `help:"OAuth scopes to request" default:""`
 	Org    string `help:"Organization slug or UUID to request access for" optional:""`
 	Token  string `help:"API token to store (non-OAuth login, requires --org)" optional:""`
+	Device bool   `help:"Authenticate using OAuth device authorization instead of opening a browser callback" optional:""`
 }
 
 func organizationIdentifier(org string) (orgSlug, orgUUID string) {
@@ -55,6 +56,9 @@ Examples:
 
   # Login non-interactively with an API token
   $ bk auth login --org my-org --token my-token
+
+  # Login on a headless machine or remote shell
+  $ bk auth login --device
 
   # Login with read-only access
   $ bk auth login --scopes read_only
@@ -139,6 +143,10 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
+	if err := c.validate(); err != nil {
+		return err
+	}
+
 	if c.Token != "" {
 		if err := LoginWithToken(f, c.Org, c.Token); err != nil {
 			return err
@@ -152,6 +160,10 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	// When --scopes is empty, no scope parameter is sent and the token
 	// inherits the user's full Buildkite permissions.
 	resolvedScopes := oauth.ResolveScopes(c.Scopes)
+
+	if c.Device {
+		return c.runDeviceLogin(context.Background(), f, resolvedScopes)
+	}
 
 	orgSlug, orgUUID := organizationIdentifier(c.Org)
 
@@ -200,38 +212,105 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return fmt.Errorf("token exchange failed: %w", err)
 	}
 
+	org, autoRefreshConfigured, err := completeOAuthLogin(ctx, f, tokenResp)
+	if err != nil {
+		return err
+	}
+
+	printOAuthLoginSuccess(org, tokenResp, autoRefreshConfigured)
+
+	return nil
+}
+
+func (c *LoginCmd) validate() error {
+	if c.Device && c.Token != "" {
+		return errors.New("--device cannot be used with --token")
+	}
+	if c.Device && c.Org != "" {
+		return errors.New("--org is not supported with --device; choose an organization on the authorization page")
+	}
+	return nil
+}
+
+func (c *LoginCmd) runDeviceLogin(ctx context.Context, f *factory.Factory, resolvedScopes string) error {
+	cfg := &oauth.Config{
+		ClientID: oauth.DefaultClientID,
+		Scopes:   resolvedScopes,
+	}
+
+	deviceAuth, err := oauth.RequestDeviceAuthorization(ctx, cfg)
+	if err != nil {
+		return fmt.Errorf("failed to start device authorization: %w", err)
+	}
+
+	verificationURL := deviceAuth.VerificationURIComplete
+	if verificationURL == "" {
+		verificationURL = deviceAuth.VerificationURI
+	}
+
+	fmt.Println("Visit this URL to authorize this device:")
+	fmt.Printf("  %s\n\n", verificationURL)
+	fmt.Println("Code:")
+	fmt.Printf("  %s\n\n", deviceAuth.UserCode)
+	fmt.Println("Waiting for authorization...")
+
+	timeout := time.Duration(deviceAuth.ExpiresIn) * time.Second
+	if timeout <= 0 {
+		timeout = 10 * time.Minute
+	}
+	pollCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	tokenResp, err := oauth.PollDeviceAccessToken(pollCtx, cfg, deviceAuth)
+	if err != nil {
+		return fmt.Errorf("device authorization failed: %w", err)
+	}
+
+	org, autoRefreshConfigured, err := completeOAuthLogin(ctx, f, tokenResp)
+	if err != nil {
+		return err
+	}
+
+	printOAuthLoginSuccess(org, tokenResp, autoRefreshConfigured)
+
+	return nil
+}
+
+func completeOAuthLogin(ctx context.Context, f *factory.Factory, tokenResp *oauth.TokenResponse) (string, bool, error) {
 	// Resolve org from the API using the new token
 	client, err := buildkite.NewOpts(
 		buildkite.WithTokenAuth(tokenResp.AccessToken),
 		buildkite.WithBaseURL(f.Config.RESTAPIEndpoint()),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create API client: %w", err)
+		return "", false, fmt.Errorf("failed to create API client: %w", err)
 	}
 
 	orgs, _, err := client.Organizations.List(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("failed to list organizations: %w", err)
+		return "", false, fmt.Errorf("failed to list organizations: %w", err)
 	}
 	if len(orgs) == 0 {
-		return fmt.Errorf("no organizations found for this token")
+		return "", false, fmt.Errorf("no organizations found for this token")
 	}
 
 	org := orgs[0]
 
 	autoRefreshConfigured, err := persistOAuthLogin(f, keyring.New(), org.Slug, tokenResp.AccessToken, tokenResp.RefreshToken)
 	if err != nil {
-		return err
+		return "", false, err
 	}
 	fmt.Println("Token stored securely in system keychain.")
 
-	fmt.Printf("\n✅ Successfully authenticated with organization %q\n", org.Slug)
+	return org.Slug, autoRefreshConfigured, nil
+}
+
+func printOAuthLoginSuccess(org string, tokenResp *oauth.TokenResponse, autoRefreshConfigured bool) {
+	fmt.Printf("\n✅ Successfully authenticated with organization %q\n", org)
 	fmt.Printf("  Scopes: %s\n", tokenResp.Scope)
 	if autoRefreshConfigured {
 		fmt.Printf("  Token expires in: %s (will refresh automatically)\n", formatDuration(tokenResp.ExpiresIn))
 	}
-
-	return nil
 }
 
 func formatDuration(seconds int) string {
