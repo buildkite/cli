@@ -9,6 +9,7 @@
   ],
   "labels": ["dependencies"],
   "postUpdateOptions": ["gomodTidy"],
+  "minimumReleaseAge": "3 days",
   "packageRules": [
     {
       "description": "Group Buildkite dependencies",
@@ -51,5 +52,9 @@
   ],
   "automerge": true,
   "automergeType": "pr",
-  "platformAutomerge": true
+  "platformAutomerge": true,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "minimumReleaseAge": "0"
+  }
 }
