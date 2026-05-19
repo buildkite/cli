@@ -353,3 +353,41 @@ func TestIsTerminalRefreshError(t *testing.T) {
 		}
 	}
 }
+
+func TestAuthTransport_DoesNotInjectOnRedirectedHop(t *testing.T) {
+	t.Parallel()
+
+	var presignedAuth atomic.Value
+	presignedAuth.Store("")
+
+	presigned := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		presignedAuth.Store(r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("payload"))
+	}))
+	defer presigned.Close()
+
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, presigned.URL+"/blob?X-Amz-Signature=stub", http.StatusFound)
+	}))
+	defer api.Close()
+
+	ts := NewTokenSource("bk-token")
+	transport := &AuthTransport{Base: http.DefaultTransport, TokenSource: ts}
+
+	client := &http.Client{Transport: transport}
+	req, err := http.NewRequest(http.MethodGet, api.URL+"/artifact", nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+
+	if got := presignedAuth.Load().(string); got != "" {
+		t.Fatalf("Authorization leaked to presigned host: %q", got)
+	}
+}

@@ -52,9 +52,12 @@ type AuthTransport struct {
 }
 
 func (t *AuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	token := t.TokenSource.Token()
-	if token != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	// Skip re-injecting on redirected hops so stdlib's cross-host strip stays in effect.
+	if req.Response == nil {
+		token := t.TokenSource.Token()
+		if token != "" {
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+		}
 	}
 	if t.UserAgent != "" {
 		req.Header.Set("User-Agent", t.UserAgent)
