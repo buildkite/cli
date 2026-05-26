@@ -16,6 +16,15 @@ brew tap buildkite/buildkite && brew install buildkite/buildkite/bk
 
 Or download a binary from the [releases page](https://github.com/buildkite/cli/releases).
 
+To update a standalone release-binary install later, run:
+
+```sh
+bk update
+```
+
+If `bk` is managed by Homebrew or mise, `bk update` will tell you how to update
+it with that tool instead.
+
 ### Authenticate
 
 ```sh
