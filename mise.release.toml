@@ -1,0 +1,4 @@
+# Release-only toolchain layered on top of mise.toml via MISE_ENV=release.
+[tools]
+"github:goreleaser/goreleaser-pro" = "2.15.4"
+ko = "0.18.1"
