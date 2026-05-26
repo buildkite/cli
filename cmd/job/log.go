@@ -14,8 +14,8 @@ import (
 
 type LogCmd struct {
 	JobID        string `arg:"" help:"Job UUID to get logs for"`
-	Pipeline     string `help:"Deprecated; ignored because job UUIDs are scoped to the selected organization" short:"p"`
-	BuildNumber  string `help:"Deprecated; ignored because job UUIDs are scoped to the selected organization" short:"b"`
+	Pipeline     string `help:"Deprecated; ignored because job UUIDs no longer require pipeline or build context" short:"p"`
+	BuildNumber  string `help:"Deprecated; ignored because job UUIDs no longer require pipeline or build context" short:"b"`
 	NoTimestamps bool   `help:"Strip timestamp prefixes from log output" name:"no-timestamps"`
 }
 
@@ -41,9 +41,14 @@ func (c *LogCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.Quiet = globals.IsQuiet()
 	f.NoPager = f.NoPager || globals.DisablePager()
 
+	organization, err := configuredOrganization(f.Config.OrganizationSlug())
+	if err != nil {
+		return err
+	}
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
 		return err
 	}
+	warnIgnoredJobContextFlags(kongCtx.Stderr, c.Pipeline, c.BuildNumber)
 
 	ctx := context.Background()
 
@@ -52,7 +57,7 @@ func (c *LogCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		jobLog, apiErr := getJobLog(
 			ctx,
 			f.RestAPIClient,
-			f.Config.OrganizationSlug(),
+			organization,
 			c.JobID,
 		)
 		if apiErr != nil {

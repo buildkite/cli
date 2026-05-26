@@ -50,6 +50,10 @@ func (c *UnblockCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
 
+	organization, err := configuredOrganization(f.Config.OrganizationSlug())
+	if err != nil {
+		return err
+	}
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
 		return err
 	}
@@ -64,7 +68,7 @@ func (c *UnblockCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	var job buildkite.Job
 	err = bkIO.SpinWhile(f, "Unblocking job", func() error {
 		var apiErr error
-		job, apiErr = unblockJob(ctx, f.RestAPIClient, f.Config.OrganizationSlug(), c.JobID, fields)
+		job, apiErr = unblockJob(ctx, f.RestAPIClient, organization, c.JobID, fields)
 		return apiErr
 	})
 	if err != nil {
@@ -117,5 +121,9 @@ func parseUnblockFields(input string) (map[string]any, error) {
 
 func isAlreadyUnblocked(err error) bool {
 	var apiErr *buildkite.ErrorResponse
-	return errors.As(err, &apiErr) && apiErr.Message == "The job's state must be blocked"
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+
+	return apiErr.Message == "The job's state must be blocked" || apiErr.Message == "The job's state must be blocked."
 }

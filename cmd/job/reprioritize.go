@@ -15,8 +15,8 @@ import (
 type ReprioritizeCmd struct {
 	JobID       string `arg:"" help:"Job UUID to reprioritize"`
 	Priority    int    `arg:"" help:"New priority value for the job"`
-	Pipeline    string `help:"Deprecated; ignored because job UUIDs are scoped to the selected organization" short:"p"`
-	BuildNumber string `help:"Deprecated; ignored because job UUIDs are scoped to the selected organization" short:"b"`
+	Pipeline    string `help:"Deprecated; ignored because job UUIDs no longer require pipeline or build context" short:"p"`
+	BuildNumber string `help:"Deprecated; ignored because job UUIDs no longer require pipeline or build context" short:"b"`
 }
 
 func (c *ReprioritizeCmd) Help() string {
@@ -37,9 +37,14 @@ func (c *ReprioritizeCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) er
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
 
+	organization, err := configuredOrganization(f.Config.OrganizationSlug())
+	if err != nil {
+		return err
+	}
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
 		return err
 	}
+	warnIgnoredJobContextFlags(kongCtx.Stderr, c.Pipeline, c.BuildNumber)
 
 	ctx := context.Background()
 
@@ -49,7 +54,7 @@ func (c *ReprioritizeCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) er
 		job, apiErr = reprioritizeJob(
 			ctx,
 			f.RestAPIClient,
-			f.Config.OrganizationSlug(),
+			organization,
 			c.JobID,
 			c.Priority,
 		)

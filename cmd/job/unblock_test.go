@@ -3,6 +3,7 @@ package job
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -204,5 +205,46 @@ func TestReprioritizeJobUsesOrganizationEndpoint(t *testing.T) {
 	}
 	if job.ID != "job-1" {
 		t.Fatalf("job = %#v", job)
+	}
+}
+
+func TestIsAlreadyUnblocked(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "blocked state API error",
+			err:  &buildkite.ErrorResponse{Message: "The job's state must be blocked"},
+			want: true,
+		},
+		{
+			name: "blocked state API error with period",
+			err:  &buildkite.ErrorResponse{Message: "The job's state must be blocked."},
+			want: true,
+		},
+		{
+			name: "other API error",
+			err:  &buildkite.ErrorResponse{Message: "This job type cannot be unblocked"},
+			want: false,
+		},
+		{
+			name: "other error",
+			err:  errors.New("boom"),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := isAlreadyUnblocked(tt.err); got != tt.want {
+				t.Fatalf("isAlreadyUnblocked() = %t, want %t", got, tt.want)
+			}
+		})
 	}
 }
