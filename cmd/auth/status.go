@@ -33,7 +33,7 @@ func (w StatusOutput) TextOutput() string {
 	b.WriteRune('\n')
 	fmt.Fprintf(&b, "API Token user name:  %s\n", w.Token.User.Name)
 	fmt.Fprintf(&b, "API Token user email: %s\n", w.Token.User.Email)
-
+	fmt.Fprintf(&b, "API Token expiry:     %s\n", w.Token.ExpiresAt)
 	return b.String()
 }
 
