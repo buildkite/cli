@@ -3,6 +3,10 @@
 [settings]
 experimental = true
 lockfile = true
+github_attestations = false
+github.slsa = false
+aqua.github_attestations = false
+aqua.slsa = false
 
 [tools]
 go = "1.26.3"
@@ -11,8 +15,6 @@ lefthook = "2.1.6"
 "aqua:mvdan/gofumpt" = "0.10.0"
 "go:github.com/nikolaydubina/go-cover-treemap" = "1.5.1"
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.3.0"
-"github:goreleaser/goreleaser-pro" = "2.15.4"
-ko = "0.18.1"
 
 [tasks.format]
 description = "Format Go files with gofumpt"
