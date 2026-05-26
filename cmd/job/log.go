@@ -6,33 +6,27 @@ import (
 	"regexp"
 
 	"github.com/alecthomas/kong"
-	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
-	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
-	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 )
 
 type LogCmd struct {
 	JobID        string `arg:"" help:"Job UUID to get logs for"`
-	Pipeline     string `help:"The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}" short:"p"`
-	BuildNumber  string `help:"The build number" short:"b"`
+	Pipeline     string `help:"Deprecated; ignored because job UUIDs are scoped to the selected organization" short:"p"`
+	BuildNumber  string `help:"Deprecated; ignored because job UUIDs are scoped to the selected organization" short:"b"`
 	NoTimestamps bool   `help:"Strip timestamp prefixes from log output" name:"no-timestamps"`
 }
 
 func (c *LogCmd) Help() string {
 	return `
 Examples:
-  # Get a job's logs by UUID (requires --pipeline and --build)
-  $ bk job log 0190046e-e199-453b-a302-a21a4d649d31 -p my-pipeline -b 123
-
-  # If inside a git repository with a configured pipeline
-  $ bk job log 0190046e-e199-453b-a302-a21a4d649d31 -b 123
+  # Get a job's logs by UUID
+  $ bk job log 0190046e-e199-453b-a302-a21a4d649d31
 
   # Strip timestamp prefixes from output
-  $ bk job log 0190046e-e199-453b-a302-a21a4d649d31 -p my-pipeline -b 123 --no-timestamps
+  $ bk job log 0190046e-e199-453b-a302-a21a4d649d31 --no-timestamps
 `
 }
 
@@ -53,40 +47,12 @@ func (c *LogCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	ctx := context.Background()
 
-	pipelineRes := pipelineResolver.NewAggregateResolver(
-		pipelineResolver.ResolveFromFlag(c.Pipeline, f.Config),
-		pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOneWithFactory(f)),
-		pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOneWithFactory(f))),
-	)
-
-	optionsResolver := options.AggregateResolver{
-		options.ResolveBranchFromRepository(f.GitRepository),
-	}
-
-	args := []string{}
-	if c.BuildNumber != "" {
-		args = []string{c.BuildNumber}
-	}
-	buildRes := buildResolver.NewAggregateResolver(
-		buildResolver.ResolveFromPositionalArgument(args, 0, pipelineRes.Resolve, f.Config),
-		buildResolver.ResolveBuildWithOpts(f, pipelineRes.Resolve, optionsResolver...),
-	)
-
-	bld, err := buildRes.Resolve(ctx)
-	if err != nil {
-		return err
-	}
-	if bld == nil {
-		return fmt.Errorf("no build found")
-	}
-
 	var logContent string
 	if err = bkIO.SpinWhile(f, "Fetching job log", func() error {
-		jobLog, _, apiErr := f.RestAPIClient.Jobs.GetJobLog(
+		jobLog, apiErr := getJobLog(
 			ctx,
-			bld.Organization,
-			bld.Pipeline,
-			fmt.Sprint(bld.BuildNumber),
+			f.RestAPIClient,
+			f.Config.OrganizationSlug(),
 			c.JobID,
 		)
 		if apiErr != nil {

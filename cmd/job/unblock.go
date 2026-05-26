@@ -2,6 +2,7 @@ package job
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,15 +11,11 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
-	bkGraphQL "github.com/buildkite/cli/v3/internal/graphql"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
-	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
-	"github.com/vektah/gqlparser/v2/gqlerror"
+	buildkite "github.com/buildkite/go-buildkite/v4"
 )
-
-const jobBlockPrefix = "JobTypeBlock---"
 
 type UnblockCmd struct {
 	JobID string `arg:"" help:"Job UUID to unblock"`
@@ -30,7 +27,6 @@ func (c *UnblockCmd) Help() string {
 Unblock a job.
 
 Use this command to unblock build jobs.
-Currently, this does not support submitting fields to the step.
 
 Examples:
   # Unblock a job by UUID
@@ -58,59 +54,68 @@ func (c *UnblockCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
-	// Given a job UUID argument, we need to generate the GraphQL ID matching
-	graphqlID := util.GenerateGraphQLID(jobBlockPrefix, c.JobID)
+	ctx := context.Background()
 
-	// Get unblock step fields if available
-	var fields *string
-	if bkIO.HasDataAvailable(os.Stdin) {
-		stdin := new(strings.Builder)
-		_, err := io.Copy(stdin, os.Stdin)
-		if err != nil {
-			return err
-		}
-		input := stdin.String()
-		fields = &input
-	} else if c.Data != "" {
-		fields = &c.Data
-	} else {
-		// The GraphQL API errors if providing a null fields value so we need to provide an empty json object
-		input := "{}"
-		fields = &input
+	fields, err := c.unblockFields()
+	if err != nil {
+		return err
 	}
 
-	ctx := context.Background()
-	var result *bkGraphQL.UnblockJobResponse
+	var job buildkite.Job
 	err = bkIO.SpinWhile(f, "Unblocking job", func() error {
-		result, err = bkGraphQL.UnblockJob(ctx, f.GraphQLClient, graphqlID, fields)
-		return err
+		var apiErr error
+		job, apiErr = unblockJob(ctx, f.RestAPIClient, f.Config.OrganizationSlug(), c.JobID, fields)
+		return apiErr
 	})
 	if err != nil {
-		// Handle a "graphql error" if the job is already unblocked
-		var errList gqlerror.List
-		if errors.As(err, &errList) {
-			for _, gqlErr := range errList {
-				if gqlErr.Message == "The job's state must be blocked" {
-					fmt.Println("This job is already unblocked")
-					return nil
-				}
-			}
+		if isAlreadyUnblocked(err) {
+			fmt.Println("This job is already unblocked")
+			return nil
 		}
 		return err
 	}
 
-	if err := validateUnblockResponse(result); err != nil {
-		return err
+	if job.WebURL != "" {
+		fmt.Println("Successfully unblocked job: " + job.WebURL)
+		return nil
 	}
 
 	fmt.Println("Successfully unblocked job")
 	return nil
 }
 
-func validateUnblockResponse(result *bkGraphQL.UnblockJobResponse) error {
-	if result == nil || result.JobTypeBlockUnblock == nil {
-		return fmt.Errorf("failed to unblock job")
+func (c *UnblockCmd) unblockFields() (map[string]any, error) {
+	if bkIO.HasDataAvailable(os.Stdin) {
+		stdin := new(strings.Builder)
+		if _, err := io.Copy(stdin, os.Stdin); err != nil {
+			return nil, err
+		}
+		return parseUnblockFields(stdin.String())
+	} else if c.Data != "" {
+		return parseUnblockFields(c.Data)
 	}
 
-	return nil
+	return nil, nil
+}
+
+func parseUnblockFields(input string) (map[string]any, error) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return nil, nil
+	}
+
+	var fields map[string]any
+	if err := json.Unmarshal([]byte(input), &fields); err != nil {
+		return nil, fmt.Errorf("parsing unblock data as JSON: %w", err)
+	}
+	if fields == nil {
+		return nil, fmt.Errorf("unblock data must be a JSON object")
+	}
+
+	return fields, nil
+}
+
+func isAlreadyUnblocked(err error) bool {
+	var apiErr *buildkite.ErrorResponse
+	return errors.As(err, &apiErr) && apiErr.Message == "The job's state must be blocked"
 }
