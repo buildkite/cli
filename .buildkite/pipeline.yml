@@ -47,6 +47,8 @@ steps:
           - "windows"
     artifact_paths:
       - dist/**/*
+    env:
+      MISE_ENV: release
     secrets:
       - MISE_GITHUB_TOKEN
       - POSTHOG_API_KEY
