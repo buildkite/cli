@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/alecthomas/kong"
@@ -13,13 +15,22 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/keyring"
 	"github.com/buildkite/cli/v3/pkg/oauth"
+	"github.com/google/uuid"
 	"github.com/pkg/browser"
 )
 
 type LoginCmd struct {
 	Scopes string `help:"OAuth scopes to request" default:""`
-	Org    string `help:"Organization slug (required with --token)" optional:""`
-	Token  string `help:"API token to store (non-OAuth login)" optional:""`
+	Org    string `help:"Organization slug or UUID to request access for" optional:""`
+	Token  string `help:"API token to store (non-OAuth login, requires --org)" optional:""`
+}
+
+func organizationIdentifier(org string) (orgSlug, orgUUID string) {
+	parsedUUID, err := uuid.Parse(org)
+	if err == nil && strings.EqualFold(parsedUUID.String(), org) {
+		return "", org
+	}
+	return org, ""
 }
 
 func (c *LoginCmd) Help() string {
@@ -39,6 +50,9 @@ Examples:
 
   # Login with full permissions (inherits your account's scopes)
   $ bk auth login
+
+  # Login to a specific organization
+  $ bk auth login --org my-org
 
   # Login non-interactively with an API token
   $ bk auth login --org my-org --token my-token
@@ -102,19 +116,19 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return nil
 	}
 
-	if c.Org != "" {
-		return errors.New("--org requires --token. Use `bk auth login` for OAuth or `bk auth login --org <org> --token <token>` for token login")
-	}
-
 	// Resolve scope groups (e.g., "read_only" → individual read_* scopes).
 	// When --scopes is empty, no scope parameter is sent and the token
 	// inherits the user's full Buildkite permissions.
 	resolvedScopes := oauth.ResolveScopes(c.Scopes)
 
+	orgSlug, orgUUID := organizationIdentifier(c.Org)
+
 	// Create OAuth flow
 	cfg := &oauth.Config{
 		// Host default handled via NewFlow, omitted to allow usage of BUILDKITE_HOST
 		ClientID: oauth.DefaultClientID,
+		OrgSlug:  orgSlug,
+		OrgUUID:  orgUUID,
 		Scopes:   resolvedScopes,
 	}
 
@@ -155,7 +169,10 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	// Resolve org from the API using the new token
-	client, err := buildkite.NewOpts(buildkite.WithTokenAuth(tokenResp.AccessToken))
+	client, err := buildkite.NewOpts(
+		buildkite.WithTokenAuth(tokenResp.AccessToken),
+		buildkite.WithBaseURL(f.Config.RESTAPIEndpoint()),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to create API client: %w", err)
 	}
@@ -174,8 +191,36 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
+	// Store refresh token if the server issued one
+	if tokenResp.RefreshToken != "" {
+		kr := keyring.New()
+		if kr.IsAvailable() {
+			if err := kr.SetRefreshToken(org.Slug, tokenResp.RefreshToken); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to store refresh token: %v\n", err)
+			}
+		}
+	}
+
 	fmt.Printf("\n✅ Successfully authenticated with organization %q\n", org.Slug)
 	fmt.Printf("  Scopes: %s\n", tokenResp.Scope)
+	if tokenResp.RefreshToken != "" {
+		fmt.Printf("  Token expires in: %s (will refresh automatically)\n", formatDuration(tokenResp.ExpiresIn))
+	}
 
 	return nil
+}
+
+func formatDuration(seconds int) string {
+	if seconds <= 0 {
+		return "unknown"
+	}
+	d := time.Duration(seconds) * time.Second
+	if d >= time.Hour {
+		hours := int(d.Hours())
+		if hours == 1 {
+			return "1 hour"
+		}
+		return fmt.Sprintf("%d hours", hours)
+	}
+	return fmt.Sprintf("%d minutes", int(d.Minutes()))
 }
