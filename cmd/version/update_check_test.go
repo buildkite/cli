@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/buildkite/cli/v3/internal/selfupdate"
 )
 
 func TestCheckForUpdate_NewerVersionAvailable(t *testing.T) {
@@ -138,6 +141,29 @@ func TestIsNewer(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFormatUpdateNudge(t *testing.T) {
+	t.Run("standalone points to bk update", func(t *testing.T) {
+		got := FormatUpdateNudge("3.45.0", selfupdate.Installation{Method: selfupdate.InstallMethodStandalone})
+		if !strings.Contains(got, "Run 'bk update' to update.") {
+			t.Fatalf("expected standalone nudge, got %q", got)
+		}
+	})
+
+	t.Run("homebrew points to brew upgrade", func(t *testing.T) {
+		got := FormatUpdateNudge("3.45.0", selfupdate.Installation{Method: selfupdate.InstallMethodHomebrew, BrewFormula: "bk@3"})
+		if !strings.Contains(got, "brew upgrade bk@3") {
+			t.Fatalf("expected Homebrew nudge, got %q", got)
+		}
+	})
+
+	t.Run("mise points to mise", func(t *testing.T) {
+		got := FormatUpdateNudge("3.45.0", selfupdate.Installation{Method: selfupdate.InstallMethodMise})
+		if !strings.Contains(got, "Update it with mise.") {
+			t.Fatalf("expected mise nudge, got %q", got)
+		}
+	})
 }
 
 func TestParseVersion(t *testing.T) {

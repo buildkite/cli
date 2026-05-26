@@ -27,6 +27,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/queue"
 	"github.com/buildkite/cli/v3/cmd/secret"
 	"github.com/buildkite/cli/v3/cmd/skill"
+	updatePkg "github.com/buildkite/cli/v3/cmd/update"
 	"github.com/buildkite/cli/v3/cmd/use"
 	"github.com/buildkite/cli/v3/cmd/user"
 	versionPkg "github.com/buildkite/cli/v3/cmd/version"
@@ -40,33 +41,34 @@ import (
 // Kong CLI structure, with base commands defined as additional commands are defined in their respective files
 type CLI struct {
 	// Global flags
-	Yes          bool               `help:"Skip all confirmation prompts" short:"y"`
-	NoInput      bool               `help:"Disable all interactive prompts" name:"no-input"`
-	Quiet        bool               `help:"Suppress progress output" short:"q"`
-	NoPager      bool               `help:"Disable pager for text output" name:"no-pager"`
-	Debug        bool               `help:"Enable debug output for REST API calls"`
-	Agent        AgentCmd           `cmd:"" help:"Manage agents"`
-	Api          ApiCmd             `cmd:"" help:"Interact with the Buildkite API"`
-	Artifacts    ArtifactsCmd       `cmd:"" help:"Manage pipeline build artifacts"`
-	Auth         AuthCmd            `cmd:"" help:"Authenticate with Buildkite"`
-	Build        BuildCmd           `cmd:"" help:"Manage pipeline builds"`
-	Cluster      ClusterCmd         `cmd:"" help:"Manage organization clusters"`
-	Maintainer   MaintainerCmd      `cmd:"" help:"Manage cluster maintainers"`
-	Queue        QueueCmd           `cmd:"" help:"Manage cluster queues"`
-	Secret       SecretCmd          `cmd:"" help:"Manage cluster secrets"`
-	Skill        SkillCmd           `cmd:"" help:"Manage Buildkite skills for AI coding agents"`
-	Config       bkConfig.ConfigCmd `cmd:"" help:"Manage CLI configuration"`
-	Configure    ConfigureCmd       `cmd:"" help:"Configure Buildkite API token" hidden:""`
-	Init         bkInit.InitCmd     `cmd:"" help:"Initialize a pipeline.yaml file"`
-	Job          JobCmd             `cmd:"" help:"Manage jobs within a build"`
-	Organization OrganizationCmd    `cmd:"" help:"Manage organizations" aliases:"org"`
-	Pipeline     PipelineCmd        `cmd:"" help:"Manage pipelines"`
-	Package      PackageCmd         `cmd:"" help:"Manage packages"`
-	Preflight    PreflightCmd       `cmd:"" help:"Run a build against a snapshot of the local working tree (experimental)"`
-	Use          use.UseCmd         `cmd:"" help:"Select an organization" hidden:""`
-	User         UserCmd            `cmd:"" help:"Invite users to the organization"`
-	Version      VersionCmd         `cmd:"" help:"Print the version of the CLI being used"`
-	Whoami       whoami.WhoAmICmd   `cmd:"" help:"Print the current user and organization" hidden:""`
+	Yes          bool                `help:"Skip all confirmation prompts" short:"y"`
+	NoInput      bool                `help:"Disable all interactive prompts" name:"no-input"`
+	Quiet        bool                `help:"Suppress progress output" short:"q"`
+	NoPager      bool                `help:"Disable pager for text output" name:"no-pager"`
+	Debug        bool                `help:"Enable debug output for REST API calls"`
+	Agent        AgentCmd            `cmd:"" help:"Manage agents"`
+	Api          ApiCmd              `cmd:"" help:"Interact with the Buildkite API"`
+	Artifacts    ArtifactsCmd        `cmd:"" help:"Manage pipeline build artifacts"`
+	Auth         AuthCmd             `cmd:"" help:"Authenticate with Buildkite"`
+	Build        BuildCmd            `cmd:"" help:"Manage pipeline builds"`
+	Cluster      ClusterCmd          `cmd:"" help:"Manage organization clusters"`
+	Maintainer   MaintainerCmd       `cmd:"" help:"Manage cluster maintainers"`
+	Queue        QueueCmd            `cmd:"" help:"Manage cluster queues"`
+	Secret       SecretCmd           `cmd:"" help:"Manage cluster secrets"`
+	Skill        SkillCmd            `cmd:"" help:"Manage Buildkite skills for AI coding agents"`
+	Config       bkConfig.ConfigCmd  `cmd:"" help:"Manage CLI configuration"`
+	Configure    ConfigureCmd        `cmd:"" help:"Configure Buildkite API token" hidden:""`
+	Init         bkInit.InitCmd      `cmd:"" help:"Initialize a pipeline.yaml file"`
+	Job          JobCmd              `cmd:"" help:"Manage jobs within a build"`
+	Organization OrganizationCmd     `cmd:"" help:"Manage organizations" aliases:"org"`
+	Pipeline     PipelineCmd         `cmd:"" help:"Manage pipelines"`
+	Package      PackageCmd          `cmd:"" help:"Manage packages"`
+	Preflight    PreflightCmd        `cmd:"" help:"Run a build against a snapshot of the local working tree (experimental)"`
+	Use          use.UseCmd          `cmd:"" help:"Select an organization" hidden:""`
+	User         UserCmd             `cmd:"" help:"Invite users to the organization"`
+	Update       updatePkg.UpdateCmd `cmd:"" help:"Update the installed bk CLI or print update instructions"`
+	Version      VersionCmd          `cmd:"" help:"Print the version of the CLI being used"`
+	Whoami       whoami.WhoAmICmd    `cmd:"" help:"Print the current user and organization" hidden:""`
 }
 
 type (

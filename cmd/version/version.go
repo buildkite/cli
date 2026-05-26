@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/buildkite/cli/v3/internal/selfupdate"
 )
 
 var Version = "DEV"
@@ -14,7 +16,11 @@ func (c *VersionCmd) Run() error {
 	fmt.Fprintf(os.Stdout, "%s\n", Format(Version))
 
 	if latest, ok := CheckForUpdate(Version); ok {
-		fmt.Fprint(os.Stderr, FormatUpdateNudge(latest))
+		installation, err := selfupdate.CurrentInstallation()
+		if err != nil {
+			installation = selfupdate.Installation{Method: selfupdate.InstallMethodStandalone}
+		}
+		fmt.Fprint(os.Stderr, FormatUpdateNudge(latest, installation))
 	}
 
 	return nil
