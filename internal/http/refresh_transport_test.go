@@ -13,9 +13,39 @@ import (
 	"github.com/buildkite/cli/v3/pkg/keyring"
 )
 
-func TestRefreshTransport_PassesThroughNon401(t *testing.T) {
-	t.Parallel()
+type stubCredentialStore struct {
+	accessToken        string
+	refreshToken       string
+	setAccessErr       error
+	setRefreshTokenErr error
+}
 
+func (s *stubCredentialStore) Set(_ string, token string) error {
+	if s.setAccessErr != nil {
+		return s.setAccessErr
+	}
+	s.accessToken = token
+	return nil
+}
+
+func (s *stubCredentialStore) GetRefreshToken(string) (string, error) {
+	return s.refreshToken, nil
+}
+
+func (s *stubCredentialStore) SetRefreshToken(_ string, token string) error {
+	if s.setRefreshTokenErr != nil {
+		return s.setRefreshTokenErr
+	}
+	s.refreshToken = token
+	return nil
+}
+
+func (s *stubCredentialStore) DeleteRefreshToken(string) error {
+	s.refreshToken = ""
+	return nil
+}
+
+func TestRefreshTransport_PassesThroughNon401(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"ok":true}`))
@@ -51,8 +81,6 @@ func TestRefreshTransport_PassesThroughNon401(t *testing.T) {
 }
 
 func TestRefreshTransport_NoRefreshToken_PassesThrough401(t *testing.T) {
-	t.Parallel()
-
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte(`{"message":"unauthorized"}`))
@@ -142,6 +170,60 @@ func TestRefreshTransport_CompareAfterLock_SkipsRedundantRefresh(t *testing.T) {
 	}
 }
 
+func TestRefreshTransport_RotatedRefreshTokenStoreFailureReturnsError(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/oauth/token":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"new-token","refresh_token":"new-refresh-token","token_type":"Bearer","expires_in":3600}`))
+		default:
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+	}))
+	defer server.Close()
+
+	origTransport := http.DefaultTransport
+	http.DefaultTransport = server.Client().Transport
+	defer func() { http.DefaultTransport = origTransport }()
+
+	store := &stubCredentialStore{
+		accessToken:        "old-token",
+		refreshToken:       "old-refresh-token",
+		setRefreshTokenErr: errors.New("boom"),
+	}
+	transport := &RefreshTransport{
+		Base:        server.Client().Transport,
+		Org:         "test-org",
+		Keyring:     store,
+		TokenSource: NewTokenSource("old-token"),
+	}
+
+	t.Setenv("BUILDKITE_HOST", strings.TrimPrefix(server.URL, "https://"))
+
+	req, _ := http.NewRequest(http.MethodGet, server.URL+"/test", nil)
+	req.Header.Set("Authorization", "Bearer old-token")
+
+	resp, err := transport.RoundTrip(req)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if resp != nil {
+		t.Fatalf("expected nil response on credential persistence failure, got %#v", resp)
+	}
+	if !errors.Is(err, errCredentialPersistence) {
+		t.Fatalf("expected credential persistence error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "failed to store rotated refresh token") {
+		t.Fatalf("expected rotated refresh token storage error, got %v", err)
+	}
+	if store.accessToken != "old-token" {
+		t.Fatalf("expected access token to remain unchanged, got %q", store.accessToken)
+	}
+	if transport.TokenSource.Token() != "old-token" {
+		t.Fatalf("expected token source to remain unchanged, got %q", transport.TokenSource.Token())
+	}
+}
+
 func TestRefreshTransport_DoesNotDeleteRefreshTokenOnTransientError(t *testing.T) {
 	keyring.MockForTesting()
 	defer keyring.ResetForTesting()
@@ -188,8 +270,6 @@ func TestRefreshTransport_DoesNotDeleteRefreshTokenOnTransientError(t *testing.T
 }
 
 func TestRefreshTransport_BuffersAndRetriesPostBody(t *testing.T) {
-	t.Parallel()
-
 	keyring.MockForTesting()
 	defer keyring.ResetForTesting()
 

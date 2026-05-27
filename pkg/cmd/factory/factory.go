@@ -24,6 +24,7 @@ var baseUserAgent string
 type Factory struct {
 	Config        *config.Config
 	GitRepository *git.Repository
+	HTTPClient    *http.Client
 	GraphQLClient graphql.Client
 	RestAPIClient *buildkite.Client
 	Version       string
@@ -265,6 +266,7 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 	return &Factory{
 		Config:        conf,
 		GitRepository: repo,
+		HTTPClient:    httpClient,
 		GraphQLClient: graphql.NewClient(conf.GetGraphQLEndpoint(), graphqlHTTPClient),
 		RestAPIClient: buildkiteClient,
 		Version:       version.Version,
