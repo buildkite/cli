@@ -11,6 +11,19 @@ release:
 
 changelog:
   use: github
+  sort: asc
+  abbrev: -1
+  groups:
+    - title: Added
+      regexp: '^.*?(feat|add)(\([[:word:]-]+\))?!?:.+$'
+      order: 0
+
+    - title: Dependencies
+      regexp: '^.*?(chore|build)?\((deps|dependencies)[^)]*\):.+$|^.*?deps:.+$'
+      order: 1
+
+    - title: Internal
+      order: 999
 
 brews:
   - name: bk@3
