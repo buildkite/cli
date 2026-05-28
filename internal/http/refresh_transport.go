@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,7 +10,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/buildkite/cli/v3/pkg/keyring"
 	"github.com/buildkite/cli/v3/pkg/oauth"
 )
 
@@ -69,6 +69,15 @@ func (t *AuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return base.RoundTrip(req)
 }
 
+type credentialStore interface {
+	Set(org, token string) error
+	GetRefreshToken(org string) (string, error)
+	SetRefreshToken(org, token string) error
+	DeleteRefreshToken(org string) error
+}
+
+var errCredentialPersistence = errors.New("credential persistence failed")
+
 // RefreshTransport wraps an http.RoundTripper to automatically refresh
 // expired OAuth access tokens using a stored refresh token.
 //
@@ -82,7 +91,7 @@ func (t *AuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 type RefreshTransport struct {
 	Base        http.RoundTripper
 	Org         string
-	Keyring     *keyring.Keyring
+	Keyring     credentialStore
 	TokenSource *TokenSource
 
 	mu sync.Mutex
@@ -126,6 +135,11 @@ func (t *RefreshTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	t.mu.Unlock()
 
 	if refreshErr != nil {
+		if errors.Is(refreshErr, errCredentialPersistence) {
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
+			return nil, refreshErr
+		}
 		fmt.Fprintf(os.Stderr, "Warning: token refresh failed: %v\n", refreshErr)
 		return resp, nil
 	}
@@ -177,18 +191,19 @@ func (t *RefreshTransport) doRefresh(ctx context.Context, failedToken string) (s
 		return "", err
 	}
 
-	// Persist the new access token
-	if err := t.Keyring.Set(t.Org, tokenResp.AccessToken); err != nil {
-		return "", fmt.Errorf("failed to store refreshed access token: %w", err)
-	}
-	t.TokenSource.SetToken(tokenResp.AccessToken)
-
-	// Rotate the refresh token if a new one was issued
+	// Rotate the refresh token before persisting the new access token so a
+	// failed refresh-token write does not leave us holding a newly-issued
+	// access token with a stale rotated refresh token.
 	if tokenResp.RefreshToken != "" {
 		if err := t.Keyring.SetRefreshToken(t.Org, tokenResp.RefreshToken); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to store rotated refresh token: %v\n", err)
+			return "", fmt.Errorf("%w: failed to store rotated refresh token: %w", errCredentialPersistence, err)
 		}
 	}
+
+	if err := t.Keyring.Set(t.Org, tokenResp.AccessToken); err != nil {
+		return "", fmt.Errorf("%w: failed to store refreshed access token: %w", errCredentialPersistence, err)
+	}
+	t.TokenSource.SetToken(tokenResp.AccessToken)
 
 	return tokenResp.AccessToken, nil
 }

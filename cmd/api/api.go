@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -84,8 +83,25 @@ func buildFullEndpoint(endpoint, orgSlug string, isAnalytics bool) string {
 	return endpointPrefix + endpoint
 }
 
+func newRESTClient(f *factory.Factory) *httpClient.Client {
+	return httpClient.NewClient(
+		f.Config.APIToken(),
+		httpClient.WithBaseURL(f.RestAPIClient.BaseURL.String()),
+		httpClient.WithUserAgent(f.RestAPIClient.UserAgent),
+		httpClient.WithHTTPClient(f.HTTPClient),
+	)
+}
+
 func (c *ApiCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
+	rl := httpClient.NewRateLimitTransport(nil)
+	rl.MaxRetryDelay = 60 * time.Second
+	rl.OnRateLimit = func(attempt int, delay time.Duration) {
+		if c.Verbose {
+			fmt.Fprintf(os.Stderr, "WARNING: Rate limit exceeded, retrying in %v @ %q (attempt %d)\n", delay, time.Now().Add(delay).Format(time.RFC3339), attempt)
+		}
+	}
+
+	f, err := factory.New(factory.WithDebug(globals.EnableDebug()), factory.WithTransport(rl))
 	if err != nil {
 		return err
 	}
@@ -115,20 +131,7 @@ func (c *ApiCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	fullEndpoint := buildFullEndpoint(c.Endpoint, f.Config.OrganizationSlug(), c.Analytics)
 
-	// Create an HTTP client with rate-limit retry via the shared transport.
-	rl := httpClient.NewRateLimitTransport(nil)
-	rl.MaxRetryDelay = 60 * time.Second
-	rl.OnRateLimit = func(attempt int, delay time.Duration) {
-		if c.Verbose {
-			fmt.Fprintf(os.Stderr, "WARNING: Rate limit exceeded, retrying in %v @ %q (attempt %d)\n", delay, time.Now().Add(delay).Format(time.RFC3339), attempt)
-		}
-	}
-
-	client := httpClient.NewClient(
-		f.Config.APIToken(),
-		httpClient.WithBaseURL(f.RestAPIClient.BaseURL.String()),
-		httpClient.WithHTTPClient(&http.Client{Transport: rl}),
-	)
+	client := newRESTClient(f)
 
 	// Process custom headers
 	customHeaders := make(map[string]string)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -101,6 +100,39 @@ func LoginWithToken(f *factory.Factory, org, token string) error {
 	return nil
 }
 
+type oauthTokenStore interface {
+	IsAvailable() bool
+	Set(org, token string) error
+	SetRefreshToken(org, token string) error
+}
+
+func persistOAuthLogin(f *factory.Factory, store oauthTokenStore, org, accessToken, refreshToken string) (bool, error) {
+	if org == "" {
+		return false, errors.New("organization cannot be empty")
+	}
+	if accessToken == "" {
+		return false, errors.New("access token cannot be empty")
+	}
+	if !store.IsAvailable() {
+		return false, errors.New("OAuth login requires an available system keychain to persist your access token and refresh token")
+	}
+	if refreshToken != "" {
+		if err := store.SetRefreshToken(org, refreshToken); err != nil {
+			return false, fmt.Errorf("failed to store refresh token in keychain: %w", err)
+		}
+	}
+	if err := store.Set(org, accessToken); err != nil {
+		return false, fmt.Errorf("failed to store token in keychain: %w", err)
+	}
+	if err := f.Config.EnsureOrganization(org); err != nil {
+		return false, fmt.Errorf("failed to register organization in config: %w", err)
+	}
+	if err := f.Config.SelectOrganization(org, f.GitRepository != nil); err != nil {
+		return false, fmt.Errorf("failed to select organization: %w", err)
+	}
+	return refreshToken != "", nil
+}
+
 func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
 	if err != nil {
@@ -187,23 +219,15 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	org := orgs[0]
 
-	if err := LoginWithToken(f, org.Slug, tokenResp.AccessToken); err != nil {
+	autoRefreshConfigured, err := persistOAuthLogin(f, keyring.New(), org.Slug, tokenResp.AccessToken, tokenResp.RefreshToken)
+	if err != nil {
 		return err
 	}
-
-	// Store refresh token if the server issued one
-	if tokenResp.RefreshToken != "" {
-		kr := keyring.New()
-		if kr.IsAvailable() {
-			if err := kr.SetRefreshToken(org.Slug, tokenResp.RefreshToken); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to store refresh token: %v\n", err)
-			}
-		}
-	}
+	fmt.Println("Token stored securely in system keychain.")
 
 	fmt.Printf("\n✅ Successfully authenticated with organization %q\n", org.Slug)
 	fmt.Printf("  Scopes: %s\n", tokenResp.Scope)
-	if tokenResp.RefreshToken != "" {
+	if autoRefreshConfigured {
 		fmt.Printf("  Token expires in: %s (will refresh automatically)\n", formatDuration(tokenResp.ExpiresIn))
 	}
 
