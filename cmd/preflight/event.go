@@ -17,7 +17,7 @@ const (
 	EventBuildStatus    EventType = "build_status"
 	EventJobFailure     EventType = "job_failure"
 	EventJobRetryPassed EventType = "job_retry_passed"
-	EventBuildSummary   EventType = "preflight_summary"
+	EventBuildSummary   EventType = "build_summary"
 	EventTestFailure    EventType = "test_failure"
 )
 
@@ -40,7 +40,7 @@ type Event struct {
 	BuildURL    string `json:"build_url,omitempty"`
 	BuildState  string `json:"build_state,omitempty"`
 
-	// Incomplete is set for preflight_summary events when the CLI stops before a terminal build state.
+	// Incomplete is set for build_summary events when the CLI stops before a terminal build state.
 	Incomplete bool `json:"incomplete,omitempty"`
 
 	// StopReason describes why the summary was emitted early.
@@ -54,19 +54,19 @@ type Event struct {
 	// Job is set for job_failure and job_retry_passed events.
 	Job *buildkite.Job `json:"job,omitempty"`
 
-	// FailedJobs is set for preflight_summary events when the build failed. Contains hard-failed jobs only (soft failures excluded).
+	// FailedJobs is set for build_summary events when the build failed. Contains hard-failed jobs only (soft failures excluded).
 	FailedJobs []buildkite.Job `json:"failed_jobs,omitempty"`
 
-	// PassedJobs is set for preflight_summary events when the build passed and has 10 or fewer jobs.
+	// PassedJobs is set for build_summary events when the build passed and has 10 or fewer jobs.
 	PassedJobs []buildkite.Job `json:"passed_jobs,omitempty"`
 
-	// Duration is set for preflight_summary events. Total elapsed time of the preflight run.
+	// Duration is set for build_summary events. Total elapsed time of the preflight run.
 	Duration time.Duration `json:"duration_ns,omitempty"`
 
 	// TestFailures is set for test_failure events.
 	TestFailures []buildkite.BuildTest `json:"test_failures,omitempty"`
 
-	// Tests is set for preflight_summary events when aggregated test summary data is available.
+	// Tests is set for build_summary events when aggregated test summary data is available.
 	Tests internalpreflight.SummaryTests `json:"tests,omitempty"`
 }
 

@@ -823,8 +823,8 @@ func TestJSONRenderer_Render_BuildSummaryPassed(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
 	}
-	if got["type"] != "preflight_summary" {
-		t.Fatalf("expected type preflight_summary, got %v", got["type"])
+	if got["type"] != "build_summary" {
+		t.Fatalf("expected type build_summary, got %v", got["type"])
 	}
 	if got["build_state"] != "passed" {
 		t.Fatalf("expected build_state=passed, got %v", got["build_state"])
@@ -908,8 +908,8 @@ func TestJSONRenderer_Render_BuildSummaryStoppedEarly(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
 	}
-	if got["type"] != "preflight_summary" {
-		t.Fatalf("expected type preflight_summary, got %v", got["type"])
+	if got["type"] != "build_summary" {
+		t.Fatalf("expected type build_summary, got %v", got["type"])
 	}
 	if got["incomplete"] != true {
 		t.Fatalf("expected incomplete=true, got %v", got["incomplete"])
