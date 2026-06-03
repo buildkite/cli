@@ -441,7 +441,13 @@ func pollDeviceAccessToken(ctx context.Context, cfg *Config, deviceAuth *DeviceA
 
 		var tokenErr *tokenError
 		if !errors.As(err, &tokenErr) {
-			return nil, err
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return nil, err
+			}
+			if err := sleep(ctx, interval); err != nil {
+				return nil, err
+			}
+			continue
 		}
 
 		switch tokenErr.ErrorCode {

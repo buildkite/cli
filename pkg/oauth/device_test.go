@@ -3,11 +3,26 @@ package oauth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 )
+
+type failingRoundTripper struct {
+	base       http.RoundTripper
+	failures   int
+	failureErr error
+}
+
+func (rt *failingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if rt.failures > 0 {
+		rt.failures--
+		return nil, rt.failureErr
+	}
+	return rt.base.RoundTrip(req)
+}
 
 func TestRequestDeviceAuthorization(t *testing.T) {
 	var sawRequest bool
@@ -156,5 +171,83 @@ func TestPollDeviceAccessTokenRetriesPendingAndSlowDown(t *testing.T) {
 	}
 	if len(sleeps) != 2 || sleeps[0] != time.Second || sleeps[1] != 6*time.Second {
 		t.Fatalf("sleeps = %v, want [1s 6s]", sleeps)
+	}
+}
+
+func TestPollDeviceAccessTokenRetriesTransientErrors(t *testing.T) {
+	var requests int
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+
+		if r.URL.Path != "/oauth/token" {
+			t.Errorf("path = %s, want /oauth/token", r.URL.Path)
+		}
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("ParseForm: %v", err)
+		}
+		if got := r.FormValue("device_code"); got != "device-code" {
+			t.Errorf("device_code = %q, want device-code", got)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"access_token":"access-token",
+			"token_type":"Bearer",
+			"scope":"read_user"
+		}`))
+	}))
+	defer server.Close()
+
+	origTransport := http.DefaultTransport
+	http.DefaultTransport = &failingRoundTripper{
+		base:       server.Client().Transport,
+		failures:   1,
+		failureErr: errors.New("temporary network error"),
+	}
+	defer func() { http.DefaultTransport = origTransport }()
+
+	var sleeps []time.Duration
+	tokenResp, err := pollDeviceAccessToken(
+		context.Background(),
+		&Config{Host: server.URL[len("https://"):], ClientID: "test-client"},
+		&DeviceAuthorizationResponse{DeviceCode: "device-code", Interval: 2},
+		func(_ context.Context, duration time.Duration) error {
+			sleeps = append(sleeps, duration)
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("pollDeviceAccessToken: %v", err)
+	}
+	if requests != 1 {
+		t.Fatalf("requests = %d, want 1", requests)
+	}
+	if tokenResp.AccessToken != "access-token" {
+		t.Errorf("AccessToken = %q, want access-token", tokenResp.AccessToken)
+	}
+	if len(sleeps) != 1 || sleeps[0] != 2*time.Second {
+		t.Fatalf("sleeps = %v, want [2s]", sleeps)
+	}
+}
+
+func TestPollDeviceAccessTokenReturnsContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var slept bool
+	_, err := pollDeviceAccessToken(
+		ctx,
+		&Config{Host: "127.0.0.1:1", ClientID: "test-client"},
+		&DeviceAuthorizationResponse{DeviceCode: "device-code", Interval: 1},
+		func(context.Context, time.Duration) error {
+			slept = true
+			return nil
+		},
+	)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("pollDeviceAccessToken error = %v, want context.Canceled", err)
+	}
+	if slept {
+		t.Fatal("pollDeviceAccessToken slept after context cancellation")
 	}
 }
