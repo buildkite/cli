@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -19,6 +20,10 @@ import (
 
 const (
 	DefaultHost = "buildkite.com"
+
+	deviceCodeGrantType     = "urn:ietf:params:oauth:grant-type:device_code"
+	defaultDeviceInterval   = 5 * time.Second
+	deviceSlowDownIncrement = 5 * time.Second
 )
 
 // AllScopes is the complete set of Buildkite API token scopes. When no --scopes
@@ -164,6 +169,18 @@ type TokenResponse struct {
 	ErrorDesc    string `json:"error_description,omitempty"`
 }
 
+// DeviceAuthorizationResponse holds the response from the device authorization endpoint.
+type DeviceAuthorizationResponse struct {
+	DeviceCode              string `json:"device_code"`
+	UserCode                string `json:"user_code"`
+	VerificationURI         string `json:"verification_uri"`
+	VerificationURIComplete string `json:"verification_uri_complete"`
+	ExpiresIn               int    `json:"expires_in"`
+	Interval                int    `json:"interval"`
+	Error                   string `json:"error,omitempty"`
+	ErrorDesc               string `json:"error_description,omitempty"`
+}
+
 // Flow manages an OAuth authentication flow
 type Flow struct {
 	config       *Config
@@ -174,20 +191,7 @@ type Flow struct {
 
 // NewFlow creates a new OAuth flow
 func NewFlow(cfg *Config) (*Flow, error) {
-	if cfg.Host == "" {
-		// Allow override via environment variable for local development
-		if envHost := os.Getenv("BUILDKITE_HOST"); envHost != "" {
-			cfg.Host = envHost
-		} else {
-			cfg.Host = DefaultHost
-		}
-	}
-	if cfg.ClientID == "" {
-		cfg.ClientID = DefaultClientID
-	}
-	if cfg.Scopes == "" {
-		cfg.Scopes = strings.Join(AllScopes, " ")
-	}
+	normalizeConfigDefaults(cfg)
 
 	// Generate PKCE verifier and state
 	codeVerifier, err := generateCodeVerifier()
@@ -370,6 +374,166 @@ func (f *Flow) ExchangeCode(ctx context.Context, code string) (*TokenResponse, e
 	return &tokenResp, nil
 }
 
+// RequestDeviceAuthorization starts an OAuth device authorization flow.
+func RequestDeviceAuthorization(ctx context.Context, cfg *Config) (*DeviceAuthorizationResponse, error) {
+	normalizeConfigDefaults(cfg)
+
+	deviceURL := fmt.Sprintf("https://%s/oauth/device_authorization", cfg.Host)
+	data := url.Values{
+		"client_id": {cfg.ClientID},
+		"scope":     {cfg.Scopes},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", deviceURL, strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("device authorization request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var deviceResp DeviceAuthorizationResponse
+	if err := json.Unmarshal(body, &deviceResp); err != nil {
+		return nil, fmt.Errorf("failed to parse device authorization response: %w", err)
+	}
+
+	if deviceResp.Error != "" {
+		return nil, fmt.Errorf("device authorization error: %s - %s", deviceResp.Error, deviceResp.ErrorDesc)
+	}
+
+	if deviceResp.DeviceCode == "" || deviceResp.UserCode == "" || deviceResp.VerificationURI == "" {
+		return nil, fmt.Errorf("incomplete device authorization response")
+	}
+
+	return &deviceResp, nil
+}
+
+// PollDeviceAccessToken polls the OAuth token endpoint until the user authorizes the device code.
+func PollDeviceAccessToken(ctx context.Context, cfg *Config, deviceAuth *DeviceAuthorizationResponse) (*TokenResponse, error) {
+	return pollDeviceAccessToken(ctx, cfg, deviceAuth, sleepContext)
+}
+
+func pollDeviceAccessToken(ctx context.Context, cfg *Config, deviceAuth *DeviceAuthorizationResponse, sleep func(context.Context, time.Duration) error) (*TokenResponse, error) {
+	normalizeConfigDefaults(cfg)
+
+	interval := time.Duration(deviceAuth.Interval) * time.Second
+	if interval <= 0 {
+		interval = defaultDeviceInterval
+	}
+
+	for {
+		tokenResp, err := exchangeDeviceCode(ctx, cfg, deviceAuth.DeviceCode)
+		if err == nil {
+			return tokenResp, nil
+		}
+
+		var tokenErr *tokenError
+		if !errors.As(err, &tokenErr) {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return nil, err
+			}
+			if err := sleep(ctx, interval); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
+		switch tokenErr.ErrorCode {
+		case "authorization_pending":
+			if err := sleep(ctx, interval); err != nil {
+				return nil, err
+			}
+		case "slow_down":
+			interval += deviceSlowDownIncrement
+			if err := sleep(ctx, interval); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, err
+		}
+	}
+}
+
+type tokenError struct {
+	ErrorCode   string
+	Description string
+}
+
+func (e *tokenError) Error() string {
+	if e.Description == "" {
+		return fmt.Sprintf("token error: %s", e.ErrorCode)
+	}
+	return fmt.Sprintf("token error: %s - %s", e.ErrorCode, e.Description)
+}
+
+func exchangeDeviceCode(ctx context.Context, cfg *Config, deviceCode string) (*TokenResponse, error) {
+	tokenURL := fmt.Sprintf("https://%s/oauth/token", cfg.Host)
+	data := url.Values{
+		"grant_type":  {deviceCodeGrantType},
+		"client_id":   {cfg.ClientID},
+		"device_code": {deviceCode},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", tokenURL, strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("device token request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var tokenResp TokenResponse
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return nil, fmt.Errorf("failed to parse device token response: %w", err)
+	}
+
+	if tokenResp.Error != "" {
+		return nil, &tokenError{ErrorCode: tokenResp.Error, Description: tokenResp.ErrorDesc}
+	}
+
+	if tokenResp.AccessToken == "" {
+		return nil, fmt.Errorf("no access token in device token response")
+	}
+
+	return &tokenResp, nil
+}
+
+func sleepContext(ctx context.Context, duration time.Duration) error {
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 // RefreshAccessToken exchanges a refresh token for a new access token and refresh token.
 func RefreshAccessToken(ctx context.Context, host, clientID, refreshToken string) (*TokenResponse, error) {
 	if host == "" {
@@ -457,4 +621,20 @@ func generateState() (string, error) {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func normalizeConfigDefaults(cfg *Config) {
+	if cfg.Host == "" {
+		if envHost := os.Getenv("BUILDKITE_HOST"); envHost != "" {
+			cfg.Host = envHost
+		} else {
+			cfg.Host = DefaultHost
+		}
+	}
+	if cfg.ClientID == "" {
+		cfg.ClientID = DefaultClientID
+	}
+	if cfg.Scopes == "" {
+		cfg.Scopes = strings.Join(AllScopes, " ")
+	}
 }
