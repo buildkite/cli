@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -19,10 +20,11 @@ import (
 )
 
 type LoginCmd struct {
-	Scopes string `help:"OAuth scopes to request" default:""`
-	Org    string `help:"Organization slug or UUID to request access for" optional:""`
-	Token  string `help:"API token to store (non-OAuth login, requires --org)" optional:""`
-	Device bool   `help:"Authenticate using OAuth device authorization instead of opening a browser callback" optional:""`
+	Scopes          string `help:"OAuth scopes to request" default:""`
+	Org             string `help:"Organization slug or UUID to request access for" optional:""`
+	Token           string `help:"API token to store (non-OAuth login, requires --org)" optional:""`
+	Device          bool   `help:"Authenticate using OAuth device authorization instead of opening a browser callback" optional:""`
+	CredentialStore string `help:"Credential store for tokens: auto, keyring, or shm" enum:"auto,keyring,shm" default:"auto"`
 }
 
 func organizationIdentifier(org string) (orgSlug, orgUUID string) {
@@ -60,6 +62,9 @@ Examples:
   # Login on a headless machine or remote shell
   $ bk auth login --device
 
+  # Login on a headless Linux host using an in-memory /dev/shm credential store
+  $ bk auth login --device --credential-store shm
+
   # Login with read-only access
   $ bk auth login --scopes read_only
 
@@ -71,11 +76,15 @@ Examples:
 `
 }
 
-// LoginWithToken stores a token for an organization in the system keychain.
-// When the keychain is unavailable (e.g. BUILDKITE_NO_KEYRING=1 is set), it
-// still registers the org and selects it in config so that commands resolve the
-// org correctly; the caller is expected to supply the token via BUILDKITE_API_TOKEN.
+// LoginWithToken stores a token for an organization in the default credential
+// store. When the store is unavailable (e.g. BUILDKITE_NO_KEYRING=1 is set), it
+// still registers the org and selects it in config so commands resolve the org
+// correctly; the caller is expected to supply the token via BUILDKITE_API_TOKEN.
 func LoginWithToken(f *factory.Factory, org, token string) error {
+	return loginWithToken(f, org, token, keyring.New())
+}
+
+func loginWithToken(f *factory.Factory, org, token string, kr oauthTokenStore) error {
 	if org == "" {
 		return errors.New("--org is required when --token is provided")
 	}
@@ -83,14 +92,13 @@ func LoginWithToken(f *factory.Factory, org, token string) error {
 		return errors.New("--token cannot be empty")
 	}
 
-	kr := keyring.New()
 	if kr.IsAvailable() {
 		if err := kr.Set(org, token); err != nil {
-			return fmt.Errorf("failed to store token in keychain: %w", err)
+			return fmt.Errorf("failed to store token in credential store: %w", err)
 		}
-		fmt.Println("Token stored securely in system keychain.")
+		fmt.Printf("Token stored in %s.\n", credentialStoreDescription(kr))
 	} else {
-		fmt.Println("Keychain unavailable; token not stored. Use BUILDKITE_API_TOKEN to supply your token at runtime.")
+		fmt.Println("Credential store unavailable; token not stored. Use BUILDKITE_API_TOKEN to supply your token at runtime.")
 	}
 
 	if err := f.Config.EnsureOrganization(org); err != nil {
@@ -118,15 +126,15 @@ func persistOAuthLogin(f *factory.Factory, store oauthTokenStore, org, accessTok
 		return false, errors.New("access token cannot be empty")
 	}
 	if !store.IsAvailable() {
-		return false, errors.New("OAuth login requires an available system keychain to persist your access token and refresh token")
+		return false, errors.New("OAuth login requires an available credential store to persist your access token and refresh token")
 	}
 	if refreshToken != "" {
 		if err := store.SetRefreshToken(org, refreshToken); err != nil {
-			return false, fmt.Errorf("failed to store refresh token in keychain: %w", err)
+			return false, fmt.Errorf("failed to store refresh token in credential store: %w", err)
 		}
 	}
 	if err := store.Set(org, accessToken); err != nil {
-		return false, fmt.Errorf("failed to store token in keychain: %w", err)
+		return false, fmt.Errorf("failed to store token in credential store: %w", err)
 	}
 	if err := f.Config.EnsureOrganization(org); err != nil {
 		return false, fmt.Errorf("failed to register organization in config: %w", err)
@@ -143,12 +151,17 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
-	if err := c.validate(); err != nil {
+	if err := c.validate(kongCtx); err != nil {
+		return err
+	}
+
+	credentialStore, err := c.newCredentialStore(kongCtx)
+	if err != nil {
 		return err
 	}
 
 	if c.Token != "" {
-		if err := LoginWithToken(f, c.Org, c.Token); err != nil {
+		if err := loginWithToken(f, c.Org, c.Token, credentialStore); err != nil {
 			return err
 		}
 
@@ -162,7 +175,7 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	resolvedScopes := oauth.ResolveScopes(c.Scopes)
 
 	if c.Device {
-		return c.runDeviceLogin(context.Background(), f, resolvedScopes)
+		return c.runDeviceLogin(context.Background(), f, resolvedScopes, credentialStore)
 	}
 
 	orgSlug, orgUUID := organizationIdentifier(c.Org)
@@ -212,7 +225,7 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return fmt.Errorf("token exchange failed: %w", err)
 	}
 
-	org, autoRefreshConfigured, err := completeOAuthLogin(ctx, f, tokenResp)
+	org, autoRefreshConfigured, err := completeOAuthLogin(ctx, f, tokenResp, credentialStore)
 	if err != nil {
 		return err
 	}
@@ -222,7 +235,22 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	return nil
 }
 
-func (c *LoginCmd) validate() error {
+func (c *LoginCmd) newCredentialStore(kongCtx *kong.Context) (*keyring.Keyring, error) {
+	if !c.credentialStoreFlagProvided(kongCtx) {
+		return keyring.New(), nil
+	}
+	return keyring.NewWithCredentialStore(c.CredentialStore)
+}
+
+func (c *LoginCmd) validate(kongCtx *kong.Context) error {
+	if err := keyring.ValidateCredentialStore(c.CredentialStore); err != nil {
+		return err
+	}
+	if envStore := os.Getenv(keyring.CredentialStoreEnv); !c.credentialStoreFlagProvided(kongCtx) && envStore != "" {
+		if err := keyring.ValidateCredentialStore(envStore); err != nil {
+			return err
+		}
+	}
 	if c.Device && c.Token != "" {
 		return errors.New("--device cannot be used with --token")
 	}
@@ -232,7 +260,19 @@ func (c *LoginCmd) validate() error {
 	return nil
 }
 
-func (c *LoginCmd) runDeviceLogin(ctx context.Context, f *factory.Factory, resolvedScopes string) error {
+func (c *LoginCmd) credentialStoreFlagProvided(kongCtx *kong.Context) bool {
+	if kongCtx == nil {
+		return c.CredentialStore != ""
+	}
+	for _, trace := range kongCtx.Path {
+		if trace.Flag != nil && trace.Flag.Name == "credential-store" {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *LoginCmd) runDeviceLogin(ctx context.Context, f *factory.Factory, resolvedScopes string, credentialStore oauthTokenStore) error {
 	cfg := &oauth.Config{
 		ClientID: oauth.DefaultClientID,
 		Scopes:   resolvedScopes,
@@ -266,7 +306,7 @@ func (c *LoginCmd) runDeviceLogin(ctx context.Context, f *factory.Factory, resol
 		return fmt.Errorf("device authorization failed: %w", err)
 	}
 
-	org, autoRefreshConfigured, err := completeOAuthLogin(ctx, f, tokenResp)
+	org, autoRefreshConfigured, err := completeOAuthLogin(ctx, f, tokenResp, credentialStore)
 	if err != nil {
 		return err
 	}
@@ -276,7 +316,7 @@ func (c *LoginCmd) runDeviceLogin(ctx context.Context, f *factory.Factory, resol
 	return nil
 }
 
-func completeOAuthLogin(ctx context.Context, f *factory.Factory, tokenResp *oauth.TokenResponse) (string, bool, error) {
+func completeOAuthLogin(ctx context.Context, f *factory.Factory, tokenResp *oauth.TokenResponse, credentialStore oauthTokenStore) (string, bool, error) {
 	// Resolve org from the API using the new token
 	client, err := buildkite.NewOpts(
 		buildkite.WithTokenAuth(tokenResp.AccessToken),
@@ -296,13 +336,24 @@ func completeOAuthLogin(ctx context.Context, f *factory.Factory, tokenResp *oaut
 
 	org := orgs[0]
 
-	autoRefreshConfigured, err := persistOAuthLogin(f, keyring.New(), org.Slug, tokenResp.AccessToken, tokenResp.RefreshToken)
+	autoRefreshConfigured, err := persistOAuthLogin(f, credentialStore, org.Slug, tokenResp.AccessToken, tokenResp.RefreshToken)
 	if err != nil {
 		return "", false, err
 	}
-	fmt.Println("Token stored securely in system keychain.")
+	fmt.Printf("Tokens stored in %s.\n", credentialStoreDescription(credentialStore))
 
 	return org.Slug, autoRefreshConfigured, nil
+}
+
+type describedCredentialStore interface {
+	Description() string
+}
+
+func credentialStoreDescription(store oauthTokenStore) string {
+	if described, ok := store.(describedCredentialStore); ok {
+		return described.Description()
+	}
+	return "the configured credential store"
 }
 
 func printOAuthLoginSuccess(org string, tokenResp *oauth.TokenResponse, autoRefreshConfigured bool) {

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/keyring"
 	"github.com/buildkite/cli/v3/pkg/oauth"
@@ -118,14 +119,14 @@ func TestPersistOAuthLogin(t *testing.T) {
 		return f
 	}
 
-	t.Run("requires an available keychain", func(t *testing.T) {
+	t.Run("requires an available credential store", func(t *testing.T) {
 		f := newFactory(t)
 		_, err := persistOAuthLogin(f, &stubOAuthTokenStore{}, "test-org", "access-token", "refresh-token")
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
-		if !strings.Contains(err.Error(), "requires an available system keychain") {
-			t.Fatalf("expected keychain availability error, got %v", err)
+		if !strings.Contains(err.Error(), "requires an available credential store") {
+			t.Fatalf("expected credential store availability error, got %v", err)
 		}
 	})
 
@@ -137,7 +138,7 @@ func TestPersistOAuthLogin(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
-		if !strings.Contains(err.Error(), "failed to store refresh token in keychain") {
+		if !strings.Contains(err.Error(), "failed to store refresh token in credential store") {
 			t.Fatalf("expected refresh token storage error, got %v", err)
 		}
 		if got := store.access["test-org"]; got != "" {
@@ -188,13 +189,18 @@ func TestLoginCmdValidateDeviceIncompatibleFlags(t *testing.T) {
 			name: "token with org",
 			cmd:  LoginCmd{Token: "token", Org: "buildkite"},
 		},
+		{
+			name:    "invalid credential store",
+			cmd:     LoginCmd{CredentialStore: "disk"},
+			wantErr: "unsupported credential store",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tt.cmd.validate()
+			err := tt.cmd.validate(nil)
 			if tt.wantErr == "" {
 				if err != nil {
 					t.Fatalf("validate() error = %v, want nil", err)
@@ -204,10 +210,143 @@ func TestLoginCmdValidateDeviceIncompatibleFlags(t *testing.T) {
 			if err == nil {
 				t.Fatal("validate() error = nil, want error")
 			}
-			if got := err.Error(); got != tt.wantErr {
-				t.Fatalf("validate() error = %q, want %q", got, tt.wantErr)
+			if got := err.Error(); !strings.Contains(got, tt.wantErr) {
+				t.Fatalf("validate() error = %q, want substring %q", got, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestLoginCmdValidateCredentialStoreEnv(t *testing.T) {
+	t.Setenv(keyring.CredentialStoreEnv, "disk")
+
+	err := (&LoginCmd{}).validate(nil)
+	if err == nil {
+		t.Fatal("validate() error = nil, want error")
+	}
+	if got := err.Error(); !strings.Contains(got, "unsupported credential store") {
+		t.Fatalf("validate() error = %q, want unsupported credential store", got)
+	}
+}
+
+func TestLoginCmdRunWithTokenUsesCredentialStoreEnv(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("BUILDKITE_API_TOKEN", "")
+	t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
+
+	path := filepath.Join(t.TempDir(), "credentials.json")
+	t.Setenv(keyring.CredentialStoreEnv, keyring.StoreSHM)
+	t.Setenv(keyring.CredentialStorePathEnv, path)
+	keyring.ResetForTesting()
+	t.Cleanup(keyring.ResetForTesting)
+
+	cmd := &LoginCmd{Org: "test-org", Token: "access-token"}
+	if err := cmd.Run(nil, authStubGlobals{}); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	kr, err := keyring.NewWithCredentialStore(keyring.StoreSHM)
+	if err != nil {
+		t.Fatalf("NewWithCredentialStore(%q) error = %v", keyring.StoreSHM, err)
+	}
+	token, err := kr.Get("test-org")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if token != "access-token" {
+		t.Fatalf("stored token = %q, want access-token", token)
+	}
+}
+
+func TestLoginCmdRunWithTokenUsesCredentialStoreEnvWhenFlagOmitted(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("BUILDKITE_API_TOKEN", "")
+	t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
+
+	path := filepath.Join(t.TempDir(), "credentials.json")
+	t.Setenv(keyring.CredentialStoreEnv, keyring.StoreSHM)
+	t.Setenv(keyring.CredentialStorePathEnv, path)
+	keyring.ResetForTesting()
+	t.Cleanup(keyring.ResetForTesting)
+
+	var cli struct {
+		Login LoginCmd `cmd:""`
+	}
+	parser, err := kong.New(&cli)
+	if err != nil {
+		t.Fatalf("kong.New() error = %v", err)
+	}
+	ctx, err := parser.Parse([]string{"login", "--org", "test-org", "--token", "access-token"})
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if cli.Login.CredentialStore != keyring.StoreAuto {
+		t.Fatalf("parsed credential store = %q, want %q", cli.Login.CredentialStore, keyring.StoreAuto)
+	}
+	if cli.Login.credentialStoreFlagProvided(ctx) {
+		t.Fatal("credentialStoreFlagProvided() = true, want false")
+	}
+
+	if err := cli.Login.Run(ctx, authStubGlobals{}); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	kr, err := keyring.NewWithCredentialStore(keyring.StoreSHM)
+	if err != nil {
+		t.Fatalf("NewWithCredentialStore(%q) error = %v", keyring.StoreSHM, err)
+	}
+	token, err := kr.Get("test-org")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if token != "access-token" {
+		t.Fatalf("stored token = %q, want access-token", token)
+	}
+}
+
+func TestLoginCmdRunWithTokenCredentialStoreFlagOverridesEnv(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("BUILDKITE_API_TOKEN", "")
+	t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
+
+	path := filepath.Join(t.TempDir(), "credentials.json")
+	t.Setenv(keyring.CredentialStoreEnv, "disk")
+	t.Setenv(keyring.CredentialStorePathEnv, path)
+	keyring.ResetForTesting()
+	t.Cleanup(keyring.ResetForTesting)
+
+	var cli struct {
+		Login LoginCmd `cmd:""`
+	}
+	parser, err := kong.New(&cli)
+	if err != nil {
+		t.Fatalf("kong.New() error = %v", err)
+	}
+	ctx, err := parser.Parse([]string{"login", "--org", "test-org", "--token", "access-token", "--credential-store", "shm"})
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if !cli.Login.credentialStoreFlagProvided(ctx) {
+		t.Fatal("credentialStoreFlagProvided() = false, want true")
+	}
+
+	if err := cli.Login.Run(ctx, authStubGlobals{}); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	kr, err := keyring.NewWithCredentialStore(keyring.StoreSHM)
+	if err != nil {
+		t.Fatalf("NewWithCredentialStore(%q) error = %v", keyring.StoreSHM, err)
+	}
+	token, err := kr.Get("test-org")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if token != "access-token" {
+		t.Fatalf("stored token = %q, want access-token", token)
 	}
 }
 

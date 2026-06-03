@@ -15,9 +15,9 @@ func (c *TokenCmd) Help() string {
 	return `
 Prints the stored API token for the currently selected organization to stdout.
 
-The token is retrieved from the system keychain (or the BUILDKITE_API_TOKEN
-environment variable if set). This is useful for passing the token to other
-tools, for example:
+The token is retrieved from the configured credential store (or the
+BUILDKITE_API_TOKEN environment variable if set). This is useful for passing
+the token to other tools, for example:
 
 Examples:
 	# Print the current token

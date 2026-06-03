@@ -127,13 +127,13 @@ func (conf *Config) SelectOrganization(org string, inGitRepo bool) error {
 }
 
 // APIToken gets the API token configured for the currently selected organization.
-// Precedence: environment variable > keyring > config file (legacy, read-only with warning)
+// Precedence: environment variable > credential store > config file (legacy, read-only with warning)
 func (conf *Config) APIToken() string {
 	return conf.APITokenForOrg(conf.OrganizationSlug())
 }
 
 // APITokenForOrg gets the API token for a specific organization.
-// Precedence: environment variable > keyring > config file (legacy, read-only with warning)
+// Precedence: environment variable > credential store > config file (legacy, read-only with warning)
 func (conf *Config) APITokenForOrg(org string) string {
 	if token := os.Getenv("BUILDKITE_API_TOKEN"); token != "" {
 		envTokenWarningOnce.Do(func() {
@@ -155,7 +155,7 @@ func (conf *Config) APITokenForOrg(org string) string {
 		conf.local.getToken(org),
 	); token != "" {
 		legacyTokenWarningOnce.Do(func() {
-			fmt.Fprintln(os.Stderr, "Warning: reading API token from config file is deprecated. Run `bk auth login` to store your token securely in the system keychain.")
+			fmt.Fprintln(os.Stderr, "Warning: reading API token from config file is deprecated. Run `bk auth login` to store your token in the configured credential store.")
 		})
 		return token
 	}
@@ -163,7 +163,7 @@ func (conf *Config) APITokenForOrg(org string) string {
 	return ""
 }
 
-// RefreshTokenForOrg gets the refresh token for a specific organization from the keyring.
+// RefreshTokenForOrg gets the refresh token for a specific organization from the credential store.
 func (conf *Config) RefreshTokenForOrg(org string) string {
 	if org == "" {
 		return ""
@@ -182,7 +182,7 @@ func (conf *Config) RefreshToken() string {
 	return conf.RefreshTokenForOrg(conf.OrganizationSlug())
 }
 
-// HasStoredTokenForOrg reports whether a token is stored for org in keyring
+// HasStoredTokenForOrg reports whether a token is stored for org in the credential store
 // or config files, excluding environment variable overrides.
 func (conf *Config) HasStoredTokenForOrg(org string) bool {
 	if org == "" {
@@ -204,8 +204,8 @@ func (conf *Config) HasStoredTokenForOrg(org string) bool {
 }
 
 // EnsureOrganization records an organization in user config without requiring
-// a token value. This keeps org switching/listing functional for keychain-only
-// token storage.
+// a token value. This keeps org switching/listing functional for
+// credential-store token storage.
 func (conf *Config) EnsureOrganization(org string) error {
 	if org == "" {
 		return nil
