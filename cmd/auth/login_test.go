@@ -235,7 +235,7 @@ func TestLoginCmdRunWithTokenUsesCredentialStoreEnv(t *testing.T) {
 	t.Setenv("BUILDKITE_API_TOKEN", "")
 	t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
 
-	path := filepath.Join(t.TempDir(), "credentials.json")
+	path := filepath.Join(t.TempDir(), "bk-credentials", "credentials.json")
 	t.Setenv(keyring.CredentialStoreEnv, keyring.StoreSHM)
 	t.Setenv(keyring.CredentialStorePathEnv, path)
 	keyring.ResetForTesting()
@@ -265,7 +265,7 @@ func TestLoginCmdRunWithTokenUsesCredentialStoreEnvWhenFlagOmitted(t *testing.T)
 	t.Setenv("BUILDKITE_API_TOKEN", "")
 	t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
 
-	path := filepath.Join(t.TempDir(), "credentials.json")
+	path := filepath.Join(t.TempDir(), "bk-credentials", "credentials.json")
 	t.Setenv(keyring.CredentialStoreEnv, keyring.StoreSHM)
 	t.Setenv(keyring.CredentialStorePathEnv, path)
 	keyring.ResetForTesting()
@@ -312,7 +312,7 @@ func TestLoginCmdRunWithTokenCredentialStoreFlagOverridesEnv(t *testing.T) {
 	t.Setenv("BUILDKITE_API_TOKEN", "")
 	t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
 
-	path := filepath.Join(t.TempDir(), "credentials.json")
+	path := filepath.Join(t.TempDir(), "bk-credentials", "credentials.json")
 	t.Setenv(keyring.CredentialStoreEnv, "disk")
 	t.Setenv(keyring.CredentialStorePathEnv, path)
 	keyring.ResetForTesting()

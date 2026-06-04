@@ -34,6 +34,20 @@ func setEnv(t *testing.T, key, value string) {
 	ResetForTesting()
 }
 
+func shmCredentialPathForTest(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(t.TempDir(), "bk-credentials", "credentials.json")
+}
+
+func privateTempDir(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o700); err != nil {
+		t.Fatalf("chmod temp dir: %v", err)
+	}
+	return dir
+}
+
 func TestIsKeyringAvailable(t *testing.T) {
 	// These tests manipulate package-level state (sync.Once) so must not run
 	// in parallel with each other.
@@ -109,7 +123,7 @@ func TestNoKeyringSet(t *testing.T) {
 }
 
 func TestNoKeyringSetDoesNotCreateSHMStore(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "credentials.json")
+	path := shmCredentialPathForTest(t)
 	setEnv(t, CredentialStorePathEnv, path)
 	setEnv(t, "CI", "true")
 	setEnv(t, "BUILDKITE_NO_KEYRING", "")
@@ -181,8 +195,27 @@ func TestValidateCredentialStore(t *testing.T) {
 	}
 }
 
+func TestNewInvalidCredentialStoreEnvDoesNotFallbackToKeyring(t *testing.T) {
+	setEnv(t, CredentialStoreEnv, "disk")
+	setEnv(t, CredentialStorePathEnv, "")
+	MockForTesting()
+	t.Cleanup(ResetForTesting)
+
+	kr := New()
+	if kr.IsAvailable() {
+		t.Fatal("New() with invalid credential store env reported available")
+	}
+
+	if err := kr.Set("my-org", "token-123"); err == nil || !strings.Contains(err.Error(), "unsupported credential store") {
+		t.Fatalf("Set() error = %v, want unsupported credential store", err)
+	}
+	if _, err := kr.Get("my-org"); err == nil || !strings.Contains(err.Error(), "unsupported credential store") {
+		t.Fatalf("Get() error = %v, want unsupported credential store", err)
+	}
+}
+
 func TestSHMCredentialStore(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "credentials.json")
+	path := shmCredentialPathForTest(t)
 	setEnv(t, CredentialStorePathEnv, path)
 
 	kr, err := NewWithCredentialStore(StoreSHM)
@@ -243,8 +276,42 @@ func TestSHMCredentialStore(t *testing.T) {
 	}
 }
 
+func TestSHMCredentialStoreRejectsUnsafeExistingEnvDirectory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("chmod semantics differ on Windows")
+	}
+
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o755); err != nil {
+		t.Fatalf("chmod credential dir: %v", err)
+	}
+	path := filepath.Join(dir, "credentials.json")
+	setEnv(t, CredentialStorePathEnv, path)
+
+	kr, err := NewWithCredentialStore(StoreSHM)
+	if err != nil {
+		t.Fatalf("NewWithCredentialStore(%q) error = %v", StoreSHM, err)
+	}
+
+	err = kr.Set("my-org", "access-token")
+	if err == nil {
+		t.Fatal("Set() error = nil, want unsafe directory rejection")
+	}
+	if !strings.Contains(err.Error(), "must not be accessible by group or others") {
+		t.Fatalf("Set() error = %v, want unsafe directory rejection", err)
+	}
+
+	info, err := os.Stat(dir)
+	if err != nil {
+		t.Fatalf("stat credential dir: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o755 {
+		t.Fatalf("credential dir mode = %#o, want unchanged 0755", got)
+	}
+}
+
 func TestSHMCredentialStoreSerializesConcurrentWrites(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "credentials.json")
+	path := shmCredentialPathForTest(t)
 	setEnv(t, CredentialStorePathEnv, path)
 
 	kr, err := NewWithCredentialStore(StoreSHM)
@@ -291,7 +358,7 @@ func TestSHMCredentialStoreRejectsSymlinkFile(t *testing.T) {
 		t.Skip("symlink handling differs on Windows")
 	}
 
-	dir := t.TempDir()
+	dir := privateTempDir(t)
 	path := filepath.Join(dir, "credentials.json")
 	target := filepath.Join(dir, "target.json")
 
@@ -318,7 +385,7 @@ func TestSHMCredentialStoreRejectsSymlinkFile(t *testing.T) {
 }
 
 func TestAutoCredentialStoreReadsSHMFallback(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "credentials.json")
+	path := shmCredentialPathForTest(t)
 	setEnv(t, CredentialStorePathEnv, path)
 	setEnv(t, CredentialStoreEnv, "")
 	setEnv(t, "BUILDKITE_NO_KEYRING", "")
@@ -357,8 +424,74 @@ func TestAutoCredentialStoreReadsSHMFallback(t *testing.T) {
 	}
 }
 
+func TestAutoCredentialStorePrefersMarkedSHMOverKeyring(t *testing.T) {
+	path := shmCredentialPathForTest(t)
+	setEnv(t, CredentialStorePathEnv, path)
+	setEnv(t, CredentialStoreEnv, "")
+	setEnv(t, "BUILDKITE_NO_KEYRING", "")
+	setEnv(t, "CI", "")
+	setEnv(t, "BUILDKITE", "")
+
+	shmStore, err := NewWithCredentialStore(StoreSHM)
+	if err != nil {
+		t.Fatalf("NewWithCredentialStore(%q) error = %v", StoreSHM, err)
+	}
+	if err := shmStore.Set("my-org", "new-token"); err != nil {
+		t.Fatalf("Set() error = %v", err)
+	}
+
+	MockForTesting()
+	t.Cleanup(ResetForTesting)
+	if err := oskeyring.Set(serviceName, "my-org", "old-token"); err != nil {
+		t.Fatalf("seed keyring token: %v", err)
+	}
+
+	kr := New()
+	token, err := kr.Get("my-org")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if token != "new-token" {
+		t.Fatalf("Get() = %q, want new-token", token)
+	}
+}
+
+func TestAutoCredentialStoreKeyringWriteClearsSHMPreference(t *testing.T) {
+	path := shmCredentialPathForTest(t)
+	setEnv(t, CredentialStorePathEnv, path)
+	setEnv(t, CredentialStoreEnv, "")
+	setEnv(t, "BUILDKITE_NO_KEYRING", "")
+	setEnv(t, "CI", "")
+	setEnv(t, "BUILDKITE", "")
+
+	shmStore, err := NewWithCredentialStore(StoreSHM)
+	if err != nil {
+		t.Fatalf("NewWithCredentialStore(%q) error = %v", StoreSHM, err)
+	}
+	if err := shmStore.Set("my-org", "shm-token"); err != nil {
+		t.Fatalf("Set() error = %v", err)
+	}
+
+	MockForTesting()
+	t.Cleanup(ResetForTesting)
+
+	kr := New()
+	if err := kr.Set("my-org", "keyring-token"); err != nil {
+		t.Fatalf("Set() error = %v", err)
+	}
+
+	fresh := New()
+	token, err := fresh.Get("my-org")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if token != "keyring-token" {
+		t.Fatalf("Get() = %q, want keyring-token", token)
+	}
+}
+
 func TestAutoCredentialStoreUsesExistingSHMWhenDisabledByEnv(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "credentials.json")
+	path := shmCredentialPathForTest(t)
 	setEnv(t, CredentialStorePathEnv, path)
 	setEnv(t, CredentialStoreEnv, "")
 	setEnv(t, "CI", "")

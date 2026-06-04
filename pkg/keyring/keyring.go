@@ -44,13 +44,17 @@ type Keyring struct {
 	store      string
 	useKeyring bool
 	lastStore  string
+	err        error
 }
 
 // New creates a new Keyring instance using the default credential store mode.
 func New() *Keyring {
 	kr, err := NewWithCredentialStore(os.Getenv(CredentialStoreEnv))
 	if err != nil {
-		kr, _ = NewWithCredentialStore(StoreAuto)
+		return &Keyring{
+			store: normalizeCredentialStore(os.Getenv(CredentialStoreEnv)),
+			err:   err,
+		}
 	}
 	return kr
 }
@@ -109,6 +113,9 @@ func (k *Keyring) DeleteRefreshToken(org string) error {
 
 // IsAvailable returns true if the configured credential store is available.
 func (k *Keyring) IsAvailable() bool {
+	if k.err != nil {
+		return false
+	}
 	switch k.store {
 	case StoreSHM:
 		return shmStoreAvailable()
@@ -131,6 +138,9 @@ func (k *Keyring) Description() string {
 }
 
 func (k *Keyring) set(service, org, token string) error {
+	if k.err != nil {
+		return k.err
+	}
 	if org == "" {
 		return errors.New("organization cannot be empty")
 	}
@@ -145,6 +155,7 @@ func (k *Keyring) set(service, org, token string) error {
 	if k.canUseKeyring() {
 		if err := oskeyring.Set(service, org, token); err == nil {
 			k.lastStore = StoreKeyring
+			_ = clearSHMPreferredStore(service, org)
 			return nil
 		} else {
 			keyringErr = err
@@ -170,8 +181,22 @@ func (k *Keyring) set(service, org, token string) error {
 }
 
 func (k *Keyring) get(service, org string) (string, error) {
+	if k.err != nil {
+		return "", k.err
+	}
 	if org == "" {
 		return "", oskeyring.ErrNotFound
+	}
+
+	if k.store == StoreAuto && preferredSHMStore(service, org) {
+		token, err := getSHMCredential(service, org)
+		if err == nil {
+			k.lastStore = StoreSHM
+			return token, nil
+		}
+		if !errors.Is(err, oskeyring.ErrNotFound) {
+			return "", err
+		}
 	}
 
 	var keyringErr error
@@ -205,6 +230,9 @@ func (k *Keyring) get(service, org string) (string, error) {
 }
 
 func (k *Keyring) delete(service, org string) error {
+	if k.err != nil {
+		return k.err
+	}
 	var deleteErr error
 	if k.canUseKeyring() {
 		if err := oskeyring.Delete(service, org); err != nil && !errors.Is(err, oskeyring.ErrNotFound) {
@@ -313,11 +341,47 @@ func normalizeCredentialStore(store string) string {
 }
 
 type shmCredentials struct {
-	Services map[string]map[string]string `json:"services,omitempty"`
+	Services        map[string]map[string]string `json:"services,omitempty"`
+	PreferredStores map[string]map[string]string `json:"preferred_stores,omitempty"`
 }
 
 func newSHMCredentials() shmCredentials {
-	return shmCredentials{Services: make(map[string]map[string]string)}
+	return shmCredentials{
+		Services:        make(map[string]map[string]string),
+		PreferredStores: make(map[string]map[string]string),
+	}
+}
+
+func (c *shmCredentials) ensureMaps() {
+	if c.Services == nil {
+		c.Services = make(map[string]map[string]string)
+	}
+	if c.PreferredStores == nil {
+		c.PreferredStores = make(map[string]map[string]string)
+	}
+}
+
+func (c *shmCredentials) preferStore(service, org, store string) {
+	c.ensureMaps()
+	if c.PreferredStores[service] == nil {
+		c.PreferredStores[service] = make(map[string]string)
+	}
+	c.PreferredStores[service][org] = store
+}
+
+func (c *shmCredentials) clearPreferredStore(service, org string) bool {
+	c.ensureMaps()
+	if c.PreferredStores[service] == nil {
+		return false
+	}
+	if _, ok := c.PreferredStores[service][org]; !ok {
+		return false
+	}
+	delete(c.PreferredStores[service], org)
+	if len(c.PreferredStores[service]) == 0 {
+		delete(c.PreferredStores, service)
+	}
+	return true
 }
 
 func shmCredentialPath() string {
@@ -364,6 +428,7 @@ func setSHMCredential(service, org, token string) error {
 			creds.Services[service] = make(map[string]string)
 		}
 		creds.Services[service][org] = token
+		creds.preferStore(service, org, StoreSHM)
 		return saveSHMCredentials(creds)
 	})
 }
@@ -392,6 +457,39 @@ func deleteSHMCredential(service, org string) error {
 			return oskeyring.ErrNotFound
 		}
 		delete(creds.Services[service], org)
+		creds.clearPreferredStore(service, org)
+		return saveSHMCredentials(creds)
+	})
+}
+
+func preferredSHMStore(service, org string) bool {
+	path := shmCredentialPath()
+	info, err := os.Lstat(path)
+	if err != nil {
+		return false
+	}
+	if err := validateSHMFile(path, info); err != nil {
+		return false
+	}
+	creds, err := readSHMCredentialsFile(path)
+	if err != nil {
+		return false
+	}
+	return creds.PreferredStores[service][org] == StoreSHM
+}
+
+func clearSHMPreferredStore(service, org string) error {
+	if !shmCredentialFileExists() {
+		return nil
+	}
+	return withSHMCredentialLock(func() error {
+		creds, err := loadSHMCredentials()
+		if err != nil {
+			return err
+		}
+		if !creds.clearPreferredStore(service, org) {
+			return nil
+		}
 		return saveSHMCredentials(creds)
 	})
 }
@@ -449,6 +547,18 @@ func loadSHMCredentials() (shmCredentials, error) {
 	if err != nil {
 		return shmCredentials{}, err
 	}
+	return readSHMCredentials(data)
+}
+
+func readSHMCredentialsFile(path string) (shmCredentials, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return shmCredentials{}, err
+	}
+	return readSHMCredentials(data)
+}
+
+func readSHMCredentials(data []byte) (shmCredentials, error) {
 	if len(data) == 0 {
 		return newSHMCredentials(), nil
 	}
@@ -457,9 +567,7 @@ func loadSHMCredentials() (shmCredentials, error) {
 	if err := json.Unmarshal(data, &creds); err != nil {
 		return shmCredentials{}, err
 	}
-	if creds.Services == nil {
-		creds.Services = make(map[string]map[string]string)
-	}
+	creds.ensureMaps()
 	return creds, nil
 }
 
@@ -468,9 +576,7 @@ func saveSHMCredentials(creds shmCredentials) error {
 	if err := ensureSHMStoreDir(path); err != nil {
 		return err
 	}
-	if creds.Services == nil {
-		creds.Services = make(map[string]map[string]string)
-	}
+	creds.ensureMaps()
 
 	data, err := json.MarshalIndent(creds, "", "  ")
 	if err != nil {
@@ -501,11 +607,16 @@ func saveSHMCredentials(creds shmCredentials) error {
 
 func ensureSHMStoreDir(path string) error {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
+	createdDir := false
 
 	info, err := os.Lstat(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		createdDir = true
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return err
+		}
+		info, err = os.Lstat(dir)
+	}
 	if err != nil {
 		return err
 	}
@@ -519,9 +630,13 @@ func ensureSHMStoreDir(path string) error {
 		return err
 	}
 	if info.Mode().Perm()&0o077 != 0 {
-		if err := os.Chmod(dir, 0o700); err != nil {
-			return err
+		if createdDir || os.Getenv(CredentialStorePathEnv) == "" {
+			if err := os.Chmod(dir, 0o700); err != nil {
+				return err
+			}
+			return nil
 		}
+		return fmt.Errorf("credential store directory %s must not be accessible by group or others", dir)
 	}
 	return nil
 }
