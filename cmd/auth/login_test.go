@@ -331,10 +331,6 @@ func TestLoginCmdRunWithTokenClearsStaleOAuthRefreshTokens(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWithCredentialStore(%q) error = %v", keyring.StoreSHM, err)
 	}
-	if err := shmStore.SetRefreshToken("test-org", "old-shm-refresh-token"); err != nil {
-		t.Fatalf("SetRefreshToken() shm error = %v", err)
-	}
-
 	cmd := &LoginCmd{Org: "test-org", Token: "access-token"}
 	if err := cmd.Run(nil, authStubGlobals{}); err != nil {
 		t.Fatalf("Run() error = %v", err)
@@ -349,9 +345,6 @@ func TestLoginCmdRunWithTokenClearsStaleOAuthRefreshTokens(t *testing.T) {
 	}
 	if _, err := keyringStore.GetRefreshToken("test-org"); !errors.Is(err, oskeyring.ErrNotFound) {
 		t.Fatalf("keyring GetRefreshToken() error = %v, want ErrNotFound", err)
-	}
-	if _, err := shmStore.GetRefreshToken("test-org"); !errors.Is(err, oskeyring.ErrNotFound) {
-		t.Fatalf("shm GetRefreshToken() error = %v, want ErrNotFound", err)
 	}
 }
 

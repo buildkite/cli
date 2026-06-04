@@ -464,52 +464,42 @@ func deleteSHMCredential(service, org string) error {
 		if err != nil {
 			return err
 		}
-		removed := creds.clearPreferredStore(service, org)
 		if creds.Services[service] == nil {
-			if removed {
-				return saveSHMCredentials(creds)
-			}
 			return oskeyring.ErrNotFound
 		}
 		if _, ok := creds.Services[service][org]; !ok {
-			if removed {
-				return saveSHMCredentials(creds)
-			}
 			return oskeyring.ErrNotFound
 		}
 		delete(creds.Services[service], org)
-		if len(creds.Services[service]) == 0 {
-			delete(creds.Services, service)
-		}
+		creds.clearPreferredStore(service, org)
 		return saveSHMCredentials(creds)
 	})
 }
 
 func preferredSHMStore(service, org string) bool {
-	store, ok, err := preferredStore(service, org)
-	return err == nil && ok && store == StoreSHM
+	preferred, err := preferredSHMStoreWithError(service, org)
+	return err == nil && preferred
 }
 
-func preferredStore(service, org string) (string, bool, error) {
+func preferredSHMStoreWithError(service, org string) (bool, error) {
 	path := shmCredentialPath()
 	info, err := os.Lstat(path)
 	if err != nil {
-		return "", false, err
+		return false, err
 	}
 	if err := validateSHMFile(path, info); err != nil {
-		return "", false, err
+		return false, err
 	}
 	creds, err := readSHMCredentialsFile(path)
 	if err != nil {
-		return "", false, err
+		return false, err
 	}
-	store, ok := creds.PreferredStores[service][org]
-	return store, ok, nil
+	return creds.PreferredStores[service][org] == StoreSHM, nil
 }
 
 func deleteSHMCredentialIfPresent(service, org string) error {
-	store, ok, err := preferredStore(service, org)
-	if err != nil || !ok || store != StoreSHM {
+	preferred, err := preferredSHMStoreWithError(service, org)
+	if err != nil || !preferred {
 		return nil
 	}
 	if err := deleteSHMCredential(service, org); err != nil && !errors.Is(err, oskeyring.ErrNotFound) {
