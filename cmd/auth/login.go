@@ -146,16 +146,22 @@ func persistOAuthLogin(f *factory.Factory, store oauthTokenStore, org, accessTok
 }
 
 func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
-	if err != nil {
-		return err
-	}
-
 	if err := c.validate(kongCtx); err != nil {
 		return err
 	}
 
 	credentialStore, err := c.newCredentialStore(kongCtx)
+	if err != nil {
+		return err
+	}
+
+	restoreCredentialStoreEnv, err := c.applyCredentialStoreEnv(kongCtx)
+	if err != nil {
+		return err
+	}
+	defer restoreCredentialStoreEnv()
+
+	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
 	if err != nil {
 		return err
 	}
@@ -240,6 +246,24 @@ func (c *LoginCmd) newCredentialStore(kongCtx *kong.Context) (*keyring.Keyring, 
 		return keyring.New(), nil
 	}
 	return keyring.NewWithCredentialStore(c.CredentialStore)
+}
+
+func (c *LoginCmd) applyCredentialStoreEnv(kongCtx *kong.Context) (func(), error) {
+	if !c.credentialStoreFlagProvided(kongCtx) {
+		return func() {}, nil
+	}
+
+	original, hadOriginal := os.LookupEnv(keyring.CredentialStoreEnv)
+	if err := os.Setenv(keyring.CredentialStoreEnv, c.CredentialStore); err != nil {
+		return nil, err
+	}
+	return func() {
+		if hadOriginal {
+			_ = os.Setenv(keyring.CredentialStoreEnv, original)
+			return
+		}
+		_ = os.Unsetenv(keyring.CredentialStoreEnv)
+	}, nil
 }
 
 func (c *LoginCmd) validate(kongCtx *kong.Context) error {

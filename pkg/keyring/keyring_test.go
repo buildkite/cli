@@ -214,6 +214,28 @@ func TestNewInvalidCredentialStoreEnvDoesNotFallbackToKeyring(t *testing.T) {
 	}
 }
 
+func TestExplicitKeyringCredentialStoreIgnoresCIDisable(t *testing.T) {
+	setEnv(t, "CI", "true")
+	setEnv(t, "BUILDKITE", "")
+	setEnv(t, "BUILDKITE_NO_KEYRING", "")
+	setEnv(t, CredentialStoreEnv, "")
+	setEnv(t, CredentialStorePathEnv, "")
+
+	kr, err := NewWithCredentialStore(StoreKeyring)
+	if err != nil {
+		t.Fatalf("NewWithCredentialStore(%q) error = %v", StoreKeyring, err)
+	}
+	if !kr.IsAvailable() {
+		t.Fatal("explicit keyring store reported unavailable under CI")
+	}
+
+	setEnv(t, CredentialStoreEnv, StoreKeyring)
+	kr = New()
+	if !kr.IsAvailable() {
+		t.Fatal("env-selected keyring store reported unavailable under CI")
+	}
+}
+
 func TestSHMCredentialStore(t *testing.T) {
 	path := shmCredentialPathForTest(t)
 	setEnv(t, CredentialStorePathEnv, path)
@@ -490,6 +512,37 @@ func TestAutoCredentialStoreKeyringWriteDeletesSHMCredential(t *testing.T) {
 	}
 	if _, err := shmStore.Get("my-org"); !errors.Is(err, oskeyring.ErrNotFound) {
 		t.Fatalf("forced shm Get() after keyring Set() error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestKeyringWriteIgnoresMalformedSHMCleanup(t *testing.T) {
+	path := shmCredentialPathForTest(t)
+	setEnv(t, CredentialStorePathEnv, path)
+	setEnv(t, CredentialStoreEnv, "")
+	setEnv(t, "BUILDKITE_NO_KEYRING", "")
+	setEnv(t, "CI", "")
+	setEnv(t, "BUILDKITE", "")
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatalf("create credential dir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("{not-json"), 0o600); err != nil {
+		t.Fatalf("write malformed credential file: %v", err)
+	}
+
+	MockForTesting()
+	t.Cleanup(ResetForTesting)
+
+	kr := New()
+	if err := kr.Set("my-org", "keyring-token"); err != nil {
+		t.Fatalf("Set() error = %v", err)
+	}
+	token, err := kr.Get("my-org")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if token != "keyring-token" {
+		t.Fatalf("Get() = %q, want keyring-token", token)
 	}
 }
 

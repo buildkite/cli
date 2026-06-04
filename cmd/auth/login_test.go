@@ -350,6 +350,34 @@ func TestLoginCmdRunWithTokenCredentialStoreFlagOverridesEnv(t *testing.T) {
 	}
 }
 
+func TestLoginCmdApplyCredentialStoreEnvForExplicitFlag(t *testing.T) {
+	t.Setenv(keyring.CredentialStoreEnv, keyring.StoreKeyring)
+
+	var cli struct {
+		Login LoginCmd `cmd:""`
+	}
+	parser, err := kong.New(&cli)
+	if err != nil {
+		t.Fatalf("kong.New() error = %v", err)
+	}
+	ctx, err := parser.Parse([]string{"login", "--credential-store", "shm"})
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	restore, err := cli.Login.applyCredentialStoreEnv(ctx)
+	if err != nil {
+		t.Fatalf("applyCredentialStoreEnv() error = %v", err)
+	}
+	if got := os.Getenv(keyring.CredentialStoreEnv); got != keyring.StoreSHM {
+		t.Fatalf("%s = %q, want %q", keyring.CredentialStoreEnv, got, keyring.StoreSHM)
+	}
+	restore()
+	if got := os.Getenv(keyring.CredentialStoreEnv); got != keyring.StoreKeyring {
+		t.Fatalf("restored %s = %q, want %q", keyring.CredentialStoreEnv, got, keyring.StoreKeyring)
+	}
+}
+
 func TestLoginCmdRunDeviceFlow(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())

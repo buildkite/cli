@@ -68,7 +68,7 @@ func NewWithCredentialStore(store string) (*Keyring, error) {
 	}
 	return &Keyring{
 		store:      store,
-		useKeyring: store != StoreSHM && isKeyringAvailable(),
+		useKeyring: store == StoreKeyring || (store == StoreAuto && isKeyringAvailable()),
 	}, nil
 }
 
@@ -155,9 +155,7 @@ func (k *Keyring) set(service, org, token string) error {
 	if k.canUseKeyring() {
 		if err := oskeyring.Set(service, org, token); err == nil {
 			k.lastStore = StoreKeyring
-			if err := deleteSHMCredentialIfPresent(service, org); err != nil {
-				return err
-			}
+			_ = deleteSHMCredentialIfPresent(service, org)
 			return nil
 		} else {
 			keyringErr = err
