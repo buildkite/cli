@@ -34,9 +34,11 @@ func (c *LogoutCmd) logoutAll(f *factory.Factory) error {
 	if kr.IsAvailable() {
 		for _, org := range orgs {
 			if err := kr.Delete(org); err != nil {
-				fmt.Printf("Warning: could not remove token from keychain for %q: %v\n", org, err)
+				fmt.Printf("Warning: could not remove token from credential store for %q: %v\n", org, err)
 			}
-			_ = kr.DeleteRefreshToken(org)
+			if err := kr.DeleteRefreshToken(org); err != nil {
+				fmt.Printf("Warning: could not remove refresh token from credential store for %q: %v\n", org, err)
+			}
 		}
 	}
 
@@ -61,11 +63,13 @@ func (c *LogoutCmd) logoutOrg(f *factory.Factory) error {
 	kr := keyring.New()
 	if kr.IsAvailable() {
 		if err := kr.Delete(org); err != nil {
-			fmt.Printf("Warning: could not remove token from keychain: %v\n", err)
+			fmt.Printf("Warning: could not remove token from credential store: %v\n", err)
 		} else {
-			fmt.Println("Token removed from system keychain.")
+			fmt.Println("Token removed from credential store.")
 		}
-		_ = kr.DeleteRefreshToken(org)
+		if err := kr.DeleteRefreshToken(org); err != nil {
+			fmt.Printf("Warning: could not remove refresh token from credential store: %v\n", err)
+		}
 	}
 
 	fmt.Printf("Logged out of organization %q\n", org)
