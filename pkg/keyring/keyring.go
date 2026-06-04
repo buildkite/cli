@@ -155,7 +155,9 @@ func (k *Keyring) set(service, org, token string) error {
 	if k.canUseKeyring() {
 		if err := oskeyring.Set(service, org, token); err == nil {
 			k.lastStore = StoreKeyring
-			_ = clearSHMPreferredStore(service, org)
+			if err := deleteSHMCredentialIfPresent(service, org); err != nil {
+				return err
+			}
 			return nil
 		} else {
 			keyringErr = err
@@ -478,20 +480,17 @@ func preferredSHMStore(service, org string) bool {
 	return creds.PreferredStores[service][org] == StoreSHM
 }
 
-func clearSHMPreferredStore(service, org string) error {
+func deleteSHMCredentialIfPresent(service, org string) error {
 	if !shmCredentialFileExists() {
 		return nil
 	}
-	return withSHMCredentialLock(func() error {
-		creds, err := loadSHMCredentials()
-		if err != nil {
-			return err
-		}
-		if !creds.clearPreferredStore(service, org) {
-			return nil
-		}
-		return saveSHMCredentials(creds)
-	})
+	if !shmStoreAvailable() {
+		return nil
+	}
+	if err := deleteSHMCredential(service, org); err != nil && !errors.Is(err, oskeyring.ErrNotFound) {
+		return err
+	}
+	return nil
 }
 
 func withSHMCredentialLock(fn func() error) error {

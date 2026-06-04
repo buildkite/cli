@@ -456,7 +456,7 @@ func TestAutoCredentialStorePrefersMarkedSHMOverKeyring(t *testing.T) {
 	}
 }
 
-func TestAutoCredentialStoreKeyringWriteClearsSHMPreference(t *testing.T) {
+func TestAutoCredentialStoreKeyringWriteDeletesSHMCredential(t *testing.T) {
 	path := shmCredentialPathForTest(t)
 	setEnv(t, CredentialStorePathEnv, path)
 	setEnv(t, CredentialStoreEnv, "")
@@ -487,6 +487,9 @@ func TestAutoCredentialStoreKeyringWriteClearsSHMPreference(t *testing.T) {
 	}
 	if token != "keyring-token" {
 		t.Fatalf("Get() = %q, want keyring-token", token)
+	}
+	if _, err := shmStore.Get("my-org"); !errors.Is(err, oskeyring.ErrNotFound) {
+		t.Fatalf("forced shm Get() after keyring Set() error = %v, want ErrNotFound", err)
 	}
 }
 
