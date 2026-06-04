@@ -96,6 +96,9 @@ func loginWithToken(f *factory.Factory, org, token string, kr oauthTokenStore) e
 		if err := kr.Set(org, token); err != nil {
 			return fmt.Errorf("failed to store token in credential store: %w", err)
 		}
+		if err := keyring.ClearRefreshToken(org); err != nil {
+			return fmt.Errorf("failed to clear stale OAuth refresh token from credential store: %w", err)
+		}
 		fmt.Printf("Token stored in %s.\n", credentialStoreDescription(kr))
 	} else {
 		fmt.Println("Credential store unavailable; token not stored. Use BUILDKITE_API_TOKEN to supply your token at runtime.")

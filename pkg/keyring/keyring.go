@@ -155,7 +155,9 @@ func (k *Keyring) set(service, org, token string) error {
 	if k.canUseKeyring() {
 		if err := oskeyring.Set(service, org, token); err == nil {
 			k.lastStore = StoreKeyring
-			_ = deleteSHMCredentialIfPresent(service, org)
+			if err := deleteSHMCredentialIfPresent(service, org); err != nil {
+				return err
+			}
 			return nil
 		} else {
 			keyringErr = err
@@ -287,6 +289,18 @@ func (k *Keyring) canUseSHMForWrite() bool {
 	default:
 		return false
 	}
+}
+
+// ClearRefreshToken removes any stored OAuth refresh token for an organization.
+// This is used when replacing OAuth credentials with a non-OAuth API token.
+func ClearRefreshToken(org string) error {
+	if org == "" {
+		return errors.New("organization cannot be empty")
+	}
+	if err := deleteReadableKeyringCredential(refreshServiceName, org); err != nil {
+		return err
+	}
+	return deleteReadableSHMCredential(refreshServiceName, org)
 }
 
 // MockForTesting replaces the keyring backend with an in-memory store
@@ -450,39 +464,75 @@ func deleteSHMCredential(service, org string) error {
 		if err != nil {
 			return err
 		}
+		removed := creds.clearPreferredStore(service, org)
 		if creds.Services[service] == nil {
+			if removed {
+				return saveSHMCredentials(creds)
+			}
 			return oskeyring.ErrNotFound
 		}
 		if _, ok := creds.Services[service][org]; !ok {
+			if removed {
+				return saveSHMCredentials(creds)
+			}
 			return oskeyring.ErrNotFound
 		}
 		delete(creds.Services[service], org)
-		creds.clearPreferredStore(service, org)
+		if len(creds.Services[service]) == 0 {
+			delete(creds.Services, service)
+		}
 		return saveSHMCredentials(creds)
 	})
 }
 
 func preferredSHMStore(service, org string) bool {
+	store, ok, err := preferredStore(service, org)
+	return err == nil && ok && store == StoreSHM
+}
+
+func preferredStore(service, org string) (string, bool, error) {
 	path := shmCredentialPath()
 	info, err := os.Lstat(path)
 	if err != nil {
-		return false
+		return "", false, err
 	}
 	if err := validateSHMFile(path, info); err != nil {
-		return false
+		return "", false, err
 	}
 	creds, err := readSHMCredentialsFile(path)
 	if err != nil {
-		return false
+		return "", false, err
 	}
-	return creds.PreferredStores[service][org] == StoreSHM
+	store, ok := creds.PreferredStores[service][org]
+	return store, ok, nil
 }
 
 func deleteSHMCredentialIfPresent(service, org string) error {
+	store, ok, err := preferredStore(service, org)
+	if err != nil || !ok || store != StoreSHM {
+		return nil
+	}
+	if err := deleteSHMCredential(service, org); err != nil && !errors.Is(err, oskeyring.ErrNotFound) {
+		return err
+	}
+	return nil
+}
+
+func deleteReadableKeyringCredential(service, org string) error {
+	if _, err := oskeyring.Get(service, org); err != nil {
+		return nil
+	}
+	if err := oskeyring.Delete(service, org); err != nil && !errors.Is(err, oskeyring.ErrNotFound) {
+		return err
+	}
+	return nil
+}
+
+func deleteReadableSHMCredential(service, org string) error {
 	if !shmCredentialFileExists() {
 		return nil
 	}
-	if !shmStoreAvailable() {
+	if _, err := getSHMCredential(service, org); err != nil {
 		return nil
 	}
 	if err := deleteSHMCredential(service, org); err != nil && !errors.Is(err, oskeyring.ErrNotFound) {

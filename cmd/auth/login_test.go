@@ -15,6 +15,7 @@ import (
 	"github.com/buildkite/cli/v3/pkg/keyring"
 	"github.com/buildkite/cli/v3/pkg/oauth"
 	buildkite "github.com/buildkite/go-buildkite/v4"
+	oskeyring "github.com/zalando/go-keyring"
 )
 
 type stubOAuthTokenStore struct {
@@ -303,6 +304,54 @@ func TestLoginCmdRunWithTokenUsesCredentialStoreEnvWhenFlagOmitted(t *testing.T)
 	}
 	if token != "access-token" {
 		t.Fatalf("stored token = %q, want access-token", token)
+	}
+}
+
+func TestLoginCmdRunWithTokenClearsStaleOAuthRefreshTokens(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("BUILDKITE_API_TOKEN", "")
+	t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
+
+	path := filepath.Join(t.TempDir(), "bk-credentials", "credentials.json")
+	t.Setenv(keyring.CredentialStoreEnv, keyring.StoreSHM)
+	t.Setenv(keyring.CredentialStorePathEnv, path)
+	keyring.MockForTesting()
+	t.Cleanup(keyring.ResetForTesting)
+
+	keyringStore, err := keyring.NewWithCredentialStore(keyring.StoreKeyring)
+	if err != nil {
+		t.Fatalf("NewWithCredentialStore(%q) error = %v", keyring.StoreKeyring, err)
+	}
+	if err := keyringStore.SetRefreshToken("test-org", "old-keyring-refresh-token"); err != nil {
+		t.Fatalf("SetRefreshToken() keyring error = %v", err)
+	}
+
+	shmStore, err := keyring.NewWithCredentialStore(keyring.StoreSHM)
+	if err != nil {
+		t.Fatalf("NewWithCredentialStore(%q) error = %v", keyring.StoreSHM, err)
+	}
+	if err := shmStore.SetRefreshToken("test-org", "old-shm-refresh-token"); err != nil {
+		t.Fatalf("SetRefreshToken() shm error = %v", err)
+	}
+
+	cmd := &LoginCmd{Org: "test-org", Token: "access-token"}
+	if err := cmd.Run(nil, authStubGlobals{}); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	token, err := shmStore.Get("test-org")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if token != "access-token" {
+		t.Fatalf("stored token = %q, want access-token", token)
+	}
+	if _, err := keyringStore.GetRefreshToken("test-org"); !errors.Is(err, oskeyring.ErrNotFound) {
+		t.Fatalf("keyring GetRefreshToken() error = %v, want ErrNotFound", err)
+	}
+	if _, err := shmStore.GetRefreshToken("test-org"); !errors.Is(err, oskeyring.ErrNotFound) {
+		t.Fatalf("shm GetRefreshToken() error = %v, want ErrNotFound", err)
 	}
 }
 

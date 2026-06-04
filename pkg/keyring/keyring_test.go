@@ -515,6 +515,53 @@ func TestAutoCredentialStoreKeyringWriteDeletesSHMCredential(t *testing.T) {
 	}
 }
 
+func TestAutoCredentialStoreKeyringWriteSurfacesPreferredSHMCleanupFailure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("chmod semantics differ on Windows")
+	}
+	if os.Getuid() == 0 {
+		t.Skip("root can write through read-only directory permissions")
+	}
+
+	path := shmCredentialPathForTest(t)
+	setEnv(t, CredentialStorePathEnv, path)
+	setEnv(t, CredentialStoreEnv, "")
+	setEnv(t, "BUILDKITE_NO_KEYRING", "")
+	setEnv(t, "CI", "")
+	setEnv(t, "BUILDKITE", "")
+
+	shmStore, err := NewWithCredentialStore(StoreSHM)
+	if err != nil {
+		t.Fatalf("NewWithCredentialStore(%q) error = %v", StoreSHM, err)
+	}
+	if err := shmStore.Set("my-org", "shm-token"); err != nil {
+		t.Fatalf("Set() shm error = %v", err)
+	}
+
+	dir := filepath.Dir(path)
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatalf("chmod credential dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+
+	MockForTesting()
+	t.Cleanup(ResetForTesting)
+
+	kr := New()
+	if err := kr.Set("my-org", "keyring-token"); err == nil {
+		t.Fatal("Set() error = nil, want SHM cleanup failure")
+	}
+
+	fresh := New()
+	token, err := fresh.Get("my-org")
+	if err != nil {
+		t.Fatalf("Get() after failed cleanup error = %v", err)
+	}
+	if token != "shm-token" {
+		t.Fatalf("Get() after failed cleanup = %q, want stale shm-token", token)
+	}
+}
+
 func TestKeyringWriteIgnoresMalformedSHMCleanup(t *testing.T) {
 	path := shmCredentialPathForTest(t)
 	setEnv(t, CredentialStorePathEnv, path)
