@@ -5,26 +5,31 @@ import (
 	"fmt"
 
 	"github.com/alecthomas/kong"
+	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
+	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	"github.com/buildkite/cli/v3/internal/cli"
-	bkGraphQL "github.com/buildkite/cli/v3/internal/graphql"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
-	"github.com/buildkite/cli/v3/internal/util"
+	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
+	buildkite "github.com/buildkite/go-buildkite/v4"
 )
 
-const jobCommandPrefix = "JobTypeCommand---"
-
 type RetryCmd struct {
-	JobID string `arg:"" help:"Job UUID to retry"`
+	JobID       string `arg:"" help:"Job UUID to retry"`
+	Pipeline    string `help:"The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}" short:"p"`
+	BuildNumber string `help:"The build number" short:"b"`
 }
 
 func (c *RetryCmd) Help() string {
 	return `Use this command to retry build jobs.
 
 Examples:
-  # Retry a job by UUID
-  $ bk job retry 0190046e-e199-453b-a302-a21a4d649d31
+  # Retry a job (requires --pipeline and --build)
+  $ bk job retry 0190046e-e199-453b-a302-a21a4d649d31 -p my-pipeline -b 123
+
+  # If inside a git repository with a configured pipeline
+  $ bk job retry 0190046e-e199-453b-a302-a21a4d649d31 -b 123
 `
 }
 
@@ -42,24 +47,50 @@ func (c *RetryCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
-	// Given a job UUID argument, we need to generate the GraphQL ID matching
-	graphqlID := util.GenerateGraphQLID(jobCommandPrefix, c.JobID)
-
 	ctx := context.Background()
-	var j *bkGraphQL.RetryJobResponse
 
-	if err = bkIO.SpinWhile(f, "Retrying job", func() error {
-		j, err = bkGraphQL.RetryJob(ctx, f.GraphQLClient, graphqlID)
+	pipelineRes := pipelineResolver.NewAggregateResolver(
+		pipelineResolver.ResolveFromFlag(c.Pipeline, f.Config),
+		pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOneWithFactory(f)),
+		pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOneWithFactory(f))),
+	)
+
+	optionsResolver := options.AggregateResolver{
+		options.ResolveBranchFromRepository(f.GitRepository),
+	}
+
+	args := []string{}
+	if c.BuildNumber != "" {
+		args = []string{c.BuildNumber}
+	}
+	buildRes := buildResolver.NewAggregateResolver(
+		buildResolver.ResolveFromPositionalArgument(args, 0, pipelineRes.Resolve, f.Config),
+		buildResolver.ResolveBuildWithOpts(f, pipelineRes.Resolve, optionsResolver...),
+	)
+
+	bld, err := buildRes.Resolve(ctx)
+	if err != nil {
 		return err
+	}
+	if bld == nil {
+		return fmt.Errorf("no build found")
+	}
+
+	var job buildkite.Job
+	if err = bkIO.SpinWhile(f, "Retrying job", func() error {
+		var apiErr error
+		job, _, apiErr = f.RestAPIClient.Jobs.RetryJob(
+			ctx,
+			bld.Organization,
+			bld.Pipeline,
+			fmt.Sprint(bld.BuildNumber),
+			c.JobID,
+		)
+		return apiErr
 	}); err != nil {
 		return err
 	}
 
-	// Fixes segfault when error is returned, e.g. "Jobs from canceled builds cannot be retried"
-	if j == nil || j.JobTypeCommandRetry == nil {
-		return fmt.Errorf("failed to retry job")
-	}
-
-	fmt.Println("Successfully retried job: " + j.JobTypeCommandRetry.JobTypeCommand.Url)
+	fmt.Println("Successfully retried job: " + job.WebURL)
 	return nil
 }
