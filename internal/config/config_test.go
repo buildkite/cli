@@ -462,3 +462,107 @@ func TestHasExperiment(t *testing.T) {
 		})
 	}
 }
+
+func TestCredentialStore(t *testing.T) {
+	t.Run("defaults to auto", func(t *testing.T) {
+		unsetEnv(t, keyring.CredentialStoreEnv)
+
+		fs := afero.NewMemMapFs()
+		conf := New(fs, nil)
+
+		if got := conf.CredentialStore(); got != keyring.StoreAuto {
+			t.Errorf("CredentialStore() = %q, want %q", got, keyring.StoreAuto)
+		}
+	})
+
+	t.Run("env overrides user config", func(t *testing.T) {
+		setEnv(t, keyring.CredentialStoreEnv, keyring.StoreKeyring)
+
+		fs := afero.NewMemMapFs()
+		conf := New(fs, nil)
+		if err := conf.SetCredentialStore(keyring.StoreSHM, false); err != nil {
+			t.Fatalf("SetCredentialStore: %v", err)
+		}
+
+		if got := conf.CredentialStore(); got != keyring.StoreKeyring {
+			t.Errorf("CredentialStore() = %q, want %q (env should override)", got, keyring.StoreKeyring)
+		}
+	})
+
+	t.Run("user config overrides default", func(t *testing.T) {
+		unsetEnv(t, keyring.CredentialStoreEnv)
+
+		fs := afero.NewMemMapFs()
+		conf := New(fs, nil)
+		if err := conf.SetCredentialStore(keyring.StoreSHM, false); err != nil {
+			t.Fatalf("SetCredentialStore: %v", err)
+		}
+
+		if got := conf.CredentialStore(); got != keyring.StoreSHM {
+			t.Errorf("CredentialStore() = %q, want %q", got, keyring.StoreSHM)
+		}
+	})
+
+	t.Run("local config overrides user config", func(t *testing.T) {
+		unsetEnv(t, keyring.CredentialStoreEnv)
+
+		fs := afero.NewMemMapFs()
+		conf := New(fs, nil)
+		if err := conf.SetCredentialStore(keyring.StoreKeyring, false); err != nil {
+			t.Fatalf("SetCredentialStore(user): %v", err)
+		}
+		if err := conf.SetCredentialStore(keyring.StoreSHM, true); err != nil {
+			t.Fatalf("SetCredentialStore(local): %v", err)
+		}
+
+		if got := conf.CredentialStore(); got != keyring.StoreSHM {
+			t.Errorf("CredentialStore() = %q, want %q (local should win over user)", got, keyring.StoreSHM)
+		}
+	})
+
+	t.Run("rejects unknown values", func(t *testing.T) {
+		unsetEnv(t, keyring.CredentialStoreEnv)
+
+		fs := afero.NewMemMapFs()
+		conf := New(fs, nil)
+
+		if err := conf.SetCredentialStore("vault", false); err == nil {
+			t.Error("SetCredentialStore(\"vault\") expected error, got nil")
+		}
+		if got := conf.CredentialStore(); got != keyring.StoreAuto {
+			t.Errorf("CredentialStore() after rejected write = %q, want %q", got, keyring.StoreAuto)
+		}
+	})
+
+	t.Run("empty value clears the preference", func(t *testing.T) {
+		unsetEnv(t, keyring.CredentialStoreEnv)
+
+		fs := afero.NewMemMapFs()
+		conf := New(fs, nil)
+		if err := conf.SetCredentialStore(keyring.StoreSHM, false); err != nil {
+			t.Fatalf("SetCredentialStore: %v", err)
+		}
+		if err := conf.SetCredentialStore("", false); err != nil {
+			t.Fatalf("SetCredentialStore(\"\") error: %v", err)
+		}
+
+		if got := conf.CredentialStore(); got != keyring.StoreAuto {
+			t.Errorf("CredentialStore() after clear = %q, want %q", got, keyring.StoreAuto)
+		}
+	})
+
+	t.Run("setter persists across reload", func(t *testing.T) {
+		unsetEnv(t, keyring.CredentialStoreEnv)
+
+		fs := afero.NewMemMapFs()
+		conf := New(fs, nil)
+		if err := conf.SetCredentialStore(keyring.StoreSHM, false); err != nil {
+			t.Fatalf("SetCredentialStore: %v", err)
+		}
+
+		conf2 := New(fs, nil)
+		if got := conf2.CredentialStore(); got != keyring.StoreSHM {
+			t.Errorf("CredentialStore() after reload = %q, want %q", got, keyring.StoreSHM)
+		}
+	})
+}

@@ -4,11 +4,34 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
+	"github.com/buildkite/cli/v3/internal/config"
+	"github.com/buildkite/cli/v3/pkg/keyring"
 	buildkite "github.com/buildkite/go-buildkite/v4"
+	"github.com/spf13/afero"
 )
+
+// withCredentialStoreEnv sets BUILDKITE_CREDENTIAL_STORE for the test (or
+// unsets it when value is empty) and restores prior state via t.Cleanup.
+func withCredentialStoreEnv(t *testing.T, value string) {
+	t.Helper()
+	original, had := os.LookupEnv(keyring.CredentialStoreEnv)
+	t.Cleanup(func() {
+		if had {
+			_ = os.Setenv(keyring.CredentialStoreEnv, original)
+			return
+		}
+		_ = os.Unsetenv(keyring.CredentialStoreEnv)
+	})
+	if value == "" {
+		_ = os.Unsetenv(keyring.CredentialStoreEnv)
+		return
+	}
+	_ = os.Setenv(keyring.CredentialStoreEnv, value)
+}
 
 func TestRedactHeaders(t *testing.T) {
 	tests := []struct {
@@ -173,6 +196,103 @@ func TestBuildUserAgent(t *testing.T) {
 		}
 		if !strings.Contains(got, "buildkite-cli-preflight/3.x") {
 			t.Fatalf("expected preflight suffix in %q", got)
+		}
+	})
+}
+
+func TestApplyCredentialStoreFromConfig(t *testing.T) {
+	t.Run("exports configured store when env unset", func(t *testing.T) {
+		withCredentialStoreEnv(t, "")
+
+		conf := config.New(afero.NewMemMapFs(), nil)
+		if err := conf.SetCredentialStore(keyring.StoreSHM, false); err != nil {
+			t.Fatalf("SetCredentialStore: %v", err)
+		}
+
+		ApplyCredentialStoreFromConfig(conf)
+
+		if got := os.Getenv(keyring.CredentialStoreEnv); got != keyring.StoreSHM {
+			t.Errorf("env = %q, want %q", got, keyring.StoreSHM)
+		}
+	})
+
+	t.Run("env value is preserved", func(t *testing.T) {
+		withCredentialStoreEnv(t, keyring.StoreKeyring)
+
+		conf := config.New(afero.NewMemMapFs(), nil)
+		if err := conf.SetCredentialStore(keyring.StoreSHM, false); err != nil {
+			t.Fatalf("SetCredentialStore: %v", err)
+		}
+
+		ApplyCredentialStoreFromConfig(conf)
+
+		if got := os.Getenv(keyring.CredentialStoreEnv); got != keyring.StoreKeyring {
+			t.Errorf("env = %q, want %q (env should win)", got, keyring.StoreKeyring)
+		}
+	})
+
+	t.Run("auto in config does not export env", func(t *testing.T) {
+		withCredentialStoreEnv(t, "")
+
+		conf := config.New(afero.NewMemMapFs(), nil)
+		if err := conf.SetCredentialStore(keyring.StoreAuto, false); err != nil {
+			t.Fatalf("SetCredentialStore: %v", err)
+		}
+
+		ApplyCredentialStoreFromConfig(conf)
+
+		if got, set := os.LookupEnv(keyring.CredentialStoreEnv); set {
+			t.Errorf("env should remain unset for auto, got %q", got)
+		}
+	})
+
+	t.Run("missing config does not export env", func(t *testing.T) {
+		withCredentialStoreEnv(t, "")
+
+		conf := config.New(afero.NewMemMapFs(), nil)
+
+		ApplyCredentialStoreFromConfig(conf)
+
+		if got, set := os.LookupEnv(keyring.CredentialStoreEnv); set {
+			t.Errorf("env should remain unset, got %q", got)
+		}
+	})
+
+	t.Run("idempotent across multiple calls", func(t *testing.T) {
+		// main() and factory.New() both invoke the bridge.
+		withCredentialStoreEnv(t, "")
+
+		conf := config.New(afero.NewMemMapFs(), nil)
+		if err := conf.SetCredentialStore(keyring.StoreSHM, false); err != nil {
+			t.Fatalf("SetCredentialStore: %v", err)
+		}
+
+		ApplyCredentialStoreFromConfig(conf)
+		first := os.Getenv(keyring.CredentialStoreEnv)
+		ApplyCredentialStoreFromConfig(conf)
+		second := os.Getenv(keyring.CredentialStoreEnv)
+
+		if first != keyring.StoreSHM || second != keyring.StoreSHM {
+			t.Errorf("expected stable env=%q across calls, got first=%q second=%q",
+				keyring.StoreSHM, first, second)
+		}
+	})
+
+	t.Run("empty env falls through to config", func(t *testing.T) {
+		// keyring.New() treats empty env as auto.
+		withCredentialStoreEnv(t, "")
+		_ = os.Setenv(keyring.CredentialStoreEnv, "")
+		t.Cleanup(func() { _ = os.Unsetenv(keyring.CredentialStoreEnv) })
+
+		conf := config.New(afero.NewMemMapFs(), nil)
+		if err := conf.SetCredentialStore(keyring.StoreSHM, false); err != nil {
+			t.Fatalf("SetCredentialStore: %v", err)
+		}
+
+		ApplyCredentialStoreFromConfig(conf)
+
+		if got := os.Getenv(keyring.CredentialStoreEnv); got != keyring.StoreSHM {
+			t.Errorf("env = %q, want %q", got, keyring.StoreSHM)
 		}
 	})
 }
