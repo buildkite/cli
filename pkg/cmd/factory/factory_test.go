@@ -205,7 +205,7 @@ func TestApplyCredentialStoreFromConfig(t *testing.T) {
 		withCredentialStoreEnv(t, "")
 
 		conf := config.New(afero.NewMemMapFs(), nil)
-		if err := conf.SetCredentialStore(keyring.StoreSHM, false); err != nil {
+		if err := conf.SetCredentialStore(keyring.StoreSHM); err != nil {
 			t.Fatalf("SetCredentialStore: %v", err)
 		}
 
@@ -220,7 +220,7 @@ func TestApplyCredentialStoreFromConfig(t *testing.T) {
 		withCredentialStoreEnv(t, keyring.StoreKeyring)
 
 		conf := config.New(afero.NewMemMapFs(), nil)
-		if err := conf.SetCredentialStore(keyring.StoreSHM, false); err != nil {
+		if err := conf.SetCredentialStore(keyring.StoreSHM); err != nil {
 			t.Fatalf("SetCredentialStore: %v", err)
 		}
 
@@ -235,7 +235,7 @@ func TestApplyCredentialStoreFromConfig(t *testing.T) {
 		withCredentialStoreEnv(t, "")
 
 		conf := config.New(afero.NewMemMapFs(), nil)
-		if err := conf.SetCredentialStore(keyring.StoreAuto, false); err != nil {
+		if err := conf.SetCredentialStore(keyring.StoreAuto); err != nil {
 			t.Fatalf("SetCredentialStore: %v", err)
 		}
 
@@ -263,7 +263,7 @@ func TestApplyCredentialStoreFromConfig(t *testing.T) {
 		withCredentialStoreEnv(t, "")
 
 		conf := config.New(afero.NewMemMapFs(), nil)
-		if err := conf.SetCredentialStore(keyring.StoreSHM, false); err != nil {
+		if err := conf.SetCredentialStore(keyring.StoreSHM); err != nil {
 			t.Fatalf("SetCredentialStore: %v", err)
 		}
 
@@ -285,7 +285,7 @@ func TestApplyCredentialStoreFromConfig(t *testing.T) {
 		t.Cleanup(func() { _ = os.Unsetenv(keyring.CredentialStoreEnv) })
 
 		conf := config.New(afero.NewMemMapFs(), nil)
-		if err := conf.SetCredentialStore(keyring.StoreSHM, false); err != nil {
+		if err := conf.SetCredentialStore(keyring.StoreSHM); err != nil {
 			t.Fatalf("SetCredentialStore: %v", err)
 		}
 

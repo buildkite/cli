@@ -78,6 +78,7 @@ func TestConfigKeyIsUserOnly(t *testing.T) {
 	}{
 		{KeyNoInput, true},
 		{KeyPager, true},
+		{KeyCredentialStore, true},
 		{KeyNoPager, false},
 		{KeyQuiet, false},
 		{KeyOutputFormat, false},

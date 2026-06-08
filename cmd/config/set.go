@@ -24,7 +24,7 @@ Valid keys:
   no_input          Disable interactive prompts (true, false) [user config only]
   pager             Custom pager command [user config only]
   telemetry         Enable anonymous usage telemetry (true, false) [user config only]
-  credential_store  Default credential store for tokens (auto, keyring, shm)
+  credential_store  Default credential store for tokens (auto, keyring, shm) [user config only]
 
 Examples:
   # Set default output format to YAML

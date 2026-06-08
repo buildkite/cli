@@ -81,7 +81,7 @@ func (k ConfigKey) IsLocalOnly() bool {
 // IsUserOnly returns true if the key can only be set in user config
 func (k ConfigKey) IsUserOnly() bool {
 	switch k {
-	case KeyNoInput, KeyPager, KeyTelemetry, KeyExperiments:
+	case KeyNoInput, KeyPager, KeyTelemetry, KeyExperiments, KeyCredentialStore:
 		return true
 	default:
 		return false
@@ -155,7 +155,7 @@ func SetConfigValue(conf *config.Config, key ConfigKey, value string, local bool
 	case KeyExperiments:
 		return conf.SetExperiments(value)
 	case KeyCredentialStore:
-		return conf.SetCredentialStore(value, local)
+		return conf.SetCredentialStore(value)
 	}
 
 	return nil

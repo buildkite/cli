@@ -480,7 +480,7 @@ func TestCredentialStore(t *testing.T) {
 
 		fs := afero.NewMemMapFs()
 		conf := New(fs, nil)
-		if err := conf.SetCredentialStore(keyring.StoreSHM, false); err != nil {
+		if err := conf.SetCredentialStore(keyring.StoreSHM); err != nil {
 			t.Fatalf("SetCredentialStore: %v", err)
 		}
 
@@ -494,7 +494,7 @@ func TestCredentialStore(t *testing.T) {
 
 		fs := afero.NewMemMapFs()
 		conf := New(fs, nil)
-		if err := conf.SetCredentialStore(keyring.StoreSHM, false); err != nil {
+		if err := conf.SetCredentialStore(keyring.StoreSHM); err != nil {
 			t.Fatalf("SetCredentialStore: %v", err)
 		}
 
@@ -503,20 +503,20 @@ func TestCredentialStore(t *testing.T) {
 		}
 	})
 
-	t.Run("local config overrides user config", func(t *testing.T) {
+	t.Run("local config is ignored", func(t *testing.T) {
+		// credential_store is intentionally user-only; a value in local
+		// .bk.yaml must not affect resolution.
 		unsetEnv(t, keyring.CredentialStoreEnv)
 
 		fs := afero.NewMemMapFs()
+		localPath := localConfigFilePath
+		if err := afero.WriteFile(fs, localPath, []byte("credential_store: shm\n"), 0o600); err != nil {
+			t.Fatalf("write local config: %v", err)
+		}
 		conf := New(fs, nil)
-		if err := conf.SetCredentialStore(keyring.StoreKeyring, false); err != nil {
-			t.Fatalf("SetCredentialStore(user): %v", err)
-		}
-		if err := conf.SetCredentialStore(keyring.StoreSHM, true); err != nil {
-			t.Fatalf("SetCredentialStore(local): %v", err)
-		}
 
-		if got := conf.CredentialStore(); got != keyring.StoreSHM {
-			t.Errorf("CredentialStore() = %q, want %q (local should win over user)", got, keyring.StoreSHM)
+		if got := conf.CredentialStore(); got != keyring.StoreAuto {
+			t.Errorf("CredentialStore() = %q, want %q (local should be ignored)", got, keyring.StoreAuto)
 		}
 	})
 
@@ -526,7 +526,7 @@ func TestCredentialStore(t *testing.T) {
 		fs := afero.NewMemMapFs()
 		conf := New(fs, nil)
 
-		if err := conf.SetCredentialStore("vault", false); err == nil {
+		if err := conf.SetCredentialStore("vault"); err == nil {
 			t.Error("SetCredentialStore(\"vault\") expected error, got nil")
 		}
 		if got := conf.CredentialStore(); got != keyring.StoreAuto {
@@ -539,10 +539,10 @@ func TestCredentialStore(t *testing.T) {
 
 		fs := afero.NewMemMapFs()
 		conf := New(fs, nil)
-		if err := conf.SetCredentialStore(keyring.StoreSHM, false); err != nil {
+		if err := conf.SetCredentialStore(keyring.StoreSHM); err != nil {
 			t.Fatalf("SetCredentialStore: %v", err)
 		}
-		if err := conf.SetCredentialStore("", false); err != nil {
+		if err := conf.SetCredentialStore(""); err != nil {
 			t.Fatalf("SetCredentialStore(\"\") error: %v", err)
 		}
 
@@ -556,7 +556,7 @@ func TestCredentialStore(t *testing.T) {
 
 		fs := afero.NewMemMapFs()
 		conf := New(fs, nil)
-		if err := conf.SetCredentialStore(keyring.StoreSHM, false); err != nil {
+		if err := conf.SetCredentialStore(keyring.StoreSHM); err != nil {
 			t.Fatalf("SetCredentialStore: %v", err)
 		}
 

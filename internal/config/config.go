@@ -395,30 +395,27 @@ func (conf *Config) SetExperiments(v string) error {
 }
 
 // CredentialStore returns the configured credential store for token storage.
-// Precedence: env > local > user > "auto".
+// Precedence: env > user > "auto". Credential store choice is a machine-level
+// concern (does this host have a working keyring?), so it is intentionally
+// user-only and not read from local .bk.yaml.
 func (conf *Config) CredentialStore() string {
 	return firstNonEmpty(
 		os.Getenv(keyring.CredentialStoreEnv),
-		conf.local.CredentialStore,
 		conf.user.CredentialStore,
 		keyring.StoreAuto,
 	)
 }
 
-// SetCredentialStore writes the credential store preference. An empty value
-// clears it. Invalid stores are rejected before any write.
-func (conf *Config) SetCredentialStore(v string, saveLocal bool) error {
+// SetCredentialStore writes the credential store preference to user config.
+// An empty value clears it. Invalid stores are rejected before any write.
+func (conf *Config) SetCredentialStore(v string) error {
 	if v != "" {
 		if err := keyring.ValidateCredentialStore(v); err != nil {
 			return err
 		}
 	}
-	if !saveLocal {
-		conf.user.CredentialStore = v
-		return conf.writeUser()
-	}
-	conf.local.CredentialStore = v
-	return conf.writeLocal()
+	conf.user.CredentialStore = v
+	return conf.writeUser()
 }
 
 func lookupBoolEnv(key string) (bool, bool) {
