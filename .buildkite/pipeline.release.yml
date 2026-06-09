@@ -42,7 +42,6 @@ steps:
       AWS_REGION: us-east-1
       MISE_ENV: release
     secrets:
-      - MISE_GITHUB_TOKEN
       - POSTHOG_API_KEY
       - OAUTH_CLIENT_ID
     plugins:
