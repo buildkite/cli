@@ -18,6 +18,7 @@ func TestValidateKey(t *testing.T) {
 			"no_input",
 			"pager",
 			"experiments",
+			"credential_store",
 		}
 
 		for _, key := range validKeys {
@@ -77,6 +78,7 @@ func TestConfigKeyIsUserOnly(t *testing.T) {
 	}{
 		{KeyNoInput, true},
 		{KeyPager, true},
+		{KeyCredentialStore, true},
 		{KeyNoPager, false},
 		{KeyQuiet, false},
 		{KeyOutputFormat, false},
@@ -129,6 +131,24 @@ func TestConfigKeyValidValues(t *testing.T) {
 
 		if values := KeyPager.ValidValues(); values != nil {
 			t.Errorf("KeyPager.ValidValues() = %v, want nil", values)
+		}
+	})
+
+	t.Run("credential_store has valid values", func(t *testing.T) {
+		t.Parallel()
+
+		values := KeyCredentialStore.ValidValues()
+		if values == nil {
+			t.Fatal("expected valid values for credential_store")
+		}
+		expected := []string{"auto", "keyring", "shm"}
+		if len(values) != len(expected) {
+			t.Fatalf("got %d values, want %d", len(values), len(expected))
+		}
+		for i, want := range expected {
+			if values[i] != want {
+				t.Errorf("values[%d] = %q, want %q", i, values[i], want)
+			}
 		}
 	})
 }

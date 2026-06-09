@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/pkg/keyring"
 )
 
 type ListCmd struct {
@@ -62,6 +63,9 @@ func (c *ListCmd) Run() error {
 		}
 		if v := conf.Experiments(); v != "" {
 			items = append(items, configItem{string(KeyExperiments), v, "effective"})
+		}
+		if v := conf.CredentialStore(); v != "" && v != keyring.StoreAuto {
+			items = append(items, configItem{string(KeyCredentialStore), v, "effective"})
 		}
 	}
 

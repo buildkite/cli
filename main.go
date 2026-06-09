@@ -36,6 +36,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/config"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	"github.com/buildkite/cli/v3/pkg/analytics"
+	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
 
 // Kong CLI structure, with base commands defined as additional commands are defined in their respective files
@@ -301,6 +302,10 @@ func run() int {
 	cliInstance := &CLI{}
 
 	conf := config.New(nil, nil)
+
+	// Must run before kong dispatches: bk auth login builds its keyring
+	// before factory.New() does.
+	factory.ApplyCredentialStoreFromConfig(conf)
 
 	tracker := analytics.Init("dev", conf.TelemetryEnabled())
 	defer tracker.Close()

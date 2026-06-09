@@ -17,17 +17,19 @@ Returns the effective value after applying precedence rules:
   Environment variable > Local config (.bk.yaml) > User config (~/.config/bk.yaml) > Default
 
 Valid keys:
-  selected_org   Organization slug to use
-  output_format  Default output format (json, yaml, text)
-  no_pager       Disable pager for text output (true, false)
-  quiet          Suppress progress output (true, false)
-  no_input       Disable interactive prompts (true, false)
-  pager          Custom pager command
-  experiments    Enabled experiment flags
+  selected_org      Organization slug to use
+  output_format     Default output format (json, yaml, text)
+  no_pager          Disable pager for text output (true, false)
+  quiet             Suppress progress output (true, false)
+  no_input          Disable interactive prompts (true, false)
+  pager             Custom pager command
+  experiments       Enabled experiment flags
+  credential_store  Default credential store for tokens (auto, keyring, shm)
 
 Examples:
   $ bk config get output_format
-  $ bk config get pager`
+  $ bk config get pager
+  $ bk config get credential_store`
 }
 
 func (c *GetCmd) Run() error {
@@ -71,6 +73,8 @@ func (c *GetCmd) Run() error {
 		value = conf.Pager()
 	case KeyExperiments:
 		value = conf.Experiments()
+	case KeyCredentialStore:
+		value = conf.CredentialStore()
 	}
 
 	if value != "" {

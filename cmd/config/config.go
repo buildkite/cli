@@ -38,14 +38,15 @@ Examples:
 type ConfigKey string
 
 const (
-	KeySelectedOrg  ConfigKey = "selected_org"
-	KeyOutputFormat ConfigKey = "output_format"
-	KeyNoPager      ConfigKey = "no_pager"
-	KeyQuiet        ConfigKey = "quiet"
-	KeyNoInput      ConfigKey = "no_input"
-	KeyPager        ConfigKey = "pager"
-	KeyTelemetry    ConfigKey = "telemetry"
-	KeyExperiments  ConfigKey = "experiments"
+	KeySelectedOrg     ConfigKey = "selected_org"
+	KeyOutputFormat    ConfigKey = "output_format"
+	KeyNoPager         ConfigKey = "no_pager"
+	KeyQuiet           ConfigKey = "quiet"
+	KeyNoInput         ConfigKey = "no_input"
+	KeyPager           ConfigKey = "pager"
+	KeyTelemetry       ConfigKey = "telemetry"
+	KeyExperiments     ConfigKey = "experiments"
+	KeyCredentialStore ConfigKey = "credential_store"
 )
 
 // AllKeys returns all valid configuration keys
@@ -59,6 +60,7 @@ func AllKeys() []ConfigKey {
 		KeyPager,
 		KeyTelemetry,
 		KeyExperiments,
+		KeyCredentialStore,
 	}
 }
 
@@ -79,7 +81,7 @@ func (k ConfigKey) IsLocalOnly() bool {
 // IsUserOnly returns true if the key can only be set in user config
 func (k ConfigKey) IsUserOnly() bool {
 	switch k {
-	case KeyNoInput, KeyPager, KeyTelemetry, KeyExperiments:
+	case KeyNoInput, KeyPager, KeyTelemetry, KeyExperiments, KeyCredentialStore:
 		return true
 	default:
 		return false
@@ -103,6 +105,8 @@ func (k ConfigKey) ValidValues() []string {
 		return []string{"json", "yaml", "text"}
 	case KeyNoPager, KeyQuiet, KeyNoInput, KeyTelemetry:
 		return []string{"true", "false"}
+	case KeyCredentialStore:
+		return []string{"auto", "keyring", "shm"}
 	default:
 		return nil
 	}
@@ -150,6 +154,8 @@ func SetConfigValue(conf *config.Config, key ConfigKey, value string, local bool
 		return conf.SetTelemetry(v)
 	case KeyExperiments:
 		return conf.SetExperiments(value)
+	case KeyCredentialStore:
+		return conf.SetCredentialStore(value)
 	}
 
 	return nil

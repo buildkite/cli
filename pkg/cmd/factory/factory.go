@@ -174,6 +174,24 @@ func buildUserAgent(suffix string) string {
 	return fmt.Sprintf("%s %s", baseUserAgent, suffix)
 }
 
+// ApplyCredentialStoreFromConfig propagates the configured credential store
+// into BUILDKITE_CREDENTIAL_STORE so subsequent keyring.New() calls pick it
+// up. A non-empty env wins; the helper is idempotent and safe to call from
+// both main() and factory.New().
+func ApplyCredentialStoreFromConfig(conf *config.Config) {
+	if os.Getenv(keyring.CredentialStoreEnv) != "" {
+		return
+	}
+	store := conf.CredentialStore()
+	if store == "" || store == keyring.StoreAuto {
+		return
+	}
+	if err := keyring.ValidateCredentialStore(store); err != nil {
+		return
+	}
+	_ = os.Setenv(keyring.CredentialStoreEnv, store)
+}
+
 func (a *gqlHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	// Auth and User-Agent are injected by AuthTransport in the
 	// shared HTTP transport chain, so we don't set them here.
@@ -194,6 +212,8 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 	}
 
 	conf := config.New(nil, repo)
+
+	ApplyCredentialStoreFromConfig(conf)
 
 	token := conf.APIToken()
 	if cfg.orgOverride != "" {

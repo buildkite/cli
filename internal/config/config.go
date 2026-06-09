@@ -50,16 +50,17 @@ type orgConfig struct {
 }
 
 type fileConfig struct {
-	SelectedOrg   string               `yaml:"selected_org"`
-	Organizations map[string]orgConfig `yaml:"organizations,omitempty"`
-	Pipelines     []string             `yaml:"pipelines,omitempty"`
-	NoPager       bool                 `yaml:"no_pager,omitempty"`
-	OutputFormat  string               `yaml:"output_format,omitempty"`
-	Quiet         bool                 `yaml:"quiet,omitempty"`
-	NoInput       bool                 `yaml:"no_input,omitempty"`
-	Pager         string               `yaml:"pager,omitempty"`
-	Telemetry     *bool                `yaml:"telemetry,omitempty"`
-	Experiments   string               `yaml:"experiments,omitempty"`
+	SelectedOrg     string               `yaml:"selected_org"`
+	Organizations   map[string]orgConfig `yaml:"organizations,omitempty"`
+	Pipelines       []string             `yaml:"pipelines,omitempty"`
+	NoPager         bool                 `yaml:"no_pager,omitempty"`
+	OutputFormat    string               `yaml:"output_format,omitempty"`
+	Quiet           bool                 `yaml:"quiet,omitempty"`
+	NoInput         bool                 `yaml:"no_input,omitempty"`
+	Pager           string               `yaml:"pager,omitempty"`
+	Telemetry       *bool                `yaml:"telemetry,omitempty"`
+	Experiments     string               `yaml:"experiments,omitempty"`
+	CredentialStore string               `yaml:"credential_store,omitempty"`
 }
 
 // Config contains the configuration for the currently selected organization
@@ -390,6 +391,30 @@ func (conf *Config) HasExperiment(name string) bool {
 // SetExperiments sets the experiments string (user config only)
 func (conf *Config) SetExperiments(v string) error {
 	conf.user.Experiments = v
+	return conf.writeUser()
+}
+
+// CredentialStore returns the configured credential store for token storage.
+// Precedence: env > user > "auto". Credential store choice is a machine-level
+// concern (does this host have a working keyring?), so it is intentionally
+// user-only and not read from local .bk.yaml.
+func (conf *Config) CredentialStore() string {
+	return firstNonEmpty(
+		os.Getenv(keyring.CredentialStoreEnv),
+		conf.user.CredentialStore,
+		keyring.StoreAuto,
+	)
+}
+
+// SetCredentialStore writes the credential store preference to user config.
+// An empty value clears it. Invalid stores are rejected before any write.
+func (conf *Config) SetCredentialStore(v string) error {
+	if v != "" {
+		if err := keyring.ValidateCredentialStore(v); err != nil {
+			return err
+		}
+	}
+	conf.user.CredentialStore = v
 	return conf.writeUser()
 }
 

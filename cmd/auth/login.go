@@ -65,6 +65,10 @@ Examples:
   # Login on a headless Linux host using an in-memory /dev/shm credential store
   $ bk auth login --device --credential-store shm
 
+  # Or set the default once so 'bk auth login' uses /dev/shm without flags:
+  $ bk config set credential_store shm
+  $ bk auth login --device
+
   # Login with read-only access
   $ bk auth login --scopes read_only
 

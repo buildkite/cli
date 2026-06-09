@@ -17,13 +17,14 @@ func (c *SetCmd) Help() string {
 	return `Set a configuration value.
 
 Valid keys:
-  selected_org   Organization slug to use
-  output_format  Default output format (json, yaml, text)
-  no_pager       Disable pager for text output (true, false)
-  quiet          Suppress progress output (true, false)
-  no_input       Disable interactive prompts (true, false) [user config only]
-  pager          Custom pager command [user config only]
-  telemetry      Enable anonymous usage telemetry (true, false) [user config only]
+  selected_org      Organization slug to use
+  output_format     Default output format (json, yaml, text)
+  no_pager          Disable pager for text output (true, false)
+  quiet             Suppress progress output (true, false)
+  no_input          Disable interactive prompts (true, false) [user config only]
+  pager             Custom pager command [user config only]
+  telemetry         Enable anonymous usage telemetry (true, false) [user config only]
+  credential_store  Default credential store for tokens (auto, keyring, shm) [user config only]
 
 Examples:
   # Set default output format to YAML
@@ -36,7 +37,10 @@ Examples:
   $ bk config set output_format text --local
 
   # Set a custom pager
-  $ bk config set pager "less -RS"`
+  $ bk config set pager "less -RS"
+
+  # Pin token storage to /dev/shm (recommended for headless Linux dev hosts)
+  $ bk config set credential_store shm`
 }
 
 func (c *SetCmd) Run() error {
