@@ -71,6 +71,7 @@ func (t *AuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 type credentialStore interface {
 	Set(org, token string) error
+	Get(org string) (string, error)
 	GetRefreshToken(org string) (string, error)
 	SetRefreshToken(org, token string) error
 	DeleteRefreshToken(org string) error
@@ -186,7 +187,13 @@ func (t *RefreshTransport) doRefresh(ctx context.Context, failedToken string) (s
 		// (invalid/expired/revoked). Transient failures (network, 5xx)
 		// should not destroy the user's session.
 		if isTerminalRefreshError(err) {
-			_ = t.Keyring.DeleteRefreshToken(t.Org)
+			token, recovered, rotated := t.recoverRotatedCredentials(refreshToken, failedToken)
+			if recovered {
+				return token, nil
+			}
+			if !rotated {
+				_ = t.Keyring.DeleteRefreshToken(t.Org)
+			}
 		}
 		return "", err
 	}
@@ -206,6 +213,20 @@ func (t *RefreshTransport) doRefresh(ctx context.Context, failedToken string) (s
 	t.TokenSource.SetToken(tokenResp.AccessToken)
 
 	return tokenResp.AccessToken, nil
+}
+
+func (t *RefreshTransport) recoverRotatedCredentials(failedRefreshToken, failedToken string) (string, bool, bool) {
+	currentRefreshToken, err := t.Keyring.GetRefreshToken(t.Org)
+	if err != nil || currentRefreshToken == "" || currentRefreshToken == failedRefreshToken {
+		return "", false, false
+	}
+
+	accessToken, err := t.Keyring.Get(t.Org)
+	if err != nil || accessToken == "" || accessToken == failedToken {
+		return "", false, true
+	}
+	t.TokenSource.SetToken(accessToken)
+	return accessToken, true, true
 }
 
 // isTerminalRefreshError returns true for OAuth errors that indicate the
