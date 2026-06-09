@@ -15,7 +15,6 @@ steps:
     env:
       MISE_ENV: release
     secrets:
-      - MISE_GITHUB_TOKEN
       - POSTHOG_API_KEY
       - OAUTH_CLIENT_ID
     command: 'GOOS="{{matrix}}" .buildkite/release.sh release --clean --split'
