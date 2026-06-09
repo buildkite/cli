@@ -39,8 +39,6 @@ steps:
   - label: ":terminal: build ({{matrix}})"
     key: build
     depends_on: ["lint", "test", "vulncheck"]
-    branches:
-      - main
     matrix:
           - "darwin"
           - "linux"
