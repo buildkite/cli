@@ -52,6 +52,20 @@ func reprioritizeJob(ctx context.Context, client *buildkite.Client, organization
 	return job, nil
 }
 
+func retryJob(ctx context.Context, client *buildkite.Client, organization, jobID string) (buildkite.Job, error) {
+	req, err := client.NewRequest(ctx, "PUT", organizationJobPath(organization, jobID, "retry"), nil)
+	if err != nil {
+		return buildkite.Job{}, err
+	}
+
+	var job buildkite.Job
+	if _, err := client.Do(req, &job); err != nil {
+		return buildkite.Job{}, err
+	}
+
+	return job, nil
+}
+
 func unblockJob(ctx context.Context, client *buildkite.Client, organization, jobID string, fields map[string]any) (buildkite.Job, error) {
 	req, err := client.NewRequest(ctx, "PUT", organizationJobPath(organization, jobID, "unblock"), &unblockJobOptions{
 		Fields: fields,

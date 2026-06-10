@@ -6,14 +6,11 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
-	bkGraphQL "github.com/buildkite/cli/v3/internal/graphql"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
-	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
+	buildkite "github.com/buildkite/go-buildkite/v4"
 )
-
-const jobCommandPrefix = "JobTypeCommand---"
 
 type RetryCmd struct {
 	JobID string `arg:"" help:"Job UUID to retry"`
@@ -38,28 +35,30 @@ func (c *RetryCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
 
+	organization, err := configuredOrganization(f.Config.OrganizationSlug())
+	if err != nil {
+		return err
+	}
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
 		return err
 	}
 
-	// Given a job UUID argument, we need to generate the GraphQL ID matching
-	graphqlID := util.GenerateGraphQLID(jobCommandPrefix, c.JobID)
-
 	ctx := context.Background()
-	var j *bkGraphQL.RetryJobResponse
 
+	var job buildkite.Job
 	if err = bkIO.SpinWhile(f, "Retrying job", func() error {
-		j, err = bkGraphQL.RetryJob(ctx, f.GraphQLClient, graphqlID)
-		return err
+		var apiErr error
+		job, apiErr = retryJob(
+			ctx,
+			f.RestAPIClient,
+			organization,
+			c.JobID,
+		)
+		return apiErr
 	}); err != nil {
 		return err
 	}
 
-	// Fixes segfault when error is returned, e.g. "Jobs from canceled builds cannot be retried"
-	if j == nil || j.JobTypeCommandRetry == nil {
-		return fmt.Errorf("failed to retry job")
-	}
-
-	fmt.Println("Successfully retried job: " + j.JobTypeCommandRetry.JobTypeCommand.Url)
+	fmt.Println("Successfully retried job: " + job.WebURL)
 	return nil
 }
