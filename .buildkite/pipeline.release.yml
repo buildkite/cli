@@ -39,4 +39,4 @@ steps:
     plugins:
       - artifacts#v1.9.4:
           download:
-            - dist/linux/*
+            - dist/*

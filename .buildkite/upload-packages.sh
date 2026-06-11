@@ -37,7 +37,7 @@ if [[ $? -ne 0 ]]; then
     exit 1
 fi
 
-for FILE in dist/linux/*.${PACKAGE}; do
+for FILE in dist/*.${PACKAGE}; do
     echo "--- Pushing $FILE"
     if [[ $PACKAGE = "apk" ]]; then
         curl -s -X POST $(upload_url $ORGANIZATION $REGISTRY) \
