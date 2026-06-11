@@ -7,13 +7,6 @@
 # NOTE: do not exit on non-zero returns codes
 set -uo pipefail
 
-export GORELEASER_KEY=$(buildkite-agent secret get goreleaser_key)
-
-if [[ $? -ne 0 ]]; then
-    echo "Failed to retrieve GoReleaser Pro key"
-    exit 1
-fi
-
 # check if DOCKERHUB_USER and DOCKERHUB_PASSWORD are set if not skip docker login
 if [[ -z "${DOCKERHUB_USER:-}" || -z "${DOCKERHUB_PASSWORD:-}" ]]; then
     echo "Skipping Docker login as DOCKERHUB_USER or DOCKERHUB_PASSWORD is not set"
