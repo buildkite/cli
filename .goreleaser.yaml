@@ -74,7 +74,6 @@ kos:
       org.opencontainers.image.version: "{{.Version}}"
     bare: true
     preserve_import_paths: false
-    disable: '{{ and (isEnvSet "GOOS") (ne .Env.GOOS "linux") }}'
     platforms:
       - linux/amd64
       - linux/arm64
