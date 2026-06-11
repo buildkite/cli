@@ -80,34 +80,37 @@ kos:
 
 archives:
   - id: macos-archive
-    builds: [macos]
+    ids: [macos]
     name_template: "bk_{{ .Version }}_macOS_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
     wrap_in_directory: true
-    format: zip
+    format_overrides:
+      - formats: ["zip"]
     files:
       - LICENSE.md
       - README.md
 
   - id: linux-archive
-    builds: [linux]
+    ids: [linux]
     name_template: "bk_{{ .Version }}_linux_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
     wrap_in_directory: true
-    format: tar.gz
+    format_overrides:
+      - formats: ["tar.gz"]
     files:
       - LICENSE.md
       - README.md
 
   - id: windows-archive
-    builds: [windows]
+    ids: [windows]
     name_template: "bk_{{ .Version }}_windows_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
     wrap_in_directory: false
-    format: zip
+    format_overrides:
+      - formats: ["zip"]
     files:
       - LICENSE.md
       - README.md
 
 nfpms:
-  - builds:
+  - ids:
       - linux
     vendor: Buildkite
     homepage: https://buildkite.com
