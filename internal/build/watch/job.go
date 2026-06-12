@@ -3,7 +3,7 @@ package watch
 import (
 	"time"
 
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 // FormattedJob wraps a Buildkite job with watch-specific formatting and classification helpers.

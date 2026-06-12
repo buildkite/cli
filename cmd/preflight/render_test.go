@@ -10,7 +10,7 @@ import (
 
 	"github.com/buildkite/cli/v3/internal/build/watch"
 	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 var ansiCodesPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)

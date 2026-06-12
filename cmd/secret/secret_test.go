@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 func TestListSecrets(t *testing.T) {
@@ -224,20 +224,20 @@ func TestUpdateSecret(t *testing.T) {
 				t.Errorf("expected PUT, got %s", r.Method)
 			}
 
-			var input buildkite.ClusterSecretUpdate
+			var input map[string]string
 			if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 				t.Fatal(err)
 			}
 
-			if input.Description != "Updated description" {
-				t.Errorf("expected description 'Updated description', got %q", input.Description)
+			if input["description"] != "Updated description" {
+				t.Errorf("expected description 'Updated description', got %q", input["description"])
 			}
 
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(buildkite.ClusterSecret{
 				ID:          "secret-1",
 				Key:         "MY_SECRET",
-				Description: input.Description,
+				Description: input["description"],
 			})
 		}))
 		defer s.Close()
@@ -248,7 +248,7 @@ func TestUpdateSecret(t *testing.T) {
 		}
 
 		result, _, err := client.ClusterSecrets.Update(context.Background(), "test-org", "cluster-123", "secret-1", buildkite.ClusterSecretUpdate{
-			Description: "Updated description",
+			Description: buildkite.Some("Updated description"),
 		})
 		if err != nil {
 			t.Fatal(err)

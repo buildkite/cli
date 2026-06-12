@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/buildkite/cli/v3/pkg/output"
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 func TestDisplayJobs_EmptyJSON(t *testing.T) {

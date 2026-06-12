@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 func TestBuildSummaryView_ReturnsOutput(t *testing.T) {

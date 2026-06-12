@@ -6,7 +6,7 @@ import (
 
 	"github.com/buildkite/cli/v3/internal/build/watch"
 	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 // EventType identifies the kind of preflight event.

@@ -20,7 +20,7 @@ import (
 
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/pkg/keyring"
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 	git "github.com/go-git/go-git/v5"
 	"github.com/goccy/go-yaml"
 	"github.com/spf13/afero"

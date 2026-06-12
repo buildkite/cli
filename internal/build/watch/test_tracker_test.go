@@ -3,7 +3,7 @@ package watch
 import (
 	"testing"
 
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 func TestTestTracker_Update(t *testing.T) {

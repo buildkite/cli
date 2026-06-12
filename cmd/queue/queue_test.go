@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 func newTestQueue(key, id string, paused bool) buildkite.ClusterQueue {
@@ -252,7 +252,7 @@ func TestCmdQueueUpdate(t *testing.T) {
 
 		ctx := context.Background()
 		got, _, err := client.ClusterQueues.Update(ctx, "test-org", "cluster-1", "queue-abc", buildkite.ClusterQueueUpdate{
-			Description: "Updated description",
+			Description: buildkite.Some("Updated description"),
 		})
 		if err != nil {
 			t.Fatal(err)

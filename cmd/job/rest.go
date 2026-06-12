@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/url"
 
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 type unblockJobOptions struct {

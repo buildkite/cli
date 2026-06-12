@@ -2,7 +2,7 @@ package artifact
 
 import (
 	"github.com/buildkite/cli/v3/pkg/output"
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 // ArtifactSummary renders a summary of a build artifact

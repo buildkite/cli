@@ -1,7 +1,7 @@
 package watch
 
 import (
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 // TestTracker tracks which test executions have already been reported,

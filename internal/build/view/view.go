@@ -9,7 +9,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/emoji"
 	"github.com/buildkite/cli/v3/internal/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 // ViewOptions represents options for viewing a build

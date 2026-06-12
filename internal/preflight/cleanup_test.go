@@ -3,7 +3,7 @@ package preflight
 import (
 	"testing"
 
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 	"github.com/google/uuid"
 )
 

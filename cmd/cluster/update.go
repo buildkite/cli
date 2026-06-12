@@ -13,7 +13,7 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 type UpdateCmd struct {
@@ -74,12 +74,21 @@ func (c *UpdateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	input := buildkite.ClusterUpdate{
-		Name:           c.Name,
-		Description:    c.Description,
-		Emoji:          c.Emoji,
-		Color:          c.Color,
-		DefaultQueueID: c.DefaultQueueID,
+	input := buildkite.ClusterUpdate{}
+	if c.Name != "" {
+		input.Name = buildkite.Some(c.Name)
+	}
+	if c.Description != "" {
+		input.Description = buildkite.Some(c.Description)
+	}
+	if c.Emoji != "" {
+		input.Emoji = buildkite.Some(c.Emoji)
+	}
+	if c.Color != "" {
+		input.Color = buildkite.Some(c.Color)
+	}
+	if c.DefaultQueueID != "" {
+		input.DefaultQueueID = buildkite.Some(c.DefaultQueueID)
 	}
 
 	var cluster buildkite.Cluster

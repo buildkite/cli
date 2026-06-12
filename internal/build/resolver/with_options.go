@@ -8,7 +8,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 func ResolveBuildWithOpts(f *factory.Factory, pipelineResolver pipelineResolver.PipelineResolverFn, listOpts ...options.OptionsFn) BuildResolverFn {
