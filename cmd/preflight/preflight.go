@@ -26,7 +26,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 type RunCmd struct {

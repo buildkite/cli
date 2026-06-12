@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 func TestListClusters(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	buildstate "github.com/buildkite/cli/v3/internal/build/state"
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 const (

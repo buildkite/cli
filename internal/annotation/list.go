@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/buildkite/cli/v3/pkg/output"
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 // AnnotationSummary renders a summary of a build annotation

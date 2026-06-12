@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 func TestParseUnblockFields(t *testing.T) {

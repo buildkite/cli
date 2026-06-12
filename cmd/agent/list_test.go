@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/buildkite/cli/v3/pkg/output"
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 func testFilterAgents(agents []buildkite.Agent, state string, tags []string) []buildkite.Agent {

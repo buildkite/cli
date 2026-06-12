@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 // trackedJob holds a job and its lifecycle state across polls.
