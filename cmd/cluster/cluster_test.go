@@ -214,24 +214,24 @@ func TestUpdateCluster(t *testing.T) {
 				t.Errorf("unexpected path: %s", r.URL.Path)
 			}
 
-			var input buildkite.ClusterUpdate
+			var input map[string]string
 			if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 				t.Fatal(err)
 			}
 
-			if input.Name != "Updated Name" {
-				t.Errorf("expected name 'Updated Name', got %q", input.Name)
+			if input["name"] != "Updated Name" {
+				t.Errorf("expected name 'Updated Name', got %q", input["name"])
 			}
 
-			if input.Description != "Updated description" {
-				t.Errorf("expected description 'Updated description', got %q", input.Description)
+			if input["description"] != "Updated description" {
+				t.Errorf("expected description 'Updated description', got %q", input["description"])
 			}
 
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(buildkite.Cluster{
 				ID:          "cluster-1",
-				Name:        input.Name,
-				Description: input.Description,
+				Name:        input["name"],
+				Description: input["description"],
 			})
 		}))
 		defer s.Close()
@@ -242,8 +242,8 @@ func TestUpdateCluster(t *testing.T) {
 		}
 
 		result, _, err := client.Clusters.Update(context.Background(), "test-org", "cluster-1", buildkite.ClusterUpdate{
-			Name:        "Updated Name",
-			Description: "Updated description",
+			Name:        buildkite.Some("Updated Name"),
+			Description: buildkite.Some("Updated description"),
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -266,20 +266,20 @@ func TestUpdateCluster(t *testing.T) {
 				t.Errorf("expected PATCH, got %s", r.Method)
 			}
 
-			var input buildkite.ClusterUpdate
+			var input map[string]string
 			if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 				t.Fatal(err)
 			}
 
-			if input.DefaultQueueID != "queue-123" {
-				t.Errorf("expected default_queue_id 'queue-123', got %q", input.DefaultQueueID)
+			if input["default_queue_id"] != "queue-123" {
+				t.Errorf("expected default_queue_id 'queue-123', got %q", input["default_queue_id"])
 			}
 
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(buildkite.Cluster{
 				ID:             "cluster-1",
 				Name:           "Production",
-				DefaultQueueID: input.DefaultQueueID,
+				DefaultQueueID: input["default_queue_id"],
 			})
 		}))
 		defer s.Close()
@@ -290,7 +290,7 @@ func TestUpdateCluster(t *testing.T) {
 		}
 
 		result, _, err := client.Clusters.Update(context.Background(), "test-org", "cluster-1", buildkite.ClusterUpdate{
-			DefaultQueueID: "queue-123",
+			DefaultQueueID: buildkite.Some("queue-123"),
 		})
 		if err != nil {
 			t.Fatal(err)

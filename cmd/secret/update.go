@@ -96,12 +96,17 @@ func (c *UpdateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	var secret buildkite.ClusterSecret
 	if c.Description != "" || c.Policy != "" {
+		input := buildkite.ClusterSecretUpdate{}
+		if c.Description != "" {
+			input.Description = buildkite.Some(c.Description)
+		}
+		if c.Policy != "" {
+			input.Policy = buildkite.Some(c.Policy)
+		}
+
 		if err = bkIO.SpinWhile(f, "Updating secret", func() error {
 			var apiErr error
-			secret, _, apiErr = f.RestAPIClient.ClusterSecrets.Update(ctx, org, c.ClusterUUID, c.SecretID, buildkite.ClusterSecretUpdate{
-				Description: c.Description,
-				Policy:      c.Policy,
-			})
+			secret, _, apiErr = f.RestAPIClient.ClusterSecrets.Update(ctx, org, c.ClusterUUID, c.SecretID, input)
 			return apiErr
 		}); err != nil {
 			return fmt.Errorf("error updating secret: %v", err)

@@ -81,11 +81,12 @@ func (c *UpdateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	input := buildkite.ClusterQueueUpdate{
-		Description: c.Description,
+	input := buildkite.ClusterQueueUpdate{}
+	if c.Description != "" {
+		input.Description = buildkite.Some(c.Description)
 	}
 	if c.RetryAgentAffinity != "" {
-		input.RetryAgentAffinity = buildkite.RetryAgentAffinity(c.RetryAgentAffinity)
+		input.RetryAgentAffinity = buildkite.Some(buildkite.RetryAgentAffinity(c.RetryAgentAffinity))
 	}
 
 	var queue buildkite.ClusterQueue

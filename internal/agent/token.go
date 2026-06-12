@@ -33,7 +33,7 @@ func FindCluster(ctx context.Context, f *factory.Factory, org, clusterID string)
 
 // CreateAgentToken creates an agent token on the given cluster and returns the token string.
 func CreateAgentToken(ctx context.Context, f *factory.Factory, org, clusterID, description string) (string, error) {
-	token, _, err := f.RestAPIClient.ClusterTokens.Create(ctx, org, clusterID, buildkite.ClusterTokenCreateUpdate{
+	token, _, err := f.RestAPIClient.ClusterTokens.Create(ctx, org, clusterID, buildkite.ClusterTokenCreate{
 		Description: description,
 	})
 	if err != nil {
