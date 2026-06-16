@@ -733,3 +733,54 @@ func TestJob_Duration(t *testing.T) {
 		}
 	})
 }
+
+func TestJobTracker_PromisedFailure(t *testing.T) {
+	intPtr := func(i int) *int { return &i }
+
+	t.Run("running job with promised exit status reported once", func(t *testing.T) {
+		tracker := NewJobTracker()
+		status := tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "1", Type: "script", State: "running", PromisedExitStatus: intPtr(1)},
+			},
+		})
+		if len(status.NewlyPromisedFailure) != 1 || status.NewlyPromisedFailure[0].ID != "1" {
+			t.Fatalf("expected job 1 promised, got %#v", status.NewlyPromisedFailure)
+		}
+
+		// Same promise on the next poll must not re-report.
+		status = tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "1", Type: "script", State: "running", PromisedExitStatus: intPtr(1)},
+			},
+		})
+		if len(status.NewlyPromisedFailure) != 0 {
+			t.Errorf("expected no re-report, got %d", len(status.NewlyPromisedFailure))
+		}
+	})
+
+	t.Run("nil or zero promised exit status is not a promised failure", func(t *testing.T) {
+		tracker := NewJobTracker()
+		status := tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "1", Type: "script", State: "running"},
+				{ID: "2", Type: "script", State: "running", PromisedExitStatus: intPtr(0)},
+			},
+		})
+		if len(status.NewlyPromisedFailure) != 0 {
+			t.Errorf("expected 0 promised, got %d", len(status.NewlyPromisedFailure))
+		}
+	})
+
+	t.Run("non-running job with promised exit status is not surfaced", func(t *testing.T) {
+		tracker := NewJobTracker()
+		status := tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "1", Type: "script", State: "failed", PromisedExitStatus: intPtr(1)},
+			},
+		})
+		if len(status.NewlyPromisedFailure) != 0 {
+			t.Errorf("expected 0 promised for finished job, got %d", len(status.NewlyPromisedFailure))
+		}
+	})
+}

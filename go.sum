@@ -31,10 +31,8 @@ github.com/bmatcuk/doublestar/v4 v4.6.1 h1:FH9SifrbvJhnlQpztAx++wlkk70QBf0iBWDwN
 github.com/bmatcuk/doublestar/v4 v4.6.1/go.mod h1:xBQ8jztBU6kakFMg+8WGxn0c6z1fTSPVIjEY1Wr7jzc=
 github.com/bradleyjkemp/cupaloy/v2 v2.6.0 h1:knToPYa2xtfg42U3I6punFEjaGFKWQRXJwj0JTv4mTs=
 github.com/bradleyjkemp/cupaloy/v2 v2.6.0/go.mod h1:bm7JXdkRd4BHJk9HpwqAI8BoAY1lps46Enkdqw6aRX0=
-github.com/buildkite/go-buildkite/v5 v4.23.0 h1:GlLgPzGz/+B/4Fc5CphIxynoQn00SdSu6QQp4PlAI3M=
-github.com/buildkite/go-buildkite/v5 v4.23.0/go.mod h1:t/M4DUcs7qyebtzm3nkyZ1zUB/svWnKtR+uRU2Ca8tQ=
-github.com/buildkite/go-buildkite/v5 v5.0.1 h1:JCN5NTtcyRbg0jJ4vaNUO2Jca/BWUrJC+4ugEFjHkdw=
-github.com/buildkite/go-buildkite/v5 v5.0.1/go.mod h1:wsKNPQmX0vAAR+RcGLyDJkSTsHXrHpnwSURaMckM7Wg=
+github.com/buildkite/go-buildkite/v5 v5.1.0 h1:kU3Angx5LO3+7aUrMq8C3X/mI8RvedFkKwxBlVL7Y64=
+github.com/buildkite/go-buildkite/v5 v5.1.0/go.mod h1:wsKNPQmX0vAAR+RcGLyDJkSTsHXrHpnwSURaMckM7Wg=
 github.com/buildkite/termoji v0.0.0-20260330080310-c0aa4ebee0d1 h1:aaEl0QZURcwC+KOfFTzSp66xknw5eTmFZ1NgB87s2xk=
 github.com/buildkite/termoji v0.0.0-20260330080310-c0aa4ebee0d1/go.mod h1:ZTEvQlMN3+qzjROvjRb1p0X+xDQxxKpkMFhMSnaTrpw=
 github.com/cenkalti/backoff v2.2.1+incompatible h1:tNowT99t7UNflLxfYYSlKYsBpXdEet03Pg2g16Swow4=
