@@ -10,10 +10,11 @@ import (
 
 // trackedJob holds a job and its lifecycle state across polls.
 type trackedJob struct {
-	Job           buildkite.Job
-	PrevState     string // state from previous poll, "" if first seen
-	Reported      bool   // true once surfaced to caller as failed
-	RetryReported bool   // true once surfaced to caller as retry-passed
+	Job             buildkite.Job
+	PrevState       string // state from previous poll, "" if first seen
+	Reported        bool   // true once surfaced to caller as failed
+	RetryReported   bool   // true once surfaced to caller as retry-passed
+	PromiseReported bool   // true once surfaced to caller as a promised failure
 }
 
 // JobSummary aggregates job counts by high-level state.
@@ -55,12 +56,13 @@ func (s JobSummary) String() string {
 
 // BuildStatus is the output of JobTracker.Update().
 type BuildStatus struct {
-	NewlyFailed      []buildkite.Job
-	NewlyRetryPassed []buildkite.Job
-	Running          []buildkite.Job
-	TotalRunning     int
-	Summary          JobSummary
-	Build            buildkite.Build
+	NewlyFailed          []buildkite.Job
+	NewlyRetryPassed     []buildkite.Job
+	NewlyPromisedFailure []buildkite.Job
+	Running              []buildkite.Job
+	TotalRunning         int
+	Summary              JobSummary
+	Build                buildkite.Build
 }
 
 // JobTracker tracks job state changes across polls.
@@ -101,6 +103,13 @@ func (t *JobTracker) Update(b buildkite.Build) BuildStatus {
 		if job.IsFailed() && !prevJob.IsTerminalFailureState() && !tj.Reported {
 			status.NewlyFailed = append(status.NewlyFailed, j)
 			tj.Reported = true
+		}
+
+		// Surface an early failure declaration on a still-running job once, before
+		// the job reaches a terminal state and the normal failure path takes over.
+		if job.IsRunning() && job.HasPromisedFailure() && !tj.PromiseReported {
+			status.NewlyPromisedFailure = append(status.NewlyPromisedFailure, j)
+			tj.PromiseReported = true
 		}
 
 		if isActiveState(j.State) {

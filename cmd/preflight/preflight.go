@@ -255,6 +255,19 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 				return err
 			}
 		}
+		for _, promised := range status.NewlyPromisedFailure {
+			if err := renderer.Render(Event{
+				Type:        EventJobPromisedFailure,
+				Time:        time.Now(),
+				PreflightID: preflightID.String(),
+				Pipeline:    pipelineName,
+				BuildNumber: build.Number,
+				BuildURL:    build.WebURL,
+				Job:         &promised,
+			}); err != nil {
+				return err
+			}
+		}
 		if err := renderer.Render(Event{
 			Type:        EventBuildStatus,
 			Time:        time.Now(),

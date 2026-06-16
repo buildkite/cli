@@ -17,8 +17,12 @@ const (
 	EventBuildStatus    EventType = "build_status"
 	EventJobFailure     EventType = "job_failure"
 	EventJobRetryPassed EventType = "job_retry_passed"
-	EventBuildSummary   EventType = "build_summary"
-	EventTestFailure    EventType = "test_failure"
+
+	// EventJobPromisedFailure is emitted when a still-running job declares an
+	// early (promised) failure, ahead of reaching a terminal state.
+	EventJobPromisedFailure EventType = "job_promised_failure"
+	EventBuildSummary       EventType = "build_summary"
+	EventTestFailure        EventType = "test_failure"
 )
 
 // Event is the single data model emitted by a preflight run.
@@ -75,28 +79,30 @@ type Event struct {
 // payloads that are useful for API clients but expensive and noisy for LLM
 // preflight consumers.
 type jsonJob struct {
-	ID             string `json:"id,omitempty"`
-	Name           string `json:"name,omitempty"`
-	Command        string `json:"command,omitempty"`
-	State          string `json:"state,omitempty"`
-	ExitStatus     *int   `json:"exit_status,omitempty"`
-	SoftFailed     bool   `json:"soft_failed"`
-	Retried        bool   `json:"retried"`
-	RetriesCount   int    `json:"retries_count,omitempty"`
-	RetriedInJobID string `json:"retried_in_job_id,omitempty"`
+	ID                 string `json:"id,omitempty"`
+	Name               string `json:"name,omitempty"`
+	Command            string `json:"command,omitempty"`
+	State              string `json:"state,omitempty"`
+	ExitStatus         *int   `json:"exit_status,omitempty"`
+	PromisedExitStatus *int   `json:"promised_exit_status,omitempty"`
+	SoftFailed         bool   `json:"soft_failed"`
+	Retried            bool   `json:"retried"`
+	RetriesCount       int    `json:"retries_count,omitempty"`
+	RetriedInJobID     string `json:"retried_in_job_id,omitempty"`
 }
 
 func newJSONJob(j buildkite.Job) jsonJob {
 	return jsonJob{
-		ID:             j.ID,
-		Name:           j.Name,
-		Command:        j.Command,
-		State:          j.State,
-		ExitStatus:     j.ExitStatus,
-		SoftFailed:     j.SoftFailed,
-		Retried:        j.Retried,
-		RetriesCount:   j.RetriesCount,
-		RetriedInJobID: j.RetriedInJobID,
+		ID:                 j.ID,
+		Name:               j.Name,
+		Command:            j.Command,
+		State:              j.State,
+		ExitStatus:         j.ExitStatus,
+		PromisedExitStatus: j.PromisedExitStatus,
+		SoftFailed:         j.SoftFailed,
+		Retried:            j.Retried,
+		RetriesCount:       j.RetriesCount,
+		RetriedInJobID:     j.RetriedInJobID,
 	}
 }
 

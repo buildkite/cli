@@ -50,3 +50,19 @@ func (j FormattedJob) IsSoftFailed() bool {
 func (j FormattedJob) IsFailed() bool {
 	return j.IsTerminalFailureState()
 }
+
+// IsRunning reports whether the job is still actively executing.
+func (j FormattedJob) IsRunning() bool {
+	return isActiveState(j.State)
+}
+
+// HasPromisedFailure reports whether the job has declared an early (promised)
+// failure: a non-zero promised exit status recorded before the job finished.
+//
+// This is intentionally retry-blind and does not consult soft-fail rules — the
+// build-show payload doesn't carry them. It surfaces the raw declaration only.
+// Precise hard-vs-soft classification is owned server-side (the jobs index
+// "failed" scope) and arrives in a later iteration.
+func (j FormattedJob) HasPromisedFailure() bool {
+	return j.PromisedExitStatus != nil && *j.PromisedExitStatus != 0
+}
