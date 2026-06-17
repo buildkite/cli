@@ -2,8 +2,20 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     ":disableDependencyDashboard",
-    "github>buildkite/renovate-config"
+    "config:recommended",
+    ":semanticCommits",
+    "schedule:weekdays",
+    "group:allNonMajor"
   ],
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "minimumReleaseAge": "3 days",
+  "vulnerabilityAlerts": {
+    "labels": ["dependencies", "security"],
+    "minimumReleaseAge": "0 days",
+    "enabled": true
+  },
   "postUpdateOptions": ["gomodTidy"],
   "automerge": true,
   "automergeType": "pr",
