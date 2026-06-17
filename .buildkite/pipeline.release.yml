@@ -26,7 +26,7 @@ steps:
             GITHUB_TOKEN: /pipelines/buildkite/buildkite-cli-release/github-token
             DOCKERHUB_USER: /pipelines/buildkite/buildkite-cli-release/dockerhub-user
             DOCKERHUB_PASSWORD: /pipelines/buildkite/buildkite-cli-release/dockerhub-password
-      - mise#v1.1.3: ~
+      - mise#v1.1.4: ~
     command: '.buildkite/release.sh release --clean'
 
   - label: ":rocket: :package: upload packages ({{matrix}})"
