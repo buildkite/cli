@@ -384,9 +384,6 @@ func TestPreflightCmd_Run(t *testing.T) {
 		if gotReq.Env["PREFLIGHT"] != "true" {
 			t.Errorf("expected PREFLIGHT=true, got %#v", gotReq.Env)
 		}
-		if gotReq.Env["BUILDKITE_PREFLIGHT"] != "true" {
-			t.Errorf("expected BUILDKITE_PREFLIGHT=true (deprecated), got %#v", gotReq.Env)
-		}
 		if gotReq.Env["PREFLIGHT_SOURCE_BRANCH"] != expectedSourceBranch {
 			t.Errorf("expected PREFLIGHT_SOURCE_BRANCH=%q, got %#v", expectedSourceBranch, gotReq.Env)
 		}
