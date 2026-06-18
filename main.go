@@ -13,6 +13,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/api"
 	"github.com/buildkite/cli/v3/cmd/artifacts"
 	"github.com/buildkite/cli/v3/cmd/auth"
+	"github.com/buildkite/cli/v3/cmd/browse"
 	"github.com/buildkite/cli/v3/cmd/build"
 	"github.com/buildkite/cli/v3/cmd/cluster"
 	bkConfig "github.com/buildkite/cli/v3/cmd/config"
@@ -51,6 +52,7 @@ type CLI struct {
 	Api          ApiCmd              `cmd:"" help:"Interact with the Buildkite API"`
 	Artifacts    ArtifactsCmd        `cmd:"" help:"Manage pipeline build artifacts"`
 	Auth         AuthCmd             `cmd:"" help:"Authenticate with Buildkite"`
+	Browse       BrowseCmd           `cmd:"" help:"Open Buildkite resources in a web browser"`
 	Build        BuildCmd            `cmd:"" help:"Manage pipeline builds"`
 	Cluster      ClusterCmd          `cmd:"" help:"Manage organization clusters"`
 	Maintainer   MaintainerCmd       `cmd:"" help:"Manage cluster maintainers"`
@@ -94,6 +96,9 @@ type (
 	}
 	ApiCmd struct {
 		api.ApiCmd `cmd:"" help:"Interact with the Buildkite API"`
+	}
+	BrowseCmd struct {
+		browse.BrowseCmd `cmd:"" help:"Open Buildkite resources in a web browser"`
 	}
 	ArtifactsCmd struct {
 		Download artifacts.DownloadCmd `cmd:"" help:"Download artifacts from a build."`
