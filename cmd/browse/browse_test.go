@@ -27,10 +27,30 @@ func TestSettingsURL(t *testing.T) {
 }
 
 func TestPipelineBranchURL(t *testing.T) {
-	got := pipelineBranchURL("my-org", "my-pipeline", "main")
-	want := "https://buildkite.com/my-org/my-pipeline?branch=main"
-	if got != want {
-		t.Errorf("pipelineBranchURL = %q, want %q", got, want)
+	cases := []struct {
+		name   string
+		branch string
+		want   string
+	}{
+		{
+			name:   "simple branch",
+			branch: "main",
+			want:   "https://buildkite.com/my-org/my-pipeline?branch=main",
+		},
+		{
+			name:   "branch with query delimiters",
+			branch: "this&that&query=hello+world",
+			want:   "https://buildkite.com/my-org/my-pipeline?branch=this%26that%26query%3Dhello%2Bworld",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := pipelineBranchURL("my-org", "my-pipeline", tc.branch)
+			if got != tc.want {
+				t.Errorf("pipelineBranchURL = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 

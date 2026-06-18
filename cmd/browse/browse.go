@@ -3,6 +3,7 @@ package browse
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -204,5 +205,5 @@ func settingsURL(org, pipeline string) string {
 }
 
 func pipelineBranchURL(org, pipeline, branch string) string {
-	return fmt.Sprintf("https://buildkite.com/%s/%s?branch=%s", org, pipeline, branch)
+	return fmt.Sprintf("https://buildkite.com/%s/%s?branch=%s", org, pipeline, url.QueryEscape(branch))
 }
