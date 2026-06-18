@@ -35,12 +35,12 @@ func TestPipelineBranchURL(t *testing.T) {
 		{
 			name:   "simple branch",
 			branch: "main",
-			want:   "https://buildkite.com/my-org/my-pipeline?branch=main",
+			want:   "https://buildkite.com/my-org/my-pipeline/builds?branch=main",
 		},
 		{
 			name:   "branch with query delimiters",
 			branch: "this&that&query=hello+world",
-			want:   "https://buildkite.com/my-org/my-pipeline?branch=this%26that%26query%3Dhello%2Bworld",
+			want:   "https://buildkite.com/my-org/my-pipeline/builds?branch=this%26that%26query%3Dhello%2Bworld",
 		},
 	}
 

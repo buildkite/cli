@@ -205,5 +205,5 @@ func settingsURL(org, pipeline string) string {
 }
 
 func pipelineBranchURL(org, pipeline, branch string) string {
-	return fmt.Sprintf("https://buildkite.com/%s/%s?branch=%s", org, pipeline, url.QueryEscape(branch))
+	return fmt.Sprintf("https://buildkite.com/%s/%s/builds?branch=%s", org, pipeline, url.QueryEscape(branch))
 }
