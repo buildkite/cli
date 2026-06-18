@@ -215,11 +215,19 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 
 	ApplyCredentialStoreFromConfig(conf)
 
-	token := conf.APIToken()
+	// Resolve the org the command will actually use before the token lookup, so
+	// any shadowing warning reflects the credential that gets used and a single
+	// lookup consumes the warning's once at most once.
+	org := conf.OrganizationSlug()
 	if cfg.orgOverride != "" {
-		if t := conf.APITokenForOrg(cfg.orgOverride); t != "" {
-			token = t
-		}
+		org = cfg.orgOverride
+	}
+
+	token := conf.APITokenForOrg(org)
+	if token == "" && cfg.orgOverride != "" {
+		// The override org has no credential of its own; fall back to the
+		// selected org's token.
+		token = conf.APIToken()
 	}
 
 	userAgent := buildUserAgent(cfg.userAgentSuffix)
@@ -249,11 +257,6 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 	}
 
 	// Add refresh transport if a refresh token is available for this org.
-	org := conf.OrganizationSlug()
-	if cfg.orgOverride != "" {
-		org = cfg.orgOverride
-	}
-
 	kr := keyring.New()
 	if refreshToken, err := kr.GetRefreshToken(org); err == nil && refreshToken != "" {
 		transport = &bkhttp.RefreshTransport{

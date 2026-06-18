@@ -1,8 +1,11 @@
 package config
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/buildkite/cli/v3/pkg/keyring"
@@ -352,6 +355,127 @@ func TestAPITokenForOrgNoKeyring(t *testing.T) {
 	if kr.IsAvailable() {
 		t.Error("expected keyring to be unavailable when BUILDKITE_NO_KEYRING=1")
 	}
+}
+
+func TestHasStoredToken(t *testing.T) {
+	// Force the keyring off so we exercise the legacy config path deterministically.
+	setEnv(t, "BUILDKITE_NO_KEYRING", "1")
+	setEnv(t, "CI", "")
+	setEnv(t, "BUILDKITE", "")
+	keyring.ResetForTesting()
+	t.Cleanup(keyring.ResetForTesting)
+
+	t.Run("legacy token present", func(t *testing.T) {
+		fs := afero.NewMemMapFs()
+		content := []byte("organizations:\n  my-org:\n    api_token: legacy-token\n")
+		if err := afero.WriteFile(fs, configFile(), content, 0o600); err != nil {
+			t.Fatalf("failed to write config: %v", err)
+		}
+		conf := New(fs, nil)
+
+		if !conf.hasStoredToken("my-org") {
+			t.Error("hasStoredToken() = false, want true when legacy config has a token")
+		}
+	})
+
+	t.Run("no stored token", func(t *testing.T) {
+		fs := afero.NewMemMapFs()
+		conf := New(fs, nil)
+
+		if conf.hasStoredToken("my-org") {
+			t.Error("hasStoredToken() = true, want false when no credential is stored")
+		}
+	})
+}
+
+const shadowWarning = "Warning: BUILDKITE_API_TOKEN is overriding the credential stored for this organization."
+
+// captureWarnings redirects credential warnings to a buffer and resets the
+// warning once-guards so each test observes the warnings its own calls emit.
+func captureWarnings(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	buf := &bytes.Buffer{}
+	prev := warningOutput
+	warningOutput = buf
+	envTokenWarningOnce = sync.Once{}
+	legacyTokenWarningOnce = sync.Once{}
+	t.Cleanup(func() {
+		warningOutput = prev
+		envTokenWarningOnce = sync.Once{}
+		legacyTokenWarningOnce = sync.Once{}
+	})
+	return buf
+}
+
+func TestAPITokenForOrgEnvVar(t *testing.T) {
+	// Force the keyring off so the only possible stored credential is legacy config.
+	setEnv(t, "BUILDKITE_NO_KEYRING", "1")
+	setEnv(t, "CI", "")
+	setEnv(t, "BUILDKITE", "")
+	setEnv(t, "BUILDKITE_API_TOKEN", "env-token")
+	keyring.ResetForTesting()
+	t.Cleanup(keyring.ResetForTesting)
+
+	t.Run("env var is the only credential: returned without a warning", func(t *testing.T) {
+		warnings := captureWarnings(t)
+		fs := afero.NewMemMapFs()
+		conf := New(fs, nil)
+
+		if got := conf.APITokenForOrg("my-org"); got != "env-token" {
+			t.Errorf("APITokenForOrg() = %q, want %q", got, "env-token")
+		}
+		if got := warnings.String(); got != "" {
+			t.Errorf("expected no warning when env var is the sole credential, got %q", got)
+		}
+	})
+
+	t.Run("env var shadows a stored credential: returned with a warning", func(t *testing.T) {
+		warnings := captureWarnings(t)
+		fs := afero.NewMemMapFs()
+		content := []byte("organizations:\n  my-org:\n    api_token: legacy-token\n")
+		if err := afero.WriteFile(fs, configFile(), content, 0o600); err != nil {
+			t.Fatalf("failed to write config: %v", err)
+		}
+		conf := New(fs, nil)
+
+		// Env var still wins for the returned token.
+		if got := conf.APITokenForOrg("my-org"); got != "env-token" {
+			t.Errorf("APITokenForOrg() = %q, want %q", got, "env-token")
+		}
+		if got := warnings.String(); !strings.Contains(got, shadowWarning) {
+			t.Errorf("expected shadowing warning, got %q", got)
+		}
+	})
+
+	// Regression for the factory's two-step org resolution: a lookup against an
+	// org with no stored credential must not consume the once, otherwise a later
+	// lookup against an org the env var *does* shadow would be silenced.
+	t.Run("non-shadowing lookup does not suppress a later shadowing warning", func(t *testing.T) {
+		warnings := captureWarnings(t)
+		fs := afero.NewMemMapFs()
+		content := []byte("organizations:\n  stored-org:\n    api_token: legacy-token\n")
+		if err := afero.WriteFile(fs, configFile(), content, 0o600); err != nil {
+			t.Fatalf("failed to write config: %v", err)
+		}
+		conf := New(fs, nil)
+
+		// env-only-org has no stored credential: env token returned, no warning.
+		if got := conf.APITokenForOrg("env-only-org"); got != "env-token" {
+			t.Errorf("APITokenForOrg(env-only-org) = %q, want %q", got, "env-token")
+		}
+		if got := warnings.String(); got != "" {
+			t.Errorf("expected no warning for non-shadowing org, got %q", got)
+		}
+
+		// stored-org IS shadowed: the warning must still fire, proving the
+		// earlier non-shadowing lookup did not consume the once.
+		if got := conf.APITokenForOrg("stored-org"); got != "env-token" {
+			t.Errorf("APITokenForOrg(stored-org) = %q, want %q", got, "env-token")
+		}
+		if got := warnings.String(); !strings.Contains(got, shadowWarning) {
+			t.Errorf("expected shadowing warning after non-shadowing lookup, got %q", got)
+		}
+	})
 }
 
 func TestExperiments(t *testing.T) {

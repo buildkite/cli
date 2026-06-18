@@ -29,6 +29,10 @@ import (
 var (
 	legacyTokenWarningOnce sync.Once
 	envTokenWarningOnce    sync.Once
+
+	// warningOutput is where credential warnings are written. It is a variable
+	// so tests can capture and assert the warnings that actually fire.
+	warningOutput io.Writer = os.Stderr
 )
 
 const (
@@ -133,13 +137,33 @@ func (conf *Config) APIToken() string {
 	return conf.APITokenForOrg(conf.OrganizationSlug())
 }
 
+// hasStoredToken reports whether a token exists in the credential store
+// (keyring) or legacy config for org, without emitting warnings. Used to
+// decide whether a BUILDKITE_API_TOKEN env var is shadowing a real credential.
+func (conf *Config) hasStoredToken(org string) bool {
+	kr := keyring.New()
+	if kr.IsAvailable() {
+		if t, err := kr.Get(org); err == nil && t != "" {
+			return true
+		}
+	}
+	return firstNonEmpty(conf.user.getToken(org), conf.local.getToken(org)) != ""
+}
+
 // APITokenForOrg gets the API token for a specific organization.
 // Precedence: environment variable > credential store > config file (legacy, read-only with warning)
 func (conf *Config) APITokenForOrg(org string) string {
 	if token := os.Getenv("BUILDKITE_API_TOKEN"); token != "" {
-		envTokenWarningOnce.Do(func() {
-			fmt.Fprintln(os.Stderr, "Warning: using BUILDKITE_API_TOKEN environment variable for authentication.")
-		})
+		// Warn only when the env var shadows a stored credential; when it is the
+		// sole credential the warning is just noise. The hasStoredToken gate must
+		// stay outside the once: orgs are resolved across multiple calls, so a
+		// non-shadowing org must not consume the once and silence a later
+		// shadowing one.
+		if conf.hasStoredToken(org) {
+			envTokenWarningOnce.Do(func() {
+				fmt.Fprintln(warningOutput, "Warning: BUILDKITE_API_TOKEN is overriding the credential stored for this organization.")
+			})
+		}
 		return token
 	}
 
@@ -156,7 +180,7 @@ func (conf *Config) APITokenForOrg(org string) string {
 		conf.local.getToken(org),
 	); token != "" {
 		legacyTokenWarningOnce.Do(func() {
-			fmt.Fprintln(os.Stderr, "Warning: reading API token from config file is deprecated. Run `bk auth login` to store your token in the configured credential store.")
+			fmt.Fprintln(warningOutput, "Warning: reading API token from config file is deprecated. Run `bk auth login` to store your token in the configured credential store.")
 		})
 		return token
 	}

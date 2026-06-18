@@ -27,13 +27,19 @@ func ValidateConfigurationForOrg(conf *config.Config, commandPath, org string) e
 }
 
 func validateConfiguration(conf *config.Config, commandPath, orgOverride string) error {
+	// Resolve the org the command will actually use before the token lookup, so
+	// any shadowing warning reflects the credential that gets used rather than
+	// the selected org's.
 	org := conf.OrganizationSlug()
-	token := conf.APIToken()
 	if orgOverride != "" {
 		org = orgOverride
-		if t := conf.APITokenForOrg(org); t != "" {
-			token = t
-		}
+	}
+
+	token := conf.APITokenForOrg(org)
+	if token == "" && orgOverride != "" {
+		// The override org has no credential of its own; fall back to the
+		// selected org's token.
+		token = conf.APIToken()
 	}
 
 	missingToken := token == ""
