@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
@@ -95,5 +96,43 @@ func stripTimestamps(content string) string {
 
 func formatForLLM(content string) string {
 	content = ansiRegex.ReplaceAllString(content, "")
-	return content
+
+	lines := strings.Split(content, "\n")
+	result := make([]string, 0, len(lines))
+
+	var prevLine string
+	hasPrev := false
+	repeatCount := 0
+
+	flush := func() {
+		if repeatCount > 0 {
+			result = append(result, fmt.Sprintf("[Previous line repeated %d times]", repeatCount))
+			repeatCount = 0
+		}
+	}
+
+	for _, line := range lines {
+		if hasPrev && line == prevLine {
+			repeatCount++
+			continue
+		}
+
+		flush()
+
+		processed := line
+		for _, prefix := range []string{"---", "+++", "~~~"} {
+			if strings.HasPrefix(line, prefix) {
+				processed = "\n=== PHASE: " + strings.TrimPrefix(line, prefix) + " ==="
+				break
+			}
+		}
+
+		result = append(result, processed)
+		prevLine = line
+		hasPrev = true
+	}
+
+	flush()
+
+	return strings.Join(result, "\n")
 }
