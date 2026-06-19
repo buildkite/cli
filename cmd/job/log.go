@@ -87,10 +87,13 @@ func (c *LogCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 var timestampRegex = regexp.MustCompile(`bk;t=\d+\x07`)
 
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+
 func stripTimestamps(content string) string {
 	return timestampRegex.ReplaceAllString(content, "")
 }
 
 func formatForLLM(content string) string {
+	content = ansiRegex.ReplaceAllString(content, "")
 	return content
 }
