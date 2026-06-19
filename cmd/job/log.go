@@ -131,6 +131,8 @@ func formatForLLM(content string) string {
 		if idx := strings.LastIndex(line, "\r"); idx >= 0 {
 			line = line[idx+1:]
 		}
+		// Drop trailing whitespace; it carries no information for an LLM.
+		line = strings.TrimRight(line, " \t")
 
 		// Deduplicate consecutive identical lines, but never collapse blank lines.
 		if line != "" && hasPrev && line == prevLine {
@@ -147,7 +149,9 @@ func formatForLLM(content string) string {
 
 	flush()
 
-	return strings.Join(result, "\n")
+	// Trim the single leading newline introduced when the log starts with a
+	// phase header, so the output doesn't begin with a blank line.
+	return strings.TrimPrefix(strings.Join(result, "\n"), "\n")
 }
 
 // transformHeader rewrites Buildkite log group markers (`---`, `+++`, `~~~`)
@@ -156,7 +160,8 @@ func formatForLLM(content string) string {
 func transformHeader(line string) string {
 	for _, prefix := range []string{"---", "+++", "~~~"} {
 		if line == prefix || strings.HasPrefix(line, prefix+" ") {
-			return "\n=== PHASE: " + strings.TrimPrefix(line, prefix) + " ==="
+			title := strings.TrimSpace(strings.TrimPrefix(line, prefix))
+			return "\n=== PHASE: " + title + " ==="
 		}
 	}
 	return line

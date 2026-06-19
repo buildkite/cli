@@ -33,7 +33,12 @@ func TestFormatForLLM(t *testing.T) {
 		{
 			name:  "handles header after timestamp marker",
 			input: "\x1b_bk;t=1700000000000\x07~~~ Preparing secrets\r",
-			want:  "\n=== PHASE:  Preparing secrets ===",
+			want:  "=== PHASE: Preparing secrets ===",
+		},
+		{
+			name:  "trims trailing whitespace",
+			input: "hello   \nworld\t",
+			want:  "hello\nworld",
 		},
 		{
 			name:  "deduplicates consecutive identical lines",
@@ -73,12 +78,12 @@ func TestFormatForLLM(t *testing.T) {
 		{
 			name:  "rewrites group markers into phase headers",
 			input: "--- Running tests",
-			want:  "\n=== PHASE:  Running tests ===",
+			want:  "=== PHASE: Running tests ===",
 		},
 		{
 			name:  "rewrites plus and tilde markers",
 			input: "+++ Failed\n~~~ Cleanup",
-			want:  "\n=== PHASE:  Failed ===\n\n=== PHASE:  Cleanup ===",
+			want:  "=== PHASE: Failed ===\n\n=== PHASE: Cleanup ===",
 		},
 		{
 			name:  "leaves separator-like lines intact",
@@ -88,7 +93,7 @@ func TestFormatForLLM(t *testing.T) {
 		{
 			name:  "standalone marker becomes header",
 			input: "---",
-			want:  "\n=== PHASE:  ===",
+			want:  "=== PHASE:  ===",
 		},
 	}
 
