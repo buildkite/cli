@@ -90,12 +90,21 @@ var timestampRegex = regexp.MustCompile(`bk;t=\d+\x07`)
 
 var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 
+// oscRegex matches OSC (`\x1b]...`) and APC (`\x1b_...`) escape sequences
+// terminated by BEL (\x07) or ST (\x1b\\). Buildkite uses APC sequences for its
+// inline timestamp metadata (e.g. `\x1b_bk;t=1700000000000\x07`).
+var oscRegex = regexp.MustCompile("\x1b[\\]_][^\x07]*(?:\x07|\x1b\\\\)")
+
 func stripTimestamps(content string) string {
 	return timestampRegex.ReplaceAllString(content, "")
 }
 
 func formatForLLM(content string) string {
 	content = ansiRegex.ReplaceAllString(content, "")
+	content = oscRegex.ReplaceAllString(content, "")
+	// Strip any bare timestamp markers that weren't wrapped in an APC sequence,
+	// so deduplication works regardless of the --no-timestamps flag.
+	content = stripTimestamps(content)
 
 	lines := strings.Split(content, "\n")
 	result := make([]string, 0, len(lines))
@@ -112,22 +121,21 @@ func formatForLLM(content string) string {
 	}
 
 	for _, line := range lines {
-		if hasPrev && line == prevLine {
+		// Collapse carriage-return redraws (progress bars, spinners): keep only
+		// the final segment that would actually be visible in a terminal.
+		if idx := strings.LastIndex(line, "\r"); idx >= 0 {
+			line = line[idx+1:]
+		}
+
+		// Deduplicate consecutive identical lines, but never collapse blank lines.
+		if line != "" && hasPrev && line == prevLine {
 			repeatCount++
 			continue
 		}
 
 		flush()
 
-		processed := line
-		for _, prefix := range []string{"---", "+++", "~~~"} {
-			if strings.HasPrefix(line, prefix) {
-				processed = "\n=== PHASE: " + strings.TrimPrefix(line, prefix) + " ==="
-				break
-			}
-		}
-
-		result = append(result, processed)
+		result = append(result, transformHeader(line))
 		prevLine = line
 		hasPrev = true
 	}
@@ -135,4 +143,16 @@ func formatForLLM(content string) string {
 	flush()
 
 	return strings.Join(result, "\n")
+}
+
+// transformHeader rewrites Buildkite log group markers (`---`, `+++`, `~~~`)
+// into clear phase boundaries for an LLM. The marker must be a standalone token
+// or followed by a space so that separators like `----------` are left intact.
+func transformHeader(line string) string {
+	for _, prefix := range []string{"---", "+++", "~~~"} {
+		if line == prefix || strings.HasPrefix(line, prefix+" ") {
+			return "\n=== PHASE: " + strings.TrimPrefix(line, prefix) + " ==="
+		}
+	}
+	return line
 }
