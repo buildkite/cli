@@ -12,7 +12,7 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o bk .
 
-FROM alpine:3.24.0
+FROM alpine:3.24.1
 
 RUN apk --no-cache add ca-certificates \
     && addgroup -S buildkite \
