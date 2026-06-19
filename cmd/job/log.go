@@ -86,7 +86,10 @@ func (c *LogCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	return nil
 }
 
-var timestampRegex = regexp.MustCompile(`bk;t=\d+\x07`)
+// timestampRegex matches Buildkite's inline timestamp markers, including the
+// optional APC introducer (`\x1b_`) so the whole sequence is removed rather than
+// leaving a dangling escape byte behind.
+var timestampRegex = regexp.MustCompile(`(?:\x1b_)?bk;t=\d+\x07`)
 
 var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 

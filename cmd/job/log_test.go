@@ -31,6 +31,11 @@ func TestFormatForLLM(t *testing.T) {
 			want:  "hello",
 		},
 		{
+			name:  "handles header after timestamp marker",
+			input: "\x1b_bk;t=1700000000000\x07~~~ Preparing secrets\r",
+			want:  "\n=== PHASE:  Preparing secrets ===",
+		},
+		{
 			name:  "deduplicates consecutive identical lines",
 			input: "loop\nloop\nloop\ndone",
 			want:  "loop\n[Previous line repeated 2 times]\ndone",
@@ -97,5 +102,14 @@ func TestFormatForLLM(t *testing.T) {
 				t.Errorf("formatForLLM(%q) =\n%q\nwant\n%q", tt.input, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestStripTimestamps(t *testing.T) {
+	t.Parallel()
+
+	in := "\x1b_bk;t=1700000000000\x07hello"
+	if got := stripTimestamps(in); got != "hello" {
+		t.Errorf("stripTimestamps(%q) = %q, want %q", in, got, "hello")
 	}
 }
