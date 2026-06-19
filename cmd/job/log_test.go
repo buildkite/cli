@@ -56,6 +56,16 @@ func TestFormatForLLM(t *testing.T) {
 			want:  "100%",
 		},
 		{
+			name:  "trims trailing CR from CRLF line endings",
+			input: "hello\r\nworld\r\n",
+			want:  "hello\nworld\n",
+		},
+		{
+			name:  "collapses redraws with trailing CRs",
+			input: "10%\r50%\r100% done\r\r",
+			want:  "100% done",
+		},
+		{
 			name:  "rewrites group markers into phase headers",
 			input: "--- Running tests",
 			want:  "\n=== PHASE:  Running tests ===",

@@ -121,8 +121,10 @@ func formatForLLM(content string) string {
 	}
 
 	for _, line := range lines {
-		// Collapse carriage-return redraws (progress bars, spinners): keep only
-		// the final segment that would actually be visible in a terminal.
+		// Normalise CRLF line endings, then collapse carriage-return redraws
+		// (progress bars, spinners) by keeping only the final segment that would
+		// actually be visible in a terminal.
+		line = strings.TrimRight(line, "\r")
 		if idx := strings.LastIndex(line, "\r"); idx >= 0 {
 			line = line[idx+1:]
 		}
