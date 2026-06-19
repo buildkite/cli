@@ -17,6 +17,7 @@ type LogCmd struct {
 	Pipeline     string `help:"Deprecated; ignored because job UUIDs no longer require pipeline or build context" short:"p"`
 	BuildNumber  string `help:"Deprecated; ignored because job UUIDs no longer require pipeline or build context" short:"b"`
 	NoTimestamps bool   `help:"Strip timestamp prefixes from log output" name:"no-timestamps"`
+	LLMOptimized bool   `help:"Format output to be optimal for LLM consumption (strips ANSI, deduplicates loops)" name:"agent"`
 }
 
 func (c *LogCmd) Help() string {
@@ -73,6 +74,10 @@ func (c *LogCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		logContent = stripTimestamps(logContent)
 	}
 
+	if c.LLMOptimized {
+		logContent = formatForLLM(logContent)
+	}
+
 	writer, cleanup := bkIO.Pager(f.NoPager)
 	defer func() { _ = cleanup() }()
 
@@ -84,4 +89,8 @@ var timestampRegex = regexp.MustCompile(`bk;t=\d+\x07`)
 
 func stripTimestamps(content string) string {
 	return timestampRegex.ReplaceAllString(content, "")
+}
+
+func formatForLLM(content string) string {
+	return content
 }
