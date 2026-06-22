@@ -172,6 +172,10 @@ func TestPreflightCmd_Run(t *testing.T) {
 				})
 				return
 
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1/jobs"):
+				json.NewEncoder(w).Encode(buildkite.JobsList{Items: []buildkite.Job{}})
+				return
+
 			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1"):
 				poll := buildPolls.Add(1)
 				exitOne := 1
@@ -579,6 +583,10 @@ func TestPreflightCmd_Run(t *testing.T) {
 				})
 				return
 
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1/jobs"):
+				json.NewEncoder(w).Encode(buildkite.JobsList{Items: []buildkite.Job{}})
+				return
+
 			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1"):
 				poll := buildPolls.Add(1)
 				build := buildkite.Build{
@@ -712,6 +720,10 @@ func TestPreflightCmd_Run(t *testing.T) {
 				})
 				return
 
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1/jobs"):
+				json.NewEncoder(w).Encode(buildkite.JobsList{Items: []buildkite.Job{}})
+				return
+
 			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1"):
 				exitOne := 1
 				json.NewEncoder(w).Encode(buildkite.Build{
@@ -800,6 +812,10 @@ func TestPreflightCmd_Run(t *testing.T) {
 					State:  "scheduled",
 					WebURL: "https://buildkite.com/test-org/test-pipeline/builds/1",
 				})
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1/jobs"):
+				json.NewEncoder(w).Encode(buildkite.JobsList{Items: []buildkite.Job{}})
 				return
 
 			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1"):
@@ -922,6 +938,10 @@ func TestPreflightCmd_Run(t *testing.T) {
 						Slug: "test-pipeline",
 					},
 				})
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1/jobs"):
+				json.NewEncoder(w).Encode(buildkite.JobsList{Items: []buildkite.Job{}})
 				return
 
 			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1"):
@@ -1057,6 +1077,10 @@ func TestPreflightCmd_Run(t *testing.T) {
 				})
 				return
 
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1/jobs"):
+				json.NewEncoder(w).Encode(buildkite.JobsList{Items: []buildkite.Job{}})
+				return
+
 			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1"):
 				if buildRequests.Add(1) == 1 {
 					json.NewEncoder(w).Encode(buildkite.Build{
@@ -1145,6 +1169,10 @@ func TestPreflightCmd_Run(t *testing.T) {
 						Slug: "test-pipeline",
 					},
 				})
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1/jobs"):
+				json.NewEncoder(w).Encode(buildkite.JobsList{Items: []buildkite.Job{}})
 				return
 
 			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1"):
@@ -1293,6 +1321,10 @@ func TestPreflightCmd_Run(t *testing.T) {
 				})
 				return
 
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1/jobs"):
+				json.NewEncoder(w).Encode(buildkite.JobsList{Items: []buildkite.Job{}})
+				return
+
 			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1"):
 				json.NewEncoder(w).Encode(buildkite.Build{
 					ID:         "build-id-123",
@@ -1397,6 +1429,10 @@ func TestPreflightCmd_Run(t *testing.T) {
 						Slug: "test-pipeline",
 					},
 				})
+				return
+
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1/jobs"):
+				json.NewEncoder(w).Encode(buildkite.JobsList{Items: []buildkite.Job{}})
 				return
 
 			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1"):

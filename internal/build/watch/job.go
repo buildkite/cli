@@ -62,7 +62,8 @@ func (j FormattedJob) IsRunning() bool {
 // This is intentionally retry-blind and does not consult soft-fail rules — the
 // build-show payload doesn't carry them. It surfaces the raw declaration only.
 // Precise hard-vs-soft classification is owned server-side (the jobs index
-// "failed" scope) and arrives in a later iteration.
+// "failed" scope); this client-side check is the fallback used by the tracker
+// when no server classification is available for a poll.
 func (j FormattedJob) HasPromisedFailure() bool {
 	return j.PromisedExitStatus != nil && *j.PromisedExitStatus != 0
 }
