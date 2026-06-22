@@ -829,4 +829,30 @@ func TestJobTracker_ServerClassifiedFailures(t *testing.T) {
 			t.Fatalf("expected client fallback to surface job 1, got %#v", status.NewlyPromisedFailure)
 		}
 	})
+
+	t.Run("resetting to nil after a server set restores client fallback", func(t *testing.T) {
+		tracker := NewJobTracker()
+		// Poll 1: server set present and empty, so the declared job is suppressed.
+		tracker.SetServerClassifiedFailures(map[string]bool{})
+		status := tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "1", Type: "script", State: "running", PromisedExitStatus: intPtr(1)},
+			},
+		})
+		if len(status.NewlyPromisedFailure) != 0 {
+			t.Fatalf("expected empty server set to suppress, got %#v", status.NewlyPromisedFailure)
+		}
+
+		// Poll 2: server fetch failed/skipped, so nil restores the client
+		// fallback and the still-declared job is surfaced.
+		tracker.SetServerClassifiedFailures(nil)
+		status = tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "1", Type: "script", State: "running", PromisedExitStatus: intPtr(1)},
+			},
+		})
+		if len(status.NewlyPromisedFailure) != 1 || status.NewlyPromisedFailure[0].ID != "1" {
+			t.Fatalf("expected client fallback after reset to surface job 1, got %#v", status.NewlyPromisedFailure)
+		}
+	})
 }

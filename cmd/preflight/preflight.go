@@ -230,14 +230,19 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) error {
 		// Ask the server which still-running jobs it classifies as hard-failing
 		// promised failures (the jobs index "failed" scope). This is soft-fail
-		// aware, unlike the raw promised_exit_status on the build payload. It's
-		// best-effort: on error we leave the tracker to fall back to the
-		// client-side declaration heuristic for this poll.
+		// aware, unlike the raw promised_exit_status on the build payload.
+		//
+		// Best-effort and recomputed every poll: a successful fetch yields an
+		// authoritative (non-nil) set; on a skip or error we pass nil so the
+		// tracker falls back to the client-side declaration heuristic for this
+		// poll rather than trusting a stale set from an earlier poll.
+		var serverFailing map[string]bool
 		if hasRunningScriptJob(b) {
 			if failing, ferr := watch.FetchPromisedHardFailures(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number); ferr == nil {
-				tracker.SetServerClassifiedFailures(failing)
+				serverFailing = failing
 			}
 		}
+		tracker.SetServerClassifiedFailures(serverFailing)
 		status := tracker.Update(b)
 		for _, failed := range status.NewlyFailed {
 			if err := renderer.Render(Event{
