@@ -12,5 +12,8 @@ pre-commit:
       stage_fixed: true
     lint:
       glob: "*.go"
-      run: golangci-lint run --fix {staged_files}
+      # Lint by directory, not by file: golangci-lint rejects individual file
+      # paths spanning more than one directory ("named files must all be in one
+      # directory"), which breaks any commit touching multiple packages.
+      run: golangci-lint run --fix $(echo {staged_files} | tr ' ' '\n' | xargs -n1 dirname | sort -u)
       stage_fixed: true

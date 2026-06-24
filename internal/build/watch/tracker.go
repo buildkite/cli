@@ -10,10 +10,11 @@ import (
 
 // trackedJob holds a job and its lifecycle state across polls.
 type trackedJob struct {
-	Job           buildkite.Job
-	PrevState     string // state from previous poll, "" if first seen
-	Reported      bool   // true once surfaced to caller as failed
-	RetryReported bool   // true once surfaced to caller as retry-passed
+	Job             buildkite.Job
+	PrevState       string // state from previous poll, "" if first seen
+	Reported        bool   // true once surfaced to caller as failed
+	RetryReported   bool   // true once surfaced to caller as retry-passed
+	PromiseReported bool   // true once surfaced to caller as a promised failure
 }
 
 // JobSummary aggregates job counts by high-level state.
@@ -55,17 +56,25 @@ func (s JobSummary) String() string {
 
 // BuildStatus is the output of JobTracker.Update().
 type BuildStatus struct {
-	NewlyFailed      []buildkite.Job
-	NewlyRetryPassed []buildkite.Job
-	Running          []buildkite.Job
-	TotalRunning     int
-	Summary          JobSummary
-	Build            buildkite.Build
+	NewlyFailed          []buildkite.Job
+	NewlyRetryPassed     []buildkite.Job
+	NewlyPromisedFailure []buildkite.Job
+	Running              []buildkite.Job
+	TotalRunning         int
+	Summary              JobSummary
+	Build                buildkite.Build
 }
 
 // JobTracker tracks job state changes across polls.
 type JobTracker struct {
 	jobs map[string]*trackedJob
+
+	// serverClassified is the set of running job IDs the server classifies as
+	// hard-failing promised failures (the jobs index "failed" scope). When nil,
+	// no server classification is available for this poll and the tracker falls
+	// back to the client-side declaration heuristic. When non-nil (even empty),
+	// the server's verdict is trusted exclusively.
+	serverClassified map[string]bool
 }
 
 // NewJobTracker creates a new JobTracker.
@@ -73,6 +82,30 @@ func NewJobTracker() *JobTracker {
 	return &JobTracker{
 		jobs: make(map[string]*trackedJob),
 	}
+}
+
+// SetServerClassifiedFailures records the server's precise set of running jobs
+// that are hard-failing promised failures, keyed by job ID. Call this before
+// Update on each poll. Passing a non-nil map (even empty) makes the tracker
+// trust the server's classification for promised-failure surfacing; passing nil
+// (the default) falls back to the client-side declaration heuristic.
+//
+// The server set is soft-fail-aware, so it avoids surfacing jobs that declared a
+// promised exit status which would actually be soft-failed — something the
+// build-show payload alone can't determine.
+func (t *JobTracker) SetServerClassifiedFailures(set map[string]bool) {
+	t.serverClassified = set
+}
+
+// promisedFailing reports whether a still-running job should be surfaced as an
+// early (promised) failure. When server classification is available it is
+// trusted exclusively; otherwise it falls back to the raw client-side
+// declaration on the build payload.
+func (t *JobTracker) promisedFailing(job FormattedJob) bool {
+	if t.serverClassified != nil {
+		return t.serverClassified[job.ID]
+	}
+	return job.HasPromisedFailure()
 }
 
 // Update processes a build and returns the current status with any state changes.
@@ -101,6 +134,13 @@ func (t *JobTracker) Update(b buildkite.Build) BuildStatus {
 		if job.IsFailed() && !prevJob.IsTerminalFailureState() && !tj.Reported {
 			status.NewlyFailed = append(status.NewlyFailed, j)
 			tj.Reported = true
+		}
+
+		// Surface an early failure declaration on a still-running job once, before
+		// the job reaches a terminal state and the normal failure path takes over.
+		if job.IsRunning() && t.promisedFailing(job) && !tj.PromiseReported {
+			status.NewlyPromisedFailure = append(status.NewlyPromisedFailure, j)
+			tj.PromiseReported = true
 		}
 
 		if isActiveState(j.State) {

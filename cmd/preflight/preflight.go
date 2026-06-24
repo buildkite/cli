@@ -228,6 +228,21 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	tracker := watch.NewJobTracker()
 
 	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) error {
+		// Ask the server which still-running jobs it classifies as hard-failing
+		// promised failures (the jobs index "failed" scope). This is soft-fail
+		// aware, unlike the raw promised_exit_status on the build payload.
+		//
+		// Best-effort and recomputed every poll: a successful fetch yields an
+		// authoritative (non-nil) set; on a skip or error we pass nil so the
+		// tracker falls back to the client-side declaration heuristic for this
+		// poll rather than trusting a stale set from an earlier poll.
+		var serverFailing map[string]bool
+		if hasRunningScriptJob(b) {
+			if failing, ferr := watch.FetchPromisedHardFailures(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number); ferr == nil {
+				serverFailing = failing
+			}
+		}
+		tracker.SetServerClassifiedFailures(serverFailing)
 		status := tracker.Update(b)
 		for _, failed := range status.NewlyFailed {
 			if err := renderer.Render(Event{
@@ -251,6 +266,19 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 				BuildNumber: build.Number,
 				BuildURL:    build.WebURL,
 				Job:         &retryPassed,
+			}); err != nil {
+				return err
+			}
+		}
+		for _, promised := range status.NewlyPromisedFailure {
+			if err := renderer.Render(Event{
+				Type:        EventJobPromisedFailure,
+				Time:        time.Now(),
+				PreflightID: preflightID.String(),
+				Pipeline:    pipelineName,
+				BuildNumber: build.Number,
+				BuildURL:    build.WebURL,
+				Job:         &promised,
 			}); err != nil {
 				return err
 			}
@@ -339,6 +367,18 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	return finalErr
+}
+
+// hasRunningScriptJob reports whether the build has at least one still-running
+// script job. Used to avoid the extra jobs-index request when nothing is
+// running and so no promised failure could be declared yet.
+func hasRunningScriptJob(b buildkite.Build) bool {
+	for _, j := range b.Jobs {
+		if j.Type == "script" && (j.State == "running" || j.State == "canceling" || j.State == "timing_out") {
+			return true
+		}
+	}
+	return false
 }
 
 func cleanupRemoteBranch(renderer renderer, repoRoot, branch, ref, preflightID string, debug bool) {
