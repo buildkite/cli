@@ -5,7 +5,6 @@ go 1.25.0
 require (
 	github.com/alecthomas/kong v1.15.0
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be
-	github.com/buildkite/buildkite-logs v0.10.0
 	github.com/buildkite/go-buildkite/v5 v5.2.0
 	github.com/buildkite/termoji v0.0.0-20260330080310-c0aa4ebee0d1
 	github.com/charmbracelet/bubbles v1.0.0
@@ -29,7 +28,6 @@ require (
 	github.com/alexflint/go-scalar v1.2.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
-	github.com/buildkite/go-buildkite/v5 v5.0.1 // indirect
 	github.com/charmbracelet/colorprofile v0.4.1 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
@@ -37,7 +35,7 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
-	github.com/goccy/go-json v0.10.5 // indirect
+	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
@@ -79,11 +77,11 @@ require (
 	github.com/suessflorian/gqlfetch v0.7.0
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
-	golang.org/x/mod v0.34.0 // indirect
+	golang.org/x/mod v0.35.0 // indirect
 	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/term v0.44.0
 	golang.org/x/text v0.36.0 // indirect
-	golang.org/x/tools v0.43.0 // indirect
+	golang.org/x/tools v0.44.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
