@@ -18,7 +18,7 @@ type LogCmd struct {
 	Pipeline     string `help:"Deprecated; ignored because job UUIDs no longer require pipeline or build context" short:"p"`
 	BuildNumber  string `help:"Deprecated; ignored because job UUIDs no longer require pipeline or build context" short:"b"`
 	NoTimestamps bool   `help:"Strip timestamp prefixes from log output" name:"no-timestamps"`
-	LLMOptimized bool   `help:"Format output to be optimal for LLM consumption (strips ANSI, deduplicates loops)" name:"agent"`
+	LLMOptimized bool   `help:"Format output to be optimal for LLM consumption (strips ANSI, deduplicates loops)" name:"agent" aliases:"llm"`
 	Format       string `help:"Output rendering for --agent: plain or markdown" name:"format" enum:"plain,markdown" default:"plain"`
 	MaxTokens    int    `help:"Hard ceiling on the estimated token count of --agent output (0 = unlimited)" name:"max-tokens"`
 	NoWindow     bool   `help:"Disable failure-focused windowing in --agent output (keep all lines)" name:"no-window"`
