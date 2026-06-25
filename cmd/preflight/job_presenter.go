@@ -45,6 +45,31 @@ func (p jobPresenter) Line(j buildkite.Job) string {
 	return fmt.Sprintf("%s %s %s", symbol, name, detail)
 }
 
+// PromisedFailureLine renders an early failure declaration on a running job.
+func (p jobPresenter) PromisedFailureLine(j buildkite.Job) string {
+	name := watch.NewFormattedJob(j).DisplayName()
+	return fmt.Sprintf("⚡ %s declared an early failure%s", name, promisedExitSuffix(j))
+}
+
+// ColoredPromisedFailureLine renders PromisedFailureLine with styling, keeping
+// any emoji prefix outside the ANSI colour span (see ColoredLine).
+func (p jobPresenter) ColoredPromisedFailureLine(j buildkite.Job) string {
+	emojiPrefix, textName := emoji.Split(watch.NewFormattedJob(j).DisplayName())
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
+	detail := fmt.Sprintf("declared an early failure%s", promisedExitSuffix(j))
+	if emojiPrefix != "" {
+		return style.Render("⚡ ") + emoji.Render(emojiPrefix) + " " + style.Render(fmt.Sprintf("%s %s", textName, detail))
+	}
+	return style.Render(fmt.Sprintf("⚡ %s %s", textName, detail))
+}
+
+func promisedExitSuffix(j buildkite.Job) string {
+	if j.PromisedExitStatus == nil {
+		return ""
+	}
+	return fmt.Sprintf(" (exit %d)", *j.PromisedExitStatus)
+}
+
 func (p jobPresenter) PassedLine(j buildkite.Job) string {
 	name := watch.NewFormattedJob(j).DisplayName()
 	return fmt.Sprintf("✔ %s", name)

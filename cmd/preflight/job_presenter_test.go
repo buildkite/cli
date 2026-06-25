@@ -202,3 +202,18 @@ func assertStringContainsAll(t *testing.T, got string, want []string) {
 		}
 	}
 }
+
+func TestJobPresenter_PromisedFailureLine(t *testing.T) {
+	startedAt := buildkite.Timestamp{Time: time.Now().Add(-30 * time.Second)}
+	exitStatus := 1
+	job := scriptJob("node-test", "Test", "running", false, &startedAt, nil, nil)
+	job.PromisedExitStatus = &exitStatus
+
+	line := jobPresenter{pipeline: "buildkite/cli", buildNumber: 183663}.PromisedFailureLine(job)
+
+	assertStringContainsAll(t, line, []string{
+		"⚡ Test",
+		"declared an early failure",
+		"(exit 1)",
+	})
+}

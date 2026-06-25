@@ -733,3 +733,126 @@ func TestJob_Duration(t *testing.T) {
 		}
 	})
 }
+
+func TestJobTracker_PromisedFailure(t *testing.T) {
+	intPtr := func(i int) *int { return &i }
+
+	t.Run("running job with promised exit status reported once", func(t *testing.T) {
+		tracker := NewJobTracker()
+		status := tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "1", Type: "script", State: "running", PromisedExitStatus: intPtr(1)},
+			},
+		})
+		if len(status.NewlyPromisedFailure) != 1 || status.NewlyPromisedFailure[0].ID != "1" {
+			t.Fatalf("expected job 1 promised, got %#v", status.NewlyPromisedFailure)
+		}
+
+		// Same promise on the next poll must not re-report.
+		status = tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "1", Type: "script", State: "running", PromisedExitStatus: intPtr(1)},
+			},
+		})
+		if len(status.NewlyPromisedFailure) != 0 {
+			t.Errorf("expected no re-report, got %d", len(status.NewlyPromisedFailure))
+		}
+	})
+
+	t.Run("nil or zero promised exit status is not a promised failure", func(t *testing.T) {
+		tracker := NewJobTracker()
+		status := tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "1", Type: "script", State: "running"},
+				{ID: "2", Type: "script", State: "running", PromisedExitStatus: intPtr(0)},
+			},
+		})
+		if len(status.NewlyPromisedFailure) != 0 {
+			t.Errorf("expected 0 promised, got %d", len(status.NewlyPromisedFailure))
+		}
+	})
+
+	t.Run("non-running job with promised exit status is not surfaced", func(t *testing.T) {
+		tracker := NewJobTracker()
+		status := tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "1", Type: "script", State: "failed", PromisedExitStatus: intPtr(1)},
+			},
+		})
+		if len(status.NewlyPromisedFailure) != 0 {
+			t.Errorf("expected 0 promised for finished job, got %d", len(status.NewlyPromisedFailure))
+		}
+	})
+}
+
+func TestJobTracker_ServerClassifiedFailures(t *testing.T) {
+	intPtr := func(i int) *int { return &i }
+
+	t.Run("server set is trusted over client declaration", func(t *testing.T) {
+		tracker := NewJobTracker()
+		// job 1 declared a promised failure on the payload, but the server does
+		// not classify it as failing (e.g. it would soft-fail). job 2 carries no
+		// promised status on the payload, but the server says it is failing.
+		tracker.SetServerClassifiedFailures(map[string]bool{"2": true})
+		status := tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "1", Type: "script", State: "running", PromisedExitStatus: intPtr(1)},
+				{ID: "2", Type: "script", State: "running"},
+			},
+		})
+		if len(status.NewlyPromisedFailure) != 1 || status.NewlyPromisedFailure[0].ID != "2" {
+			t.Fatalf("expected only job 2 surfaced from server set, got %#v", status.NewlyPromisedFailure)
+		}
+	})
+
+	t.Run("empty non-nil server set suppresses client declaration", func(t *testing.T) {
+		tracker := NewJobTracker()
+		tracker.SetServerClassifiedFailures(map[string]bool{})
+		status := tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "1", Type: "script", State: "running", PromisedExitStatus: intPtr(1)},
+			},
+		})
+		if len(status.NewlyPromisedFailure) != 0 {
+			t.Fatalf("expected server to suppress client declaration, got %#v", status.NewlyPromisedFailure)
+		}
+	})
+
+	t.Run("nil server set falls back to client declaration", func(t *testing.T) {
+		tracker := NewJobTracker()
+		status := tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "1", Type: "script", State: "running", PromisedExitStatus: intPtr(1)},
+			},
+		})
+		if len(status.NewlyPromisedFailure) != 1 || status.NewlyPromisedFailure[0].ID != "1" {
+			t.Fatalf("expected client fallback to surface job 1, got %#v", status.NewlyPromisedFailure)
+		}
+	})
+
+	t.Run("resetting to nil after a server set restores client fallback", func(t *testing.T) {
+		tracker := NewJobTracker()
+		// Poll 1: server set present and empty, so the declared job is suppressed.
+		tracker.SetServerClassifiedFailures(map[string]bool{})
+		status := tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "1", Type: "script", State: "running", PromisedExitStatus: intPtr(1)},
+			},
+		})
+		if len(status.NewlyPromisedFailure) != 0 {
+			t.Fatalf("expected empty server set to suppress, got %#v", status.NewlyPromisedFailure)
+		}
+
+		// Poll 2: server fetch failed/skipped, so nil restores the client
+		// fallback and the still-declared job is surfaced.
+		tracker.SetServerClassifiedFailures(nil)
+		status = tracker.Update(buildkite.Build{
+			Jobs: []buildkite.Job{
+				{ID: "1", Type: "script", State: "running", PromisedExitStatus: intPtr(1)},
+			},
+		})
+		if len(status.NewlyPromisedFailure) != 1 || status.NewlyPromisedFailure[0].ID != "1" {
+			t.Fatalf("expected client fallback after reset to surface job 1, got %#v", status.NewlyPromisedFailure)
+		}
+	})
+}
