@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strings"
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
+	"github.com/mcncl/terminal-to-llm/digest"
 )
 
 type LogCmd struct {
@@ -19,6 +19,9 @@ type LogCmd struct {
 	BuildNumber  string `help:"Deprecated; ignored because job UUIDs no longer require pipeline or build context" short:"b"`
 	NoTimestamps bool   `help:"Strip timestamp prefixes from log output" name:"no-timestamps"`
 	LLMOptimized bool   `help:"Format output to be optimal for LLM consumption (strips ANSI, deduplicates loops)" name:"agent"`
+	Format       string `help:"Output rendering for --agent: plain or markdown" name:"format" enum:"plain,markdown" default:"plain"`
+	MaxTokens    int    `help:"Hard ceiling on the estimated token count of --agent output (0 = unlimited)" name:"max-tokens"`
+	NoWindow     bool   `help:"Disable failure-focused windowing in --agent output (keep all lines)" name:"no-window"`
 }
 
 func (c *LogCmd) Help() string {
@@ -29,6 +32,12 @@ Examples:
 
   # Strip timestamp prefixes from output
   $ bk job log 0190046e-e199-453b-a302-a21a4d649d31 --no-timestamps
+
+  # Format for LLM consumption
+  $ bk job log 0190046e-e199-453b-a302-a21a4d649d31 --agent
+
+  # Format for LLM as markdown, capped at 2000 tokens, keeping all lines
+  $ bk job log 0190046e-e199-453b-a302-a21a4d649d31 --agent --format markdown --max-tokens 2000 --no-window
 `
 }
 
@@ -76,7 +85,11 @@ func (c *LogCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	if c.LLMOptimized {
-		logContent = formatForLLM(logContent)
+		opt := digest.Default()
+		opt.Format = digest.ParseFormat(c.Format)
+		opt.MaxTokens = c.MaxTokens
+		opt.Window = !c.NoWindow
+		logContent = digest.Process([]byte(logContent), opt)
 	}
 
 	writer, cleanup := bkIO.Pager(f.NoPager)
@@ -91,78 +104,6 @@ func (c *LogCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 // leaving a dangling escape byte behind.
 var timestampRegex = regexp.MustCompile(`(?:\x1b_)?bk;t=\d+\x07`)
 
-var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
-
-// oscRegex matches OSC (`\x1b]...`) and APC (`\x1b_...`) escape sequences
-// terminated by BEL (\x07) or ST (\x1b\\). Buildkite uses APC sequences for its
-// inline timestamp metadata (e.g. `\x1b_bk;t=1700000000000\x07`).
-var oscRegex = regexp.MustCompile("\x1b[\\]_][^\x07]*(?:\x07|\x1b\\\\)")
-
 func stripTimestamps(content string) string {
 	return timestampRegex.ReplaceAllString(content, "")
-}
-
-func formatForLLM(content string) string {
-	content = ansiRegex.ReplaceAllString(content, "")
-	content = oscRegex.ReplaceAllString(content, "")
-	// Strip any bare timestamp markers that weren't wrapped in an APC sequence,
-	// so deduplication works regardless of the --no-timestamps flag.
-	content = stripTimestamps(content)
-
-	lines := strings.Split(content, "\n")
-	result := make([]string, 0, len(lines))
-
-	var prevLine string
-	hasPrev := false
-	repeatCount := 0
-
-	flush := func() {
-		if repeatCount > 0 {
-			result = append(result, fmt.Sprintf("[Previous line repeated %d times]", repeatCount))
-			repeatCount = 0
-		}
-	}
-
-	for _, line := range lines {
-		// Normalise CRLF line endings, then collapse carriage-return redraws
-		// (progress bars, spinners) by keeping only the final segment that would
-		// actually be visible in a terminal.
-		line = strings.TrimRight(line, "\r")
-		if idx := strings.LastIndex(line, "\r"); idx >= 0 {
-			line = line[idx+1:]
-		}
-		// Drop trailing whitespace; it carries no information for an LLM.
-		line = strings.TrimRight(line, " \t")
-
-		// Deduplicate consecutive identical lines, but never collapse blank lines.
-		if line != "" && hasPrev && line == prevLine {
-			repeatCount++
-			continue
-		}
-
-		flush()
-
-		result = append(result, transformHeader(line))
-		prevLine = line
-		hasPrev = true
-	}
-
-	flush()
-
-	// Trim the single leading newline introduced when the log starts with a
-	// phase header, so the output doesn't begin with a blank line.
-	return strings.TrimPrefix(strings.Join(result, "\n"), "\n")
-}
-
-// transformHeader rewrites Buildkite log group markers (`---`, `+++`, `~~~`)
-// into clear phase boundaries for an LLM. The marker must be a standalone token
-// or followed by a space so that separators like `----------` are left intact.
-func transformHeader(line string) string {
-	for _, prefix := range []string{"---", "+++", "~~~"} {
-		if line == prefix || strings.HasPrefix(line, prefix+" ") {
-			title := strings.TrimSpace(strings.TrimPrefix(line, prefix))
-			return "\n=== PHASE: " + title + " ==="
-		}
-	}
-	return line
 }
