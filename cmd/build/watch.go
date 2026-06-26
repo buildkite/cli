@@ -66,11 +66,7 @@ func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	// Validate command options
 	v := validation.New()
 	v.AddRule("Interval", validation.MinValue(1))
-	if c.Pipeline != "" {
-		v.AddRule("Pipeline", validation.Slug)
-	}
 	if err := v.Validate(map[string]interface{}{
-		"Pipeline": c.Pipeline,
 		"Interval": c.Interval,
 	}); err != nil {
 		return err

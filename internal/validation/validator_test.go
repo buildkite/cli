@@ -105,6 +105,15 @@ func TestSlugRule(t *testing.T) {
 			wantErr: true,
 			errMsg:  "must be a valid slug",
 		},
+		// Regression: org/slug form is rejected by the Slug rule. This is why
+		// `build watch --pipeline` must not apply Slug validation to --pipeline;
+		// the shared pipeline resolver handles org/slug parsing instead, matching
+		// `build create`.
+		"org/slug format is not a valid slug": {
+			input:   "myorg/mypipeline",
+			wantErr: true,
+			errMsg:  "must be a valid slug",
+		},
 		"starts with hyphen": {
 			input:   "-my-slug",
 			wantErr: true,
