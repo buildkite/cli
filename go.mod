@@ -14,7 +14,7 @@ require (
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/goccy/go-yaml v1.19.2
 	github.com/google/uuid v1.6.0
-	github.com/mcncl/terminal-to-llm v0.0.0-20260625015351-3819cf9f5f9b
+	github.com/mcncl/terminal-to-llm v0.1.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/posthog/posthog-go v1.16.2
 	github.com/vektah/gqlparser/v2 v2.5.35
