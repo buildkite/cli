@@ -40,33 +40,40 @@ url = "https://github.com/goreleaser/goreleaser/releases/download/v2.16.0/gorele
 url_api = "https://api.github.com/repos/goreleaser/goreleaser/releases/assets/428676991"
 
 [[tools.ko]]
-version = "0.19.0"
+version = "0.19.1"
 backend = "aqua:ko-build/ko"
 
 [tools.ko."platforms.linux-arm64"]
-checksum = "sha256:313e85ea4407c4f32085e5d9b59ebeae748cb99712e28745b99ee8ba85807ee0"
-url = "https://github.com/ko-build/ko/releases/download/v0.19.0/ko_0.19.0_Linux_arm64.tar.gz"
+checksum = "sha256:4099b2d1170d3b8a70e049237462efc2dd14d5fa30e9d2e5e108fb4f778cdd3f"
+url = "https://github.com/ko-build/ko/releases/download/v0.19.1/ko_0.19.1_Linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/ko-build/ko/releases/assets/461171819"
 
 [tools.ko."platforms.linux-arm64-musl"]
-checksum = "sha256:313e85ea4407c4f32085e5d9b59ebeae748cb99712e28745b99ee8ba85807ee0"
-url = "https://github.com/ko-build/ko/releases/download/v0.19.0/ko_0.19.0_Linux_arm64.tar.gz"
+checksum = "sha256:4099b2d1170d3b8a70e049237462efc2dd14d5fa30e9d2e5e108fb4f778cdd3f"
+url = "https://github.com/ko-build/ko/releases/download/v0.19.1/ko_0.19.1_Linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/ko-build/ko/releases/assets/461171819"
 
 [tools.ko."platforms.linux-x64"]
-checksum = "sha256:55afa9c0738203de68567e5a3f55372751c35d0b41c7b7e102c4053ec07e1698"
-url = "https://github.com/ko-build/ko/releases/download/v0.19.0/ko_0.19.0_Linux_x86_64.tar.gz"
+checksum = "sha256:635ac6ea3fd376c935fee597fbb29ab2c2449f49ef1655085fe3aa9c25fed7a5"
+url = "https://github.com/ko-build/ko/releases/download/v0.19.1/ko_0.19.1_Linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/ko-build/ko/releases/assets/461171792"
 
 [tools.ko."platforms.linux-x64-musl"]
-checksum = "sha256:55afa9c0738203de68567e5a3f55372751c35d0b41c7b7e102c4053ec07e1698"
-url = "https://github.com/ko-build/ko/releases/download/v0.19.0/ko_0.19.0_Linux_x86_64.tar.gz"
+checksum = "sha256:635ac6ea3fd376c935fee597fbb29ab2c2449f49ef1655085fe3aa9c25fed7a5"
+url = "https://github.com/ko-build/ko/releases/download/v0.19.1/ko_0.19.1_Linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/ko-build/ko/releases/assets/461171792"
 
 [tools.ko."platforms.macos-arm64"]
-checksum = "sha256:1f208520e58ac589fda4f9f5b531174032a1f1eeea218f7bd4381e0c63b97c31"
-url = "https://github.com/ko-build/ko/releases/download/v0.19.0/ko_0.19.0_Darwin_arm64.tar.gz"
+checksum = "sha256:a1338c4140c8c94e789733e21b161a3de177b467cd3c388b634fe1a869574509"
+url = "https://github.com/ko-build/ko/releases/download/v0.19.1/ko_0.19.1_Darwin_arm64.tar.gz"
+url_api = "https://api.github.com/repos/ko-build/ko/releases/assets/461171820"
 
 [tools.ko."platforms.macos-x64"]
-checksum = "sha256:22d77d8ab7929bbe1670ded1df1ef2d385c15b96bcfdc9428e98159eca153b97"
-url = "https://github.com/ko-build/ko/releases/download/v0.19.0/ko_0.19.0_Darwin_x86_64.tar.gz"
+checksum = "sha256:1b4ed52a5e506a55b085c7f106eb743ee756c776cc90fa232a539a47ad665310"
+url = "https://github.com/ko-build/ko/releases/download/v0.19.1/ko_0.19.1_Darwin_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/ko-build/ko/releases/assets/461171805"
 
 [tools.ko."platforms.windows-x64"]
-checksum = "sha256:7c51a7a92ab190b9eafddb6ae6819c597e4754040704a4abdfbfd1651a75ceaa"
-url = "https://github.com/ko-build/ko/releases/download/v0.19.0/ko_0.19.0_Windows_x86_64.tar.gz"
+checksum = "sha256:f70b0c9ea1874e81358a1886d478ebee9eb17d4f07e8dcaa779c4250a2aaea70"
+url = "https://github.com/ko-build/ko/releases/download/v0.19.1/ko_0.19.1_Windows_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/ko-build/ko/releases/assets/461171790"
