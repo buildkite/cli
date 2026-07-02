@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/alecthomas/kong v1.15.0
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be
-	github.com/buildkite/go-buildkite/v5 v5.2.0
+	github.com/buildkite/go-buildkite/v5 v5.3.0
 	github.com/buildkite/termoji v0.0.0-20260330080310-c0aa4ebee0d1
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
@@ -29,6 +29,7 @@ require (
 	github.com/alexflint/go-scalar v1.2.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
+	github.com/buildkite/roko v1.4.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.1 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
@@ -59,7 +60,6 @@ require (
 	github.com/Khan/genqlient v0.8.1
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.1.6 // indirect
-	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
