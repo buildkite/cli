@@ -15,6 +15,7 @@ import (
 	"github.com/buildkite/cli/v3/pkg/keyring"
 	"github.com/buildkite/cli/v3/pkg/oauth"
 	buildkite "github.com/buildkite/go-buildkite/v5"
+	git "github.com/go-git/go-git/v5"
 	oskeyring "github.com/zalando/go-keyring"
 )
 
@@ -161,6 +162,82 @@ func TestPersistOAuthLogin(t *testing.T) {
 		if got := store.refresh["test-org"]; got != "refresh-token" {
 			t.Fatalf("expected refresh token to be stored, got %q", got)
 		}
+	})
+}
+
+// TestLoginSelectsOrgInUserConfigInsideGitRepo pins the behavior the "auth
+// fails when no .bk.yaml is present" fix relies on: logging in must record the
+// selected org in the user config, not the repo-local .bk.yaml. Tokens live in
+// the credential store keyed by org, so if the selection were written to a
+// per-repo file the org would be forgotten as soon as that file is absent,
+// leaving `auth status` reporting "not authenticated" despite a valid token.
+//
+// The other login tests Chdir into plain temp dirs (f.GitRepository == nil),
+// where the selection lands in user config regardless; this test creates a real
+// git repository so f.GitRepository != nil and exercises the path that used to
+// write the selection into the local .bk.yaml.
+func TestLoginSelectsOrgInUserConfigInsideGitRepo(t *testing.T) {
+	newGitRepoFactory := func(t *testing.T) (*factory.Factory, string) {
+		t.Helper()
+		userConfigDir := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", userConfigDir)
+		t.Setenv("BUILDKITE_API_TOKEN", "")
+		t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
+
+		repoDir := t.TempDir()
+		if _, err := git.PlainInit(repoDir, false); err != nil {
+			t.Fatalf("git.PlainInit() error = %v", err)
+		}
+		t.Chdir(repoDir)
+
+		f, err := factory.New()
+		if err != nil {
+			t.Fatalf("factory.New() error = %v", err)
+		}
+		if f.GitRepository == nil {
+			t.Fatal("expected factory to detect the git repository")
+		}
+		return f, repoDir
+	}
+
+	assertUserConfigSelectsOrg := func(t *testing.T, repoDir, org string) {
+		t.Helper()
+
+		userConfig := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "bk.yaml")
+		data, err := os.ReadFile(userConfig)
+		if err != nil {
+			t.Fatalf("read user config: %v", err)
+		}
+		if got := string(data); !strings.Contains(got, "selected_org: "+org) {
+			t.Fatalf("user config did not select %q:\n%s", org, got)
+		}
+
+		if _, err := os.Stat(filepath.Join(repoDir, ".bk.yaml")); !os.IsNotExist(err) {
+			t.Fatalf("expected no repo-local .bk.yaml to be written, stat err = %v", err)
+		}
+	}
+
+	t.Run("oauth login", func(t *testing.T) {
+		f, repoDir := newGitRepoFactory(t)
+		store := &stubOAuthTokenStore{available: true}
+
+		if _, err := persistOAuthLogin(f, store, "test-org", "access-token", "refresh-token"); err != nil {
+			t.Fatalf("persistOAuthLogin() error = %v", err)
+		}
+
+		assertUserConfigSelectsOrg(t, repoDir, "test-org")
+	})
+
+	t.Run("token login", func(t *testing.T) {
+		keyring.MockForTesting()
+		f, repoDir := newGitRepoFactory(t)
+		store := &stubOAuthTokenStore{available: true}
+
+		if err := loginWithToken(f, "test-org", "access-token", store); err != nil {
+			t.Fatalf("loginWithToken() error = %v", err)
+		}
+
+		assertUserConfigSelectsOrg(t, repoDir, "test-org")
 	})
 }
 
