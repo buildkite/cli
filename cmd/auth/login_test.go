@@ -230,6 +230,7 @@ func TestLoginSelectsOrgInUserConfigInsideGitRepo(t *testing.T) {
 
 	t.Run("token login", func(t *testing.T) {
 		keyring.MockForTesting()
+		t.Cleanup(keyring.ResetForTesting)
 		f, repoDir := newGitRepoFactory(t)
 		store := &stubOAuthTokenStore{available: true}
 
