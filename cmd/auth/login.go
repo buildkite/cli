@@ -112,7 +112,13 @@ func loginWithToken(f *factory.Factory, org, token string, kr oauthTokenStore) e
 		return fmt.Errorf("failed to register organization in config: %w", err)
 	}
 
-	if err := f.Config.SelectOrganization(org, f.GitRepository != nil); err != nil {
+	// Persist the selected org in user config (not the repo-local .bk.yaml) so
+	// login establishes a global default that survives leaving the repo. Tokens
+	// live in the credential store keyed by org, so tying the selection to a
+	// per-repo file would make `auth status` report "not authenticated" as soon
+	// as the local .bk.yaml is absent. Per-repo overrides remain available via
+	// `bk auth switch` / `bk use`.
+	if err := f.Config.SelectOrganization(org, false); err != nil {
 		return fmt.Errorf("failed to select organization: %w", err)
 	}
 
@@ -146,7 +152,9 @@ func persistOAuthLogin(f *factory.Factory, store oauthTokenStore, org, accessTok
 	if err := f.Config.EnsureOrganization(org); err != nil {
 		return false, fmt.Errorf("failed to register organization in config: %w", err)
 	}
-	if err := f.Config.SelectOrganization(org, f.GitRepository != nil); err != nil {
+	// Persist the selected org in user config (not the repo-local .bk.yaml); see
+	// loginWithToken for the rationale.
+	if err := f.Config.SelectOrganization(org, false); err != nil {
 		return false, fmt.Errorf("failed to select organization: %w", err)
 	}
 	return refreshToken != "", nil
