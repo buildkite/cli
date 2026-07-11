@@ -58,9 +58,26 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	var secrets []buildkite.ClusterSecret
 	if err = bkIO.SpinWhile(f, "Loading secrets", func() error {
-		var apiErr error
-		secrets, _, apiErr = f.RestAPIClient.ClusterSecrets.List(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, nil)
-		return apiErr
+		page := 1
+		for {
+			var (
+				pageSecrets []buildkite.ClusterSecret
+				resp        *buildkite.Response
+				apiErr      error
+			)
+			pageSecrets, resp, apiErr = f.RestAPIClient.ClusterSecrets.List(ctx, f.Config.OrganizationSlug(), c.ClusterUUID, &buildkite.ClusterSecretsListOptions{
+				ListOptions: buildkite.ListOptions{Page: page, PerPage: 100},
+			})
+			if apiErr != nil {
+				return apiErr
+			}
+			secrets = append(secrets, pageSecrets...)
+			if resp == nil || resp.NextPage == 0 {
+				break
+			}
+			page = resp.NextPage
+		}
+		return nil
 	}); err != nil {
 		return fmt.Errorf("error fetching secrets: %v", err)
 	}

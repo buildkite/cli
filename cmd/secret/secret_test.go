@@ -3,6 +3,7 @@ package secret
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -88,6 +89,61 @@ func TestListSecrets(t *testing.T) {
 			t.Errorf("expected 0 secrets, got %d", len(result))
 		}
 	})
+}
+
+func TestListSecretsPaginates(t *testing.T) {
+	t.Parallel()
+
+	// Return more secrets than one page holds so we can confirm every page is fetched.
+	page1 := make([]buildkite.ClusterSecret, 0, 40)
+	page2 := make([]buildkite.ClusterSecret, 0, 10)
+	for i := 0; i < 40; i++ {
+		page1 = append(page1, buildkite.ClusterSecret{ID: fmt.Sprintf("secret-%d", i), Key: fmt.Sprintf("KEY_%d", i)})
+	}
+	for i := 40; i < 50; i++ {
+		page2 = append(page2, buildkite.ClusterSecret{ID: fmt.Sprintf("secret-%d", i), Key: fmt.Sprintf("KEY_%d", i)})
+	}
+
+	var s *httptest.Server
+	s = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Query().Get("page") {
+		case "", "1":
+			w.Header().Set("Link", `<`+s.URL+`/clusters/cluster-123/secrets?page=2>; rel="next"`)
+			json.NewEncoder(w).Encode(page1)
+		default:
+			json.NewEncoder(w).Encode(page2)
+		}
+	}))
+	defer s.Close()
+
+	client, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var all []buildkite.ClusterSecret
+	page := 1
+	for {
+		pageSecrets, resp, err := client.ClusterSecrets.List(context.Background(), "test-org", "cluster-123", &buildkite.ClusterSecretsListOptions{
+			ListOptions: buildkite.ListOptions{Page: page, PerPage: 100},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		all = append(all, pageSecrets...)
+		if resp == nil || resp.NextPage == 0 {
+			break
+		}
+		page = resp.NextPage
+	}
+
+	if len(all) != 50 {
+		t.Fatalf("expected 50 secrets across pages, got %d", len(all))
+	}
 }
 
 func TestGetSecret(t *testing.T) {
