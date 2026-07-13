@@ -41,7 +41,7 @@ steps:
     secrets:
       - SOCKET_SECURITY_API_KEY
     plugins:
-      - socket#v1.0.0: ~
+      - socket#main: ~
 
   - label: ":terminal: build"
     key: build
