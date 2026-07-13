@@ -41,7 +41,8 @@ steps:
     secrets:
       - SOCKET_SECURITY_API_KEY
     plugins:
-      - socket#fix/non_interactive: ~
+      - socket#fix/non_interactive:
+          org: buildkite
 
   - label: ":terminal: build"
     key: build
