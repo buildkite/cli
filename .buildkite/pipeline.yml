@@ -36,9 +36,16 @@ steps:
     plugins:
       - mise#v1.1.4: ~
 
+  - name: ":socket: Socket scan"
+    key: socket
+    secrets:
+      - SOCKET_SECURITY_API_KEY
+    plugins:
+      - socket#v1.0.0: ~
+
   - label: ":terminal: build"
     key: build
-    depends_on: ["lint", "test", "vulncheck"]
+    depends_on: ["lint", "test", "vulncheck", "socket"]
     artifact_paths:
       - dist/**/*
     env:
