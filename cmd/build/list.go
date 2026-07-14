@@ -501,19 +501,12 @@ func displayBuilds(builds []buildkite.Build, format output.Format, writer io.Wri
 		return output.Write(writer, builds, format)
 	}
 
-	const (
-		maxMessageLength = 22
-		truncatedLength  = 19
-		timeFormat       = "2006-01-02T15:04:05Z"
-	)
+	const timeFormat = "2006-01-02T15:04:05Z"
 
 	var rows [][]string
 
 	for _, build := range builds {
-		message := build.Message
-		if len(message) > maxMessageLength {
-			message = message[:truncatedLength] + "..."
-		}
+		message := truncateBuildMessage(build.Message)
 
 		startedAt := "-"
 		if build.StartedAt != nil {
@@ -561,10 +554,11 @@ func displayBuilds(builds []buildkite.Build, format output.Format, writer io.Wri
 func displaySummaryTable(builds []buildkite.Build, writer io.Writer) error {
 	var rows [][]string
 	for _, build := range builds {
+		message, _, _ := strings.Cut(build.Message, "\n")
 		rows = append(rows, []string{
 			fmt.Sprintf("%d", build.Number),
 			build.State,
-			build.Message,
+			truncateBuildMessage(message),
 			build.Branch,
 			build.Commit,
 			build.WebURL,
@@ -578,6 +572,17 @@ func displaySummaryTable(builds []buildkite.Build, writer io.Writer) error {
 	)
 	_, err := fmt.Fprint(writer, table)
 	return err
+}
+
+func truncateBuildMessage(message string) string {
+	const (
+		maxMessageLength = 22
+		truncatedLength  = 19
+	)
+	if len(message) > maxMessageLength {
+		return message[:truncatedLength] + "..."
+	}
+	return message
 }
 
 func formatDuration(d time.Duration) string {

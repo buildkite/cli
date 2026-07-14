@@ -126,7 +126,7 @@ func TestDisplayBuildSummaries_StructuredShape(t *testing.T) {
 
 func TestDisplayBuildSummaries_Text(t *testing.T) {
 	var buf bytes.Buffer
-	builds := []buildkite.Build{{Number: 42, State: "failed", Message: "Deploy", Branch: "main", WebURL: "https://example.test/42"}}
+	builds := []buildkite.Build{{Number: 42, State: "failed", Message: "Deploy\nwith a detailed commit body", Branch: "main", WebURL: "https://example.test/42"}}
 
 	if err := displayBuildSummaries(builds, output.FormatText, &buf); err != nil {
 		t.Fatalf("displayBuildSummaries failed: %v", err)
@@ -136,6 +136,9 @@ func TestDisplayBuildSummaries_Text(t *testing.T) {
 		if !strings.Contains(buf.String(), want) {
 			t.Errorf("summary text %q does not contain %q", buf.String(), want)
 		}
+	}
+	if strings.Contains(buf.String(), "detailed commit body") {
+		t.Errorf("summary text includes the multi-line commit body: %q", buf.String())
 	}
 }
 
