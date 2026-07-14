@@ -95,7 +95,7 @@ func TestDisplayBuildSummaries_StructuredShape(t *testing.T) {
 	for _, format := range []output.Format{output.FormatJSON, output.FormatYAML} {
 		t.Run(string(format), func(t *testing.T) {
 			var buf bytes.Buffer
-			if err := displayBuildSummaries(builds, format, &buf); err != nil {
+			if err := displayBuildSummaries(builds, "acme", "widgets", format, &buf); err != nil {
 				t.Fatalf("displayBuildSummaries failed: %v", err)
 			}
 
@@ -115,7 +115,10 @@ func TestDisplayBuildSummaries_StructuredShape(t *testing.T) {
 			if len(got) != 1 || got[0]["number"] != float64(42) || got[0]["state"] != "passed" {
 				t.Fatalf("unexpected summary: %#v", got)
 			}
-			for _, excluded := range []string{"jobs", "pipeline", "artifacts", "annotations"} {
+			if got[0]["organization"] != "acme" || got[0]["pipeline"] != "widgets" {
+				t.Errorf("summary target = %v/%v, want acme/widgets", got[0]["organization"], got[0]["pipeline"])
+			}
+			for _, excluded := range []string{"jobs", "artifacts", "annotations"} {
 				if _, ok := got[0][excluded]; ok {
 					t.Errorf("summary unexpectedly contains %q: %#v", excluded, got[0])
 				}
@@ -128,7 +131,7 @@ func TestDisplayBuildSummaries_Text(t *testing.T) {
 	var buf bytes.Buffer
 	builds := []buildkite.Build{{Number: 42, State: "failed", Message: "Deploy\nwith a detailed commit body", Branch: "main", WebURL: "https://example.test/42"}}
 
-	if err := displayBuildSummaries(builds, output.FormatText, &buf); err != nil {
+	if err := displayBuildSummaries(builds, "", "", output.FormatText, &buf); err != nil {
 		t.Fatalf("displayBuildSummaries failed: %v", err)
 	}
 

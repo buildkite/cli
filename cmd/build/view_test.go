@@ -125,7 +125,7 @@ func TestBuildSummaryOutput_StructuredAndText(t *testing.T) {
 		ID:      "build-id",
 		Number:  42,
 		State:   "passed",
-		Message: "Ship it",
+		Message: "Ship it\nwith a detailed commit body",
 		Branch:  "main",
 		Commit:  "abcdef",
 		WebURL:  "https://example.test/42",
@@ -156,5 +156,8 @@ func TestBuildSummaryOutput_StructuredAndText(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Errorf("summary text %q does not contain %q", text, want)
 		}
+	}
+	if strings.Contains(text, "detailed commit body") {
+		t.Errorf("summary text includes the multi-line commit body: %q", text)
 	}
 }

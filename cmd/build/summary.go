@@ -2,6 +2,7 @@ package build
 
 import (
 	"io"
+	"strings"
 
 	"github.com/buildkite/cli/v3/internal/build/view"
 	"github.com/buildkite/cli/v3/pkg/output"
@@ -43,22 +44,29 @@ func newBuildSummary(build buildkite.Build, organization, pipeline string) build
 }
 
 func newBuildSummaryOutput(build buildkite.Build, organization, pipeline string) output.Viewable[buildSummary] {
+	textBuild := build
+	textBuild.Message = singleLineBuildMessage(build.Message)
 	return output.Viewable[buildSummary]{
 		Data: newBuildSummary(build, organization, pipeline),
 		Render: func(buildSummary) string {
-			return view.BuildSummary(&build, organization, pipeline)
+			return view.BuildSummary(&textBuild, organization, pipeline)
 		},
 	}
 }
 
-func displayBuildSummaries(builds []buildkite.Build, format output.Format, writer io.Writer) error {
+func displayBuildSummaries(builds []buildkite.Build, organization, pipeline string, format output.Format, writer io.Writer) error {
 	if format == output.FormatText {
 		return displaySummaryTable(builds, writer)
 	}
 
 	summaries := make([]buildSummary, len(builds))
 	for i, build := range builds {
-		summaries[i] = newBuildSummary(build, "", "")
+		summaries[i] = newBuildSummary(build, organization, pipeline)
 	}
 	return output.Write(writer, summaries, format)
+}
+
+func singleLineBuildMessage(message string) string {
+	firstLine, _, _ := strings.Cut(message, "\n")
+	return firstLine
 }

@@ -143,6 +143,14 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	org := f.Config.OrganizationSlug()
+	summaryPipeline := ""
+	if c.Summary && c.Pipeline != "" {
+		pipeline, err := pipelineResolver.ResolveFromFlag(c.Pipeline, f.Config)(ctx)
+		if err != nil {
+			return err
+		}
+		summaryPipeline = pipeline.Name
+	}
 
 	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 
@@ -179,7 +187,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	if c.Summary {
-		return displayBuildSummaries(builds, format, os.Stdout)
+		return displayBuildSummaries(builds, org, summaryPipeline, format, os.Stdout)
 	}
 	return displayBuilds(builds, format, os.Stdout)
 }
@@ -351,7 +359,7 @@ func (c *ListCmd) fetchBuilds(ctx context.Context, f *factory.Factory, org strin
 		// Stream only the builds we are about to add; header only once we actually print something
 		if format == output.FormatText && len(buildsToAdd) > 0 && writer != nil {
 			if c.Summary {
-				_ = displayBuildSummaries(buildsToAdd, format, writer)
+				_ = displayBuildSummaries(buildsToAdd, "", "", format, writer)
 			} else {
 				_ = displayBuilds(buildsToAdd, format, writer)
 			}
@@ -554,11 +562,10 @@ func displayBuilds(builds []buildkite.Build, format output.Format, writer io.Wri
 func displaySummaryTable(builds []buildkite.Build, writer io.Writer) error {
 	var rows [][]string
 	for _, build := range builds {
-		message, _, _ := strings.Cut(build.Message, "\n")
 		rows = append(rows, []string{
 			fmt.Sprintf("%d", build.Number),
 			build.State,
-			truncateBuildMessage(message),
+			truncateBuildMessage(singleLineBuildMessage(build.Message)),
 			build.Branch,
 			build.Commit,
 			build.WebURL,
