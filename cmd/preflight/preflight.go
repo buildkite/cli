@@ -412,7 +412,15 @@ func cancelBuild(f *factory.Factory, renderer renderer, org, pipeline string, bu
 }
 
 func (c *RunCmd) loadFinalResult(ctx context.Context, client *buildkite.Client, org, pipeline string, buildNumber int) (internalpreflight.SummaryResult, error) {
-	buildWithTests, _, buildErr := client.Builds.Get(ctx, org, pipeline, strconv.Itoa(buildNumber), &buildkite.BuildGetOptions{IncludeTestEngine: true})
+	// Only the build ID and Test Engine data are used here, so skip the
+	// heavyweight job and pipeline payloads (important for large builds).
+	buildWithTests, _, buildErr := client.Builds.Get(ctx, org, pipeline, strconv.Itoa(buildNumber), &buildkite.BuildGetOptions{
+		IncludeTestEngine: true,
+		BuildsListOptions: buildkite.BuildsListOptions{
+			ExcludeJobs:     true,
+			ExcludePipeline: true,
+		},
+	})
 	expectTestSummary := buildErr == nil && buildWithTests.TestEngine != nil && len(buildWithTests.TestEngine.Runs) > 0
 
 	if buildErr != nil {

@@ -16,6 +16,7 @@ import (
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 type DownloadCmd struct {
@@ -121,7 +122,11 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 func download(ctx context.Context, build *build.Build, f *factory.Factory) (string, error) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	b, _, err := f.RestAPIClient.Builds.Get(ctx, build.Organization, build.Pipeline, fmt.Sprint(build.BuildNumber), nil)
+	// Jobs are needed for log downloads, but the pipeline payload is unused.
+	getOpts := &buildkite.BuildGetOptions{
+		BuildsListOptions: buildkite.BuildsListOptions{ExcludePipeline: true},
+	}
+	b, _, err := f.RestAPIClient.Builds.Get(ctx, build.Organization, build.Pipeline, fmt.Sprint(build.BuildNumber), getOpts)
 	if err != nil {
 		return "", err
 	}

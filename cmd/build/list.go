@@ -142,6 +142,14 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 
+	// The text table only renders top-level build attributes, so skip the
+	// heavyweight job and pipeline payloads (important for large builds).
+	// Structured formats (json/yaml) keep the full payload for compatibility.
+	if format == output.FormatText {
+		listOpts.ExcludeJobs = true
+		listOpts.ExcludePipeline = true
+	}
+
 	if format == output.FormatText {
 		writer, cleanup := bkIO.Pager(f.NoPager, f.Config.Pager())
 		defer func() { _ = cleanup() }()
