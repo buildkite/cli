@@ -22,6 +22,8 @@ func ResolveBuildWithOpts(f *factory.Factory, pipelineResolver pipelineResolver.
 		}
 
 		opts := &buildkite.BuildsListOptions{
+			ExcludeJobs:     true,
+			ExcludePipeline: true,
 			ListOptions: buildkite.ListOptions{
 				PerPage: 1,
 			},
