@@ -651,6 +651,9 @@ func jobListOptionsFromFlags(opts *jobListOptions) (*buildkite.BuildsListOptions
 		ListOptions: buildkite.ListOptions{
 			PerPage: pageSize,
 		},
+		// Jobs are extracted from each build; the pipeline payload is unused,
+		// so exclude it to keep responses small (important for large builds).
+		ExcludePipeline: true,
 	}
 
 	now := time.Now()
