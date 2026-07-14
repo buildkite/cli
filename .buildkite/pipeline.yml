@@ -41,8 +41,9 @@ steps:
     secrets:
       - SOCKET_SECURITY_API_KEY
     plugins:
-      - socket#fix/non_interactive:
+      - socket#bm/annotate_option:
           org: buildkite
+          annotate: true
 
   - label: ":terminal: build"
     key: build
