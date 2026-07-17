@@ -31,6 +31,8 @@ const (
 type ListCmd struct {
 	Pipeline string   `help:"Filter by pipeline slug" short:"p"`
 	Build    string   `help:"Filter by build number (requires a resolvable pipeline)"`
+	StepKey  string   `help:"Filter by step key (requires --build)" name:"step-key"`
+	GroupKey string   `help:"Filter by group key (requires --build)" name:"group-key"`
 	Since    string   `help:"Filter jobs from builds created since this time (e.g. 1h, 30m)"`
 	Until    string   `help:"Filter jobs from builds created before this time (e.g. 1h, 30m)"`
 	Duration string   `help:"Filter by duration (e.g. >10m, <5m, 20m) - supports >, <, >=, <= operators"`
@@ -48,7 +50,7 @@ When a build number is known, use --build to fetch its jobs directly. The pipeli
 can be passed with --pipeline or resolved from the current repository or config.
 
 Client-side filters: --queue, --state, --duration
-Server-side filters: --pipeline, --build, --since, --until
+Server-side filters: --pipeline, --build, --step-key, --group-key, --since, --until
 
 With --build, --state is also applied by the server. Client-side filters and
 ordering are applied after all required cursor pages have been fetched.
@@ -73,6 +75,9 @@ Examples:
   # List failed jobs from a known build (recommended when the build is known)
   $ bk job list --pipeline my-app --build 429 --state failed
 
+  # List jobs for step and group keys from a known build
+  $ bk job list --pipeline my-app --build 429 --step-key test --group-key verification
+
   # List jobs that took longer than 10 minutes
   $ bk job list --duration ">10m"
 
@@ -96,6 +101,8 @@ Examples:
 type jobListOptions struct {
 	pipeline string
 	build    string
+	stepKey  string
+	groupKey string
 	since    string
 	until    string
 	duration string
@@ -136,6 +143,8 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	opts := jobListOptions{
 		pipeline: c.Pipeline,
 		build:    c.Build,
+		stepKey:  c.StepKey,
+		groupKey: c.GroupKey,
 		since:    c.Since,
 		until:    c.Until,
 		duration: c.Duration,
@@ -263,6 +272,8 @@ func fetchJobsByBuild(ctx context.Context, client *buildkite.Client, org, pipeli
 	includeRetriedJobs := false
 	jobsListOpts := &buildkite.JobsListOptions{
 		State:              opts.state,
+		StepKey:            opts.stepKey,
+		GroupKey:           opts.groupKey,
 		IncludeRetriedJobs: &includeRetriedJobs,
 		PerPage:            pageSize,
 	}
@@ -290,6 +301,8 @@ func fetchJobsByBuild(ctx context.Context, client *buildkite.Client, org, pipeli
 			return nil, fmt.Errorf("invalid next jobs page: %w", err)
 		}
 		jobsListOpts.State = opts.state
+		jobsListOpts.StepKey = opts.stepKey
+		jobsListOpts.GroupKey = opts.groupKey
 		jobsListOpts.IncludeRetriedJobs = &includeRetriedJobs
 		jobsListOpts.PerPage = pageSize
 		if !fetchAll {
@@ -749,6 +762,9 @@ func mapGraphQLState(graphqlState, exitStatus string) string {
 }
 
 func jobListOptionsFromFlags(opts *jobListOptions) (*buildkite.BuildsListOptions, error) {
+	if opts.build == "" && (opts.stepKey != "" || opts.groupKey != "") {
+		return nil, fmt.Errorf("--step-key and --group-key require --build")
+	}
 	if opts.build != "" && (opts.since != "" || opts.until != "") {
 		return nil, fmt.Errorf("--since and --until cannot be used with --build")
 	}
