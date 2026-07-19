@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
@@ -22,6 +23,29 @@ import (
 	gitconfig "github.com/go-git/go-git/v5/config"
 	"github.com/spf13/afero"
 )
+
+func TestJobListKeyFilterFlags(t *testing.T) {
+	var cmd ListCmd
+	parser, err := kong.New(&cmd, kong.Vars{"output_default_format": ""})
+	if err != nil {
+		t.Fatalf("kong.New() error = %v", err)
+	}
+	if _, err := parser.Parse([]string{"--build", "429", "--step-key", "test", "--group-key", "verification"}); err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	if cmd.StepKey != "test" {
+		t.Fatalf("StepKey = %q, want test", cmd.StepKey)
+	}
+	if cmd.GroupKey != "verification" {
+		t.Fatalf("GroupKey = %q, want verification", cmd.GroupKey)
+	}
+	for _, want := range []string{"--step-key", "--group-key", "Server-side filters"} {
+		if !strings.Contains(cmd.Help(), want) {
+			t.Fatalf("Help() does not contain %q", want)
+		}
+	}
+}
 
 func TestFetchJobListByBuildUsesJobsEndpoint(t *testing.T) {
 	var requests int
@@ -39,6 +63,12 @@ func TestFetchJobListByBuildUsesJobsEndpoint(t *testing.T) {
 		if got := r.URL.Query().Get("include_retried_jobs"); got != "false" {
 			t.Fatalf("include_retried_jobs = %q, want false", got)
 		}
+		if got := r.URL.Query().Get("step_key"); got != "test" {
+			t.Fatalf("step_key = %q, want test", got)
+		}
+		if got := r.URL.Query().Get("group_key"); got != "verification" {
+			t.Fatalf("group_key = %q, want verification", got)
+		}
 		if got := r.URL.Query().Get("per_page"); got != "20" {
 			t.Fatalf("per_page = %q, want 20", got)
 		}
@@ -51,6 +81,8 @@ func TestFetchJobListByBuildUsesJobsEndpoint(t *testing.T) {
 	opts := jobListOptions{
 		pipeline: "my-app",
 		build:    "429",
+		stepKey:  "test",
+		groupKey: "verification",
 		state:    []string{"failed", "timed_out"},
 		limit:    20,
 	}
@@ -133,6 +165,12 @@ func TestFetchJobsByBuildCursorPaginationAndLimits(t *testing.T) {
 				}
 				pageSizes = append(pageSizes, perPage)
 				pageStarts = append(pageStarts, start)
+				if got := r.URL.Query().Get("step_key"); got != "test" {
+					t.Fatalf("step_key = %q, want test on every page", got)
+				}
+				if got := r.URL.Query().Get("group_key"); got != "verification" {
+					t.Fatalf("group_key = %q, want verification on every page", got)
+				}
 
 				end := min(start+perPage, tt.totalJobs)
 				jobs := make([]buildkite.Job, 0, end-start)
@@ -148,6 +186,8 @@ func TestFetchJobsByBuildCursorPaginationAndLimits(t *testing.T) {
 			t.Cleanup(server.Close)
 
 			f := newJobListTestFactory(t, server.URL, nil)
+			tt.opts.stepKey = "test"
+			tt.opts.groupKey = "verification"
 			jobs, err := fetchJobsByBuild(context.Background(), f.RestAPIClient, "test-org", "my-app", "429", tt.opts, tt.fetchAll)
 			if err != nil {
 				t.Fatalf("fetchJobsByBuild() error = %v", err)
@@ -326,6 +366,21 @@ func TestJobListOptionsRejectBuildWithBuildTimeFilters(t *testing.T) {
 		_, err := jobListOptionsFromFlags(&opts)
 		if err == nil || !strings.Contains(err.Error(), "cannot be used with --build") {
 			t.Fatalf("jobListOptionsFromFlags(%+v) error = %v, want incompatible flags error", opts, err)
+		}
+	}
+}
+
+func TestJobListOptionsRequireBuildForKeyFilters(t *testing.T) {
+	tests := []jobListOptions{
+		{stepKey: "test"},
+		{groupKey: "verification"},
+		{stepKey: "test", groupKey: "verification"},
+	}
+
+	for _, opts := range tests {
+		_, err := jobListOptionsFromFlags(&opts)
+		if err == nil || !strings.Contains(err.Error(), "require --build") {
+			t.Fatalf("jobListOptionsFromFlags(%+v) error = %v, want build requirement", opts, err)
 		}
 	}
 }
