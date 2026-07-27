@@ -6,10 +6,14 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/buildkite/cli/v3/internal/config"
+	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v5"
+	"github.com/spf13/afero"
 )
 
 func makeTeams(n, offset int) []buildkite.Team {
@@ -400,6 +404,8 @@ func TestUpdateCmdValidate(t *testing.T) {
 
 	boolTrue := true
 	boolFalse := false
+	desc := "new desc"
+	emptyDesc := ""
 
 	tests := []struct {
 		name    string
@@ -418,7 +424,12 @@ func TestUpdateCmdValidate(t *testing.T) {
 		},
 		{
 			name:    "only description",
-			cmd:     UpdateCmd{TeamUUID: "team-uuid", Description: "new desc"},
+			cmd:     UpdateCmd{TeamUUID: "team-uuid", Description: &desc},
+			wantErr: false,
+		},
+		{
+			name:    "explicitly empty description clears it",
+			cmd:     UpdateCmd{TeamUUID: "team-uuid", Description: &emptyDesc},
 			wantErr: false,
 		},
 		{
@@ -483,4 +494,103 @@ func TestUpdateCmdValidate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newListTestFactory(t *testing.T, baseURL string) *factory.Factory {
+	t.Helper()
+
+	client, err := buildkite.NewOpts(buildkite.WithBaseURL(baseURL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf := config.New(afero.NewMemMapFs(), nil)
+	if err := conf.SelectOrganization("test-org", true); err != nil {
+		t.Fatalf("SelectOrganization() error = %v", err)
+	}
+	return &factory.Factory{
+		Config:        conf,
+		RestAPIClient: client,
+		Quiet:         true,
+	}
+}
+
+func TestListTeamsPagination(t *testing.T) {
+	t.Parallel()
+
+	t.Run("partial final page crossing the limit sets hasMore", func(t *testing.T) {
+		t.Parallel()
+
+		// Pages 1-3 return 30 teams each, page 4 returns a partial page of 15,
+		// so 105 teams are collected against a limit of 100.
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+			w.Header().Set("Content-Type", "application/json")
+			switch {
+			case page >= 1 && page <= 3:
+				json.NewEncoder(w).Encode(makeTeams(30, (page-1)*30))
+			case page == 4:
+				json.NewEncoder(w).Encode(makeTeams(15, 90))
+			default:
+				json.NewEncoder(w).Encode([]buildkite.Team{})
+			}
+		}))
+		defer s.Close()
+
+		teams, hasMore, err := listTeams(context.Background(), newListTestFactory(t, s.URL), 30, 100)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(teams) != 100 {
+			t.Errorf("expected 100 teams, got %d", len(teams))
+		}
+		if !hasMore {
+			t.Error("expected hasMore to be true when results were truncated to the limit")
+		}
+	})
+
+	t.Run("results under the limit leave hasMore false", func(t *testing.T) {
+		t.Parallel()
+
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+			w.Header().Set("Content-Type", "application/json")
+			if page == 1 {
+				json.NewEncoder(w).Encode(makeTeams(30, 0))
+			} else {
+				json.NewEncoder(w).Encode(makeTeams(15, 30))
+			}
+		}))
+		defer s.Close()
+
+		teams, hasMore, err := listTeams(context.Background(), newListTestFactory(t, s.URL), 30, 100)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(teams) != 45 {
+			t.Errorf("expected 45 teams, got %d", len(teams))
+		}
+		if hasMore {
+			t.Error("expected hasMore to be false when all teams fit within the limit")
+		}
+	})
+
+	t.Run("limit of zero returns no teams without a request", func(t *testing.T) {
+		t.Parallel()
+
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Error("expected no API request when limit is 0")
+		}))
+		defer s.Close()
+
+		teams, hasMore, err := listTeams(context.Background(), newListTestFactory(t, s.URL), 30, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(teams) != 0 {
+			t.Errorf("expected no teams, got %d", len(teams))
+		}
+		if hasMore {
+			t.Error("expected hasMore to be false for a zero limit")
+		}
+	})
 }

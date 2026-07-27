@@ -18,13 +18,13 @@ import (
 )
 
 type UpdateCmd struct {
-	TeamUUID                  string `arg:"" help:"UUID of the team to update" name:"team-uuid"`
-	Name                      string `help:"New name for the team" optional:""`
-	Description               string `help:"New description for the team" optional:""`
-	Privacy                   string `help:"Privacy setting: visible or secret" optional:""`
-	Default                   *bool  `help:"Whether this is the default team for new members" optional:"" name:"default"`
-	DefaultMemberRole         string `help:"Default role for new members: member or maintainer" optional:"" name:"default-member-role"`
-	MembersCanCreatePipelines *bool  `help:"Whether members can create pipelines" optional:"" name:"members-can-create-pipelines"`
+	TeamUUID                  string  `arg:"" help:"UUID of the team to update" name:"team-uuid"`
+	Name                      string  `help:"New name for the team" optional:""`
+	Description               *string `help:"New description for the team" optional:""`
+	Privacy                   string  `help:"Privacy setting: visible or secret" optional:""`
+	Default                   *bool   `help:"Whether this is the default team for new members" optional:"" name:"default"`
+	DefaultMemberRole         string  `help:"Default role for new members: member or maintainer" optional:"" name:"default-member-role"`
+	MembersCanCreatePipelines *bool   `help:"Whether members can create pipelines" optional:"" name:"members-can-create-pipelines"`
 	output.OutputFlags
 }
 
@@ -45,7 +45,7 @@ Examples:
 }
 
 func (c *UpdateCmd) Validate() error {
-	if c.Name == "" && c.Description == "" && c.Privacy == "" && c.Default == nil && c.DefaultMemberRole == "" && c.MembersCanCreatePipelines == nil {
+	if c.Name == "" && c.Description == nil && c.Privacy == "" && c.Default == nil && c.DefaultMemberRole == "" && c.MembersCanCreatePipelines == nil {
 		return fmt.Errorf("at least one of --name, --description, --privacy, --default, --default-member-role, or --members-can-create-pipelines must be provided")
 	}
 	if c.Privacy != "" && c.Privacy != "visible" && c.Privacy != "secret" {
@@ -82,8 +82,8 @@ func (c *UpdateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	if c.Name != "" {
 		input.Name = buildkite.Some(c.Name)
 	}
-	if c.Description != "" {
-		input.Description = buildkite.Some(c.Description)
+	if c.Description != nil {
+		input.Description = buildkite.Some(*c.Description)
 	}
 	if c.Privacy != "" {
 		input.Privacy = buildkite.Some(c.Privacy)

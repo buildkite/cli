@@ -77,13 +77,15 @@ func TestRenderTeamText(t *testing.T) {
 	createdAt := buildkite.Timestamp{Time: time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)}
 
 	team := buildkite.Team{
-		ID:          "team-uuid-123",
-		Name:        "Fearless Frontenders",
-		Slug:        "fearless-frontenders",
-		Description: "Frontend engineers",
-		Privacy:     "secret",
-		Default:     true,
-		CreatedAt:   &createdAt,
+		ID:                        "team-uuid-123",
+		Name:                      "Fearless Frontenders",
+		Slug:                      "fearless-frontenders",
+		Description:               "Frontend engineers",
+		Privacy:                   "secret",
+		Default:                   true,
+		DefaultMemberRole:         "maintainer",
+		MembersCanCreatePipelines: true,
+		CreatedAt:                 &createdAt,
 		CreatedBy: &buildkite.User{
 			ID:    "user-1",
 			Name:  "Peter Pettigrew",
@@ -99,6 +101,9 @@ func TestRenderTeamText(t *testing.T) {
 		"Frontend engineers",
 		"secret",
 		"true",
+		"Default Member Role",
+		"maintainer",
+		"Members Can Create Pipelines",
 		"team-uuid-123",
 		"Peter Pettigrew",
 		"pp@hogwarts.co.uk",

@@ -2,7 +2,6 @@ package team
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -22,6 +21,18 @@ type ListCmd struct {
 	PerPage int `help:"Number of teams per page" default:"30"`
 	Limit   int `help:"Maximum number of teams to return" default:"100"`
 	output.OutputFlags
+}
+
+func (c *ListCmd) Validate() error {
+	if c.PerPage < 1 {
+		return fmt.Errorf("invalid --per-page %d: must be greater than 0", c.PerPage)
+	}
+
+	if c.Limit < 0 {
+		return fmt.Errorf("invalid --limit %d: must be greater than or equal to 0", c.Limit)
+	}
+
+	return nil
 }
 
 func (c *ListCmd) Help() string {
@@ -67,6 +78,11 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	if format != output.FormatText {
 		return output.Write(os.Stdout, teams, format)
+	}
+
+	if len(teams) == 0 {
+		fmt.Fprintln(os.Stdout, "No teams found.")
+		return nil
 	}
 
 	summary := team.TeamViewTable(teams...)
@@ -119,6 +135,10 @@ func listTeams(ctx context.Context, f *factory.Factory, perPage, limit int) ([]b
 
 		all = append(all, pageTeams...)
 
+		if len(all) > limit {
+			hasMore = true
+		}
+
 		if len(pageTeams) < perPage {
 			break
 		}
@@ -133,10 +153,6 @@ func listTeams(ctx context.Context, f *factory.Factory, perPage, limit int) ([]b
 
 	if len(all) > limit {
 		all = all[:limit]
-	}
-
-	if len(all) == 0 {
-		return nil, false, errors.New("no teams found in organization")
 	}
 
 	return all, hasMore, nil
