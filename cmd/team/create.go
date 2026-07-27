@@ -14,7 +14,7 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 type CreateCmd struct {
@@ -73,14 +73,13 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	var t buildkite.Team
-	spinErr := bkIO.SpinWhile(f, "Creating team", func() {
+	spinErr := bkIO.SpinWhile(f, "Creating team", func() error {
+		var err error
 		t, _, err = f.RestAPIClient.Teams.CreateTeam(ctx, f.Config.OrganizationSlug(), input)
+		return err
 	})
 	if spinErr != nil {
-		return spinErr
-	}
-	if err != nil {
-		return fmt.Errorf("error creating team: %v", err)
+		return fmt.Errorf("error creating team: %v", spinErr)
 	}
 
 	teamView := output.Viewable[buildkite.Team]{

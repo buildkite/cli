@@ -14,7 +14,7 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 type ViewCmd struct {
@@ -56,14 +56,13 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	defer stop()
 
 	var t buildkite.Team
-	spinErr := bkIO.SpinWhile(f, "Loading team information", func() {
+	spinErr := bkIO.SpinWhile(f, "Loading team information", func() error {
+		var err error
 		t, err = f.RestAPIClient.Teams.GetTeam(ctx, f.Config.OrganizationSlug(), c.TeamUUID)
+		return err
 	})
 	if spinErr != nil {
-		return spinErr
-	}
-	if err != nil {
-		return fmt.Errorf("error fetching team: %v", err)
+		return fmt.Errorf("error fetching team: %v", spinErr)
 	}
 
 	teamView := output.Viewable[buildkite.Team]{

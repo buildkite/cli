@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 func makeTeams(n, offset int) []buildkite.Team {
@@ -354,9 +354,9 @@ func TestUpdateTeam(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result, _, err := client.Teams.UpdateTeam(context.Background(), "test-org", "team-uuid-123", buildkite.CreateTeam{
-		Name:    "Renamed Team",
-		Privacy: "visible",
+	result, _, err := client.Teams.UpdateTeam(context.Background(), "test-org", "team-uuid-123", buildkite.UpdateTeam{
+		Name:    buildkite.Some("Renamed Team"),
+		Privacy: buildkite.Some("visible"),
 	})
 	if err != nil {
 		t.Fatal(err)

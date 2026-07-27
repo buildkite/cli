@@ -59,14 +59,12 @@ func (c *DeleteCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return nil
 	}
 
-	spinErr := bkIO.SpinWhile(f, "Deleting team", func() {
-		_, err = f.RestAPIClient.Teams.DeleteTeam(ctx, f.Config.OrganizationSlug(), c.TeamUUID)
+	spinErr := bkIO.SpinWhile(f, "Deleting team", func() error {
+		_, err := f.RestAPIClient.Teams.DeleteTeam(ctx, f.Config.OrganizationSlug(), c.TeamUUID)
+		return err
 	})
 	if spinErr != nil {
-		return spinErr
-	}
-	if err != nil {
-		return fmt.Errorf("error deleting team: %v", err)
+		return fmt.Errorf("error deleting team: %v", spinErr)
 	}
 
 	fmt.Fprintln(os.Stderr, "Team deleted successfully.")

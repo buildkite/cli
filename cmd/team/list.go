@@ -15,7 +15,7 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 type ListCmd struct {
@@ -86,7 +86,6 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 func listTeams(ctx context.Context, f *factory.Factory, perPage, limit int) ([]buildkite.Team, bool, error) {
 	var all []buildkite.Team
-	var err error
 	page := 1
 	hasMore := false
 	var previousFirstTeamID string
@@ -100,14 +99,13 @@ func listTeams(ctx context.Context, f *factory.Factory, perPage, limit int) ([]b
 		}
 
 		var pageTeams []buildkite.Team
-		spinErr := bkIO.SpinWhile(f, "Loading teams", func() {
+		spinErr := bkIO.SpinWhile(f, "Loading teams", func() error {
+			var err error
 			pageTeams, _, err = f.RestAPIClient.Teams.List(ctx, f.Config.OrganizationSlug(), opts)
+			return err
 		})
 		if spinErr != nil {
-			return nil, false, spinErr
-		}
-		if err != nil {
-			return nil, false, fmt.Errorf("error fetching team list: %v", err)
+			return nil, false, fmt.Errorf("error fetching team list: %v", spinErr)
 		}
 
 		if len(pageTeams) == 0 {

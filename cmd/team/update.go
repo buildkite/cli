@@ -14,7 +14,7 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
-	buildkite "github.com/buildkite/go-buildkite/v4"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 type UpdateCmd struct {
@@ -77,54 +77,35 @@ func (c *UpdateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Fetch current state to use as base for update
-	var current buildkite.Team
-	spinErr := bkIO.SpinWhile(f, "Loading team", func() {
-		current, err = f.RestAPIClient.Teams.GetTeam(ctx, f.Config.OrganizationSlug(), c.TeamUUID)
-	})
-	if spinErr != nil {
-		return spinErr
-	}
-	if err != nil {
-		return fmt.Errorf("error fetching team: %v", err)
-	}
-
-	// Build update input from current values, overriding with any flags set
-	input := buildkite.CreateTeam{
-		Name:                      current.Name,
-		Description:               current.Description,
-		Privacy:                   current.Privacy,
-		IsDefaultTeam:             current.Default,
-		MembersCanCreatePipelines: false,
-	}
+	// UpdateTeam is a PATCH; only fields that are set are sent
+	var input buildkite.UpdateTeam
 	if c.Name != "" {
-		input.Name = c.Name
+		input.Name = buildkite.Some(c.Name)
 	}
 	if c.Description != "" {
-		input.Description = c.Description
+		input.Description = buildkite.Some(c.Description)
 	}
 	if c.Privacy != "" {
-		input.Privacy = c.Privacy
+		input.Privacy = buildkite.Some(c.Privacy)
 	}
 	if c.Default != nil {
-		input.IsDefaultTeam = *c.Default
+		input.IsDefaultTeam = buildkite.Some(*c.Default)
 	}
 	if c.DefaultMemberRole != "" {
-		input.DefaultMemberRole = c.DefaultMemberRole
+		input.DefaultMemberRole = buildkite.Some(c.DefaultMemberRole)
 	}
 	if c.MembersCanCreatePipelines != nil {
-		input.MembersCanCreatePipelines = *c.MembersCanCreatePipelines
+		input.MembersCanCreatePipelines = buildkite.Some(*c.MembersCanCreatePipelines)
 	}
 
 	var t buildkite.Team
-	spinErr = bkIO.SpinWhile(f, "Updating team", func() {
+	spinErr := bkIO.SpinWhile(f, "Updating team", func() error {
+		var err error
 		t, _, err = f.RestAPIClient.Teams.UpdateTeam(ctx, f.Config.OrganizationSlug(), c.TeamUUID, input)
+		return err
 	})
 	if spinErr != nil {
-		return spinErr
-	}
-	if err != nil {
-		return fmt.Errorf("error updating team: %v", err)
+		return fmt.Errorf("error updating team: %v", spinErr)
 	}
 
 	teamView := output.Viewable[buildkite.Team]{
