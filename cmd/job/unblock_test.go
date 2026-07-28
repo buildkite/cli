@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	buildkite "github.com/buildkite/go-buildkite/v5"
@@ -83,6 +84,28 @@ func TestParseUnblockFields(t *testing.T) {
 				t.Fatalf("parseUnblockFields() = %s, want %s", gotJSON, wantJSON)
 			}
 		})
+	}
+}
+
+func TestUnblockFieldsPrefersDataOverEmptyNonTTYStdin(t *testing.T) {
+	originalStdin := os.Stdin
+	emptyStdin, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatalf("open empty stdin: %v", err)
+	}
+	os.Stdin = emptyStdin
+	t.Cleanup(func() {
+		os.Stdin = originalStdin
+		_ = emptyStdin.Close()
+	})
+
+	cmd := UnblockCmd{Data: `{"release":"v1.2.3"}`}
+	got, err := cmd.unblockFields()
+	if err != nil {
+		t.Fatalf("unblockFields() error = %v", err)
+	}
+	if got["release"] != "v1.2.3" {
+		t.Fatalf("unblockFields() = %#v", got)
 	}
 }
 

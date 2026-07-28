@@ -89,14 +89,16 @@ func (c *UnblockCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 }
 
 func (c *UnblockCmd) unblockFields() (map[string]any, error) {
+	if c.Data != "" {
+		return parseUnblockFields(c.Data)
+	}
+
 	if bkIO.HasDataAvailable(os.Stdin) {
 		stdin := new(strings.Builder)
 		if _, err := io.Copy(stdin, os.Stdin); err != nil {
 			return nil, err
 		}
 		return parseUnblockFields(stdin.String())
-	} else if c.Data != "" {
-		return parseUnblockFields(c.Data)
 	}
 
 	return nil, nil
