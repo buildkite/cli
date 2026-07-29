@@ -101,12 +101,17 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 }
 
 func listTeams(ctx context.Context, f *factory.Factory, perPage, limit int) ([]buildkite.Team, bool, error) {
+	if limit == 0 {
+		return nil, false, nil
+	}
+
 	var all []buildkite.Team
 	page := 1
-	hasMore := false
 	var previousFirstTeamID string
 
-	for len(all) < limit {
+	// Fetch until more than limit results are seen, so an exact boundary can
+	// be distinguished from truncation when reporting hasMore.
+	for len(all) <= limit {
 		opts := &buildkite.TeamsListOptions{
 			ListOptions: buildkite.ListOptions{
 				Page:    page,
@@ -135,23 +140,15 @@ func listTeams(ctx context.Context, f *factory.Factory, perPage, limit int) ([]b
 
 		all = append(all, pageTeams...)
 
-		if len(all) > limit {
-			hasMore = true
-		}
-
 		if len(pageTeams) < perPage {
-			break
-		}
-
-		if len(all) >= limit {
-			hasMore = true
 			break
 		}
 
 		page++
 	}
 
-	if len(all) > limit {
+	hasMore := len(all) > limit
+	if hasMore {
 		all = all[:limit]
 	}
 

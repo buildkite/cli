@@ -574,6 +574,68 @@ func TestListTeamsPagination(t *testing.T) {
 		}
 	})
 
+	t.Run("total equal to limit and per-page leaves hasMore false", func(t *testing.T) {
+		t.Parallel()
+
+		// 2 teams total with --per-page=2 --limit=2: the final page is full,
+		// so a confirming fetch of the empty next page is needed to
+		// distinguish an exact boundary from truncation.
+		var requests int
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requests++
+			page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+			w.Header().Set("Content-Type", "application/json")
+			if page <= 1 {
+				json.NewEncoder(w).Encode(makeTeams(2, 0))
+			} else {
+				json.NewEncoder(w).Encode([]buildkite.Team{})
+			}
+		}))
+		defer s.Close()
+
+		teams, hasMore, err := listTeams(context.Background(), newListTestFactory(t, s.URL), 2, 2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(teams) != 2 {
+			t.Errorf("expected 2 teams, got %d", len(teams))
+		}
+		if hasMore {
+			t.Error("expected hasMore to be false when the total exactly equals the limit")
+		}
+		if requests != 2 {
+			t.Errorf("expected 2 API requests (one to confirm no further results), got %d", requests)
+		}
+	})
+
+	t.Run("full final page at the limit with more teams sets hasMore", func(t *testing.T) {
+		t.Parallel()
+
+		// 3 teams total with --per-page=2 --limit=2: the confirming fetch
+		// finds a third team, so the truncated result reports hasMore.
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+			w.Header().Set("Content-Type", "application/json")
+			if page <= 1 {
+				json.NewEncoder(w).Encode(makeTeams(2, 0))
+			} else {
+				json.NewEncoder(w).Encode(makeTeams(1, 2))
+			}
+		}))
+		defer s.Close()
+
+		teams, hasMore, err := listTeams(context.Background(), newListTestFactory(t, s.URL), 2, 2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(teams) != 2 {
+			t.Errorf("expected 2 teams, got %d", len(teams))
+		}
+		if !hasMore {
+			t.Error("expected hasMore to be true when a further team exists beyond the limit")
+		}
+	})
+
 	t.Run("limit of zero returns no teams without a request", func(t *testing.T) {
 		t.Parallel()
 
