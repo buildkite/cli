@@ -39,6 +39,7 @@ type ListCmd struct {
 	MetaData map[string]string `help:"Filter by build meta-data (key=value format, can be specified multiple times)"`
 	Limit    int               `help:"Maximum number of builds to return" default:"50"`
 	NoLimit  bool              `help:"Fetch all builds (overrides --limit)"`
+	Summary  bool              `help:"Return metadata only for fast state checks, polling, scripts, and LLM agents."`
 	output.OutputFlags
 }
 
@@ -59,6 +60,9 @@ Supported duration units are seconds (s), minutes (m), and hours (h).
 Examples:
   # List recent builds (50 by default)
   $ bk build list
+
+  # Check build states without downloading jobs or pipeline details
+  $ bk build list --summary
 
   # Get more builds (automatically paginates)
   $ bk build list --limit 500
@@ -139,8 +143,24 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	org := f.Config.OrganizationSlug()
+	summaryPipeline := ""
+	if c.Summary && c.Pipeline != "" {
+		pipeline, err := pipelineResolver.ResolveFromFlag(c.Pipeline, f.Config)(ctx)
+		if err != nil {
+			return err
+		}
+		summaryPipeline = pipeline.Name
+	}
 
 	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
+
+	// The text table only renders top-level build attributes, so skip the
+	// heavyweight job and pipeline payloads (important for large builds).
+	// Structured formats (json/yaml) keep the full payload for compatibility.
+	if format == output.FormatText {
+		listOpts.ExcludeJobs = true
+		listOpts.ExcludePipeline = true
+	}
 
 	if format == output.FormatText {
 		writer, cleanup := bkIO.Pager(f.NoPager, f.Config.Pager())
@@ -174,6 +194,9 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return output.Write(os.Stdout, []buildkite.Build{}, format)
 	}
 
+	if c.Summary {
+		return displayBuildSummaries(builds, org, summaryPipeline, format, os.Stdout)
+	}
 	return displayBuilds(builds, format, os.Stdout)
 }
 
@@ -182,6 +205,10 @@ func (c *ListCmd) buildListOptions() (*buildkite.BuildsListOptions, error) {
 		ListOptions: buildkite.ListOptions{
 			PerPage: pageSize,
 		},
+	}
+	if c.Summary {
+		listOpts.ExcludeJobs = true
+		listOpts.ExcludePipeline = true
 	}
 
 	now := time.Now()
@@ -339,7 +366,11 @@ func (c *ListCmd) fetchBuilds(ctx context.Context, f *factory.Factory, org strin
 
 		// Stream only the builds we are about to add; header only once we actually print something
 		if format == output.FormatText && len(buildsToAdd) > 0 && writer != nil {
-			_ = displayBuilds(buildsToAdd, format, writer)
+			if c.Summary {
+				_ = displayBuildSummaries(buildsToAdd, "", "", format, writer)
+			} else {
+				_ = displayBuilds(buildsToAdd, format, writer)
+			}
 			if !printedAny {
 				fmt.Fprintln(writer)
 			}
@@ -486,19 +517,12 @@ func displayBuilds(builds []buildkite.Build, format output.Format, writer io.Wri
 		return output.Write(writer, builds, format)
 	}
 
-	const (
-		maxMessageLength = 22
-		truncatedLength  = 19
-		timeFormat       = "2006-01-02T15:04:05Z"
-	)
+	const timeFormat = "2006-01-02T15:04:05Z"
 
 	var rows [][]string
 
 	for _, build := range builds {
-		message := build.Message
-		if len(message) > maxMessageLength {
-			message = message[:truncatedLength] + "..."
-		}
+		message := truncateBuildMessage(build.Message)
 
 		startedAt := "-"
 		if build.StartedAt != nil {
@@ -541,6 +565,39 @@ func displayBuilds(builds []buildkite.Build, format output.Format, writer io.Wri
 	})
 	fmt.Fprint(writer, table)
 	return nil
+}
+
+func displaySummaryTable(builds []buildkite.Build, writer io.Writer) error {
+	var rows [][]string
+	for _, build := range builds {
+		rows = append(rows, []string{
+			fmt.Sprintf("%d", build.Number),
+			build.State,
+			truncateBuildMessage(singleLineBuildMessage(build.Message)),
+			build.Branch,
+			build.Commit,
+			build.WebURL,
+		})
+	}
+
+	table := output.Table(
+		[]string{"Number", "State", "Message", "Branch", "Commit", "URL"},
+		rows,
+		map[string]string{"number": "bold", "state": "bold", "message": "italic", "url": "dim"},
+	)
+	_, err := fmt.Fprint(writer, table)
+	return err
+}
+
+func truncateBuildMessage(message string) string {
+	const (
+		maxMessageLength = 22
+		truncatedLength  = 19
+	)
+	if len(message) > maxMessageLength {
+		return message[:truncatedLength] + "..."
+	}
+	return message
 }
 
 func formatDuration(d time.Duration) string {

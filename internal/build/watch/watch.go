@@ -86,13 +86,13 @@ func WatchBuild(
 		}
 
 		reqCtx, cancel := context.WithTimeout(ctx, DefaultRequestTimeout)
-		var getOpts *buildkite.BuildGetOptions
-		if cfg.includeRetriedJobs {
-			getOpts = &buildkite.BuildGetOptions{
-				BuildsListOptions: buildkite.BuildsListOptions{
-					IncludeRetriedJobs: true,
-				},
-			}
+		getOpts := &buildkite.BuildGetOptions{
+			BuildsListOptions: buildkite.BuildsListOptions{
+				IncludeRetriedJobs: cfg.includeRetriedJobs,
+				// Watchers render job progress but never use the pipeline
+				// payload, so exclude it to keep polling responses small.
+				ExcludePipeline: true,
+			},
 		}
 		b, _, err := client.Builds.Get(reqCtx, org, pipeline, fmt.Sprint(buildNumber), getOpts)
 		cancel()

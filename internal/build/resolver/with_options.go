@@ -25,6 +25,10 @@ func ResolveBuildWithOpts(f *factory.Factory, pipelineResolver pipelineResolver.
 			ListOptions: buildkite.ListOptions{
 				PerPage: 1,
 			},
+			// Only the build number is used from the response, so skip the
+			// heavyweight job and pipeline payloads (important for large builds).
+			ExcludeJobs:     true,
+			ExcludePipeline: true,
 		}
 		for _, opt := range listOpts {
 			err = opt(opts)

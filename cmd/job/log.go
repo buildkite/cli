@@ -19,7 +19,7 @@ type LogCmd struct {
 	BuildNumber  string `help:"Deprecated; ignored because job UUIDs no longer require pipeline or build context" short:"b"`
 	NoTimestamps bool   `help:"Strip timestamp prefixes from log output" name:"no-timestamps"`
 	LLMOptimized bool   `help:"Format output to be optimal for LLM consumption (strips ANSI, deduplicates loops)" name:"agent" aliases:"llm"`
-	Format       string `help:"Output rendering for --agent: plain or markdown" name:"format" enum:"plain,markdown" default:"plain"`
+	Format       string `help:"Output rendering for --agent: plain or Markdown" name:"format" enum:"plain,markdown" default:"plain"`
 	MaxTokens    int    `help:"Hard ceiling on the estimated token count of --agent output (0 = unlimited)" name:"max-tokens"`
 	NoWindow     bool   `help:"Disable failure-focused windowing in --agent output (keep all lines)" name:"no-window"`
 }
@@ -36,7 +36,7 @@ Examples:
   # Format for LLM consumption
   $ bk job log 0190046e-e199-453b-a302-a21a4d649d31 --agent
 
-  # Format for LLM as markdown, capped at 2000 tokens, keeping all lines
+  # Format for LLM as Markdown, capped at 2000 tokens, keeping all lines
   $ bk job log 0190046e-e199-453b-a302-a21a4d649d31 --agent --format markdown --max-tokens 2000 --no-window
 `
 }

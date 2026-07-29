@@ -49,13 +49,13 @@ func TestBuildFullEndpoint(t *testing.T) {
 		"analytics endpoint with leading slash": {
 			endpoint:     "/suites",
 			orgSlug:      "test-org",
-			isAnalytics:  true,
+			isAnalytics:  false,
 			wantEndpoint: "v2/analytics/organizations/test-org/suites",
 		},
 		"analytics endpoint without leading slash": {
 			endpoint:     "suites",
 			orgSlug:      "test-org",
-			isAnalytics:  true,
+			isAnalytics:  false,
 			wantEndpoint: "v2/analytics/organizations/test-org/suites",
 		},
 		"pipeline endpoint without leading slash": {

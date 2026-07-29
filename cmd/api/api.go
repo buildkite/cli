@@ -73,6 +73,9 @@ func buildFullEndpoint(endpoint, orgSlug string, isAnalytics bool) string {
 		endpoint = "/" + endpoint
 	}
 
+	// Analytics endpoints begin with /suites
+	isAnalytics = isAnalytics || strings.HasPrefix(endpoint, "/suites")
+
 	var endpointPrefix string
 	if isAnalytics {
 		endpointPrefix = fmt.Sprintf("v2/analytics/organizations/%s", orgSlug)

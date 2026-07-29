@@ -97,6 +97,10 @@ func ResolveBuilds(ctx context.Context, client *buildkite.Client, org, pipeline 
 		opts := &buildkite.BuildsListOptions{
 			Branch:      branchBatch,
 			ListOptions: buildkite.ListOptions{PerPage: resolveBuildsPerPage},
+			// Only build state/branch are used, so skip the heavyweight job and
+			// pipeline payloads (important for large builds).
+			ExcludeJobs:     true,
+			ExcludePipeline: true,
 		}
 
 		for page := 0; page < maxResolveBuildPages; page++ {

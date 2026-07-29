@@ -27,7 +27,8 @@ type ViewCmd struct {
 	User        string   `help:"Filter builds to this user. You can use name or email." short:"u" xor:"userfilter"`
 	Mine        bool     `help:"Filter builds to only my user." xor:"userfilter"`
 	JobStates   []string `help:"Filter jobs by state. Valid states: running, scheduled, passed, failed, canceled, skipped, not_run, broken." short:"s" sep:","`
-	Web         bool     `help:"Open the build in a web browser." short:"w"`
+	Web         bool     `help:"Open the build in a web browser." short:"w" xor:"viewmode"`
+	Summary     bool     `help:"Return metadata only for fast state checks, polling, scripts, and LLM agents." xor:"viewmode"`
 	output.OutputFlags
 }
 
@@ -43,6 +44,9 @@ Examples:
 
   # To view a specific build
   $ bk build view 429
+
+  # Check build state without downloading jobs, artifacts, annotations, or pipeline details
+  $ bk build view 429 --summary
 
   # Add -w to any command to open the build in your web browser instead
   $ bk build view -w 429
@@ -65,8 +69,14 @@ Examples:
 }
 
 func (c *ViewCmd) buildGetOptions() *buildkite.BuildGetOptions {
-	if len(c.JobStates) > 0 {
-		return &buildkite.BuildGetOptions{JobStates: c.JobStates}
+	if len(c.JobStates) > 0 || c.Summary {
+		return &buildkite.BuildGetOptions{
+			BuildsListOptions: buildkite.BuildsListOptions{
+				ExcludeJobs:     c.Summary,
+				ExcludePipeline: c.Summary,
+			},
+			JobStates: c.JobStates,
+		}
 	}
 	return nil
 }
@@ -148,67 +158,15 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	var build buildkite.Build
 	var artifacts []buildkite.Artifact
 	var annotations []buildkite.Annotation
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-
 	if err = bkIO.SpinWhile(f, "Loading build information", func() error {
-		var fetchErr error
-		wg.Add(3)
-		go func() {
-			defer wg.Done()
-			var apiErr error
-			build, _, apiErr = f.RestAPIClient.Builds.Get(
-				ctx,
-				opts.Organization,
-				opts.Pipeline,
-				fmt.Sprint(opts.BuildNumber),
-				c.buildGetOptions(),
-			)
-			if apiErr != nil {
-				mu.Lock()
-				fetchErr = apiErr
-				mu.Unlock()
-			}
-		}()
-
-		go func() {
-			defer wg.Done()
-			var apiErr error
-			artifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByBuild(
-				ctx,
-				opts.Organization,
-				opts.Pipeline,
-				fmt.Sprint(opts.BuildNumber),
-				nil,
-			)
-			if apiErr != nil {
-				mu.Lock()
-				fetchErr = apiErr
-				mu.Unlock()
-			}
-		}()
-
-		go func() {
-			defer wg.Done()
-			var apiErr error
-			annotations, _, apiErr = f.RestAPIClient.Annotations.ListByBuild(
-				ctx,
-				opts.Organization,
-				opts.Pipeline,
-				fmt.Sprint(opts.BuildNumber),
-				nil,
-			)
-			if apiErr != nil {
-				mu.Lock()
-				fetchErr = apiErr
-				mu.Unlock()
-			}
-		}()
-
-		wg.Wait()
-		return fetchErr
+		build, artifacts, annotations, err = c.fetchBuildDetails(ctx, f, opts)
+		return err
 	}); err != nil {
 		return err
+	}
+
+	if c.Summary {
+		return output.Write(os.Stdout, newBuildSummaryOutput(build, opts.Organization, opts.Pipeline), format)
 	}
 
 	// Create a combined view for JSON/YAML output
@@ -238,4 +196,53 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	return output.Write(os.Stdout, buildOutput, format)
+}
+
+func (c *ViewCmd) fetchBuildDetails(ctx context.Context, f *factory.Factory, opts view.ViewOptions) (buildkite.Build, []buildkite.Artifact, []buildkite.Annotation, error) {
+	if c.Summary {
+		build, _, err := f.RestAPIClient.Builds.Get(ctx, opts.Organization, opts.Pipeline, fmt.Sprint(opts.BuildNumber), c.buildGetOptions())
+		return build, nil, nil, err
+	}
+
+	var build buildkite.Build
+	var artifacts []buildkite.Artifact
+	var annotations []buildkite.Annotation
+	var fetchErr error
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		var apiErr error
+		build, _, apiErr = f.RestAPIClient.Builds.Get(ctx, opts.Organization, opts.Pipeline, fmt.Sprint(opts.BuildNumber), c.buildGetOptions())
+		if apiErr != nil {
+			mu.Lock()
+			fetchErr = apiErr
+			mu.Unlock()
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		var apiErr error
+		artifacts, _, apiErr = f.RestAPIClient.Artifacts.ListByBuild(ctx, opts.Organization, opts.Pipeline, fmt.Sprint(opts.BuildNumber), nil)
+		if apiErr != nil {
+			mu.Lock()
+			fetchErr = apiErr
+			mu.Unlock()
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		var apiErr error
+		annotations, _, apiErr = f.RestAPIClient.Annotations.ListByBuild(ctx, opts.Organization, opts.Pipeline, fmt.Sprint(opts.BuildNumber), nil)
+		if apiErr != nil {
+			mu.Lock()
+			fetchErr = apiErr
+			mu.Unlock()
+		}
+	}()
+	wg.Wait()
+
+	return build, artifacts, annotations, fetchErr
 }
