@@ -12,7 +12,7 @@ aqua.slsa = false
 go = "1.26.5"
 golangci-lint = "2.12.2"
 lefthook = "2.1.10"
-"aqua:mvdan/gofumpt" = "0.10.0"
+"aqua:mvdan/gofumpt" = "0.11.0"
 "go:github.com/nikolaydubina/go-cover-treemap" = "1.5.1"
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.3.0"
 
