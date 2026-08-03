@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/posthog/posthog-go"
 )
@@ -43,9 +44,15 @@ func Init(version string, enabled bool) *Client {
 
 	once.Do(func() {
 		var err error
+		// Telemetry must never delay CLI exit: a single delivery attempt with
+		// a hard cap on the shutdown flush, dropping events on failure.
+		maxRetries := 0
 		client, err = posthog.NewWithConfig(key, posthog.Config{
-			Endpoint: apiHost,
-			Logger:   noopLogger{},
+			Endpoint:           apiHost,
+			Logger:             noopLogger{},
+			MaxRetries:         &maxRetries,
+			ShutdownTimeout:    500 * time.Millisecond,
+			BatchUploadTimeout: 500 * time.Millisecond,
 		})
 		if err != nil {
 			client = nil
