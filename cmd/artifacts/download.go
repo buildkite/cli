@@ -25,7 +25,7 @@ type DownloadCmd struct {
 	BuildNumber string `help:"Build number containing the artifact. If omitted, the most recent build on the current branch will be used." short:"b" name:"build"`
 	Pipeline    string `help:"The pipeline containing the artifact. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}. If omitted, it will be resolved using the current directory." short:"p"`
 	JobUUID     string `help:"The job UUID containing the artifact." short:"j" name:"job-uuid"`
-	Path        string `help:"Filter artifacts by path. Supports glob patterns, e.g. --path \"coverage/**\"."`
+	Path        string `help:"Filter artifacts by path. Supports exact matches and glob patterns using * as a wildcard, e.g. --path \"log/rspec*.json\"."`
 	State       string `help:"Filter artifacts to download by state (e.g. new, finished, error, deleted, expired)."`
 }
 
