@@ -5,9 +5,12 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/posthog/posthog-go"
 )
+
+const shutdownTimeout = 500 * time.Millisecond
 
 var (
 	// Set via -ldflags at build time: -X github.com/buildkite/cli/v3/pkg/analytics.apiKey=...
@@ -44,8 +47,9 @@ func Init(version string, enabled bool) *Client {
 	once.Do(func() {
 		var err error
 		client, err = posthog.NewWithConfig(key, posthog.Config{
-			Endpoint: apiHost,
-			Logger:   noopLogger{},
+			Endpoint:        apiHost,
+			Logger:          noopLogger{},
+			ShutdownTimeout: shutdownTimeout,
 		})
 		if err != nil {
 			client = nil
