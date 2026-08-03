@@ -15,11 +15,12 @@ func TestCloseIsBoundedWhenEndpointIsUnresponsive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ln.Close()
 
-	// Hold accepted connections open without ever responding.
+	// Hold accepted connections open without ever responding. The accept
+	// goroutine owns closing conns, once Accept fails after ln is closed.
 	conns := make(chan net.Conn, 16)
 	go func() {
+		defer close(conns)
 		for {
 			conn, err := ln.Accept()
 			if err != nil {
@@ -29,7 +30,7 @@ func TestCloseIsBoundedWhenEndpointIsUnresponsive(t *testing.T) {
 		}
 	}()
 	defer func() {
-		close(conns)
+		ln.Close()
 		for conn := range conns {
 			conn.Close()
 		}
