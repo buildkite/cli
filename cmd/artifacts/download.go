@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/alecthomas/kong"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
@@ -24,7 +25,7 @@ type DownloadCmd struct {
 	BuildNumber string `help:"Build number containing the artifact. If omitted, the most recent build on the current branch will be used." short:"b" name:"build"`
 	Pipeline    string `help:"The pipeline containing the artifact. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}. If omitted, it will be resolved using the current directory." short:"p"`
 	JobUUID     string `help:"The job UUID containing the artifact." short:"j" name:"job-uuid"`
-	Path        string `help:"Filter artifacts by path. Supports exact matches and glob patterns using * as a wildcard."`
+	Path        string `help:"Filter artifacts by path. Supports glob patterns, e.g. --path \"coverage/**\"."`
 	State       string `help:"Filter artifacts to download by state (e.g. new, finished, error, deleted, expired)."`
 }
 
@@ -71,6 +72,14 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 		return err
 	}
 
+	if c.ArtifactID != "" && (c.Path != "" || c.State != "") {
+		return bkErrors.NewValidationError(
+			nil,
+			"--path and --state cannot be used when downloading a specific artifact by ID",
+			"Omit the artifact ID to filter, or remove --path/--state to download by ID.",
+		)
+	}
+
 	pipelineRes := pipelineResolver.NewAggregateResolver(
 		pipelineResolver.ResolveFromFlag(c.Pipeline, f.Config),
 		pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOneWithFactory(f)),
@@ -102,9 +111,6 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 	build := strconv.Itoa(bld.BuildNumber)
 
 	if c.ArtifactID != "" {
-		if c.Path != "" || c.State != "" {
-			return bkErrors.NewValidationError(nil, "--path and --state cannot be combined with an artifact ID")
-		}
 		return c.downloadOne(ctx, f, bld.Organization, bld.Pipeline, build)
 	}
 
@@ -135,7 +141,7 @@ func (c *DownloadCmd) downloadAll(ctx context.Context, f *factory.Factory, org, 
 
 	if err := bkIO.SpinWhile(f, "Loading artifacts", func() error {
 		var err error
-		artifacts, err = listArtifacts(ctx, f, org, pipeline, build, c.JobUUID, c.Path, c.State)
+		artifacts, err = listArtifacts(ctx, f, org, pipeline, build, c.JobUUID, c.Path, strings.ToLower(c.State))
 		return err
 	}); err != nil {
 		return err
