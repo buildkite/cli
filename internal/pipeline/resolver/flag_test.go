@@ -45,6 +45,21 @@ func TestResolveFromFlag(t *testing.T) {
 		}
 	})
 
+	t.Run("underscores in pipeline name are normalized to dashes", func(t *testing.T) {
+		t.Parallel()
+
+		conf := config.New(afero.NewMemMapFs(), nil)
+		conf.SelectOrganization("testing", true)
+		f := resolver.ResolveFromFlag("my_pipeline", conf)
+		pipeline, err := f(context.Background())
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if pipeline.Name != "my-pipeline" {
+			t.Errorf("expected pipeline 'my-pipeline', got '%s'", pipeline.Name)
+		}
+	})
+
 	t.Run("org/pipeline slug extracts org", func(t *testing.T) {
 		t.Parallel()
 

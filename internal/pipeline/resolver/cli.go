@@ -63,5 +63,13 @@ func parsePipelineArg(arg string, conf *config.Config) (org, pipeline string) {
 		org = conf.OrganizationSlug()
 		pipeline = arg
 	}
-	return org, pipeline
+	return normalizeSlug(org), normalizeSlug(pipeline)
+}
+
+// normalizeSlug converts user input to a valid Buildkite slug. Slugs may only contain
+// lowercase letters, numbers and dashes, so this is a no-op on anything already valid.
+// It allows passing a name like "my_pipeline" (eg. from a repository directory name)
+// and matching the "my-pipeline" slug Buildkite derives from it.
+func normalizeSlug(s string) string {
+	return strings.ToLower(strings.ReplaceAll(s, "_", "-"))
 }
