@@ -120,7 +120,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	defer func() { _ = cleanup() }()
 
 	if len(buildArtifacts) == 0 {
-		fmt.Fprintln(writer, "No artifacts found.")
+		writeNoArtifactsMessage(writer, c.Path, strings.ToLower(c.State))
 		return nil
 	}
 

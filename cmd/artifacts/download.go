@@ -3,6 +3,7 @@ package artifacts
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -21,7 +22,7 @@ import (
 )
 
 type DownloadCmd struct {
-	ArtifactID  string `arg:"" optional:"" help:"Artifact ID to download. If omitted, all artifacts are downloaded. Use 'bk artifacts list' to find IDs."`
+	ArtifactID  string `arg:"" optional:"" help:"Artifact ID to download. If omitted, all matching artifacts are downloaded (see --path/--state). Use 'bk artifacts list' to find IDs."`
 	BuildNumber string `help:"Build number containing the artifact. If omitted, the most recent build on the current branch will be used." short:"b" name:"build"`
 	Pipeline    string `help:"The pipeline containing the artifact. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}. If omitted, it will be resolved using the current directory." short:"p"`
 	JobUUID     string `help:"The job UUID containing the artifact." short:"j" name:"job-uuid"`
@@ -148,7 +149,7 @@ func (c *DownloadCmd) downloadAll(ctx context.Context, f *factory.Factory, org, 
 	}
 
 	if len(artifacts) == 0 {
-		fmt.Println("No artifacts found.")
+		writeNoArtifactsMessage(os.Stdout, c.Path, strings.ToLower(c.State))
 		return nil
 	}
 
@@ -250,4 +251,20 @@ func downloadToFile(ctx context.Context, f *factory.Factory, url, destPath strin
 
 	_, err = f.RestAPIClient.Artifacts.DownloadArtifactByURL(ctx, url, out)
 	return err
+}
+
+// writeNoArtifactsMessage prints a "no artifacts" message tailored to the
+// active --path / --state filters, so users see what constraint returned
+// nothing.
+func writeNoArtifactsMessage(w io.Writer, path, state string) {
+	switch {
+	case path != "" && state != "":
+		fmt.Fprintf(w, "No artifacts found matching path '%s' and state '%s'.\n", path, state)
+	case path != "":
+		fmt.Fprintf(w, "No artifacts found matching path '%s'.\n", path)
+	case state != "":
+		fmt.Fprintf(w, "No artifacts found matching state '%s'.\n", state)
+	default:
+		fmt.Fprintln(w, "No artifacts found.")
+	}
 }
