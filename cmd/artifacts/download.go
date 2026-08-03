@@ -24,6 +24,8 @@ type DownloadCmd struct {
 	BuildNumber string `help:"Build number containing the artifact. If omitted, the most recent build on the current branch will be used." short:"b" name:"build"`
 	Pipeline    string `help:"The pipeline containing the artifact. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}. If omitted, it will be resolved using the current directory." short:"p"`
 	JobUUID     string `help:"The job UUID containing the artifact." short:"j" name:"job-uuid"`
+	Path        string `help:"Filter artifacts to download by path."`
+	State       string `help:"Filter artifacts to download by state (e.g. new, finished, error, deleted, expired)."`
 }
 
 func (c *DownloadCmd) Help() string {
@@ -48,6 +50,10 @@ Examples:
 
   # Specify the pipeline explicitly
   $ bk artifacts download --build 429 -p monolith
+
+  # Filter artifacts to download by path or state
+  $ bk artifacts download --build 429 --path "coverage/**"
+  $ bk artifacts download --build 429 --state finished
 `
 }
 
@@ -126,7 +132,7 @@ func (c *DownloadCmd) downloadAll(ctx context.Context, f *factory.Factory, org, 
 
 	if err := bkIO.SpinWhile(f, "Loading artifacts", func() error {
 		var err error
-		artifacts, err = listArtifacts(ctx, f, org, pipeline, build, c.JobUUID)
+		artifacts, err = listArtifacts(ctx, f, org, pipeline, build, c.JobUUID, c.Path, c.State)
 		return err
 	}); err != nil {
 		return err
@@ -165,7 +171,7 @@ func findArtifact(ctx context.Context, f *factory.Factory, org, pipeline, build,
 		return &artifact, nil
 	}
 
-	artifacts, err := listArtifacts(ctx, f, org, pipeline, build, "")
+	artifacts, err := listArtifacts(ctx, f, org, pipeline, build, "", "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -180,9 +186,12 @@ func findArtifact(ctx context.Context, f *factory.Factory, org, pipeline, build,
 }
 
 // listArtifacts fetches all artifacts for a build or job, paginating through all results.
-func listArtifacts(ctx context.Context, f *factory.Factory, org, pipeline, build, jobUUID string) ([]buildkite.Artifact, error) {
+// path and state are optional filters passed through to the Buildkite API.
+func listArtifacts(ctx context.Context, f *factory.Factory, org, pipeline, build, jobUUID, path, state string) ([]buildkite.Artifact, error) {
 	var all []buildkite.Artifact
 	opts := &buildkite.ArtifactListOptions{
+		Path:        path,
+		State:       state,
 		ListOptions: buildkite.ListOptions{PerPage: 100},
 	}
 

@@ -23,6 +23,8 @@ type ListCmd struct {
 	BuildNumber string `arg:"" optional:"" help:"Build number to list artifacts for"`
 	Pipeline    string `help:"The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}. If omitted, it will be resolved using the current directory." short:"p"`
 	JobUUID     string `help:"List artifacts for a specific job on the given build." short:"j" name:"job-uuid"`
+	Path        string `help:"Filter artifacts by path."`
+	State       string `help:"Filter artifacts by state (e.g. new, finished, error, deleted, expired)."`
 	output.OutputFlags
 }
 
@@ -44,6 +46,10 @@ Examples:
 
   # If not inside a repository or to use a specific pipeline, pass -p
   $ bk artifacts list 429 -p monolith
+
+  # Filter artifacts by path or state
+  $ bk artifacts list 429 --path "coverage/**"
+  $ bk artifacts list 429 --state finished
 `
 }
 
@@ -99,7 +105,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	var buildArtifacts []buildkite.Artifact
 
 	if err = bkIO.SpinWhile(f, "Loading artifacts information", func() error {
-		buildArtifacts, err = listArtifacts(ctx, f, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), c.JobUUID)
+		buildArtifacts, err = listArtifacts(ctx, f, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), c.JobUUID, c.Path, c.State)
 		return err
 	}); err != nil {
 		return err
