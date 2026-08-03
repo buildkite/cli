@@ -59,6 +59,7 @@ steps:
     allowed_teams:
       - "support"
       - "deploy"
+      - "pipelines"
     blocked_state: "passed"
     fields:
       - key: release-type
