@@ -76,4 +76,20 @@ func TestWithOrg(t *testing.T) {
 			t.Fatalf("expected org override-org, got %s", p.Org)
 		}
 	})
+
+	t.Run("normalizes the org override to a valid slug", func(t *testing.T) {
+		t.Parallel()
+
+		resolve := resolver.WithOrg("Override_Org", func(context.Context) (*pipeline.Pipeline, error) {
+			return &pipeline.Pipeline{Org: "config-org", Name: "pipeline"}, nil
+		})
+
+		p, err := resolve(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if p.Org != "override-org" {
+			t.Fatalf("expected org override-org, got %s", p.Org)
+		}
+	})
 }
