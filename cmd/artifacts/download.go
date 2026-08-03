@@ -54,7 +54,7 @@ Examples:
   $ bk artifacts download --build 429 -p monolith
 
   # Filter artifacts to download by path or state
-  $ bk artifacts download --build 429 --path "coverage/**"
+  $ bk artifacts download --build 429 --path "log/rspec*.json"
   $ bk artifacts download --build 429 --state finished
 `
 }

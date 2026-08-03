@@ -49,7 +49,7 @@ Examples:
   $ bk artifacts list 429 -p monolith
 
   # Filter artifacts by path or state
-  $ bk artifacts list 429 --path "coverage/**"
+  $ bk artifacts list 429 --path "log/rspec*.json"
   $ bk artifacts list 429 --state finished
 `
 }
