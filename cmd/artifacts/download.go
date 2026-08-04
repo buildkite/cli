@@ -73,6 +73,10 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 		return err
 	}
 
+	// --job-uuid is deliberately allowed alongside an ArtifactID: findArtifact
+	// uses it as the fast path (Artifacts.Get) instead of listing and scanning.
+	// --path / --state have no meaning when targeting a single ID, so reject
+	// those combinations up front.
 	if c.ArtifactID != "" && (c.Path != "" || c.State != "") {
 		return bkErrors.NewValidationError(
 			nil,

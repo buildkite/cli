@@ -22,7 +22,7 @@ import (
 
 type ListCmd struct {
 	BuildNumber string `arg:"" optional:"" help:"Build number to list artifacts for"`
-	Pipeline    string `help:"The pipgeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}. If omitted, it will be resolved using the current directory." short:"p"`
+	Pipeline    string `help:"The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}. If omitted, it will be resolved using the current directory." short:"p"`
 	JobUUID     string `help:"List artifacts for a specific job on the given build." short:"j" name:"job-uuid"`
 	Path        string `help:"Filter artifacts by path. Supports exact matches and glob patterns using * as a wildcard, e.g. --path \"log/rspec*.json\"."`
 	State       string `help:"Filter artifacts by state (e.g. new, finished, error, deleted, expired)."`
