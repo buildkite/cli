@@ -149,7 +149,7 @@ func (c *DownloadCmd) downloadAll(ctx context.Context, f *factory.Factory, org, 
 	}
 
 	if len(artifacts) == 0 {
-		writeNoArtifactsMessage(os.Stdout, c.Path, strings.ToLower(c.State))
+		writeNoArtifactsMessage(os.Stdout, c.Path, c.State)
 		return nil
 	}
 
@@ -210,6 +210,9 @@ func listArtifacts(ctx context.Context, f *factory.Factory, org, pipeline, build
 		var resp *buildkite.Response
 		var err error
 
+		// ListByJob and ListByBuild both take *ArtifactListOptions, which carries
+		// Path and State — so the same filters flow into either endpoint when
+		// --job-uuid is combined with --path / --state.
 		if jobUUID != "" {
 			artifacts, resp, err = f.RestAPIClient.Artifacts.ListByJob(ctx, org, pipeline, build, jobUUID, opts)
 		} else {
