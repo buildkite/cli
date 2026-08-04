@@ -132,6 +132,32 @@ func TestListArtifactsPassesFilters(t *testing.T) {
 	}
 }
 
+func TestListArtifactsPassesFiltersOnJobEndpoint(t *testing.T) {
+	t.Parallel()
+
+	const jobUUID = "0193903e-ecd9-4c51-9156-0738da987e87"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		wantPath := fmt.Sprintf("/v2/organizations/acme/pipelines/monolith/builds/429/jobs/%s/artifacts", jobUUID)
+		if r.URL.Path != wantPath {
+			t.Fatalf("path = %q, want %q", r.URL.Path, wantPath)
+		}
+		q := r.URL.Query()
+		if got := q.Get("path"); got != "log/rspec*.json" {
+			t.Fatalf("path = %q, want log/rspec*.json", got)
+		}
+		if got := q.Get("state"); got != "finished" {
+			t.Fatalf("state = %q, want finished", got)
+		}
+		writeArtifactsPage(t, w, []buildkite.Artifact{}, "")
+	}))
+	t.Cleanup(server.Close)
+
+	f := newArtifactsTestFactory(t, server.URL)
+	if _, err := listArtifacts(context.Background(), f, "acme", "monolith", "429", jobUUID, "log/rspec*.json", "finished"); err != nil {
+		t.Fatalf("listArtifacts() error = %v", err)
+	}
+}
+
 func TestListArtifactsPaginates(t *testing.T) {
 	t.Parallel()
 
@@ -315,6 +341,47 @@ func TestDownloadArtifactUsesArtifactPathAsDest(t *testing.T) {
 	}
 	if string(got) != body {
 		t.Fatalf("file contents = %q, want %q", got, body)
+	}
+}
+
+func TestDownloadCmdValidate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		cmd     DownloadCmd
+		wantErr bool
+	}{
+		{"no artifact ID, no filters", DownloadCmd{}, false},
+		{"filters without artifact ID", DownloadCmd{Path: "coverage/**", State: "finished"}, false},
+		{"artifact ID alone", DownloadCmd{ArtifactID: "art-1"}, false},
+		{"artifact ID with job UUID (fast path)", DownloadCmd{ArtifactID: "art-1", JobUUID: "job-1"}, false},
+		{"artifact ID with path rejected", DownloadCmd{ArtifactID: "art-1", Path: "coverage/**"}, true},
+		{"artifact ID with state rejected", DownloadCmd{ArtifactID: "art-1", State: "finished"}, true},
+		{"artifact ID with both rejected", DownloadCmd{ArtifactID: "art-1", Path: "coverage/**", State: "finished"}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.cmd.validate()
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("validate() = nil, want error")
+				}
+				if !errors.Is(err, bkErrors.ErrValidation) {
+					t.Fatalf("validate() error = %v, want ErrValidation", err)
+				}
+				if !strings.Contains(err.Error(), "--path and --state") {
+					t.Errorf("validate() error = %v, want to mention --path and --state", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validate() = %v, want nil", err)
+			}
+		})
 	}
 }
 

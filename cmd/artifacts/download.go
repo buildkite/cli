@@ -59,6 +59,22 @@ Examples:
 `
 }
 
+// validate checks flag combinations that can be rejected without any API
+// calls. --job-uuid is deliberately allowed alongside an ArtifactID:
+// findArtifact uses it as the fast path (Artifacts.Get) instead of listing
+// and scanning. --path / --state have no meaning when targeting a single ID,
+// so reject those combinations up front.
+func (c *DownloadCmd) validate() error {
+	if c.ArtifactID != "" && (c.Path != "" || c.State != "") {
+		return bkErrors.NewValidationError(
+			nil,
+			"--path and --state cannot be used when downloading a specific artifact by ID",
+			"Omit the artifact ID to filter, or remove --path/--state to download by ID.",
+		)
+	}
+	return nil
+}
+
 func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
 	if err != nil {
@@ -73,16 +89,8 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 		return err
 	}
 
-	// --job-uuid is deliberately allowed alongside an ArtifactID: findArtifact
-	// uses it as the fast path (Artifacts.Get) instead of listing and scanning.
-	// --path / --state have no meaning when targeting a single ID, so reject
-	// those combinations up front.
-	if c.ArtifactID != "" && (c.Path != "" || c.State != "") {
-		return bkErrors.NewValidationError(
-			nil,
-			"--path and --state cannot be used when downloading a specific artifact by ID",
-			"Omit the artifact ID to filter, or remove --path/--state to download by ID.",
-		)
+	if err := c.validate(); err != nil {
+		return err
 	}
 
 	pipelineRes := pipelineResolver.NewAggregateResolver(
