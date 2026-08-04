@@ -57,7 +57,7 @@ func WithOrg(org string, resolve PipelineResolverFn) PipelineResolverFn {
 			return p, err
 		}
 
-		p.Org = org
+		p.Org = normalizeSlug(org)
 		return p, nil
 	}
 }

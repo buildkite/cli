@@ -30,6 +30,16 @@ func TestParsePipelineArg(t *testing.T) {
 			org:      "buildkite",
 			pipeline: "buildkite-cli",
 		},
+		"underscores_normalized_to_dashes": {
+			url:      "shared_gem",
+			org:      "testing",
+			pipeline: "shared-gem",
+		},
+		"uppercase_normalized_to_lowercase": {
+			url:      "My_Org/Shared_Gem",
+			org:      "my-org",
+			pipeline: "shared-gem",
+		},
 	}
 
 	for name, testcase := range testcases {
