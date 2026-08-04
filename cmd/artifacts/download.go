@@ -3,9 +3,11 @@ package artifacts
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/alecthomas/kong"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
@@ -20,10 +22,12 @@ import (
 )
 
 type DownloadCmd struct {
-	ArtifactID  string `arg:"" optional:"" help:"Artifact ID to download. If omitted, all artifacts are downloaded. Use 'bk artifacts list' to find IDs."`
+	ArtifactID  string `arg:"" optional:"" help:"Artifact ID to download. If omitted, all matching artifacts are downloaded (see --path/--state). Use 'bk artifacts list' to find IDs."`
 	BuildNumber string `help:"Build number containing the artifact. If omitted, the most recent build on the current branch will be used." short:"b" name:"build"`
 	Pipeline    string `help:"The pipeline containing the artifact. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}. If omitted, it will be resolved using the current directory." short:"p"`
 	JobUUID     string `help:"The job UUID containing the artifact." short:"j" name:"job-uuid"`
+	Path        string `help:"Filter artifacts by path. Supports exact matches and glob patterns using * as a wildcard, e.g. --path \"log/rspec*.json\"."`
+	State       string `help:"Filter artifacts to download by state (e.g. new, finished, error, deleted, expired)."`
 }
 
 func (c *DownloadCmd) Help() string {
@@ -48,7 +52,27 @@ Examples:
 
   # Specify the pipeline explicitly
   $ bk artifacts download --build 429 -p monolith
+
+  # Filter artifacts to download by path or state
+  $ bk artifacts download --build 429 --path "log/rspec*.json"
+  $ bk artifacts download --build 429 --state finished
 `
+}
+
+// validate checks flag combinations that can be rejected without any API
+// calls. --job-uuid is deliberately allowed alongside an ArtifactID:
+// findArtifact uses it as the fast path (Artifacts.Get) instead of listing
+// and scanning. --path / --state have no meaning when targeting a single ID,
+// so reject those combinations up front.
+func (c *DownloadCmd) validate() error {
+	if c.ArtifactID != "" && (c.Path != "" || c.State != "") {
+		return bkErrors.NewValidationError(
+			nil,
+			"--path and --state cannot be used when downloading a specific artifact by ID",
+			"Omit the artifact ID to filter, or remove --path/--state to download by ID.",
+		)
+	}
+	return nil
 }
 
 func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
@@ -62,6 +86,10 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 	f.Quiet = globals.IsQuiet()
 
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
+		return err
+	}
+
+	if err := c.validate(); err != nil {
 		return err
 	}
 
@@ -126,14 +154,14 @@ func (c *DownloadCmd) downloadAll(ctx context.Context, f *factory.Factory, org, 
 
 	if err := bkIO.SpinWhile(f, "Loading artifacts", func() error {
 		var err error
-		artifacts, err = listArtifacts(ctx, f, org, pipeline, build, c.JobUUID)
+		artifacts, err = listArtifacts(ctx, f, org, pipeline, build, c.JobUUID, c.Path, strings.ToLower(c.State))
 		return err
 	}); err != nil {
 		return err
 	}
 
 	if len(artifacts) == 0 {
-		fmt.Println("No artifacts found.")
+		writeNoArtifactsMessage(os.Stdout, c.Path, c.State)
 		return nil
 	}
 
@@ -165,7 +193,7 @@ func findArtifact(ctx context.Context, f *factory.Factory, org, pipeline, build,
 		return &artifact, nil
 	}
 
-	artifacts, err := listArtifacts(ctx, f, org, pipeline, build, "")
+	artifacts, err := listArtifacts(ctx, f, org, pipeline, build, "", "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -180,9 +208,12 @@ func findArtifact(ctx context.Context, f *factory.Factory, org, pipeline, build,
 }
 
 // listArtifacts fetches all artifacts for a build or job, paginating through all results.
-func listArtifacts(ctx context.Context, f *factory.Factory, org, pipeline, build, jobUUID string) ([]buildkite.Artifact, error) {
+// path and state are optional filters passed through to the Buildkite API.
+func listArtifacts(ctx context.Context, f *factory.Factory, org, pipeline, build, jobUUID, path, state string) ([]buildkite.Artifact, error) {
 	var all []buildkite.Artifact
 	opts := &buildkite.ArtifactListOptions{
+		Path:        path,
+		State:       state,
 		ListOptions: buildkite.ListOptions{PerPage: 100},
 	}
 
@@ -191,6 +222,9 @@ func listArtifacts(ctx context.Context, f *factory.Factory, org, pipeline, build
 		var resp *buildkite.Response
 		var err error
 
+		// ListByJob and ListByBuild both take *ArtifactListOptions, which carries
+		// Path and State — so the same filters flow into either endpoint when
+		// --job-uuid is combined with --path / --state.
 		if jobUUID != "" {
 			artifacts, resp, err = f.RestAPIClient.Artifacts.ListByJob(ctx, org, pipeline, build, jobUUID, opts)
 		} else {
@@ -232,4 +266,20 @@ func downloadToFile(ctx context.Context, f *factory.Factory, url, destPath strin
 
 	_, err = f.RestAPIClient.Artifacts.DownloadArtifactByURL(ctx, url, out)
 	return err
+}
+
+// writeNoArtifactsMessage prints a "no artifacts" message tailored to the
+// active --path / --state filters, so users see what constraint returned
+// nothing.
+func writeNoArtifactsMessage(w io.Writer, path, state string) {
+	switch {
+	case path != "" && state != "":
+		fmt.Fprintf(w, "No artifacts found matching path '%s' and state '%s'.\n", path, state)
+	case path != "":
+		fmt.Fprintf(w, "No artifacts found matching path '%s'.\n", path)
+	case state != "":
+		fmt.Fprintf(w, "No artifacts found matching state '%s'.\n", state)
+	default:
+		fmt.Fprintln(w, "No artifacts found.")
+	}
 }
