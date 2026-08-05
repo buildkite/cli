@@ -76,10 +76,6 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 		return err
 	}
 
-	if err := artifact.ValidateState(c.ArtifactsState); err != nil {
-		return err
-	}
-
 	ctx := context.Background()
 
 	// we find the pipeline based on the following rules:
