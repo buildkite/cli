@@ -160,10 +160,6 @@ func warnUnmatchedArtifactFilter(w io.Writer, path, state string) {
 // download returns the destination directory and the number of artifacts the
 // (optional) filter matched. A zero count with a filter set is not itself an
 // error — the caller decides how to surface it.
-//
-// State-value validation lives in Run() and inside artifact.List, so an
-// invalid --artifacts-state still surfaces as a validation error without
-// hitting either endpoint here.
 func download(ctx context.Context, bld *build.Build, artifactsPath, artifactsState string, f *factory.Factory) (string, int, error) {
 	// Jobs are needed for log downloads, but the pipeline payload is unused.
 	getOpts := &buildkite.BuildGetOptions{

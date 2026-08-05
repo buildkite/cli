@@ -30,9 +30,13 @@ func newBuildTestFactory(t *testing.T, serverURL string) *factory.Factory {
 
 // newDownloadTestServer wires the three endpoints download() calls into a
 // single httptest.Server: build get, artifacts list, and artifact download.
-// The build get response is fixed; the artifact set and the query the caller
-// used to fetch it are captured via the returned pointers.
-func newDownloadTestServer(t *testing.T, buildUUID string, artifacts []buildkite.Artifact, capturedQuery *string, downloads *atomic.Int32) *httptest.Server {
+//
+// artifacts is read at request time via the pointer, so callers can populate
+// it after the server has been created (e.g. once server.URL is known and
+// they can embed it in Artifact.DownloadURL). A nil pointer serves an empty
+// list. capturedQuery and downloads are optional side channels for tests
+// that want to assert on the request or count downloads.
+func newDownloadTestServer(t *testing.T, buildUUID string, artifacts *[]buildkite.Artifact, capturedQuery *string, downloads *atomic.Int32) *httptest.Server {
 	t.Helper()
 
 	mux := http.NewServeMux()
@@ -54,7 +58,11 @@ func newDownloadTestServer(t *testing.T, buildUUID string, artifacts []buildkite
 			*capturedQuery = r.URL.RawQuery
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(artifacts)
+		payload := []buildkite.Artifact{}
+		if artifacts != nil {
+			payload = *artifacts
+		}
+		_ = json.NewEncoder(w).Encode(payload)
 	})
 
 	// Individual artifact download — bumps the counter and returns a byte
@@ -77,7 +85,7 @@ func TestDownloadPassesArtifactFiltersToAPI(t *testing.T) {
 	const buildUUID = "b-uuid-1"
 
 	var query string
-	server := newDownloadTestServer(t, buildUUID, []buildkite.Artifact{}, &query, nil)
+	server := newDownloadTestServer(t, buildUUID, nil, &query, nil)
 
 	t.Chdir(t.TempDir())
 
@@ -108,7 +116,7 @@ func TestDownloadPassesArtifactFiltersToAPI(t *testing.T) {
 func TestDownloadNoFiltersOmitsQueryParams(t *testing.T) {
 	// No t.Parallel(): t.Chdir is incompatible with parallel tests.
 	var query string
-	server := newDownloadTestServer(t, "b-uuid-empty", []buildkite.Artifact{}, &query, nil)
+	server := newDownloadTestServer(t, "b-uuid-empty", nil, &query, nil)
 
 	t.Chdir(t.TempDir())
 
@@ -133,17 +141,17 @@ func TestDownloadWritesArtifactsWithFlatNames(t *testing.T) {
 	// No t.Parallel(): t.Chdir is incompatible with parallel tests.
 	const buildUUID = "b-uuid-2"
 
-	var downloads atomic.Int32
-	server := newDownloadTestServer(t, buildUUID, nil, nil, &downloads)
-
-	// Point the DownloadURL back at the server's /artifact/ route so the
-	// download step is exercised end-to-end.
-	arts := []buildkite.Artifact{
+	var (
+		downloads atomic.Int32
+		arts      []buildkite.Artifact
+	)
+	// The handler reads *arts at request time, so we can populate it below
+	// once we know server.URL and can embed it in each Artifact.DownloadURL.
+	server := newDownloadTestServer(t, buildUUID, &arts, nil, &downloads)
+	arts = []buildkite.Artifact{
 		{ID: "art-1", Filename: "rspec.json", DownloadURL: server.URL + "/artifact/art-1"},
 		{ID: "art-2", Filename: "coverage.xml", DownloadURL: server.URL + "/artifact/art-2"},
 	}
-	// Rewrite the server's artifacts handler with the real payload.
-	server.Config.Handler = withArtifacts(t, buildUUID, arts, &downloads)
 
 	t.Chdir(t.TempDir())
 
@@ -170,33 +178,6 @@ func TestDownloadWritesArtifactsWithFlatNames(t *testing.T) {
 			t.Errorf("%q contents = %q, want %q", want, body, wantBody)
 		}
 	}
-}
-
-// withArtifacts rebuilds a handler mux around a fixed artifact payload — used
-// by tests that need the artifacts list handler to return real data while
-// keeping the build-get and download endpoints intact.
-func withArtifacts(t *testing.T, buildUUID string, arts []buildkite.Artifact, downloads *atomic.Int32) http.Handler {
-	t.Helper()
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("/v2/organizations/acme/pipelines/monolith/builds/429", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(buildkite.Build{ID: buildUUID})
-	})
-
-	mux.HandleFunc("/v2/organizations/acme/pipelines/monolith/builds/429/artifacts", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(arts)
-	})
-
-	mux.HandleFunc("/artifact/", func(w http.ResponseWriter, r *http.Request) {
-		if downloads != nil {
-			downloads.Add(1)
-		}
-		id := strings.TrimPrefix(r.URL.Path, "/artifact/")
-		_, _ = fmt.Fprintf(w, "artifact-body:%s", id)
-	})
-	return mux
 }
 
 func TestDownloadCmdFlagParsing(t *testing.T) {
@@ -280,7 +261,7 @@ func TestWarnUnmatchedArtifactFilter(t *testing.T) {
 func TestDownloadReturnsZeroMatchesWhenFilterExcludesAll(t *testing.T) {
 	// No t.Parallel(): t.Chdir is incompatible with parallel tests.
 	// Empty artifacts payload — download() should return (dir, 0, nil).
-	server := newDownloadTestServer(t, "b-uuid-none", []buildkite.Artifact{}, nil, nil)
+	server := newDownloadTestServer(t, "b-uuid-none", nil, nil, nil)
 	t.Chdir(t.TempDir())
 
 	bld := &build.Build{Organization: "acme", Pipeline: "monolith", BuildNumber: 429}
