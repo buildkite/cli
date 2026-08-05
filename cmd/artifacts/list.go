@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/artifact"
@@ -106,7 +105,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	var buildArtifacts []buildkite.Artifact
 
 	if err = bkIO.SpinWhile(f, "Loading artifacts information", func() error {
-		buildArtifacts, err = listArtifacts(ctx, f, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), c.JobUUID, c.Path, strings.ToLower(c.State))
+		buildArtifacts, err = artifact.List(ctx, f.RestAPIClient, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), c.JobUUID, c.Path, c.State)
 		return err
 	}); err != nil {
 		return err

@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/alecthomas/kong"
+	"github.com/buildkite/cli/v3/internal/artifact"
 	"github.com/buildkite/cli/v3/internal/build"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
@@ -20,11 +21,13 @@ import (
 )
 
 type DownloadCmd struct {
-	BuildNumber string `arg:"" optional:"" help:"Build number to download (omit for most recent build)"`
-	Pipeline    string `help:"The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
-	Branch      string `help:"Filter builds to this branch." short:"b"`
-	User        string `help:"Filter builds to this user. You can use name or email." short:"u" xor:"userfilter"`
-	Mine        bool   `help:"Filter builds to only my user." short:"m" xor:"userfilter"`
+	BuildNumber    string `arg:"" optional:"" help:"Build number to download (omit for most recent build)"`
+	Pipeline       string `help:"The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
+	Branch         string `help:"Filter builds to this branch." short:"b"`
+	User           string `help:"Filter builds to this user. You can use name or email." short:"u" xor:"userfilter"`
+	Mine           bool   `help:"Filter builds to only my user." short:"m" xor:"userfilter"`
+	ArtifactsPath  string `help:"Filter artifacts by path. Supports exact matches and glob patterns using * as a wildcard, e.g. --artifacts-path \"log/rspec*.json\"."`
+	ArtifactsState string `help:"Filter artifacts to download by state (e.g. new, finished, error, deleted, expired)."`
 }
 
 func (c *DownloadCmd) Help() string {
@@ -43,7 +46,12 @@ Examples:
   $ bk build download --pipeline my-pipeline -u alice@hello.com
 
   # Download most recent build by yourself
-  $ bk build download --pipeline my-pipeline --mine`
+  $ bk build download --pipeline my-pipeline --mine
+
+  # Filter artifacts to download by path or state
+  $ bk build download --pipeline my-pipeline --artifacts-path "log/rspec*.json"
+  $ bk build download --pipeline my-pipeline --artifacts-state finished
+`
 }
 
 func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
@@ -108,7 +116,7 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 
 	var dir string
 	if err = bkIO.SpinWhile(f, "Downloading build resources", func() error {
-		dir, err = download(ctx, bld, f)
+		dir, err = download(ctx, bld, c.ArtifactsPath, c.ArtifactsState, f)
 		return err
 	}); err != nil {
 		return err
@@ -119,22 +127,44 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 	return nil
 }
 
-func download(ctx context.Context, build *build.Build, f *factory.Factory) (string, error) {
-	var wg sync.WaitGroup
-	var mu sync.Mutex
+func download(ctx context.Context, bld *build.Build, artifactsPath, artifactsState string, f *factory.Factory) (string, error) {
 	// Jobs are needed for log downloads, but the pipeline payload is unused.
 	getOpts := &buildkite.BuildGetOptions{
 		BuildsListOptions: buildkite.BuildsListOptions{ExcludePipeline: true},
 	}
-	b, _, err := f.RestAPIClient.Builds.Get(ctx, build.Organization, build.Pipeline, fmt.Sprint(build.BuildNumber), getOpts)
+	b, _, err := f.RestAPIClient.Builds.Get(ctx, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), getOpts)
 	if err != nil {
 		return "", err
 	}
 
 	directory := fmt.Sprintf("build-%s", b.ID)
-	err = os.MkdirAll(directory, os.ModePerm)
+	if err := os.MkdirAll(directory, os.ModePerm); err != nil {
+		return "", err
+	}
+
+	// Paginate the artifact list up front so every matching artifact gets
+	// downloaded, not just the first page.
+	artifacts, err := artifact.List(ctx, f.RestAPIClient, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), "", artifactsPath, artifactsState)
 	if err != nil {
 		return "", err
+	}
+
+	var (
+		wg       sync.WaitGroup
+		mu       sync.Mutex
+		firstErr error
+	)
+	// recordErr keeps the first error we see across all worker goroutines,
+	// so the caller sees a real cause rather than a random race winner.
+	recordErr := func(e error) {
+		if e == nil {
+			return
+		}
+		mu.Lock()
+		if firstErr == nil {
+			firstErr = e
+		}
+		mu.Unlock()
 	}
 
 	for _, job := range b.Jobs {
@@ -143,49 +173,40 @@ func download(ctx context.Context, build *build.Build, f *factory.Factory) (stri
 			continue
 		}
 
-		go func() {
+		wg.Add(1)
+		go func(jobID string) {
 			defer wg.Done()
-			wg.Add(1)
-			log, _, apiErr := f.RestAPIClient.Jobs.GetJobLog(ctx, build.Organization, build.Pipeline, b.ID, job.ID)
-			if err != nil {
-				mu.Lock()
-				err = apiErr
-				mu.Unlock()
+
+			log, _, apiErr := f.RestAPIClient.Jobs.GetJobLog(ctx, bld.Organization, bld.Pipeline, b.ID, jobID)
+			if apiErr != nil {
+				recordErr(apiErr)
 				return
 			}
 
-			fileErr := os.WriteFile(filepath.Join(directory, job.ID), []byte(log.Content), 0o644)
-			if fileErr != nil {
-				mu.Lock()
-				err = fileErr
-				mu.Unlock()
+			if writeErr := os.WriteFile(filepath.Join(directory, jobID), []byte(log.Content), 0o644); writeErr != nil {
+				recordErr(writeErr)
 			}
-		}()
+		}(job.ID)
 	}
 
-	artifacts, _, err := f.RestAPIClient.Artifacts.ListByBuild(ctx, build.Organization, build.Pipeline, fmt.Sprint(build.BuildNumber), nil)
-	if err != nil {
-		return "", err
-	}
-
-	for _, artifact := range artifacts {
-		go func() {
+	for _, a := range artifacts {
+		wg.Add(1)
+		go func(a buildkite.Artifact) {
 			defer wg.Done()
-			wg.Add(1)
-			out, fileErr := os.Create(filepath.Join(directory, fmt.Sprintf("artifact-%s-%s", artifact.ID, artifact.Filename)))
-			if err != nil {
-				err = fileErr
+
+			// Keep the historical flat layout: build-<uuid>/artifact-<id>-<filename>.
+			// This is UX-observable and separate from `bk artifacts download`,
+			// which mirrors the artifact's own directory structure.
+			dest := filepath.Join(directory, fmt.Sprintf("artifact-%s-%s", a.ID, a.Filename))
+			if dlErr := artifact.DownloadToFile(ctx, f.RestAPIClient, a.DownloadURL, dest); dlErr != nil {
+				recordErr(dlErr)
 			}
-			_, apiErr := f.RestAPIClient.Artifacts.DownloadArtifactByURL(ctx, artifact.DownloadURL, out)
-			if err != nil {
-				err = apiErr
-			}
-		}()
+		}(a)
 	}
 
 	wg.Wait()
-	if err != nil {
-		return "", err
+	if firstErr != nil {
+		return "", firstErr
 	}
 
 	return directory, nil

@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/alecthomas/kong"
+	"github.com/buildkite/cli/v3/internal/artifact"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
 	"github.com/buildkite/cli/v3/internal/cli"
@@ -134,12 +134,12 @@ func (c *DownloadCmd) downloadOne(ctx context.Context, f *factory.Factory, org, 
 	var filename string
 
 	if err := bkIO.SpinWhile(f, "Downloading artifact", func() error {
-		artifact, findErr := findArtifact(ctx, f, org, pipeline, build, c.ArtifactID, c.JobUUID)
+		a, findErr := findArtifact(ctx, f, org, pipeline, build, c.ArtifactID, c.JobUUID)
 		if findErr != nil {
 			return findErr
 		}
 		var dlErr error
-		filename, dlErr = downloadArtifact(ctx, f, artifact)
+		filename, dlErr = downloadArtifact(ctx, f, a)
 		return dlErr
 	}); err != nil {
 		return err
@@ -154,7 +154,7 @@ func (c *DownloadCmd) downloadAll(ctx context.Context, f *factory.Factory, org, 
 
 	if err := bkIO.SpinWhile(f, "Loading artifacts", func() error {
 		var err error
-		artifacts, err = listArtifacts(ctx, f, org, pipeline, build, c.JobUUID, c.Path, strings.ToLower(c.State))
+		artifacts, err = artifact.List(ctx, f.RestAPIClient, org, pipeline, build, c.JobUUID, c.Path, c.State)
 		return err
 	}); err != nil {
 		return err
@@ -173,7 +173,7 @@ func (c *DownloadCmd) downloadAll(ctx context.Context, f *factory.Factory, org, 
 	for i := range artifacts {
 		a := &artifacts[i]
 		destPath := filepath.Join(directory, filepath.FromSlash(a.Path))
-		if err := downloadToFile(ctx, f, a.DownloadURL, destPath); err != nil {
+		if err := artifact.DownloadToFile(ctx, f.RestAPIClient, a.DownloadURL, destPath); err != nil {
 			return err
 		}
 
@@ -186,14 +186,14 @@ func (c *DownloadCmd) downloadAll(ctx context.Context, f *factory.Factory, org, 
 
 func findArtifact(ctx context.Context, f *factory.Factory, org, pipeline, build, artifactID, jobUUID string) (*buildkite.Artifact, error) {
 	if jobUUID != "" {
-		artifact, _, err := f.RestAPIClient.Artifacts.Get(ctx, org, pipeline, build, jobUUID, artifactID)
+		a, _, err := f.RestAPIClient.Artifacts.Get(ctx, org, pipeline, build, jobUUID, artifactID)
 		if err != nil {
 			return nil, err
 		}
-		return &artifact, nil
+		return &a, nil
 	}
 
-	artifacts, err := listArtifacts(ctx, f, org, pipeline, build, "", "", "")
+	artifacts, err := artifact.List(ctx, f.RestAPIClient, org, pipeline, build, "", "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -207,65 +207,12 @@ func findArtifact(ctx context.Context, f *factory.Factory, org, pipeline, build,
 	return nil, bkErrors.NewResourceNotFoundError(nil, fmt.Sprintf("no artifact found with ID %s in build #%s", artifactID, build))
 }
 
-// listArtifacts fetches all artifacts for a build or job, paginating through all results.
-// path and state are optional filters passed through to the Buildkite API.
-func listArtifacts(ctx context.Context, f *factory.Factory, org, pipeline, build, jobUUID, path, state string) ([]buildkite.Artifact, error) {
-	var all []buildkite.Artifact
-	opts := &buildkite.ArtifactListOptions{
-		Path:        path,
-		State:       state,
-		ListOptions: buildkite.ListOptions{PerPage: 100},
-	}
-
-	for {
-		var artifacts []buildkite.Artifact
-		var resp *buildkite.Response
-		var err error
-
-		// ListByJob and ListByBuild both take *ArtifactListOptions, which carries
-		// Path and State — so the same filters flow into either endpoint when
-		// --job-uuid is combined with --path / --state.
-		if jobUUID != "" {
-			artifacts, resp, err = f.RestAPIClient.Artifacts.ListByJob(ctx, org, pipeline, build, jobUUID, opts)
-		} else {
-			artifacts, resp, err = f.RestAPIClient.Artifacts.ListByBuild(ctx, org, pipeline, build, opts)
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		all = append(all, artifacts...)
-
-		if resp.NextPage == 0 {
-			break
-		}
-		opts.Page = resp.NextPage
-	}
-
-	return all, nil
-}
-
-func downloadArtifact(ctx context.Context, f *factory.Factory, artifact *buildkite.Artifact) (string, error) {
-	destPath := filepath.FromSlash(artifact.Path)
-	if err := downloadToFile(ctx, f, artifact.DownloadURL, destPath); err != nil {
+func downloadArtifact(ctx context.Context, f *factory.Factory, a *buildkite.Artifact) (string, error) {
+	destPath := filepath.FromSlash(a.Path)
+	if err := artifact.DownloadToFile(ctx, f.RestAPIClient, a.DownloadURL, destPath); err != nil {
 		return "", err
 	}
 	return destPath, nil
-}
-
-func downloadToFile(ctx context.Context, f *factory.Factory, url, destPath string) error {
-	if err := os.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
-		return err
-	}
-
-	out, err := os.Create(destPath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	_, err = f.RestAPIClient.Artifacts.DownloadArtifactByURL(ctx, url, out)
-	return err
 }
 
 // writeNoArtifactsMessage prints a "no artifacts" message tailored to the
