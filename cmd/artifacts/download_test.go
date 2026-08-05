@@ -212,6 +212,22 @@ func TestDownloadCmdValidate(t *testing.T) {
 	}
 }
 
+func TestDownloadCmdValidateRejectsUnknownState(t *testing.T) {
+	t.Parallel()
+
+	cmd := DownloadCmd{State: "finshed"}
+	err := cmd.validate()
+	if err == nil {
+		t.Fatal("validate() = nil, want validation error for unknown state")
+	}
+	if !errors.Is(err, bkErrors.ErrValidation) {
+		t.Fatalf("validate() error = %v, want ErrValidation", err)
+	}
+	if !strings.Contains(err.Error(), "finshed") {
+		t.Errorf("validate() error %q should mention the rejected input", err)
+	}
+}
+
 func TestDownloadCmdFlagParsing(t *testing.T) {
 	t.Parallel()
 

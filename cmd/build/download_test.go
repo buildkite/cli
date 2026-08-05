@@ -3,6 +3,7 @@ package build
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/build"
+	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v5"
 )
@@ -239,6 +241,30 @@ func TestDownloadCmdUserMineXor(t *testing.T) {
 	// the combination.
 	if _, err := parser.Parse([]string{"--user", "alice@example.com", "--mine"}); err == nil {
 		t.Fatal("Parse() expected an error for --user + --mine, got nil")
+	}
+}
+
+func TestDownloadRejectsInvalidArtifactState(t *testing.T) {
+	// No t.Parallel(): t.Chdir is incompatible with parallel tests.
+	// Any HTTP call fails the test — download() must short-circuit on
+	// validation before touching the wire.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected HTTP call to %s — validation should have short-circuited", r.URL.Path)
+	}))
+	t.Cleanup(server.Close)
+
+	t.Chdir(t.TempDir())
+
+	bld := &build.Build{Organization: "acme", Pipeline: "monolith", BuildNumber: 429}
+	_, err := download(context.Background(), bld, "", "finshed", newBuildTestFactory(t, server.URL))
+	if err == nil {
+		t.Fatal("download() with invalid state = nil, want validation error")
+	}
+	if !errors.Is(err, bkErrors.ErrValidation) {
+		t.Fatalf("download() error = %v, want ErrValidation", err)
+	}
+	if !strings.Contains(err.Error(), "finshed") {
+		t.Errorf("download() error %q should mention the rejected input", err)
 	}
 }
 

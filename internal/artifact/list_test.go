@@ -3,11 +3,14 @@ package artifact
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
@@ -173,6 +176,91 @@ func TestListPaginates(t *testing.T) {
 	}
 	if calls != 3 {
 		t.Fatalf("calls = %d, want 3", calls)
+	}
+}
+
+// formatErr returns the user-visible rendering of a bk CLI error. The
+// suggestions attached via NewValidationError are only surfaced by
+// FormattedError; err.Error() shows just the category + details.
+func formatErr(t *testing.T, err error) string {
+	t.Helper()
+	var cliErr *bkErrors.Error
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("error %v is not a *bkErrors.Error, cannot render suggestions", err)
+	}
+	return cliErr.FormattedError()
+}
+
+func TestValidateStateAccepts(t *testing.T) {
+	t.Parallel()
+
+	// Every documented state, plus the "" empty (means no filter), plus
+	// mixed casing to prove the check normalises before comparing.
+	for _, state := range []string{"", "new", "finished", "error", "deleted", "expired", "Finished", "ERROR"} {
+		t.Run(fmt.Sprintf("state=%q", state), func(t *testing.T) {
+			t.Parallel()
+			if err := ValidateState(state); err != nil {
+				t.Fatalf("ValidateState(%q) = %v, want nil", state, err)
+			}
+		})
+	}
+}
+
+func TestValidateStateRejects(t *testing.T) {
+	t.Parallel()
+
+	tests := []string{
+		"finshed",   // classic typo
+		"running",   // real state on jobs, not artifacts
+		"completed", // sounds right, isn't the accepted spelling
+		"?",
+	}
+
+	for _, state := range tests {
+		t.Run(fmt.Sprintf("state=%q", state), func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateState(state)
+			if err == nil {
+				t.Fatalf("ValidateState(%q) = nil, want validation error", state)
+			}
+			if !errors.Is(err, bkErrors.ErrValidation) {
+				t.Fatalf("ValidateState(%q) error = %v, want ErrValidation", state, err)
+			}
+			// Error() carries the details; the allowed list lives in
+			// Suggestions (surfaced by FormattedError). Assert on the
+			// user-visible rendering so a shrunken hint fails the test.
+			formatted := formatErr(t, err)
+			for _, allowed := range AllowedStates {
+				if !strings.Contains(formatted, allowed) {
+					t.Errorf("ValidateState(%q) formatted error %q does not mention %q from AllowedStates", state, formatted, allowed)
+				}
+			}
+			// The details should include the offending value so users can
+			// see what they typed.
+			if !strings.Contains(err.Error(), state) {
+				t.Errorf("ValidateState(%q) error %q does not include the rejected input", state, err)
+			}
+		})
+	}
+}
+
+func TestListRejectsInvalidStateWithoutHittingNetwork(t *testing.T) {
+	t.Parallel()
+
+	// Any HTTP call to this server fails the test — proving List short-circuits
+	// on validation before touching the wire.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected HTTP call to %s — validation should have short-circuited", r.URL.Path)
+	}))
+	t.Cleanup(server.Close)
+
+	_, err := List(context.Background(), newTestClient(t, server.URL), "acme", "monolith", "429", "", "", "finshed")
+	if err == nil {
+		t.Fatal("List() with invalid state = nil, want validation error")
+	}
+	if !errors.Is(err, bkErrors.ErrValidation) {
+		t.Fatalf("List() error = %v, want ErrValidation", err)
 	}
 }
 

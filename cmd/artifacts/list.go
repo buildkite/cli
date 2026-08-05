@@ -24,7 +24,7 @@ type ListCmd struct {
 	Pipeline    string `help:"The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}. If omitted, it will be resolved using the current directory." short:"p"`
 	JobUUID     string `help:"List artifacts for a specific job on the given build." short:"j" name:"job-uuid"`
 	Path        string `help:"Filter artifacts by path. Supports exact matches and glob patterns using * as a wildcard, e.g. --path \"log/rspec*.json\"."`
-	State       string `help:"Filter artifacts by state (e.g. new, finished, error, deleted, expired)."`
+	State       string `help:"Filter artifacts by state. Must be one of: new, finished, error, deleted, expired."`
 	output.OutputFlags
 }
 
@@ -65,6 +65,10 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.NoPager = f.NoPager || globals.DisablePager()
 
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
+		return err
+	}
+
+	if err := artifact.ValidateState(c.State); err != nil {
 		return err
 	}
 

@@ -27,7 +27,7 @@ type DownloadCmd struct {
 	User           string `help:"Filter builds to this user. You can use name or email." short:"u" xor:"userfilter"`
 	Mine           bool   `help:"Filter builds to only my user." short:"m" xor:"userfilter"`
 	ArtifactsPath  string `help:"Filter artifacts by path. Supports exact matches and glob patterns using * as a wildcard, e.g. --artifacts-path \"log/rspec*.json\"."`
-	ArtifactsState string `help:"Filter artifacts to download by state (e.g. new, finished, error, deleted, expired)."`
+	ArtifactsState string `help:"Filter artifacts to download by state. Must be one of: new, finished, error, deleted, expired."`
 }
 
 func (c *DownloadCmd) Help() string {
@@ -65,6 +65,10 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 	f.Quiet = globals.IsQuiet()
 
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
+		return err
+	}
+
+	if err := artifact.ValidateState(c.ArtifactsState); err != nil {
 		return err
 	}
 
@@ -128,6 +132,14 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 }
 
 func download(ctx context.Context, bld *build.Build, artifactsPath, artifactsState string, f *factory.Factory) (string, error) {
+	// Fail before making any network call so an obvious typo like
+	// --artifacts-state finshed is rejected without spinning up build fetch
+	// + log download work. Run() also validates up-front, so the guard is
+	// belt-and-braces for anyone calling download() directly.
+	if err := artifact.ValidateState(artifactsState); err != nil {
+		return "", err
+	}
+
 	// Jobs are needed for log downloads, but the pipeline payload is unused.
 	getOpts := &buildkite.BuildGetOptions{
 		BuildsListOptions: buildkite.BuildsListOptions{ExcludePipeline: true},
