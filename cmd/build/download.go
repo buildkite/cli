@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sync"
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/artifact"
@@ -19,7 +18,15 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	buildkite "github.com/buildkite/go-buildkite/v5"
+	"golang.org/x/sync/errgroup"
 )
+
+// downloadWorkerLimit caps the number of concurrent log and artifact
+// downloads a single build can fan out to. Builds with hundreds of artifacts
+// would otherwise saturate the HTTP client's connection pool and thrash
+// file descriptors. 8 keeps enough parallelism to hide per-request latency
+// while staying well under sensible connection and fd limits.
+const downloadWorkerLimit = 8
 
 type DownloadCmd struct {
 	BuildNumber    string `arg:"" optional:"" help:"Build number to download (omit for most recent build)"`
@@ -182,64 +189,40 @@ func download(ctx context.Context, bld *build.Build, artifactsPath, artifactsSta
 		return "", 0, err
 	}
 
-	var (
-		wg       sync.WaitGroup
-		mu       sync.Mutex
-		firstErr error
-	)
-	// recordErr keeps the first error we see across all worker goroutines,
-	// so the caller sees a real cause rather than a random race winner.
-	recordErr := func(e error) {
-		if e == nil {
-			return
-		}
-		mu.Lock()
-		if firstErr == nil {
-			firstErr = e
-		}
-		mu.Unlock()
-	}
+	// errgroup gives us a shared worker cap for both loops plus first-error
+	// reporting. Its derived ctx also cancels in-flight requests once any
+	// worker fails, so a broken network doesn't have every remaining
+	// download run to completion before we return.
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(downloadWorkerLimit)
 
 	for _, job := range b.Jobs {
 		// only script (command) jobs will have logs
 		if job.Type != "script" {
 			continue
 		}
-
-		wg.Add(1)
-		go func(jobID string) {
-			defer wg.Done()
-
-			log, _, apiErr := f.RestAPIClient.Jobs.GetJobLog(ctx, bld.Organization, bld.Pipeline, b.ID, jobID)
-			if apiErr != nil {
-				recordErr(apiErr)
-				return
+		jobID := job.ID
+		g.Go(func() error {
+			log, _, err := f.RestAPIClient.Jobs.GetJobLog(ctx, bld.Organization, bld.Pipeline, b.ID, jobID)
+			if err != nil {
+				return err
 			}
-
-			if writeErr := os.WriteFile(filepath.Join(directory, jobID), []byte(log.Content), 0o644); writeErr != nil {
-				recordErr(writeErr)
-			}
-		}(job.ID)
+			return os.WriteFile(filepath.Join(directory, jobID), []byte(log.Content), 0o644)
+		})
 	}
 
 	for _, a := range artifacts {
-		wg.Add(1)
-		go func(a buildkite.Artifact) {
-			defer wg.Done()
-
+		g.Go(func() error {
 			// Keep the historical flat layout: build-<uuid>/artifact-<id>-<filename>.
 			// This is UX-observable and separate from `bk artifacts download`,
 			// which mirrors the artifact's own directory structure.
 			dest := filepath.Join(directory, fmt.Sprintf("artifact-%s-%s", a.ID, a.Filename))
-			if dlErr := artifact.DownloadToFile(ctx, f.RestAPIClient, a.DownloadURL, dest); dlErr != nil {
-				recordErr(dlErr)
-			}
-		}(a)
+			return artifact.DownloadToFile(ctx, f.RestAPIClient, a.DownloadURL, dest)
+		})
 	}
 
-	wg.Wait()
-	if firstErr != nil {
-		return "", len(artifacts), firstErr
+	if err := g.Wait(); err != nil {
+		return "", len(artifacts), err
 	}
 
 	return directory, len(artifacts), nil

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/build"
@@ -255,6 +256,80 @@ func TestWarnUnmatchedArtifactFilter(t *testing.T) {
 				t.Fatalf("warnUnmatchedArtifactFilter(%q, %q) = %q, want %q", tt.path, tt.state, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestDownloadCapsArtifactConcurrency(t *testing.T) {
+	// No t.Parallel(): t.Chdir is incompatible with parallel tests.
+	const (
+		buildUUID    = "b-uuid-conc"
+		numArtifacts = 32
+	)
+	if downloadWorkerLimit >= numArtifacts {
+		t.Fatalf("test needs numArtifacts (%d) > downloadWorkerLimit (%d) to be meaningful", numArtifacts, downloadWorkerLimit)
+	}
+
+	// The artifact handler holds each request briefly so that unbounded
+	// fan-out (all N goroutines in flight at once) would be observable as a
+	// peak equal to numArtifacts, and a working cap shows up as peak ≤ limit.
+	var inflight, peak atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/organizations/acme/pipelines/monolith/builds/429", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(buildkite.Build{ID: buildUUID})
+	})
+	var arts []buildkite.Artifact
+	mux.HandleFunc("/v2/organizations/acme/pipelines/monolith/builds/429/artifacts", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(arts)
+	})
+	mux.HandleFunc("/artifact/", func(w http.ResponseWriter, r *http.Request) {
+		n := inflight.Add(1)
+		defer inflight.Add(-1)
+		// CAS the running peak upwards. Simple max-of-atomics.
+		for {
+			p := peak.Load()
+			if n <= p || peak.CompareAndSwap(p, n) {
+				break
+			}
+		}
+		// Hold long enough for parallel calls to overlap. Total wall-clock
+		// is ~(numArtifacts/limit) * this sleep.
+		time.Sleep(20 * time.Millisecond)
+		_, _ = fmt.Fprint(w, "ok")
+	})
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	// Now that server.URL is known, wire every artifact's DownloadURL to it.
+	for i := range numArtifacts {
+		arts = append(arts, buildkite.Artifact{
+			ID:          fmt.Sprintf("art-%d", i),
+			Filename:    fmt.Sprintf("file-%d.txt", i),
+			DownloadURL: fmt.Sprintf("%s/artifact/%d", server.URL, i),
+		})
+	}
+
+	t.Chdir(t.TempDir())
+
+	bld := &build.Build{Organization: "acme", Pipeline: "monolith", BuildNumber: 429}
+	_, matches, err := download(context.Background(), bld, "", "", newBuildTestFactory(t, server.URL))
+	if err != nil {
+		t.Fatalf("download() error = %v", err)
+	}
+	if matches != numArtifacts {
+		t.Errorf("matches = %d, want %d", matches, numArtifacts)
+	}
+
+	got := peak.Load()
+	if got > downloadWorkerLimit {
+		t.Errorf("peak in-flight downloads = %d, want <= %d", got, downloadWorkerLimit)
+	}
+	// Guard against the test passing trivially if downloads happen to
+	// serialise (e.g. a sleep that's too short to overlap). We expect real
+	// parallelism up to the cap.
+	if got < 2 {
+		t.Errorf("peak in-flight downloads = %d, expected some parallelism (>= 2) — the sleep may be too short or the cap is 1", got)
 	}
 }
 
