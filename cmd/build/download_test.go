@@ -1,9 +1,9 @@
 package build
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -15,7 +15,6 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/build"
-	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v5"
 )
@@ -83,12 +82,15 @@ func TestDownloadPassesArtifactFiltersToAPI(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	bld := &build.Build{Organization: "acme", Pipeline: "monolith", BuildNumber: 429}
-	dir, err := download(context.Background(), bld, "log/rspec*.json", "Finished", newBuildTestFactory(t, server.URL))
+	dir, matches, err := download(context.Background(), bld, "log/rspec*.json", "Finished", newBuildTestFactory(t, server.URL))
 	if err != nil {
 		t.Fatalf("download() error = %v", err)
 	}
 	if dir != "build-"+buildUUID {
 		t.Errorf("dir = %q, want build-%s", dir, buildUUID)
+	}
+	if matches != 0 {
+		t.Errorf("matches = %d, want 0 (empty artifact list)", matches)
 	}
 
 	if !strings.Contains(query, "path=log%2Frspec%2A.json") {
@@ -111,7 +113,7 @@ func TestDownloadNoFiltersOmitsQueryParams(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	bld := &build.Build{Organization: "acme", Pipeline: "monolith", BuildNumber: 429}
-	if _, err := download(context.Background(), bld, "", "", newBuildTestFactory(t, server.URL)); err != nil {
+	if _, _, err := download(context.Background(), bld, "", "", newBuildTestFactory(t, server.URL)); err != nil {
 		t.Fatalf("download() error = %v", err)
 	}
 
@@ -146,9 +148,12 @@ func TestDownloadWritesArtifactsWithFlatNames(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	bld := &build.Build{Organization: "acme", Pipeline: "monolith", BuildNumber: 429}
-	dir, err := download(context.Background(), bld, "", "", newBuildTestFactory(t, server.URL))
+	dir, matches, err := download(context.Background(), bld, "", "", newBuildTestFactory(t, server.URL))
 	if err != nil {
 		t.Fatalf("download() error = %v", err)
+	}
+	if matches != len(arts) {
+		t.Errorf("matches = %d, want %d", matches, len(arts))
 	}
 
 	if got := downloads.Load(); got != int32(len(arts)) {
@@ -244,27 +249,52 @@ func TestDownloadCmdUserMineXor(t *testing.T) {
 	}
 }
 
-func TestDownloadRejectsInvalidArtifactState(t *testing.T) {
-	// No t.Parallel(): t.Chdir is incompatible with parallel tests.
-	// Any HTTP call fails the test — download() must short-circuit on
-	// validation before touching the wire.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Fatalf("unexpected HTTP call to %s — validation should have short-circuited", r.URL.Path)
-	}))
-	t.Cleanup(server.Close)
+func TestWarnUnmatchedArtifactFilter(t *testing.T) {
+	t.Parallel()
 
+	tests := []struct {
+		name  string
+		path  string
+		state string
+		want  string
+	}{
+		{"no filters", "", "", ""},
+		{"path only", "log/foo*.json", "", "Warning: no artifacts matched path \"log/foo*.json\".\n"},
+		{"state only", "", "expired", "Warning: no artifacts matched state \"expired\".\n"},
+		{"both", "log/foo*.json", "expired", "Warning: no artifacts matched path \"log/foo*.json\" and state \"expired\".\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buf bytes.Buffer
+			warnUnmatchedArtifactFilter(&buf, tt.path, tt.state)
+			if got := buf.String(); got != tt.want {
+				t.Fatalf("warnUnmatchedArtifactFilter(%q, %q) = %q, want %q", tt.path, tt.state, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDownloadReturnsZeroMatchesWhenFilterExcludesAll(t *testing.T) {
+	// No t.Parallel(): t.Chdir is incompatible with parallel tests.
+	// Empty artifacts payload — download() should return (dir, 0, nil).
+	server := newDownloadTestServer(t, "b-uuid-none", []buildkite.Artifact{}, nil, nil)
 	t.Chdir(t.TempDir())
 
 	bld := &build.Build{Organization: "acme", Pipeline: "monolith", BuildNumber: 429}
-	_, err := download(context.Background(), bld, "", "finshed", newBuildTestFactory(t, server.URL))
-	if err == nil {
-		t.Fatal("download() with invalid state = nil, want validation error")
+	dir, matches, err := download(context.Background(), bld, "does-not-exist/*", "", newBuildTestFactory(t, server.URL))
+	if err != nil {
+		t.Fatalf("download() error = %v", err)
 	}
-	if !errors.Is(err, bkErrors.ErrValidation) {
-		t.Fatalf("download() error = %v, want ErrValidation", err)
+	if matches != 0 {
+		t.Errorf("matches = %d, want 0", matches)
 	}
-	if !strings.Contains(err.Error(), "finshed") {
-		t.Errorf("download() error %q should mention the rejected input", err)
+	// The build directory should still exist so callers can rely on the
+	// warning-and-continue contract.
+	if _, statErr := os.Stat(dir); statErr != nil {
+		t.Errorf("expected build directory %q to exist after unmatched filter: %v", dir, statErr)
 	}
 }
 

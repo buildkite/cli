@@ -3,6 +3,7 @@ package build
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -118,12 +119,21 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 		return nil
 	}
 
-	var dir string
+	var (
+		dir             string
+		artifactMatches int
+	)
 	if err = bkIO.SpinWhile(f, "Downloading build resources", func() error {
-		dir, err = download(ctx, bld, c.ArtifactsPath, c.ArtifactsState, f)
+		dir, artifactMatches, err = download(ctx, bld, c.ArtifactsPath, c.ArtifactsState, f)
 		return err
 	}); err != nil {
 		return err
+	}
+
+	// Warn — but do not fail — when a user-supplied filter matched zero
+	// artifacts. Other build resources (logs, metadata) were still downloaded.
+	if artifactMatches == 0 && (c.ArtifactsPath != "" || c.ArtifactsState != "") {
+		warnUnmatchedArtifactFilter(os.Stderr, c.ArtifactsPath, c.ArtifactsState)
 	}
 
 	fmt.Printf("Downloaded build to: %s\n", dir)
@@ -131,34 +141,49 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 	return nil
 }
 
-func download(ctx context.Context, bld *build.Build, artifactsPath, artifactsState string, f *factory.Factory) (string, error) {
-	// Fail before making any network call so an obvious typo like
-	// --artifacts-state finshed is rejected without spinning up build fetch
-	// + log download work. Run() also validates up-front, so the guard is
-	// belt-and-braces for anyone calling download() directly.
-	if err := artifact.ValidateState(artifactsState); err != nil {
-		return "", err
+// warnUnmatchedArtifactFilter writes a stderr warning when --artifacts-path
+// or --artifacts-state was set but the API returned no matching artifacts.
+// The build download itself still succeeds; the message just makes the empty
+// filter visible so users don't wonder why their build directory lacks the
+// artifact files they expected.
+func warnUnmatchedArtifactFilter(w io.Writer, path, state string) {
+	switch {
+	case path != "" && state != "":
+		fmt.Fprintf(w, "Warning: no artifacts matched path %q and state %q.\n", path, state)
+	case path != "":
+		fmt.Fprintf(w, "Warning: no artifacts matched path %q.\n", path)
+	case state != "":
+		fmt.Fprintf(w, "Warning: no artifacts matched state %q.\n", state)
 	}
+}
 
+// download returns the destination directory and the number of artifacts the
+// (optional) filter matched. A zero count with a filter set is not itself an
+// error — the caller decides how to surface it.
+//
+// State-value validation lives in Run() and inside artifact.List, so an
+// invalid --artifacts-state still surfaces as a validation error without
+// hitting either endpoint here.
+func download(ctx context.Context, bld *build.Build, artifactsPath, artifactsState string, f *factory.Factory) (string, int, error) {
 	// Jobs are needed for log downloads, but the pipeline payload is unused.
 	getOpts := &buildkite.BuildGetOptions{
 		BuildsListOptions: buildkite.BuildsListOptions{ExcludePipeline: true},
 	}
 	b, _, err := f.RestAPIClient.Builds.Get(ctx, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), getOpts)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	directory := fmt.Sprintf("build-%s", b.ID)
 	if err := os.MkdirAll(directory, os.ModePerm); err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	// Paginate the artifact list up front so every matching artifact gets
 	// downloaded, not just the first page.
 	artifacts, err := artifact.List(ctx, f.RestAPIClient, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), "", artifactsPath, artifactsState)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	var (
@@ -218,8 +243,8 @@ func download(ctx context.Context, bld *build.Build, artifactsPath, artifactsSta
 
 	wg.Wait()
 	if firstErr != nil {
-		return "", firstErr
+		return "", len(artifacts), firstErr
 	}
 
-	return directory, nil
+	return directory, len(artifacts), nil
 }
