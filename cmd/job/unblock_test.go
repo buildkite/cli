@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -87,17 +88,45 @@ func TestParseUnblockFields(t *testing.T) {
 	}
 }
 
-func TestUnblockFieldsPrefersDataOverStdin(t *testing.T) {
+func TestUnblockFields(t *testing.T) {
 	t.Parallel()
 
-	cmd := UnblockCmd{Data: `{"release":"from-flag"}`}
-	stdin := strings.NewReader(`{"release":"from-stdin"}`)
-	got, err := cmd.unblockFields(stdin)
-	if err != nil {
-		t.Fatalf("unblockFields() error = %v", err)
+	tests := []struct {
+		name  string
+		data  string
+		stdin string
+		want  map[string]any
+	}{
+		{
+			name:  "data takes precedence over stdin",
+			data:  `{"source":"data"}`,
+			stdin: `{"source":"stdin"}`,
+			want:  map[string]any{"source": "data"},
+		},
+		{
+			name:  "reads stdin when data is absent",
+			stdin: `{"source":"stdin"}`,
+			want:  map[string]any{"source": "stdin"},
+		},
+		{
+			name: "returns nil when no data is provided",
+			want: nil,
+		},
 	}
-	if got["release"] != "from-flag" {
-		t.Fatalf("unblockFields() = %#v", got)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := UnblockCmd{Data: tt.data}
+			got, err := cmd.unblockFields(strings.NewReader(tt.stdin))
+			if err != nil {
+				t.Fatalf("unblockFields() error = %v", err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("unblockFields() = %#v, want %#v", got, tt.want)
+			}
+		})
 	}
 }
 
