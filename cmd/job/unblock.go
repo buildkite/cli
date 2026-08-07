@@ -94,11 +94,11 @@ func (c *UnblockCmd) unblockFields(stdin io.Reader) (map[string]any, error) {
 	}
 
 	if bkIO.HasDataAvailable(stdin) {
-		input := new(strings.Builder)
-		if _, err := io.Copy(input, stdin); err != nil {
-			return nil, err
+		input, err := io.ReadAll(stdin)
+		if err != nil {
+			return nil, fmt.Errorf("reading unblock data from stdin: %w", err)
 		}
-		return parseUnblockFields(input.String())
+		return parseUnblockFields(string(input))
 	}
 
 	return nil, nil
