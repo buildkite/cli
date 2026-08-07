@@ -67,154 +67,6 @@ func TestWriteNoArtifactsMessage(t *testing.T) {
 	}
 }
 
-func TestListArtifactsHitsBuildEndpoint(t *testing.T) {
-	t.Parallel()
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		wantPath := "/v2/organizations/acme/pipelines/monolith/builds/429/artifacts"
-		if r.URL.Path != wantPath {
-			t.Fatalf("path = %q, want %q", r.URL.Path, wantPath)
-		}
-		writeArtifactsPage(t, w, []buildkite.Artifact{{ID: "a1", Path: "coverage.xml"}}, "")
-	}))
-	t.Cleanup(server.Close)
-
-	f := newArtifactsTestFactory(t, server.URL)
-	got, err := listArtifacts(context.Background(), f, "acme", "monolith", "429", "", "", "")
-	if err != nil {
-		t.Fatalf("listArtifacts() error = %v", err)
-	}
-	if len(got) != 1 || got[0].ID != "a1" {
-		t.Fatalf("listArtifacts() = %+v, want single artifact a1", got)
-	}
-}
-
-func TestListArtifactsHitsJobEndpoint(t *testing.T) {
-	t.Parallel()
-
-	const jobUUID = "0193903e-ecd9-4c51-9156-0738da987e87"
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		wantPath := fmt.Sprintf("/v2/organizations/acme/pipelines/monolith/builds/429/jobs/%s/artifacts", jobUUID)
-		if r.URL.Path != wantPath {
-			t.Fatalf("path = %q, want %q", r.URL.Path, wantPath)
-		}
-		writeArtifactsPage(t, w, []buildkite.Artifact{{ID: "a1"}}, "")
-	}))
-	t.Cleanup(server.Close)
-
-	f := newArtifactsTestFactory(t, server.URL)
-	if _, err := listArtifacts(context.Background(), f, "acme", "monolith", "429", jobUUID, "", ""); err != nil {
-		t.Fatalf("listArtifacts() error = %v", err)
-	}
-}
-
-func TestListArtifactsPassesFilters(t *testing.T) {
-	t.Parallel()
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query()
-		if got := q.Get("path"); got != "coverage/**" {
-			t.Fatalf("path = %q, want coverage/**", got)
-		}
-		if got := q.Get("state"); got != "finished" {
-			t.Fatalf("state = %q, want finished", got)
-		}
-		if got := q.Get("per_page"); got != "100" {
-			t.Fatalf("per_page = %q, want 100", got)
-		}
-		writeArtifactsPage(t, w, []buildkite.Artifact{}, "")
-	}))
-	t.Cleanup(server.Close)
-
-	f := newArtifactsTestFactory(t, server.URL)
-	if _, err := listArtifacts(context.Background(), f, "acme", "monolith", "429", "", "coverage/**", "finished"); err != nil {
-		t.Fatalf("listArtifacts() error = %v", err)
-	}
-}
-
-func TestListArtifactsPassesFiltersOnJobEndpoint(t *testing.T) {
-	t.Parallel()
-
-	const jobUUID = "0193903e-ecd9-4c51-9156-0738da987e87"
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		wantPath := fmt.Sprintf("/v2/organizations/acme/pipelines/monolith/builds/429/jobs/%s/artifacts", jobUUID)
-		if r.URL.Path != wantPath {
-			t.Fatalf("path = %q, want %q", r.URL.Path, wantPath)
-		}
-		q := r.URL.Query()
-		if got := q.Get("path"); got != "log/rspec*.json" {
-			t.Fatalf("path = %q, want log/rspec*.json", got)
-		}
-		if got := q.Get("state"); got != "finished" {
-			t.Fatalf("state = %q, want finished", got)
-		}
-		writeArtifactsPage(t, w, []buildkite.Artifact{}, "")
-	}))
-	t.Cleanup(server.Close)
-
-	f := newArtifactsTestFactory(t, server.URL)
-	if _, err := listArtifacts(context.Background(), f, "acme", "monolith", "429", jobUUID, "log/rspec*.json", "finished"); err != nil {
-		t.Fatalf("listArtifacts() error = %v", err)
-	}
-}
-
-func TestListArtifactsPaginates(t *testing.T) {
-	t.Parallel()
-
-	var server *httptest.Server
-	var calls int
-	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls++
-		page := r.URL.Query().Get("page")
-		switch page {
-		case "", "1":
-			next := server.URL + r.URL.Path + "?page=2&per_page=100"
-			writeArtifactsPage(t, w, []buildkite.Artifact{{ID: "a1"}, {ID: "a2"}}, next)
-		case "2":
-			next := server.URL + r.URL.Path + "?page=3&per_page=100"
-			writeArtifactsPage(t, w, []buildkite.Artifact{{ID: "a3"}}, next)
-		case "3":
-			writeArtifactsPage(t, w, []buildkite.Artifact{{ID: "a4"}}, "")
-		default:
-			t.Fatalf("unexpected page = %q", page)
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	f := newArtifactsTestFactory(t, server.URL)
-	got, err := listArtifacts(context.Background(), f, "acme", "monolith", "429", "", "", "")
-	if err != nil {
-		t.Fatalf("listArtifacts() error = %v", err)
-	}
-
-	wantIDs := []string{"a1", "a2", "a3", "a4"}
-	if len(got) != len(wantIDs) {
-		t.Fatalf("got %d artifacts, want %d", len(got), len(wantIDs))
-	}
-	for i, id := range wantIDs {
-		if got[i].ID != id {
-			t.Fatalf("artifact %d ID = %q, want %q", i, got[i].ID, id)
-		}
-	}
-	if calls != 3 {
-		t.Fatalf("calls = %d, want 3", calls)
-	}
-}
-
-func TestListArtifactsPropagatesError(t *testing.T) {
-	t.Parallel()
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, `{"message":"boom"}`, http.StatusInternalServerError)
-	}))
-	t.Cleanup(server.Close)
-
-	f := newArtifactsTestFactory(t, server.URL)
-	if _, err := listArtifacts(context.Background(), f, "acme", "monolith", "429", "", "", ""); err == nil {
-		t.Fatal("listArtifacts() expected error, got nil")
-	}
-}
-
 func TestFindArtifactWithJobUUIDUsesGetEndpoint(t *testing.T) {
 	t.Parallel()
 
@@ -289,31 +141,6 @@ func TestFindArtifactNotFoundReturnsResourceError(t *testing.T) {
 	}
 }
 
-func TestDownloadToFileCreatesParentDirAndWritesBody(t *testing.T) {
-	t.Parallel()
-
-	const body = "artifact-bytes"
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(body))
-	}))
-	t.Cleanup(server.Close)
-
-	f := newArtifactsTestFactory(t, server.URL)
-	destPath := filepath.Join(t.TempDir(), "nested", "dir", "file.bin")
-
-	if err := downloadToFile(context.Background(), f, server.URL, destPath); err != nil {
-		t.Fatalf("downloadToFile() error = %v", err)
-	}
-
-	got, err := os.ReadFile(destPath)
-	if err != nil {
-		t.Fatalf("read written file: %v", err)
-	}
-	if string(got) != body {
-		t.Fatalf("file contents = %q, want %q", got, body)
-	}
-}
-
 func TestDownloadArtifactUsesArtifactPathAsDest(t *testing.T) {
 	// No t.Parallel(): t.Chdir is incompatible with parallel tests.
 	const body = "hello"
@@ -382,6 +209,22 @@ func TestDownloadCmdValidate(t *testing.T) {
 				t.Fatalf("validate() = %v, want nil", err)
 			}
 		})
+	}
+}
+
+func TestDownloadCmdValidateRejectsUnknownState(t *testing.T) {
+	t.Parallel()
+
+	cmd := DownloadCmd{State: "finshed"}
+	err := cmd.validate()
+	if err == nil {
+		t.Fatal("validate() = nil, want validation error for unknown state")
+	}
+	if !errors.Is(err, bkErrors.ErrValidation) {
+		t.Fatalf("validate() error = %v, want ErrValidation", err)
+	}
+	if !strings.Contains(err.Error(), "finshed") {
+		t.Errorf("validate() error %q should mention the rejected input", err)
 	}
 }
 

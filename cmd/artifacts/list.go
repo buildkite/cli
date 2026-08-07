@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/artifact"
@@ -25,7 +24,7 @@ type ListCmd struct {
 	Pipeline    string `help:"The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}. If omitted, it will be resolved using the current directory." short:"p"`
 	JobUUID     string `help:"List artifacts for a specific job on the given build." short:"j" name:"job-uuid"`
 	Path        string `help:"Filter artifacts by path. Supports exact matches and glob patterns using * as a wildcard, e.g. --path \"log/rspec*.json\"."`
-	State       string `help:"Filter artifacts by state (e.g. new, finished, error, deleted, expired)."`
+	State       string `help:"Filter artifacts by state. Must be one of: new, finished, error, deleted, expired."`
 	output.OutputFlags
 }
 
@@ -69,6 +68,10 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
+	if err := artifact.ValidateState(c.State); err != nil {
+		return err
+	}
+
 	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 
 	var args []string
@@ -106,7 +109,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	var buildArtifacts []buildkite.Artifact
 
 	if err = bkIO.SpinWhile(f, "Loading artifacts information", func() error {
-		buildArtifacts, err = listArtifacts(ctx, f, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), c.JobUUID, c.Path, strings.ToLower(c.State))
+		buildArtifacts, err = artifact.List(ctx, f.RestAPIClient, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), c.JobUUID, c.Path, c.State)
 		return err
 	}); err != nil {
 		return err

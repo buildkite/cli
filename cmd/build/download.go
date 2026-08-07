@@ -3,11 +3,12 @@ package build
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
-	"sync"
 
 	"github.com/alecthomas/kong"
+	"github.com/buildkite/cli/v3/internal/artifact"
 	"github.com/buildkite/cli/v3/internal/build"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
@@ -17,14 +18,24 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	buildkite "github.com/buildkite/go-buildkite/v5"
+	"golang.org/x/sync/errgroup"
 )
 
+// downloadWorkerLimit caps the number of concurrent log and artifact
+// downloads a single build can fan out to. Builds with hundreds of artifacts
+// would otherwise saturate the HTTP client's connection pool and thrash
+// file descriptors. 8 keeps enough parallelism to hide per-request latency
+// while staying well under sensible connection and fd limits.
+const downloadWorkerLimit = 8
+
 type DownloadCmd struct {
-	BuildNumber string `arg:"" optional:"" help:"Build number to download (omit for most recent build)"`
-	Pipeline    string `help:"The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
-	Branch      string `help:"Filter builds to this branch." short:"b"`
-	User        string `help:"Filter builds to this user. You can use name or email." short:"u" xor:"userfilter"`
-	Mine        bool   `help:"Filter builds to only my user." short:"m" xor:"userfilter"`
+	BuildNumber    string `arg:"" optional:"" help:"Build number to download (omit for most recent build)"`
+	Pipeline       string `help:"The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
+	Branch         string `help:"Filter builds to this branch." short:"b"`
+	User           string `help:"Filter builds to this user. You can use name or email." short:"u" xor:"userfilter"`
+	Mine           bool   `help:"Filter builds to only my user." short:"m" xor:"userfilter"`
+	ArtifactsPath  string `help:"Filter artifacts by path. Supports exact matches and glob patterns using * as a wildcard, e.g. --artifacts-path \"log/rspec*.json\"."`
+	ArtifactsState string `help:"Filter artifacts to download by state. Must be one of: new, finished, error, deleted, expired."`
 }
 
 func (c *DownloadCmd) Help() string {
@@ -43,7 +54,12 @@ Examples:
   $ bk build download --pipeline my-pipeline -u alice@hello.com
 
   # Download most recent build by yourself
-  $ bk build download --pipeline my-pipeline --mine`
+  $ bk build download --pipeline my-pipeline --mine
+
+  # Filter artifacts to download by path or state
+  $ bk build download --pipeline my-pipeline --artifacts-path "log/rspec*.json"
+  $ bk build download --pipeline my-pipeline --artifacts-state finished
+`
 }
 
 func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
@@ -106,12 +122,21 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 		return nil
 	}
 
-	var dir string
+	var (
+		dir             string
+		artifactMatches int
+	)
 	if err = bkIO.SpinWhile(f, "Downloading build resources", func() error {
-		dir, err = download(ctx, bld, f)
+		dir, artifactMatches, err = download(ctx, bld, c.ArtifactsPath, c.ArtifactsState, f)
 		return err
 	}); err != nil {
 		return err
+	}
+
+	// Warn — but do not fail — when a user-supplied filter matched zero
+	// artifacts. Other build resources (logs, metadata) were still downloaded.
+	if artifactMatches == 0 && (c.ArtifactsPath != "" || c.ArtifactsState != "") {
+		warnUnmatchedArtifactFilter(os.Stderr, c.ArtifactsPath, c.ArtifactsState)
 	}
 
 	fmt.Printf("Downloaded build to: %s\n", dir)
@@ -119,74 +144,82 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 	return nil
 }
 
-func download(ctx context.Context, build *build.Build, f *factory.Factory) (string, error) {
-	var wg sync.WaitGroup
-	var mu sync.Mutex
+// warnUnmatchedArtifactFilter writes a stderr warning when --artifacts-path
+// or --artifacts-state was set but the API returned no matching artifacts.
+// The build download itself still succeeds; the message just makes the empty
+// filter visible so users don't wonder why their build directory lacks the
+// artifact files they expected.
+func warnUnmatchedArtifactFilter(w io.Writer, path, state string) {
+	switch {
+	case path != "" && state != "":
+		fmt.Fprintf(w, "Warning: no artifacts matched path %q and state %q.\n", path, state)
+	case path != "":
+		fmt.Fprintf(w, "Warning: no artifacts matched path %q.\n", path)
+	case state != "":
+		fmt.Fprintf(w, "Warning: no artifacts matched state %q.\n", state)
+	}
+}
+
+// download returns the destination directory and the number of artifacts the
+// (optional) filter matched. A zero count with a filter set is not itself an
+// error — the caller decides how to surface it.
+func download(ctx context.Context, bld *build.Build, artifactsPath, artifactsState string, f *factory.Factory) (string, int, error) {
 	// Jobs are needed for log downloads, but the pipeline payload is unused.
 	getOpts := &buildkite.BuildGetOptions{
 		BuildsListOptions: buildkite.BuildsListOptions{ExcludePipeline: true},
 	}
-	b, _, err := f.RestAPIClient.Builds.Get(ctx, build.Organization, build.Pipeline, fmt.Sprint(build.BuildNumber), getOpts)
+	b, _, err := f.RestAPIClient.Builds.Get(ctx, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), getOpts)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	directory := fmt.Sprintf("build-%s", b.ID)
-	err = os.MkdirAll(directory, os.ModePerm)
-	if err != nil {
-		return "", err
+	if err := os.MkdirAll(directory, os.ModePerm); err != nil {
+		return "", 0, err
 	}
+
+	// Paginate the artifact list up front so every matching artifact gets
+	// downloaded, not just the first page.
+	artifacts, err := artifact.List(ctx, f.RestAPIClient, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), "", artifactsPath, artifactsState)
+	if err != nil {
+		return "", 0, err
+	}
+
+	// errgroup gives us a shared worker cap for both loops plus first-error
+	// reporting. Its derived ctx also cancels in-flight requests once any
+	// worker fails, so a broken network doesn't have every remaining
+	// download run to completion before we return.
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(downloadWorkerLimit)
 
 	for _, job := range b.Jobs {
 		// only script (command) jobs will have logs
 		if job.Type != "script" {
 			continue
 		}
-
-		go func() {
-			defer wg.Done()
-			wg.Add(1)
-			log, _, apiErr := f.RestAPIClient.Jobs.GetJobLog(ctx, build.Organization, build.Pipeline, b.ID, job.ID)
+		jobID := job.ID
+		g.Go(func() error {
+			log, _, err := f.RestAPIClient.Jobs.GetJobLog(ctx, bld.Organization, bld.Pipeline, b.ID, jobID)
 			if err != nil {
-				mu.Lock()
-				err = apiErr
-				mu.Unlock()
-				return
+				return err
 			}
-
-			fileErr := os.WriteFile(filepath.Join(directory, job.ID), []byte(log.Content), 0o644)
-			if fileErr != nil {
-				mu.Lock()
-				err = fileErr
-				mu.Unlock()
-			}
-		}()
+			return os.WriteFile(filepath.Join(directory, jobID), []byte(log.Content), 0o644)
+		})
 	}
 
-	artifacts, _, err := f.RestAPIClient.Artifacts.ListByBuild(ctx, build.Organization, build.Pipeline, fmt.Sprint(build.BuildNumber), nil)
-	if err != nil {
-		return "", err
+	for _, a := range artifacts {
+		g.Go(func() error {
+			// Keep the historical flat layout: build-<uuid>/artifact-<id>-<filename>.
+			// This is UX-observable and separate from `bk artifacts download`,
+			// which mirrors the artifact's own directory structure.
+			dest := filepath.Join(directory, fmt.Sprintf("artifact-%s-%s", a.ID, a.Filename))
+			return artifact.DownloadToFile(ctx, f.RestAPIClient, a.DownloadURL, dest)
+		})
 	}
 
-	for _, artifact := range artifacts {
-		go func() {
-			defer wg.Done()
-			wg.Add(1)
-			out, fileErr := os.Create(filepath.Join(directory, fmt.Sprintf("artifact-%s-%s", artifact.ID, artifact.Filename)))
-			if err != nil {
-				err = fileErr
-			}
-			_, apiErr := f.RestAPIClient.Artifacts.DownloadArtifactByURL(ctx, artifact.DownloadURL, out)
-			if err != nil {
-				err = apiErr
-			}
-		}()
+	if err := g.Wait(); err != nil {
+		return "", len(artifacts), err
 	}
 
-	wg.Wait()
-	if err != nil {
-		return "", err
-	}
-
-	return directory, nil
+	return directory, len(artifacts), nil
 }
