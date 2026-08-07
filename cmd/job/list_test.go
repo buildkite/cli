@@ -15,6 +15,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/config"
+	bkGraphQL "github.com/buildkite/cli/v3/internal/graphql"
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/output"
@@ -518,5 +519,294 @@ func TestFilterJobs(t *testing.T) {
 
 	if len(filtered) != 1 {
 		t.Errorf("Expected 1 job with 'test-queue', got %d", len(filtered))
+	}
+}
+
+func TestGraphQLStatesFor(t *testing.T) {
+	tests := []struct {
+		name      string
+		states    []string
+		want      []bkGraphQL.JobStates
+		wantExact bool
+	}{
+		{name: "empty", states: nil, want: nil, wantExact: true},
+		{name: "running", states: []string{"running"}, want: []bkGraphQL.JobStates{"RUNNING"}, wantExact: true},
+		{name: "mixed case", states: []string{"ScHeDuLeD"}, want: []bkGraphQL.JobStates{"SCHEDULED"}, wantExact: true},
+		{name: "distinct states are not collapsed", states: []string{"assigned", "accepted"}, want: []bkGraphQL.JobStates{"ASSIGNED", "ACCEPTED"}, wantExact: true},
+		{name: "states with no generated constant still map", states: []string{"platform_limited"}, want: []bkGraphQL.JobStates{"PLATFORM_LIMITED"}, wantExact: true},
+		{name: "passed narrows to finished", states: []string{"passed"}, want: []bkGraphQL.JobStates{"FINISHED"}, wantExact: false},
+		{name: "failed narrows to finished", states: []string{"failed"}, want: []bkGraphQL.JobStates{"FINISHED"}, wantExact: false},
+		{name: "passed and failed dedupe", states: []string{"passed", "failed"}, want: []bkGraphQL.JobStates{"FINISHED"}, wantExact: false},
+		{name: "one inexact state taints the set", states: []string{"running", "passed"}, want: []bkGraphQL.JobStates{"RUNNING", "FINISHED"}, wantExact: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, exact := graphQLStatesFor(tt.states)
+			if fmt.Sprint(got) != fmt.Sprint(tt.want) {
+				t.Fatalf("states = %v, want %v", got, tt.want)
+			}
+			if exact != tt.wantExact {
+				t.Fatalf("exact = %v, want %v", exact, tt.wantExact)
+			}
+		})
+	}
+}
+
+func TestMapGraphQLStateKeepsDistinctStates(t *testing.T) {
+	tests := []struct {
+		graphqlState string
+		exitStatus   string
+		want         string
+	}{
+		{graphqlState: "RUNNING", want: "running"},
+		{graphqlState: "SCHEDULED", want: "scheduled"},
+		{graphqlState: "ASSIGNED", want: "assigned"},
+		{graphqlState: "ACCEPTED", want: "accepted"},
+		{graphqlState: "CANCELING", want: "canceling"},
+		{graphqlState: "CANCELED", want: "canceled"},
+		{graphqlState: "TIMING_OUT", want: "timing_out"},
+		{graphqlState: "TIMED_OUT", want: "timed_out"},
+		{graphqlState: "FINISHED", exitStatus: "0", want: "passed"},
+		{graphqlState: "FINISHED", exitStatus: "1", want: "failed"},
+		{graphqlState: "FINISHED", want: "failed"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.graphqlState+"/"+tt.exitStatus, func(t *testing.T) {
+			if got := mapGraphQLState(tt.graphqlState, tt.exitStatus); got != tt.want {
+				t.Fatalf("mapGraphQLState(%q, %q) = %q, want %q", tt.graphqlState, tt.exitStatus, got, tt.want)
+			}
+		})
+	}
+}
+
+// jobListGraphQLServer serves the cluster/queue lookup plus one page of jobs,
+// recording the variables each job query was called with.
+func jobListGraphQLServer(t *testing.T, jobs string, calls *[]map[string]any) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			OperationName string         `json:"operationName"`
+			Variables     map[string]any `json:"variables"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("decode GraphQL request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch request.OperationName {
+		case "FindClusters":
+			_, _ = w.Write([]byte(`{"data":{"organization":{"clusters":{"edges":[{"node":{"id":"cluster-id","name":"Test"}}],"pageInfo":{"hasNextPage":false}}}}}`))
+		case "FindQueuesForCluster":
+			_, _ = w.Write([]byte(`{"data":{"node":{"__typename":"Cluster","id":"cluster-id","name":"Test","queues":{"edges":[{"node":{"id":"test-queue-id","key":"packages-on-origin"}}],"pageInfo":{"hasNextPage":false}}}}}`))
+		case "ListJobsByQueue", "ListJobsByAgentQueryRules":
+			*calls = append(*calls, request.Variables)
+			_, _ = w.Write([]byte(`{"data":{"organization":{"jobs":{"edges":` + jobs + `,"pageInfo":{"hasNextPage":false}}}}}`))
+		default:
+			t.Fatalf("unexpected GraphQL operation %q", request.OperationName)
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func TestQueueJobListSendsStateFilterToServer(t *testing.T) {
+	var calls []map[string]any
+	page := `[{"node":{"__typename":"JobTypeCommand","id":"job-1","uuid":"uuid-1","state":"RUNNING"}}]`
+	server := jobListGraphQLServer(t, page, &calls)
+
+	f := newJobListTestFactory(t, server.URL, nil)
+	f.GraphQLClient = graphql.NewClient(server.URL, server.Client())
+
+	opts := jobListOptions{queue: "packages-on-origin", state: []string{"running"}, limit: 100}
+	jobs, err := fetchJobsWithQueueFilter(context.Background(), f, "test-org", opts)
+	if err != nil {
+		t.Fatalf("fetchJobsWithQueueFilter() error = %v", err)
+	}
+
+	if len(calls) != 1 {
+		t.Fatalf("job queries = %d, want a single page", len(calls))
+	}
+	got, ok := calls[0]["state"]
+	if !ok {
+		t.Fatalf("state was not sent to the server; variables = %v", calls[0])
+	}
+	if fmt.Sprint(got) != "[RUNNING]" {
+		t.Fatalf("state = %v, want [RUNNING]", got)
+	}
+	if len(jobs) != 1 || jobs[0].State != "running" {
+		t.Fatalf("jobs = %#v, want the single running job", jobs)
+	}
+}
+
+func TestQueueJobListStopsPagingWhenServerFiltersState(t *testing.T) {
+	// The reported hang, against a server that honours the state variable. A
+	// busy queue with few running jobs used to page forever chasing --limit.
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			OperationName string         `json:"operationName"`
+			Variables     map[string]any `json:"variables"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("decode GraphQL request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch request.OperationName {
+		case "FindClusters":
+			_, _ = w.Write([]byte(`{"data":{"organization":{"clusters":{"edges":[{"node":{"id":"cluster-id","name":"Test"}}],"pageInfo":{"hasNextPage":false}}}}}`))
+		case "FindQueuesForCluster":
+			_, _ = w.Write([]byte(`{"data":{"node":{"__typename":"Cluster","id":"cluster-id","name":"Test","queues":{"edges":[{"node":{"id":"test-queue-id","key":"packages-on-origin"}}],"pageInfo":{"hasNextPage":false}}}}}`))
+		case "ListJobsByQueue":
+			calls++
+			if calls > 50 {
+				t.Fatalf("pager walked the queue's history; %d job queries and counting", calls)
+			}
+			if state, ok := request.Variables["state"]; ok && state != nil {
+				// Filtered: two running jobs, no more.
+				_, _ = w.Write([]byte(`{"data":{"organization":{"jobs":{"edges":[` +
+					`{"node":{"__typename":"JobTypeCommand","id":"job-1","uuid":"uuid-1","state":"RUNNING"}},` +
+					`{"node":{"__typename":"JobTypeCommand","id":"job-2","uuid":"uuid-2","state":"RUNNING"}}` +
+					`],"pageInfo":{"hasNextPage":false}}}}}`))
+				return
+			}
+			// Unfiltered: endless history, nothing running.
+			_, _ = w.Write([]byte(`{"data":{"organization":{"jobs":{"edges":[{"node":{"__typename":"JobTypeCommand","id":"old","uuid":"uuid-old","state":"FINISHED","exitStatus":"0"}}],"pageInfo":{"hasNextPage":true,"endCursor":"next"}}}}}`))
+		default:
+			t.Fatalf("unexpected GraphQL operation %q", request.OperationName)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	f := newJobListTestFactory(t, server.URL, nil)
+	f.GraphQLClient = graphql.NewClient(server.URL, server.Client())
+
+	opts := jobListOptions{queue: "packages-on-origin", state: []string{"running"}, limit: 100}
+	jobs, err := fetchJobsWithQueueFilter(context.Background(), f, "test-org", opts)
+	if err != nil {
+		t.Fatalf("fetchJobsWithQueueFilter() error = %v", err)
+	}
+
+	if calls != 1 {
+		t.Fatalf("job queries = %d, want a single filtered page", calls)
+	}
+	if len(jobs) != 2 {
+		t.Fatalf("jobs = %d, want the 2 running jobs", len(jobs))
+	}
+}
+
+func TestQueueJobListKeepsClientFilterForPassed(t *testing.T) {
+	// passed and failed both narrow to FINISHED, so the client pass still has
+	// to split them by exit status.
+	var calls []map[string]any
+	page := `[` +
+		`{"node":{"__typename":"JobTypeCommand","id":"ok","uuid":"uuid-ok","state":"FINISHED","exitStatus":"0"}},` +
+		`{"node":{"__typename":"JobTypeCommand","id":"bad","uuid":"uuid-bad","state":"FINISHED","exitStatus":"1"}}` +
+		`]`
+	server := jobListGraphQLServer(t, page, &calls)
+
+	f := newJobListTestFactory(t, server.URL, nil)
+	f.GraphQLClient = graphql.NewClient(server.URL, server.Client())
+
+	opts := jobListOptions{queue: "packages-on-origin", state: []string{"passed"}, limit: 100}
+	jobs, err := fetchJobsWithQueueFilter(context.Background(), f, "test-org", opts)
+	if err != nil {
+		t.Fatalf("fetchJobsWithQueueFilter() error = %v", err)
+	}
+
+	if fmt.Sprint(calls[0]["state"]) != "[FINISHED]" {
+		t.Fatalf("state = %v, want [FINISHED]", calls[0]["state"])
+	}
+	if len(jobs) != 1 || jobs[0].ID != "ok" {
+		t.Fatalf("jobs = %#v, want only the passed job", jobs)
+	}
+}
+
+func TestQueueJobListBoundsPagingForClientSideFilters(t *testing.T) {
+	// --duration has no server-side equivalent, so the pager has to give up
+	// rather than walk the whole queue.
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			OperationName string `json:"operationName"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("decode GraphQL request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch request.OperationName {
+		case "FindClusters":
+			_, _ = w.Write([]byte(`{"data":{"organization":{"clusters":{"edges":[{"node":{"id":"cluster-id","name":"Test"}}],"pageInfo":{"hasNextPage":false}}}}}`))
+		case "FindQueuesForCluster":
+			_, _ = w.Write([]byte(`{"data":{"node":{"__typename":"Cluster","id":"cluster-id","name":"Test","queues":{"edges":[{"node":{"id":"test-queue-id","key":"busy"}}],"pageInfo":{"hasNextPage":false}}}}}`))
+		case "ListJobsByQueue":
+			calls++
+			if calls > maxClientFilterPages*2 {
+				t.Fatalf("pager did not stop; %d job queries and counting", calls)
+			}
+			// A job that never satisfies --duration, on an endless cursor.
+			_, _ = w.Write([]byte(`{"data":{"organization":{"jobs":{"edges":[{"node":{"__typename":"JobTypeCommand","id":"job","uuid":"uuid","state":"FINISHED","exitStatus":"0"}}],"pageInfo":{"hasNextPage":true,"endCursor":"next"}}}}}`))
+		default:
+			t.Fatalf("unexpected GraphQL operation %q", request.OperationName)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	f := newJobListTestFactory(t, server.URL, nil)
+	f.GraphQLClient = graphql.NewClient(server.URL, server.Client())
+
+	opts := jobListOptions{queue: "busy", duration: ">10m", limit: 100}
+	jobs, err := fetchJobsWithQueueFilter(context.Background(), f, "test-org", opts)
+	if err != nil {
+		t.Fatalf("fetchJobsWithQueueFilter() error = %v", err)
+	}
+
+	if calls != maxClientFilterPages {
+		t.Fatalf("job queries = %d, want to stop at %d", calls, maxClientFilterPages)
+	}
+	if len(jobs) != 0 {
+		t.Fatalf("jobs = %d, want none matching", len(jobs))
+	}
+}
+
+func TestQueueJobListDoesNotBoundPagingWhenServerFiltersEverything(t *testing.T) {
+	// No client-side filter left, so the pager runs until it has --limit jobs.
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			OperationName string `json:"operationName"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("decode GraphQL request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch request.OperationName {
+		case "FindClusters":
+			_, _ = w.Write([]byte(`{"data":{"organization":{"clusters":{"edges":[{"node":{"id":"cluster-id","name":"Test"}}],"pageInfo":{"hasNextPage":false}}}}}`))
+		case "FindQueuesForCluster":
+			_, _ = w.Write([]byte(`{"data":{"node":{"__typename":"Cluster","id":"cluster-id","name":"Test","queues":{"edges":[{"node":{"id":"test-queue-id","key":"busy"}}],"pageInfo":{"hasNextPage":false}}}}}`))
+		case "ListJobsByQueue":
+			calls++
+			_, _ = w.Write([]byte(`{"data":{"organization":{"jobs":{"edges":[{"node":{"__typename":"JobTypeCommand","id":"job","uuid":"uuid","state":"RUNNING"}}],"pageInfo":{"hasNextPage":true,"endCursor":"next"}}}}}`))
+		default:
+			t.Fatalf("unexpected GraphQL operation %q", request.OperationName)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	f := newJobListTestFactory(t, server.URL, nil)
+	f.GraphQLClient = graphql.NewClient(server.URL, server.Client())
+
+	opts := jobListOptions{queue: "busy", state: []string{"running"}, limit: 25}
+	jobs, err := fetchJobsWithQueueFilter(context.Background(), f, "test-org", opts)
+	if err != nil {
+		t.Fatalf("fetchJobsWithQueueFilter() error = %v", err)
+	}
+
+	if len(jobs) != 25 {
+		t.Fatalf("jobs = %d, want the full --limit", len(jobs))
+	}
+	if calls != 25 {
+		t.Fatalf("job queries = %d, want one per job until the limit", calls)
 	}
 }

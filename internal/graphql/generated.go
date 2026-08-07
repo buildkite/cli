@@ -3913,10 +3913,11 @@ func (v *__InviteUserInput) GetEmails() []string { return v.Emails }
 
 // __ListJobsByAgentQueryRulesInput is used internally by genqlient
 type __ListJobsByAgentQueryRulesInput struct {
-	Org             string   `json:"org"`
-	AgentQueryRules []string `json:"agentQueryRules"`
-	First           *int     `json:"first"`
-	After           *string  `json:"after"`
+	Org             string      `json:"org"`
+	AgentQueryRules []string    `json:"agentQueryRules"`
+	State           []JobStates `json:"state"`
+	First           *int        `json:"first"`
+	After           *string     `json:"after"`
 }
 
 // GetOrg returns __ListJobsByAgentQueryRulesInput.Org, and is useful for accessing the field via an interface.
@@ -3924,6 +3925,9 @@ func (v *__ListJobsByAgentQueryRulesInput) GetOrg() string { return v.Org }
 
 // GetAgentQueryRules returns __ListJobsByAgentQueryRulesInput.AgentQueryRules, and is useful for accessing the field via an interface.
 func (v *__ListJobsByAgentQueryRulesInput) GetAgentQueryRules() []string { return v.AgentQueryRules }
+
+// GetState returns __ListJobsByAgentQueryRulesInput.State, and is useful for accessing the field via an interface.
+func (v *__ListJobsByAgentQueryRulesInput) GetState() []JobStates { return v.State }
 
 // GetFirst returns __ListJobsByAgentQueryRulesInput.First, and is useful for accessing the field via an interface.
 func (v *__ListJobsByAgentQueryRulesInput) GetFirst() *int { return v.First }
@@ -3933,10 +3937,11 @@ func (v *__ListJobsByAgentQueryRulesInput) GetAfter() *string { return v.After }
 
 // __ListJobsByQueueInput is used internally by genqlient
 type __ListJobsByQueueInput struct {
-	Org          string   `json:"org"`
-	ClusterQueue []string `json:"clusterQueue"`
-	First        *int     `json:"first"`
-	After        *string  `json:"after"`
+	Org          string      `json:"org"`
+	ClusterQueue []string    `json:"clusterQueue"`
+	State        []JobStates `json:"state"`
+	First        *int        `json:"first"`
+	After        *string     `json:"after"`
 }
 
 // GetOrg returns __ListJobsByQueueInput.Org, and is useful for accessing the field via an interface.
@@ -3944,6 +3949,9 @@ func (v *__ListJobsByQueueInput) GetOrg() string { return v.Org }
 
 // GetClusterQueue returns __ListJobsByQueueInput.ClusterQueue, and is useful for accessing the field via an interface.
 func (v *__ListJobsByQueueInput) GetClusterQueue() []string { return v.ClusterQueue }
+
+// GetState returns __ListJobsByQueueInput.State, and is useful for accessing the field via an interface.
+func (v *__ListJobsByQueueInput) GetState() []JobStates { return v.State }
 
 // GetFirst returns __ListJobsByQueueInput.First, and is useful for accessing the field via an interface.
 func (v *__ListJobsByQueueInput) GetFirst() *int { return v.First }
@@ -4344,9 +4352,9 @@ func InviteUser(
 
 // The query executed by ListJobsByAgentQueryRules.
 const ListJobsByAgentQueryRules_Operation = `
-query ListJobsByAgentQueryRules ($org: ID!, $agentQueryRules: [String!], $first: Int, $after: String) {
+query ListJobsByAgentQueryRules ($org: ID!, $agentQueryRules: [String!], $state: [JobStates!], $first: Int, $after: String) {
 	organization(slug: $org) {
-		jobs(first: $first, after: $after, agentQueryRules: $agentQueryRules) {
+		jobs(first: $first, after: $after, agentQueryRules: $agentQueryRules, state: $state) {
 			edges {
 				node {
 					__typename
@@ -4383,6 +4391,7 @@ func ListJobsByAgentQueryRules(
 	client_ graphql.Client,
 	org string,
 	agentQueryRules []string,
+	state []JobStates,
 	first *int,
 	after *string,
 ) (data_ *ListJobsByAgentQueryRulesResponse, err_ error) {
@@ -4392,6 +4401,7 @@ func ListJobsByAgentQueryRules(
 		Variables: &__ListJobsByAgentQueryRulesInput{
 			Org:             org,
 			AgentQueryRules: agentQueryRules,
+			State:           state,
 			First:           first,
 			After:           after,
 		},
@@ -4411,9 +4421,9 @@ func ListJobsByAgentQueryRules(
 
 // The query executed by ListJobsByQueue.
 const ListJobsByQueue_Operation = `
-query ListJobsByQueue ($org: ID!, $clusterQueue: [ID!], $first: Int, $after: String) {
+query ListJobsByQueue ($org: ID!, $clusterQueue: [ID!], $state: [JobStates!], $first: Int, $after: String) {
 	organization(slug: $org) {
-		jobs(clusterQueue: $clusterQueue, first: $first, after: $after) {
+		jobs(clusterQueue: $clusterQueue, state: $state, first: $first, after: $after) {
 			edges {
 				node {
 					__typename
@@ -4458,6 +4468,7 @@ func ListJobsByQueue(
 	client_ graphql.Client,
 	org string,
 	clusterQueue []string,
+	state []JobStates,
 	first *int,
 	after *string,
 ) (data_ *ListJobsByQueueResponse, err_ error) {
@@ -4467,6 +4478,7 @@ func ListJobsByQueue(
 		Variables: &__ListJobsByQueueInput{
 			Org:          org,
 			ClusterQueue: clusterQueue,
+			State:        state,
 			First:        first,
 			After:        after,
 		},
