@@ -54,6 +54,8 @@ func renderSingleTeamDetail(t buildkite.Team) string {
 		{"Default", fmt.Sprintf("%v", t.Default)},
 		{"Default Member Role", output.ValueOrDash(t.DefaultMemberRole)},
 		{"Members Can Create Pipelines", fmt.Sprintf("%v", t.MembersCanCreatePipelines)},
+		{"Members Can Create Test Suites", fmt.Sprintf("%v", t.MembersCanCreateSuites)},
+		{"Members Can Create Registries", fmt.Sprintf("%v", t.MembersCanCreateRegistries)},
 		{"ID", output.ValueOrDash(t.ID)},
 	}
 

@@ -68,15 +68,17 @@ func TestRenderTeamText(t *testing.T) {
 	createdAt := buildkite.Timestamp{Time: time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)}
 
 	team := buildkite.Team{
-		ID:                        "team-uuid-123",
-		Name:                      "Fearless Frontenders",
-		Slug:                      "fearless-frontenders",
-		Description:               "Frontend engineers",
-		Privacy:                   "secret",
-		Default:                   true,
-		DefaultMemberRole:         "maintainer",
-		MembersCanCreatePipelines: true,
-		CreatedAt:                 &createdAt,
+		ID:                         "team-uuid-123",
+		Name:                       "Fearless Frontenders",
+		Slug:                       "fearless-frontenders",
+		Description:                "Frontend engineers",
+		Privacy:                    "secret",
+		Default:                    true,
+		DefaultMemberRole:          "maintainer",
+		MembersCanCreatePipelines:  true,
+		MembersCanCreateSuites:     false,
+		MembersCanCreateRegistries: true,
+		CreatedAt:                  &createdAt,
 		CreatedBy: &buildkite.User{
 			ID:    "user-1",
 			Name:  "Peter Pettigrew",
@@ -86,6 +88,23 @@ func TestRenderTeamText(t *testing.T) {
 
 	result := RenderTeamText(team)
 
+	for label, value := range map[string]string{
+		"Members Can Create Pipelines":   "true",
+		"Members Can Create Test Suites": "false",
+		"Members Can Create Registries":  "true",
+	} {
+		matched := false
+		for _, line := range strings.Split(result, "\n") {
+			if strings.Contains(line, label) && strings.HasSuffix(strings.TrimSpace(line), value) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			t.Errorf("expected output row %q with value %q, got:\n%s", label, value, result)
+		}
+	}
+
 	for _, expected := range []string{
 		"Fearless Frontenders",
 		"fearless-frontenders",
@@ -94,7 +113,6 @@ func TestRenderTeamText(t *testing.T) {
 		"true",
 		"Default Member Role",
 		"maintainer",
-		"Members Can Create Pipelines",
 		"team-uuid-123",
 		"Peter Pettigrew",
 		"pp@hogwarts.co.uk",
