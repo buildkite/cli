@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/alecthomas/kong v1.16.0
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be
-	github.com/buildkite/go-buildkite/v5 v5.10.0
+	github.com/buildkite/go-buildkite/v5 v5.11.0
 	github.com/buildkite/termoji v0.0.0-20260330080310-c0aa4ebee0d1
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
@@ -16,7 +16,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/mcncl/terminal-to-llm v0.1.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
-	github.com/posthog/posthog-go v1.22.0
+	github.com/posthog/posthog-go v1.23.0
 	github.com/vektah/gqlparser/v2 v2.5.36
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/zalando/go-keyring v0.2.8
