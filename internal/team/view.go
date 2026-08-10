@@ -24,15 +24,16 @@ func TeamViewTable(t ...buildkite.Team) string {
 		rows = append(rows, []string{
 			output.ValueOrDash(team.Name),
 			output.ValueOrDash(team.Slug),
+			output.ValueOrDash(team.ID),
 			output.ValueOrDash(team.Privacy),
 			fmt.Sprintf("%v", team.Default),
 		})
 	}
 
 	return output.Table(
-		[]string{"Name", "Slug", "Privacy", "Default"},
+		[]string{"Name", "Slug", "ID", "Privacy", "Default"},
 		rows,
-		map[string]string{"name": "bold", "slug": "dim", "privacy": "dim", "default": "dim"},
+		map[string]string{"name": "bold", "slug": "dim", "id": "dim", "privacy": "dim", "default": "dim"},
 	)
 }
 

@@ -51,22 +51,13 @@ func TestTeamViewTable(t *testing.T) {
 
 		result := TeamViewTable(teams...)
 
-		// Should have table headers
-		for _, header := range []string{"NAME", "SLUG", "PRIVACY", "DEFAULT"} {
-			if !strings.Contains(result, header) {
-				t.Errorf("expected table header %q, got:\n%s", header, result)
+		for _, expected := range []string{
+			"NAME", "SLUG", "ID", "PRIVACY", "DEFAULT",
+			"Frontend", "Backend", "team-1", "team-2",
+		} {
+			if !strings.Contains(result, expected) {
+				t.Errorf("expected output to contain %q, got:\n%s", expected, result)
 			}
-		}
-		// Should have both team names
-		if !strings.Contains(result, "Frontend") {
-			t.Errorf("expected output to contain 'Frontend':\n%s", result)
-		}
-		if !strings.Contains(result, "Backend") {
-			t.Errorf("expected output to contain 'Backend':\n%s", result)
-		}
-		// Should not render UUIDs in the summary table (only name/slug/privacy/default columns)
-		if strings.Contains(result, "team-1") {
-			t.Errorf("expected summary table to omit IDs, got:\n%s", result)
 		}
 	})
 }
