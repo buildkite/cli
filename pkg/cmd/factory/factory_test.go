@@ -100,6 +100,19 @@ func TestRedactHeadersMultipleValues(t *testing.T) {
 	}
 }
 
+func TestRedactBody(t *testing.T) {
+	t.Parallel()
+
+	input := `access_token=form-secret&code_verifier=verifier-secret
+{"endpoint":"wss://vnc.example.test/session","access_token":"namespace-secret","vnc":{"username":"vnc-user","password": "vnc-secret"}}`
+	want := `access_token=[REDACTED]&code_verifier=[REDACTED]
+{"endpoint":"wss://vnc.example.test/session","access_token":"[REDACTED]","vnc":{"username":"vnc-user","password": "[REDACTED]"}}`
+
+	if got := redactBody(input); got != want {
+		t.Errorf("redactBody() = %q, want %q", got, want)
+	}
+}
+
 func TestDebugTransportPreservesRequestBody(t *testing.T) {
 	expectedBody := `{"name":"test-pipeline","cluster_id":"","repository":"git@github.com:test/repo.git"}`
 

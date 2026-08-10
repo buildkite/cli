@@ -128,7 +128,7 @@ func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 // and JSON response bodies that should be redacted in debug output.
 var sensitiveBodyPatterns = regexp.MustCompile(
 	`((?:refresh_token|access_token|code|code_verifier)=)[^&\s]+` +
-		`|("(?:access_token|refresh_token|code)":\s*")[^"]+("?)`,
+		`|("(?:access_token|refresh_token|code|password)":\s*")[^"]+(")`,
 )
 
 // redactBody replaces sensitive token values in HTTP dumps.
@@ -139,7 +139,7 @@ func redactBody(dump string) string {
 			return match[:idx+1] + "[REDACTED]"
 		}
 		// JSON: "key": "value"
-		return sensitiveBodyPatterns.ReplaceAllString(match, `${1}[REDACTED]${2}`)
+		return sensitiveBodyPatterns.ReplaceAllString(match, `${2}[REDACTED]${3}`)
 	})
 }
 

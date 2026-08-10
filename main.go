@@ -130,7 +130,7 @@ type (
 		Reprioritize job.ReprioritizeCmd `cmd:"" help:"Reprioritize a job." aliases:"priority"`
 		Retry        job.RetryCmd        `cmd:"" help:"Retry a job."`
 		Unblock      job.UnblockCmd      `cmd:"" help:"Unblock a job."`
-		VNC          job.VNCCmd          `cmd:"" help:"Connect to VNC on a Namespace instance." hidden:""`
+		VNC          job.VNCCmd          `cmd:"" help:"Connect to a running hosted macOS job over VNC." hidden:""`
 	}
 	MaintainerCmd struct {
 		List   maintainer.ListCmd   `cmd:"" help:"List cluster maintainers." aliases:"ls"`

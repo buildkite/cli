@@ -26,7 +26,6 @@ require (
 )
 
 require (
-	buf.build/gen/go/namespace/cloud/grpc/go v1.5.1-20251121142918-2a477e0555b1.2 // indirect
 	buf.build/gen/go/namespace/cloud/protocolbuffers/go v1.36.10-20251121142918-2a477e0555b1.1 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/alexflint/go-arg v1.5.1 // indirect
@@ -44,7 +43,6 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
-	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/jpillora/chisel v1.11.5 // indirect

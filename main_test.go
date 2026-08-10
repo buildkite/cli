@@ -38,11 +38,11 @@ func TestVNCCommandRegistration(t *testing.T) {
 		t.Fatalf("failed to create parser: %v", err)
 	}
 
-	if _, err := parser.Parse([]string{"job", "vnc", "i_test"}); err != nil {
+	if _, err := parser.Parse([]string{"job", "vnc", "0190046e-e199-453b-a302-a21a4d649d31"}); err != nil {
 		t.Fatalf("failed to parse job vnc command: %v", err)
 	}
-	if cli.Job.VNC.InstanceID != "i_test" {
-		t.Errorf("VNC instance ID = %q, want i_test", cli.Job.VNC.InstanceID)
+	if cli.Job.VNC.JobID != "0190046e-e199-453b-a302-a21a4d649d31" {
+		t.Errorf("VNC job ID = %q", cli.Job.VNC.JobID)
 	}
 
 	for _, command := range parser.Model.Children {

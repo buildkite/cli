@@ -1,81 +1,71 @@
 package job
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
-	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
+	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/pkg/cmd/validation"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 	"github.com/pkg/browser"
 	"namespacelabs.dev/integrations/api"
-	namespaceauth "namespacelabs.dev/integrations/auth"
 	"namespacelabs.dev/integrations/network/netcopy"
 	"namespacelabs.dev/integrations/nsc/ingress"
 )
 
-const (
-	getKubernetesClusterMethod = "namespace.private.vm.GlobalVMService/GetKubernetesCluster"
-	// This matches the nsc API contract that exposes ServiceState credentials.
-	namespaceAPIVersion = "160"
-)
-
 type VNCCmd struct {
-	InstanceID string `arg:"" name:"instance-id" help:"Namespace instance ID" required:""`
+	JobID string `arg:"" name:"job-uuid" help:"UUID of the hosted agent job" required:""`
 }
 
 func (c *VNCCmd) Help() string {
 	return `
 Examples:
-  # Connect a local VNC client to a Namespace instance
-  $ bk job vnc i_2d4f7b8c9a
+	# Connect a local VNC client to a running hosted macOS job
+	$ bk job vnc 0190046e-e199-453b-a302-a21a4d649d31
 `
 }
 
 func (c *VNCCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
+	if err != nil {
+		return err
+	}
+
+	organization, err := configuredOrganization(f.Config.OrganizationSlug())
+	if err != nil {
+		return err
+	}
+	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
+		return err
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	return c.run(ctx, kongCtx.Stdout, globals.IsQuiet(), defaultVNCDependencies())
-}
-
-type vncCredentials struct {
-	Username string `json:"username,omitempty"`
-	Password string `json:"password,omitempty"`
-}
-
-type vncService struct {
-	Name        string          `json:"name,omitempty"`
-	Status      string          `json:"status,omitempty"`
-	Endpoint    string          `json:"endpoint,omitempty"`
-	Credentials *vncCredentials `json:"credentials,omitempty"`
+	return c.run(ctx, kongCtx.Stdout, globals.IsQuiet(), f.RestAPIClient, organization, defaultVNCDependencies())
 }
 
 type vncDependencies struct {
-	loadToken    func() (api.TokenSource, error)
-	getService   func(context.Context, *http.Client, api.TokenSource, string) (*vncService, error)
-	dialEndpoint func(context.Context, api.TokenSource, string) (net.Conn, error)
-	listen       func(context.Context, string, string) (net.Listener, error)
-	openURL      func(string) error
-	proxy        func(net.Conn, net.Conn) error
-	httpClient   *http.Client
+	createSession func(context.Context, *buildkite.Client, string, string) (vncSession, error)
+	dialEndpoint  func(context.Context, api.TokenSource, string) (net.Conn, error)
+	listen        func(context.Context, string, string) (net.Listener, error)
+	openURL       func(string) error
+	proxy         func(net.Conn, net.Conn) error
 }
 
 func defaultVNCDependencies() vncDependencies {
 	return vncDependencies{
-		loadToken:  namespaceauth.LoadDefaults,
-		getService: getVNCService,
+		createSession: createVNCSession,
 		dialEndpoint: func(ctx context.Context, token api.TokenSource, endpoint string) (net.Conn, error) {
 			return ingress.DialEndpoint(ctx, io.Discard, token, endpoint)
 		},
@@ -86,28 +76,22 @@ func defaultVNCDependencies() vncDependencies {
 		proxy: func(local, remote net.Conn) error {
 			return netcopy.CopyConns(nil, local, remote)
 		},
-		httpClient: http.DefaultClient,
 	}
 }
 
-func (c *VNCCmd) run(ctx context.Context, stdout io.Writer, quiet bool, deps vncDependencies) error {
-	token, err := deps.loadToken()
+func (c *VNCCmd) run(ctx context.Context, stdout io.Writer, quiet bool, client *buildkite.Client, organization string, deps vncDependencies) error {
+	session, err := deps.createSession(ctx, client, organization, c.JobID)
 	if err != nil {
-		return fmt.Errorf("load Namespace credentials: %w", err)
+		return fmt.Errorf("create VNC session: %w", err)
 	}
 
-	service, err := deps.getService(ctx, deps.httpClient, token, c.InstanceID)
+	remote, err := deps.dialEndpoint(ctx, vncAccessToken(session.AccessToken), session.Endpoint)
 	if err != nil {
-		return err
-	}
-
-	remote, err := deps.dialEndpoint(ctx, token, service.Endpoint)
-	if err != nil {
-		return fmt.Errorf("connect to the Namespace VNC service: %w", err)
+		return fmt.Errorf("connect to the VNC service: %w", err)
 	}
 	defer remote.Close()
 
-	writeVNCStatus(stdout, quiet, "Connected to instance.")
+	writeVNCStatus(stdout, quiet, "Connected to job.")
 
 	listener, err := deps.listen(ctx, "tcp", "127.0.0.1:0")
 	if err != nil {
@@ -140,7 +124,7 @@ func (c *VNCCmd) run(ctx context.Context, stdout io.Writer, quiet bool, deps vnc
 	defer stopCleanup()
 
 	writeVNCStatus(stdout, quiet, "Opening VNC client...")
-	if err := deps.openURL(vncClientURL(listener.Addr().String(), service.Credentials)); err != nil {
+	if err := deps.openURL(vncClientURL(listener.Addr().String(), session.VNC.Username, session.VNC.Password)); err != nil {
 		return fmt.Errorf("open the local VNC client: %w", err)
 	}
 
@@ -167,12 +151,7 @@ func writeVNCStatus(w io.Writer, quiet bool, message string) {
 	}
 }
 
-func vncClientURL(address string, credentials *vncCredentials) string {
-	username, password := "admin", "admin"
-	if credentials != nil {
-		username, password = credentials.Username, credentials.Password
-	}
-
+func vncClientURL(address, username, password string) string {
 	return (&url.URL{
 		Scheme: "vnc",
 		User:   url.UserPassword(username, password),
@@ -180,96 +159,8 @@ func vncClientURL(address string, credentials *vncCredentials) string {
 	}).String()
 }
 
-func getVNCService(ctx context.Context, client *http.Client, token api.TokenSource, instanceID string) (*vncService, error) {
-	bearer, err := token.IssueToken(ctx, 15*time.Minute, false)
-	if err != nil {
-		return nil, fmt.Errorf("issue Namespace token: %w", err)
-	}
+type vncAccessToken string
 
-	endpoint, err := namespaceComputeEndpoint(bearer)
-	if err != nil {
-		return nil, err
-	}
-
-	body, err := json.Marshal(struct {
-		ClusterID string `json:"cluster_id"`
-	}{ClusterID: instanceID})
-	if err != nil {
-		return nil, fmt.Errorf("encode Namespace instance request: %w", err)
-	}
-
-	requestURL := strings.TrimRight(endpoint, "/") + "/" + getKubernetesClusterMethod
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("create Namespace instance request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+bearer)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("NS-Internal-Version", namespaceAPIVersion)
-	req.Header.Set("User-Agent", "bk")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("fetch Namespace instance: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		var rpcStatus struct {
-			Message string `json:"message"`
-		}
-		_ = json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&rpcStatus)
-		if rpcStatus.Message != "" {
-			return nil, fmt.Errorf("fetch Namespace instance: %s: %s", resp.Status, rpcStatus.Message)
-		}
-		return nil, fmt.Errorf("fetch Namespace instance: %s", resp.Status)
-	}
-
-	var response struct {
-		Cluster *struct {
-			Services []*vncService `json:"service_state,omitempty"`
-		} `json:"cluster,omitempty"`
-	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&response); err != nil {
-		return nil, fmt.Errorf("decode Namespace instance: %w", err)
-	}
-	if response.Cluster == nil {
-		return nil, fmt.Errorf("namespace instance %q was not returned", instanceID)
-	}
-
-	for _, service := range response.Cluster.Services {
-		if service == nil || service.Name != "vnc" {
-			continue
-		}
-		if service.Status != "READY" {
-			return nil, fmt.Errorf("VNC service for Namespace instance %q is not ready (status: %s)", instanceID, service.Status)
-		}
-		if service.Endpoint == "" {
-			return nil, fmt.Errorf("VNC service for Namespace instance %q has no endpoint", instanceID)
-		}
-		return service, nil
-	}
-
-	return nil, fmt.Errorf("namespace instance %q does not have a VNC service", instanceID)
-}
-
-func namespaceComputeEndpoint(bearer string) (string, error) {
-	if endpoint := os.Getenv("NSC_ENDPOINT"); endpoint != "" {
-		return endpoint, nil
-	}
-
-	claims, err := namespaceauth.ExtractClaims(bearer)
-	if err != nil {
-		return "", fmt.Errorf("determine Namespace compute region: %w", err)
-	}
-
-	region := claims.WorkloadRegion
-	if region == "" {
-		region = claims.PrimaryRegion
-	}
-	if region == "" {
-		region = "eu"
-	}
-
-	return fmt.Sprintf("https://%s.compute.namespaceapis.com", region), nil
+func (t vncAccessToken) IssueToken(context.Context, time.Duration, bool) (string, error) {
+	return string(t), nil
 }
