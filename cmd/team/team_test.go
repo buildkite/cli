@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v5"
@@ -255,6 +256,101 @@ func TestGetTeam(t *testing.T) {
 	}
 	if !result.Default {
 		t.Error("expected Default to be true")
+	}
+}
+
+func TestCreateCmdPermissions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		args       []string
+		pipelines  bool
+		suites     bool
+		registries bool
+	}{
+		{
+			name:       "uses API defaults for creation permissions",
+			args:       []string{"New Team"},
+			pipelines:  true,
+			suites:     true,
+			registries: true,
+		},
+		{
+			name:       "explicitly disables pipeline creation",
+			args:       []string{"New Team", "--no-members-can-create-pipelines"},
+			pipelines:  false,
+			suites:     true,
+			registries: true,
+		},
+		{
+			name:       "explicitly disables suite creation",
+			args:       []string{"New Team", "--no-members-can-create-suites"},
+			pipelines:  true,
+			suites:     false,
+			registries: true,
+		},
+		{
+			name:       "explicitly disables registry creation",
+			args:       []string{"New Team", "--no-members-can-create-registries"},
+			pipelines:  true,
+			suites:     true,
+			registries: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var cmd CreateCmd
+			parser, err := kong.New(&cmd, kong.Vars{"output_default_format": ""})
+			if err != nil {
+				t.Fatalf("kong.New() error = %v", err)
+			}
+			if _, err := parser.Parse(tt.args); err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+
+			input := cmd.createTeamInput()
+			if input.MembersCanCreatePipelines != tt.pipelines {
+				t.Errorf("MembersCanCreatePipelines = %v, want %v", input.MembersCanCreatePipelines, tt.pipelines)
+			}
+			if input.MembersCanCreateSuites != tt.suites {
+				t.Errorf("MembersCanCreateSuites = %v, want %v", input.MembersCanCreateSuites, tt.suites)
+			}
+			if input.MembersCanCreateRegistries != tt.registries {
+				t.Errorf("MembersCanCreateRegistries = %v, want %v", input.MembersCanCreateRegistries, tt.registries)
+			}
+
+			body, err := json.Marshal(input)
+			if err != nil {
+				t.Fatalf("json.Marshal() error = %v", err)
+			}
+			var request map[string]json.RawMessage
+			if err := json.Unmarshal(body, &request); err != nil {
+				t.Fatalf("json.Unmarshal() error = %v", err)
+			}
+			for field, want := range map[string]bool{
+				"members_can_create_pipelines":  tt.pipelines,
+				"members_can_create_suites":     tt.suites,
+				"members_can_create_registries": tt.registries,
+			} {
+				value, ok := request[field]
+				if !ok {
+					t.Errorf("request body omitted %q", field)
+					continue
+				}
+				var got bool
+				if err := json.Unmarshal(value, &got); err != nil {
+					t.Errorf("request field %q: json.Unmarshal() error = %v", field, err)
+					continue
+				}
+				if got != want {
+					t.Errorf("request field %q = %v, want %v", field, got, want)
+				}
+			}
+		})
 	}
 }
 

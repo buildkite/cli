@@ -18,12 +18,14 @@ import (
 )
 
 type CreateCmd struct {
-	Name                      string `arg:"" help:"Name of the team" name:"name"`
-	Description               string `help:"Description of the team" optional:""`
-	Privacy                   string `help:"Privacy setting for the team: visible or secret" optional:"" default:"visible" enum:"visible,secret"`
-	Default                   bool   `help:"Whether this is the default team for new members" optional:"" name:"default"`
-	DefaultMemberRole         string `help:"Default role for new members: member or maintainer" optional:"" name:"default-member-role" default:"member" enum:"member,maintainer"`
-	MembersCanCreatePipelines bool   `help:"Whether members can create pipelines" optional:"" name:"members-can-create-pipelines"`
+	Name                       string `arg:"" help:"Name of the team" name:"name"`
+	Description                string `help:"Description of the team" optional:""`
+	Privacy                    string `help:"Privacy setting for the team: visible or secret" optional:"" default:"visible" enum:"visible,secret"`
+	Default                    bool   `help:"Whether this is the default team for new members" optional:"" name:"default"`
+	DefaultMemberRole          string `help:"Default role for new members: member or maintainer" optional:"" name:"default-member-role" default:"member" enum:"member,maintainer"`
+	MembersCanCreatePipelines  bool   `help:"Whether members can create pipelines" optional:"" name:"members-can-create-pipelines" default:"true" negatable:""`
+	MembersCanCreateSuites     bool   `help:"Whether members can create test suites" optional:"" name:"members-can-create-suites" default:"true" negatable:""`
+	MembersCanCreateRegistries bool   `help:"Whether members can create registries" optional:"" name:"members-can-create-registries" default:"true" negatable:""`
 	output.OutputFlags
 }
 
@@ -38,9 +40,22 @@ Examples:
   # Create a private team with a description
   $ bk team create my-team --description "My team" --privacy secret
 
-  # Create a default team where members can create pipelines
-  $ bk team create my-team --default --members-can-create-pipelines
+  # Create a team where members cannot create pipelines
+  $ bk team create my-team --no-members-can-create-pipelines
 `
+}
+
+func (c *CreateCmd) createTeamInput() buildkite.CreateTeam {
+	return buildkite.CreateTeam{
+		Name:                       c.Name,
+		Description:                c.Description,
+		Privacy:                    c.Privacy,
+		IsDefaultTeam:              c.Default,
+		DefaultMemberRole:          c.DefaultMemberRole,
+		MembersCanCreatePipelines:  c.MembersCanCreatePipelines,
+		MembersCanCreateSuites:     c.MembersCanCreateSuites,
+		MembersCanCreateRegistries: c.MembersCanCreateRegistries,
+	}
 }
 
 func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
@@ -63,14 +78,7 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	input := buildkite.CreateTeam{
-		Name:                      c.Name,
-		Description:               c.Description,
-		Privacy:                   c.Privacy,
-		IsDefaultTeam:             c.Default,
-		DefaultMemberRole:         c.DefaultMemberRole,
-		MembersCanCreatePipelines: c.MembersCanCreatePipelines,
-	}
+	input := c.createTeamInput()
 
 	var t buildkite.Team
 	spinErr := bkIO.SpinWhile(f, "Creating team", func() error {
