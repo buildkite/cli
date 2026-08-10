@@ -18,13 +18,15 @@ import (
 )
 
 type UpdateCmd struct {
-	TeamUUID                  string  `arg:"" help:"UUID of the team to update" name:"team-uuid"`
-	Name                      string  `help:"New name for the team" optional:""`
-	Description               *string `help:"New description for the team" optional:""`
-	Privacy                   string  `help:"Privacy setting: visible or secret" optional:""`
-	Default                   *bool   `help:"Whether this is the default team for new members" optional:"" name:"default"`
-	DefaultMemberRole         string  `help:"Default role for new members: member or maintainer" optional:"" name:"default-member-role"`
-	MembersCanCreatePipelines *bool   `help:"Whether members can create pipelines" optional:"" name:"members-can-create-pipelines"`
+	TeamUUID                   string  `arg:"" help:"UUID of the team to update" name:"team-uuid"`
+	Name                       string  `help:"New name for the team" optional:""`
+	Description                *string `help:"New description for the team" optional:""`
+	Privacy                    string  `help:"Privacy setting: visible or secret" optional:""`
+	Default                    *bool   `help:"Whether this is the default team for new members" optional:"" name:"default"`
+	DefaultMemberRole          string  `help:"Default role for new members: member or maintainer" optional:"" name:"default-member-role"`
+	MembersCanCreatePipelines  *bool   `help:"Whether members can create pipelines" optional:"" name:"members-can-create-pipelines" negatable:""`
+	MembersCanCreateSuites     *bool   `help:"Whether members can create test suites" optional:"" name:"members-can-create-suites" negatable:""`
+	MembersCanCreateRegistries *bool   `help:"Whether members can create registries" optional:"" name:"members-can-create-registries" negatable:""`
 	output.OutputFlags
 }
 
@@ -45,8 +47,8 @@ Examples:
 }
 
 func (c *UpdateCmd) Validate() error {
-	if c.Name == "" && c.Description == nil && c.Privacy == "" && c.Default == nil && c.DefaultMemberRole == "" && c.MembersCanCreatePipelines == nil {
-		return fmt.Errorf("at least one of --name, --description, --privacy, --default, --default-member-role, or --members-can-create-pipelines must be provided")
+	if c.Name == "" && c.Description == nil && c.Privacy == "" && c.Default == nil && c.DefaultMemberRole == "" && c.MembersCanCreatePipelines == nil && c.MembersCanCreateSuites == nil && c.MembersCanCreateRegistries == nil {
+		return fmt.Errorf("at least one of --name, --description, --privacy, --default, --default-member-role, --members-can-create-pipelines, --members-can-create-suites, or --members-can-create-registries must be provided")
 	}
 	if c.Privacy != "" && c.Privacy != "visible" && c.Privacy != "secret" {
 		return fmt.Errorf("--privacy must be either \"visible\" or \"secret\"")
@@ -55,6 +57,35 @@ func (c *UpdateCmd) Validate() error {
 		return fmt.Errorf("--default-member-role must be either \"member\" or \"maintainer\"")
 	}
 	return nil
+}
+
+func (c *UpdateCmd) updateTeamInput() buildkite.UpdateTeam {
+	var input buildkite.UpdateTeam
+	if c.Name != "" {
+		input.Name = buildkite.Some(c.Name)
+	}
+	if c.Description != nil {
+		input.Description = buildkite.Some(*c.Description)
+	}
+	if c.Privacy != "" {
+		input.Privacy = buildkite.Some(c.Privacy)
+	}
+	if c.Default != nil {
+		input.IsDefaultTeam = buildkite.Some(*c.Default)
+	}
+	if c.DefaultMemberRole != "" {
+		input.DefaultMemberRole = buildkite.Some(c.DefaultMemberRole)
+	}
+	if c.MembersCanCreatePipelines != nil {
+		input.MembersCanCreatePipelines = buildkite.Some(*c.MembersCanCreatePipelines)
+	}
+	if c.MembersCanCreateSuites != nil {
+		input.MembersCanCreateSuites = buildkite.Some(*c.MembersCanCreateSuites)
+	}
+	if c.MembersCanCreateRegistries != nil {
+		input.MembersCanCreateRegistries = buildkite.Some(*c.MembersCanCreateRegistries)
+	}
+	return input
 }
 
 func (c *UpdateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
@@ -78,25 +109,7 @@ func (c *UpdateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	defer stop()
 
 	// UpdateTeam is a PATCH; only fields that are set are sent
-	var input buildkite.UpdateTeam
-	if c.Name != "" {
-		input.Name = buildkite.Some(c.Name)
-	}
-	if c.Description != nil {
-		input.Description = buildkite.Some(*c.Description)
-	}
-	if c.Privacy != "" {
-		input.Privacy = buildkite.Some(c.Privacy)
-	}
-	if c.Default != nil {
-		input.IsDefaultTeam = buildkite.Some(*c.Default)
-	}
-	if c.DefaultMemberRole != "" {
-		input.DefaultMemberRole = buildkite.Some(c.DefaultMemberRole)
-	}
-	if c.MembersCanCreatePipelines != nil {
-		input.MembersCanCreatePipelines = buildkite.Some(*c.MembersCanCreatePipelines)
-	}
+	input := c.updateTeamInput()
 
 	var t buildkite.Team
 	spinErr := bkIO.SpinWhile(f, "Updating team", func() error {

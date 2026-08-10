@@ -495,6 +495,94 @@ func TestDeleteTeam(t *testing.T) {
 	}
 }
 
+func TestUpdateCmdPermissions(t *testing.T) {
+	t.Parallel()
+
+	permissionFields := []string{
+		"members_can_create_pipelines",
+		"members_can_create_suites",
+		"members_can_create_registries",
+	}
+
+	t.Run("omits permissions that were not specified", func(t *testing.T) {
+		t.Parallel()
+
+		input := (&UpdateCmd{Name: "New Name"}).updateTeamInput()
+		body, err := json.Marshal(input)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+
+		var request map[string]json.RawMessage
+		if err := json.Unmarshal(body, &request); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		for _, field := range permissionFields {
+			if _, ok := request[field]; ok {
+				t.Errorf("request body unexpectedly included %q", field)
+			}
+		}
+	})
+
+	tests := []struct {
+		name  string
+		flag  string
+		field string
+		want  bool
+	}{
+		{name: "enables pipeline creation", flag: "--members-can-create-pipelines", field: "members_can_create_pipelines", want: true},
+		{name: "disables pipeline creation", flag: "--no-members-can-create-pipelines", field: "members_can_create_pipelines", want: false},
+		{name: "enables suite creation", flag: "--members-can-create-suites", field: "members_can_create_suites", want: true},
+		{name: "disables suite creation", flag: "--no-members-can-create-suites", field: "members_can_create_suites", want: false},
+		{name: "enables registry creation", flag: "--members-can-create-registries", field: "members_can_create_registries", want: true},
+		{name: "disables registry creation", flag: "--no-members-can-create-registries", field: "members_can_create_registries", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var cmd UpdateCmd
+			parser, err := kong.New(&cmd, kong.Vars{"output_default_format": ""})
+			if err != nil {
+				t.Fatalf("kong.New() error = %v", err)
+			}
+			if _, err := parser.Parse([]string{"team-uuid", tt.flag}); err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+
+			body, err := json.Marshal(cmd.updateTeamInput())
+			if err != nil {
+				t.Fatalf("json.Marshal() error = %v", err)
+			}
+			var request map[string]json.RawMessage
+			if err := json.Unmarshal(body, &request); err != nil {
+				t.Fatalf("json.Unmarshal() error = %v", err)
+			}
+
+			for _, field := range permissionFields {
+				value, ok := request[field]
+				if field != tt.field {
+					if ok {
+						t.Errorf("request body unexpectedly included %q", field)
+					}
+					continue
+				}
+				if !ok {
+					t.Fatalf("request body omitted %q", field)
+				}
+				var got bool
+				if err := json.Unmarshal(value, &got); err != nil {
+					t.Fatalf("request field %q: json.Unmarshal() error = %v", field, err)
+				}
+				if got != tt.want {
+					t.Errorf("request field %q = %v, want %v", field, got, tt.want)
+				}
+			}
+		})
+	}
+}
+
 func TestUpdateCmdValidate(t *testing.T) {
 	t.Parallel()
 
@@ -571,6 +659,16 @@ func TestUpdateCmdValidate(t *testing.T) {
 		{
 			name:    "only members-can-create-pipelines",
 			cmd:     UpdateCmd{TeamUUID: "team-uuid", MembersCanCreatePipelines: &boolTrue},
+			wantErr: false,
+		},
+		{
+			name:    "only members-can-create-suites",
+			cmd:     UpdateCmd{TeamUUID: "team-uuid", MembersCanCreateSuites: &boolFalse},
+			wantErr: false,
+		},
+		{
+			name:    "only members-can-create-registries",
+			cmd:     UpdateCmd{TeamUUID: "team-uuid", MembersCanCreateRegistries: &boolTrue},
 			wantErr: false,
 		},
 		{
