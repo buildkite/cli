@@ -22,9 +22,12 @@ require (
 	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/sync v0.22.0
 	gopkg.in/yaml.v3 v3.0.1
+	namespacelabs.dev/integrations v0.0.10
 )
 
 require (
+	buf.build/gen/go/namespace/cloud/grpc/go v1.5.1-20251121142918-2a477e0555b1.2 // indirect
+	buf.build/gen/go/namespace/cloud/protocolbuffers/go v1.36.10-20251121142918-2a477e0555b1.1 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/alexflint/go-arg v1.5.1 // indirect
 	github.com/alexflint/go-scalar v1.2.0 // indirect
@@ -41,7 +44,12 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
+	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
+	github.com/jpillora/chisel v1.11.5 // indirect
+	github.com/jpillora/sizestr v1.0.0 // indirect
+	github.com/jxskiss/base62 v1.1.0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/kyokomi/emoji/v2 v2.2.13 // indirect
@@ -51,10 +59,16 @@ require (
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/segmentio/ksuid v1.0.4 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260414002931-afd174a4e478 // indirect
+	google.golang.org/grpc v1.82.1 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	inet.af/tcpproxy v0.0.0-20231102063150-2862066fc2a9 // indirect
+	namespacelabs.dev/go-ids v0.0.0-20221124082625-9fc72ee06af7 // indirect
 )
 
 require (

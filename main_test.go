@@ -31,6 +31,38 @@ func unsetEnv(t *testing.T, key string) {
 	})
 }
 
+func TestVNCCommandRegistration(t *testing.T) {
+	cli := &CLI{}
+	parser, err := newKongParser(cli)
+	if err != nil {
+		t.Fatalf("failed to create parser: %v", err)
+	}
+
+	if _, err := parser.Parse([]string{"job", "vnc", "i_test"}); err != nil {
+		t.Fatalf("failed to parse job vnc command: %v", err)
+	}
+	if cli.Job.VNC.InstanceID != "i_test" {
+		t.Errorf("VNC instance ID = %q, want i_test", cli.Job.VNC.InstanceID)
+	}
+
+	for _, command := range parser.Model.Children {
+		if command.Name != "job" {
+			continue
+		}
+		for _, subcommand := range command.Children {
+			if subcommand.Name == "vnc" {
+				if !subcommand.Hidden {
+					t.Error("job vnc should be hidden")
+				}
+				return
+			}
+		}
+		t.Fatal("job vnc command not found")
+	}
+
+	t.Fatal("job command not found")
+}
+
 func TestApplyExperiments(t *testing.T) {
 	t.Run("preflight visible by default", func(t *testing.T) {
 		unsetEnv(t, "BUILDKITE_EXPERIMENTS")
