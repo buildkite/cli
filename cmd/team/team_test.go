@@ -592,6 +592,40 @@ func TestUpdateCmdValidate(t *testing.T) {
 	}
 }
 
+func TestListCmdValidate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		perPage int
+		limit   int
+		wantErr bool
+	}{
+		{name: "minimum per-page", perPage: 1, limit: 100},
+		{name: "maximum per-page", perPage: 100, limit: 100},
+		{name: "zero per-page", perPage: 0, limit: 100, wantErr: true},
+		{name: "negative per-page", perPage: -1, limit: 100, wantErr: true},
+		{name: "per-page above API maximum", perPage: 101, limit: 100, wantErr: true},
+		{name: "zero limit", perPage: 30, limit: 0},
+		{name: "negative limit", perPage: 30, limit: -1, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := ListCmd{PerPage: tt.perPage, Limit: tt.limit}
+			err := cmd.Validate()
+			if tt.wantErr && err == nil {
+				t.Fatal("Validate() error = nil, want an error")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("Validate() error = %v, want nil", err)
+			}
+		})
+	}
+}
+
 func newListTestFactory(t *testing.T, baseURL string) *factory.Factory {
 	t.Helper()
 
