@@ -112,6 +112,32 @@ func TestVNCSessionValidation(t *testing.T) {
 	}
 }
 
+func newVNCSessionTestClient(t *testing.T, session vncSession) *buildkite.Client {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("request method = %q, want POST", r.Method)
+		}
+		if r.URL.Path != "/v2/organizations/buildkite/jobs/job-uuid/vnc-session" {
+			t.Errorf("request path = %q", r.URL.Path)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"endpoint":%q,"access_token":%q,"expires_at":%q,"vnc":{"username":%q,"password":%q}}`, session.Endpoint, session.AccessToken, session.ExpiresAt.Format(time.RFC3339), session.VNC.Username, session.VNC.Password)
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := buildkite.NewOpts(
+		buildkite.WithBaseURL(server.URL),
+		buildkite.WithTokenAuth("test-token"),
+	)
+	if err != nil {
+		t.Fatalf("new client: %v", err)
+	}
+	return client
+}
+
 func TestVNCCmdRun(t *testing.T) {
 	t.Parallel()
 
@@ -161,26 +187,15 @@ func TestVNCCmdRun(t *testing.T) {
 	}))
 	defer gateway.Close()
 
-	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			t.Errorf("request method = %q, want POST", r.Method)
-		}
-		if r.URL.Path != "/v2/organizations/buildkite/jobs/job-uuid/vnc-session" {
-			t.Errorf("request path = %q", r.URL.Path)
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"endpoint":%q,"access_token":%q,"expires_at":"2026-08-10T01:02:03Z","vnc":{"username":%q,"password":%q}}`, "ws"+strings.TrimPrefix(gateway.URL, "http"), accessToken, username, password)
-	}))
-	defer apiServer.Close()
-
-	client, err := buildkite.NewOpts(
-		buildkite.WithBaseURL(apiServer.URL),
-		buildkite.WithTokenAuth("test-token"),
-	)
-	if err != nil {
-		t.Fatalf("new client: %v", err)
-	}
+	client := newVNCSessionTestClient(t, vncSession{
+		Endpoint:    "ws" + strings.TrimPrefix(gateway.URL, "http"),
+		AccessToken: accessToken,
+		ExpiresAt:   time.Date(2026, 8, 10, 1, 2, 3, 0, time.UTC),
+		VNC: vncSessionCredentials{
+			Username: username,
+			Password: password,
+		},
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -255,6 +270,115 @@ func TestVNCCmdRun(t *testing.T) {
 		if strings.Contains(stdout.String(), secret) {
 			t.Errorf("stdout contains VNC session material: %q", stdout.String())
 		}
+	}
+}
+
+func TestVNCCmdRunGatewayDisconnect(t *testing.T) {
+	t.Parallel()
+
+	const accessToken = "namespace-access-token"
+
+	gatewayErr := make(chan error, 1)
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer "+accessToken {
+			gatewayErr <- fmt.Errorf("Authorization = %q, want bearer VNC access token", got)
+			return
+		}
+
+		conn, err := new(websocket.Upgrader).Upgrade(w, r, nil)
+		if err != nil {
+			gatewayErr <- fmt.Errorf("upgrade gateway connection: %w", err)
+			return
+		}
+		defer conn.Close()
+
+		if err := conn.WriteControl(
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseNormalClosure, "job finished"),
+			time.Now().Add(time.Second),
+		); err != nil {
+			gatewayErr <- fmt.Errorf("close gateway connection: %w", err)
+			return
+		}
+		gatewayErr <- nil
+	}))
+	defer gateway.Close()
+
+	client := newVNCSessionTestClient(t, vncSession{
+		Endpoint:    "ws" + strings.TrimPrefix(gateway.URL, "http"),
+		AccessToken: accessToken,
+		ExpiresAt:   time.Date(2026, 8, 10, 1, 2, 3, 0, time.UTC),
+		VNC: vncSessionCredentials{
+			Username: "vnc-user",
+			Password: "vnc-password",
+		},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	openURL := func(rawURL string) error {
+		parsed, err := url.Parse(rawURL)
+		if err != nil {
+			return err
+		}
+
+		conn, err := net.Dial("tcp", parsed.Host)
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+
+		_, err = io.Copy(io.Discard, conn)
+		return err
+	}
+
+	var stdout bytes.Buffer
+	cmd := VNCCmd{JobID: "job-uuid"}
+	if err := cmd.run(ctx, &stdout, false, client, "buildkite", openURL); err != nil {
+		t.Fatalf("run() error = %v", err)
+	}
+	if ctx.Err() != nil {
+		t.Fatalf("run did not finish before its timeout: %v", ctx.Err())
+	}
+	if err := <-gatewayErr; err != nil {
+		t.Error(err)
+	}
+
+	wantOutput := "Connected to job.\nOpening VNC client...\nClient connected.\nClient disconnected, leaving.\n"
+	if stdout.String() != wantOutput {
+		t.Errorf("stdout = %q, want %q", stdout.String(), wantOutput)
+	}
+}
+
+func TestIsExpectedVNCDisconnect(t *testing.T) {
+	t.Parallel()
+
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	tests := []struct {
+		name string
+		ctx  context.Context
+		err  error
+		want bool
+	}{
+		{name: "context canceled", ctx: canceledCtx, err: fmt.Errorf("proxy failed"), want: true},
+		{name: "connection closed", ctx: context.Background(), err: fmt.Errorf("proxy: %w", net.ErrClosed), want: true},
+		{name: "normal WebSocket close", ctx: context.Background(), err: fmt.Errorf("proxy: %w", &websocket.CloseError{Code: websocket.CloseNormalClosure}), want: true},
+		{name: "WebSocket going away", ctx: context.Background(), err: fmt.Errorf("proxy: %w", &websocket.CloseError{Code: websocket.CloseGoingAway}), want: true},
+		{name: "unexpected WebSocket close", ctx: context.Background(), err: fmt.Errorf("proxy: %w", &websocket.CloseError{Code: websocket.CloseInternalServerErr}), want: false},
+		{name: "other proxy error", ctx: context.Background(), err: fmt.Errorf("proxy failed"), want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := isExpectedVNCDisconnect(test.ctx, test.err); got != test.want {
+				t.Errorf("isExpectedVNCDisconnect() = %t, want %t", got, test.want)
+			}
+		})
 	}
 }
 

@@ -103,13 +103,41 @@ func TestRedactHeadersMultipleValues(t *testing.T) {
 func TestRedactBody(t *testing.T) {
 	t.Parallel()
 
-	input := `access_token=form-secret&code_verifier=verifier-secret
-{"endpoint":"wss://vnc.example.test/session","access_token":"namespace-secret","vnc":{"username":"vnc-user","password": "vnc-secret"}}`
-	want := `access_token=[REDACTED]&code_verifier=[REDACTED]
-{"endpoint":"wss://vnc.example.test/session","access_token":"[REDACTED]","vnc":{"username":"vnc-user","password": "[REDACTED]"}}`
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "form-encoded fields",
+			input: `access_token=access-secret&refresh_token=refresh-secret&code=code-secret&code_verifier=verifier-secret&state=visible`,
+			want:  `access_token=[REDACTED]&refresh_token=[REDACTED]&code=[REDACTED]&code_verifier=[REDACTED]&state=visible`,
+		},
+		{
+			name:  "existing JSON fields",
+			input: `{"access_token":"access-secret","refresh_token": "refresh-secret","code":"code-secret","state":"visible"}`,
+			want:  `{"access_token":"[REDACTED]","refresh_token": "[REDACTED]","code":"[REDACTED]","state":"visible"}`,
+		},
+		{
+			name:  "VNC session response",
+			input: `{"endpoint":"wss://vnc.example.test/session","access_token":"namespace-secret","vnc":{"username":"vnc-user","password": "vnc-secret"}}`,
+			want:  `{"endpoint":"wss://vnc.example.test/session","access_token":"[REDACTED]","vnc":{"username":"vnc-user","password": "[REDACTED]"}}`,
+		},
+		{
+			name:  "truncated JSON string",
+			input: `{"access_token":"truncated-secret`,
+			want:  `{"access_token":"[REDACTED]`,
+		},
+	}
 
-	if got := redactBody(input); got != want {
-		t.Errorf("redactBody() = %q, want %q", got, want)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := redactBody(test.input); got != test.want {
+				t.Errorf("redactBody() = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
 

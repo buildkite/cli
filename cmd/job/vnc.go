@@ -17,6 +17,7 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	buildkite "github.com/buildkite/go-buildkite/v5"
+	"github.com/gorilla/websocket"
 	"github.com/pkg/browser"
 	"namespacelabs.dev/integrations/network/netcopy"
 	"namespacelabs.dev/integrations/nsc/ingress"
@@ -140,13 +141,23 @@ func (c *VNCCmd) run(ctx context.Context, stdout io.Writer, quiet bool, client *
 	}
 
 	if event.err != nil {
-		if ctx.Err() != nil || errors.Is(event.err, net.ErrClosed) {
+		if isExpectedVNCDisconnect(ctx, event.err) {
 			return nil
 		}
 		return fmt.Errorf("proxy the VNC connection: %w", event.err)
 	}
 
 	return nil
+}
+
+func isExpectedVNCDisconnect(ctx context.Context, err error) bool {
+	if ctx.Err() != nil || errors.Is(err, net.ErrClosed) {
+		return true
+	}
+
+	var closeErr *websocket.CloseError
+	return errors.As(err, &closeErr) &&
+		(closeErr.Code == websocket.CloseNormalClosure || closeErr.Code == websocket.CloseGoingAway)
 }
 
 func writeVNCStatus(w io.Writer, quiet bool, message string) {
