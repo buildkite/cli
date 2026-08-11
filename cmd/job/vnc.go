@@ -27,6 +27,35 @@ type VNCCmd struct {
 	JobID string `arg:"" name:"job-uuid" help:"UUID of the hosted agent job" required:""`
 }
 
+type vncSession struct {
+	Endpoint    string                `json:"endpoint"`
+	AccessToken string                `json:"access_token"`
+	ExpiresAt   time.Time             `json:"expires_at"`
+	VNC         vncSessionCredentials `json:"vnc"`
+}
+
+type vncSessionCredentials struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+func (s vncSession) validate() error {
+	switch {
+	case s.Endpoint == "":
+		return errors.New("buildkite API returned a VNC session without an endpoint")
+	case s.AccessToken == "":
+		return errors.New("buildkite API returned a VNC session without an access token")
+	case s.ExpiresAt.IsZero():
+		return errors.New("buildkite API returned a VNC session without an expiry")
+	case s.VNC.Username == "":
+		return errors.New("buildkite API returned a VNC session without a VNC username")
+	case s.VNC.Password == "":
+		return errors.New("buildkite API returned a VNC session without a VNC password")
+	default:
+		return nil
+	}
+}
+
 func (c *VNCCmd) Help() string {
 	return `
 Examples:
