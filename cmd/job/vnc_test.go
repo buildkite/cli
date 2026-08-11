@@ -14,7 +14,7 @@ import (
 	"time"
 
 	buildkite "github.com/buildkite/go-buildkite/v5"
-	"namespacelabs.dev/integrations/api"
+	"github.com/gorilla/websocket"
 )
 
 func TestCreateVNCSession(t *testing.T) {
@@ -115,91 +115,115 @@ func TestVNCSessionValidation(t *testing.T) {
 func TestVNCCmdRun(t *testing.T) {
 	t.Parallel()
 
-	remote, remotePeer := net.Pipe()
-	defer remotePeer.Close()
-
-	client := new(buildkite.Client)
 	const (
 		accessToken = "namespace-access-token"
 		username    = "vnc-user"
 		password    = "vnc-password"
-	)
-	var (
-		gotOrganization string
-		gotJobID        string
-		gotEndpoint     string
-		gotToken        string
-		gotURL          string
-		proxiedRemote   net.Conn
+		clientData  = "from local VNC client"
+		serverData  = "from hosted VNC server"
 	)
 
-	deps := vncDependencies{
-		createSession: func(_ context.Context, gotClient *buildkite.Client, organization, jobID string) (vncSession, error) {
-			if gotClient != client {
-				t.Errorf("createSession client = %p, want %p", gotClient, client)
-			}
-			gotOrganization = organization
-			gotJobID = jobID
-			return vncSession{
-				Endpoint:    "wss://vnc.example.test/session",
-				AccessToken: accessToken,
-				ExpiresAt:   time.Now().Add(time.Minute),
-				VNC: vncSessionCredentials{
-					Username: username,
-					Password: password,
-				},
-			}, nil
-		},
-		dialEndpoint: func(ctx context.Context, token api.TokenSource, endpoint string) (net.Conn, error) {
-			var err error
-			gotToken, err = token.IssueToken(ctx, 30*time.Second, false)
-			if err != nil {
-				return nil, err
-			}
-			gotEndpoint = endpoint
-			return remote, nil
-		},
-		listen: func(ctx context.Context, network, address string) (net.Listener, error) {
-			return new(net.ListenConfig).Listen(ctx, network, address)
-		},
-		openURL: func(rawURL string) error {
-			gotURL = rawURL
-			parsed, err := url.Parse(rawURL)
-			if err != nil {
-				return err
-			}
-			conn, err := net.Dial("tcp", parsed.Host)
-			if err != nil {
-				return err
-			}
-			return conn.Close()
-		},
-		proxy: func(local, gotRemote net.Conn) error {
-			proxiedRemote = gotRemote
-			return nil
-		},
+	gatewayErr := make(chan error, 1)
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer "+accessToken {
+			gatewayErr <- fmt.Errorf("Authorization = %q, want bearer VNC access token", got)
+			return
+		}
+
+		conn, err := new(websocket.Upgrader).Upgrade(w, r, nil)
+		if err != nil {
+			gatewayErr <- fmt.Errorf("upgrade gateway connection: %w", err)
+			return
+		}
+		defer conn.Close()
+
+		messageType, payload, err := conn.ReadMessage()
+		if err != nil {
+			gatewayErr <- fmt.Errorf("read proxied client data: %w", err)
+			return
+		}
+		if messageType != websocket.BinaryMessage {
+			gatewayErr <- fmt.Errorf("message type = %d, want binary", messageType)
+			return
+		}
+		if string(payload) != clientData {
+			gatewayErr <- fmt.Errorf("proxied client data = %q, want %q", payload, clientData)
+			return
+		}
+		if err := conn.WriteMessage(websocket.BinaryMessage, []byte(serverData)); err != nil {
+			gatewayErr <- fmt.Errorf("write proxied server data: %w", err)
+			return
+		}
+
+		// Keep the gateway connection open until the local VNC client disconnects.
+		_, _, _ = conn.ReadMessage()
+		gatewayErr <- nil
+	}))
+	defer gateway.Close()
+
+	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("request method = %q, want POST", r.Method)
+		}
+		if r.URL.Path != "/v2/organizations/buildkite/jobs/job-uuid/vnc-session" {
+			t.Errorf("request path = %q", r.URL.Path)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"endpoint":%q,"access_token":%q,"expires_at":"2026-08-10T01:02:03Z","vnc":{"username":%q,"password":%q}}`, "ws"+strings.TrimPrefix(gateway.URL, "http"), accessToken, username, password)
+	}))
+	defer apiServer.Close()
+
+	client, err := buildkite.NewOpts(
+		buildkite.WithBaseURL(apiServer.URL),
+		buildkite.WithTokenAuth("test-token"),
+	)
+	if err != nil {
+		t.Fatalf("new client: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var gotURL string
+	openURL := func(rawURL string) error {
+		gotURL = rawURL
+		parsed, err := url.Parse(rawURL)
+		if err != nil {
+			return err
+		}
+
+		conn, err := net.Dial("tcp", parsed.Host)
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+
+		if _, err := io.WriteString(conn, clientData); err != nil {
+			return fmt.Errorf("write local VNC data: %w", err)
+		}
+		response := make([]byte, len(serverData))
+		if _, err := io.ReadFull(conn, response); err != nil {
+			return fmt.Errorf("read local VNC data: %w", err)
+		}
+		if string(response) != serverData {
+			return fmt.Errorf("proxied server data = %q, want %q", response, serverData)
+		}
+
+		return nil
 	}
 
 	var stdout bytes.Buffer
 	cmd := VNCCmd{JobID: "job-uuid"}
-	if err := cmd.run(context.Background(), &stdout, false, client, "buildkite", deps); err != nil {
+	if err := cmd.run(ctx, &stdout, false, client, "buildkite", openURL); err != nil {
 		t.Fatalf("run() error = %v", err)
 	}
+	if ctx.Err() != nil {
+		t.Fatalf("run did not finish before its timeout: %v", ctx.Err())
+	}
 
-	if gotOrganization != "buildkite" {
-		t.Errorf("organization = %q, want buildkite", gotOrganization)
-	}
-	if gotJobID != "job-uuid" {
-		t.Errorf("job ID = %q, want job-uuid", gotJobID)
-	}
-	if gotEndpoint != "wss://vnc.example.test/session" {
-		t.Errorf("dialed endpoint = %q", gotEndpoint)
-	}
-	if gotToken != accessToken {
-		t.Errorf("dial token = %q, want API access token", gotToken)
-	}
-	if proxiedRemote != remote {
-		t.Error("proxy did not receive the ingress connection")
+	if err := <-gatewayErr; err != nil {
+		t.Error(err)
 	}
 
 	parsedURL, err := url.Parse(gotURL)

@@ -18,7 +18,6 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	buildkite "github.com/buildkite/go-buildkite/v5"
 	"github.com/pkg/browser"
-	"namespacelabs.dev/integrations/api"
 	"namespacelabs.dev/integrations/network/netcopy"
 	"namespacelabs.dev/integrations/nsc/ingress"
 )
@@ -81,40 +80,16 @@ func (c *VNCCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	return c.run(ctx, kongCtx.Stdout, globals.IsQuiet(), f.RestAPIClient, organization, defaultVNCDependencies())
+	return c.run(ctx, kongCtx.Stdout, globals.IsQuiet(), f.RestAPIClient, organization, browser.OpenURL)
 }
 
-type vncDependencies struct {
-	createSession func(context.Context, *buildkite.Client, string, string) (vncSession, error)
-	dialEndpoint  func(context.Context, api.TokenSource, string) (net.Conn, error)
-	listen        func(context.Context, string, string) (net.Listener, error)
-	openURL       func(string) error
-	proxy         func(net.Conn, net.Conn) error
-}
-
-func defaultVNCDependencies() vncDependencies {
-	return vncDependencies{
-		createSession: createVNCSession,
-		dialEndpoint: func(ctx context.Context, token api.TokenSource, endpoint string) (net.Conn, error) {
-			return ingress.DialEndpoint(ctx, io.Discard, token, endpoint)
-		},
-		listen: func(ctx context.Context, network, address string) (net.Listener, error) {
-			return new(net.ListenConfig).Listen(ctx, network, address)
-		},
-		openURL: browser.OpenURL,
-		proxy: func(local, remote net.Conn) error {
-			return netcopy.CopyConns(nil, local, remote)
-		},
-	}
-}
-
-func (c *VNCCmd) run(ctx context.Context, stdout io.Writer, quiet bool, client *buildkite.Client, organization string, deps vncDependencies) error {
-	session, err := deps.createSession(ctx, client, organization, c.JobID)
+func (c *VNCCmd) run(ctx context.Context, stdout io.Writer, quiet bool, client *buildkite.Client, organization string, openURL func(string) error) error {
+	session, err := createVNCSession(ctx, client, organization, c.JobID)
 	if err != nil {
 		return fmt.Errorf("create VNC session: %w", err)
 	}
 
-	remote, err := deps.dialEndpoint(ctx, vncAccessToken(session.AccessToken), session.Endpoint)
+	remote, err := ingress.DialEndpoint(ctx, io.Discard, vncAccessToken(session.AccessToken), session.Endpoint)
 	if err != nil {
 		return fmt.Errorf("connect to the VNC service: %w", err)
 	}
@@ -122,7 +97,7 @@ func (c *VNCCmd) run(ctx context.Context, stdout io.Writer, quiet bool, client *
 
 	writeVNCStatus(stdout, quiet, "Connected to job.")
 
-	listener, err := deps.listen(ctx, "tcp", "127.0.0.1:0")
+	listener, err := new(net.ListenConfig).Listen(ctx, "tcp", "127.0.0.1:0")
 	if err != nil {
 		return fmt.Errorf("listen for the local VNC client: %w", err)
 	}
@@ -143,7 +118,7 @@ func (c *VNCCmd) run(ctx context.Context, stdout io.Writer, quiet bool, client *
 		defer local.Close()
 
 		proxyEvents <- proxyEvent{connected: true}
-		proxyEvents <- proxyEvent{err: deps.proxy(local, remote)}
+		proxyEvents <- proxyEvent{err: netcopy.CopyConns(nil, local, remote)}
 	}()
 
 	stopCleanup := context.AfterFunc(ctx, func() {
@@ -153,7 +128,7 @@ func (c *VNCCmd) run(ctx context.Context, stdout io.Writer, quiet bool, client *
 	defer stopCleanup()
 
 	writeVNCStatus(stdout, quiet, "Opening VNC client...")
-	if err := deps.openURL(vncClientURL(listener.Addr().String(), session.VNC.Username, session.VNC.Password)); err != nil {
+	if err := openURL(vncClientURL(listener.Addr().String(), session.VNC.Username, session.VNC.Password)); err != nil {
 		return fmt.Errorf("open the local VNC client: %w", err)
 	}
 
