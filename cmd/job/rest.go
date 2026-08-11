@@ -3,6 +3,7 @@ package job
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 
 	buildkite "github.com/buildkite/go-buildkite/v5"
@@ -34,6 +35,24 @@ func getJobLog(ctx context.Context, client *buildkite.Client, organization, jobI
 	}
 
 	return jobLog, nil
+}
+
+func createVNCSession(ctx context.Context, client *buildkite.Client, organization, jobID string) (vncSession, error) {
+	req, err := client.NewRequest(ctx, http.MethodPost, organizationJobPath(organization, jobID, "vnc-session"), nil)
+	if err != nil {
+		return vncSession{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	var session vncSession
+	if _, err := client.Do(req, &session); err != nil {
+		return vncSession{}, err
+	}
+	if err := session.validate(); err != nil {
+		return vncSession{}, err
+	}
+
+	return session, nil
 }
 
 func reprioritizeJob(ctx context.Context, client *buildkite.Client, organization, jobID string, priority int) (buildkite.Job, error) {
