@@ -921,8 +921,19 @@ func TestListTeamsPagination(t *testing.T) {
 		if len(teams) != 0 {
 			t.Errorf("expected no teams, got %d", len(teams))
 		}
+		if teams == nil {
+			t.Error("expected an initialized empty team slice, got nil")
+		}
 		if hasMore {
 			t.Error("expected hasMore to be false for a zero limit")
+		}
+
+		encoded, err := json.Marshal(teams)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		if string(encoded) != "[]" {
+			t.Errorf("JSON output = %s, want []", encoded)
 		}
 	})
 }

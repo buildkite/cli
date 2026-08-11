@@ -102,7 +102,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 func listTeams(ctx context.Context, f *factory.Factory, perPage, limit int) ([]buildkite.Team, bool, error) {
 	if limit == 0 {
-		return nil, false, nil
+		return []buildkite.Team{}, false, nil
 	}
 
 	var all []buildkite.Team
