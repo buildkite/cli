@@ -28,6 +28,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/queue"
 	"github.com/buildkite/cli/v3/cmd/secret"
 	"github.com/buildkite/cli/v3/cmd/skill"
+	"github.com/buildkite/cli/v3/cmd/team"
 	updatePkg "github.com/buildkite/cli/v3/cmd/update"
 	"github.com/buildkite/cli/v3/cmd/use"
 	"github.com/buildkite/cli/v3/cmd/user"
@@ -59,6 +60,7 @@ type CLI struct {
 	Queue        QueueCmd            `cmd:"" help:"Manage cluster queues"`
 	Secret       SecretCmd           `cmd:"" help:"Manage cluster secrets"`
 	Skill        SkillCmd            `cmd:"" help:"Manage Buildkite skills for AI coding agents"`
+	Team         TeamCmd             `cmd:"" help:"Manage organization teams"`
 	Config       bkConfig.ConfigCmd  `cmd:"" help:"Manage CLI configuration"`
 	Configure    ConfigureCmd        `cmd:"" help:"Configure Buildkite API token" hidden:""`
 	Init         bkInit.InitCmd      `cmd:"" help:"Initialize a pipeline.yaml file"`
@@ -150,6 +152,13 @@ type (
 		Convert  pipeline.ConvertCmd  `cmd:"" help:"Convert a CI/CD pipeline configuration to Buildkite format." aliases:"migrate"`
 		Validate pipeline.ValidateCmd `cmd:"" help:"Validate a pipeline YAML file."`
 		View     pipeline.ViewCmd     `cmd:"" help:"View a pipeline."`
+	}
+	TeamCmd struct {
+		List   team.ListCmd   `cmd:"" help:"List teams." aliases:"ls"`
+		View   team.ViewCmd   `cmd:"" help:"View team information."`
+		Create team.CreateCmd `cmd:"" help:"Create a new team."`
+		Update team.UpdateCmd `cmd:"" help:"Update a team."`
+		Delete team.DeleteCmd `cmd:"" help:"Delete a team." aliases:"rm"`
 	}
 	PreflightCmd struct {
 		Run     preflight.RunCmd     `cmd:"" default:"withargs" help:"Run a build against a snapshot of the local working tree (experimental)"`
