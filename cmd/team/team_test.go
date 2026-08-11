@@ -263,11 +263,13 @@ func TestCreateCmdPermissions(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		args       []string
-		pipelines  bool
-		suites     bool
-		registries bool
+		name              string
+		args              []string
+		pipelines         bool
+		suites            bool
+		registries        bool
+		destroyRegistries bool
+		destroyPackages   bool
 	}{
 		{
 			name:       "uses API defaults for creation permissions",
@@ -297,6 +299,22 @@ func TestCreateCmdPermissions(t *testing.T) {
 			suites:     true,
 			registries: false,
 		},
+		{
+			name:              "explicitly enables registry destruction",
+			args:              []string{"New Team", "--members-can-destroy-registries"},
+			pipelines:         true,
+			suites:            true,
+			registries:        true,
+			destroyRegistries: true,
+		},
+		{
+			name:            "explicitly enables package destruction",
+			args:            []string{"New Team", "--members-can-destroy-packages"},
+			pipelines:       true,
+			suites:          true,
+			registries:      true,
+			destroyPackages: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -322,6 +340,12 @@ func TestCreateCmdPermissions(t *testing.T) {
 			if input.MembersCanCreateRegistries != tt.registries {
 				t.Errorf("MembersCanCreateRegistries = %v, want %v", input.MembersCanCreateRegistries, tt.registries)
 			}
+			if input.MembersCanDestroyRegistries != tt.destroyRegistries {
+				t.Errorf("MembersCanDestroyRegistries = %v, want %v", input.MembersCanDestroyRegistries, tt.destroyRegistries)
+			}
+			if input.MembersCanDestroyPackages != tt.destroyPackages {
+				t.Errorf("MembersCanDestroyPackages = %v, want %v", input.MembersCanDestroyPackages, tt.destroyPackages)
+			}
 
 			body, err := json.Marshal(input)
 			if err != nil {
@@ -332,9 +356,11 @@ func TestCreateCmdPermissions(t *testing.T) {
 				t.Fatalf("json.Unmarshal() error = %v", err)
 			}
 			for field, want := range map[string]bool{
-				"members_can_create_pipelines":  tt.pipelines,
-				"members_can_create_suites":     tt.suites,
-				"members_can_create_registries": tt.registries,
+				"members_can_create_pipelines":   tt.pipelines,
+				"members_can_create_suites":      tt.suites,
+				"members_can_create_registries":  tt.registries,
+				"members_can_destroy_registries": tt.destroyRegistries,
+				"members_can_destroy_packages":   tt.destroyPackages,
 			} {
 				value, ok := request[field]
 				if !ok {
@@ -502,6 +528,8 @@ func TestUpdateCmdPermissions(t *testing.T) {
 		"members_can_create_pipelines",
 		"members_can_create_suites",
 		"members_can_create_registries",
+		"members_can_destroy_registries",
+		"members_can_destroy_packages",
 	}
 
 	t.Run("omits permissions that were not specified", func(t *testing.T) {
@@ -536,6 +564,10 @@ func TestUpdateCmdPermissions(t *testing.T) {
 		{name: "disables suite creation", flag: "--no-members-can-create-suites", field: "members_can_create_suites", want: false},
 		{name: "enables registry creation", flag: "--members-can-create-registries", field: "members_can_create_registries", want: true},
 		{name: "disables registry creation", flag: "--no-members-can-create-registries", field: "members_can_create_registries", want: false},
+		{name: "enables registry destruction", flag: "--members-can-destroy-registries", field: "members_can_destroy_registries", want: true},
+		{name: "disables registry destruction", flag: "--no-members-can-destroy-registries", field: "members_can_destroy_registries", want: false},
+		{name: "enables package destruction", flag: "--members-can-destroy-packages", field: "members_can_destroy_packages", want: true},
+		{name: "disables package destruction", flag: "--no-members-can-destroy-packages", field: "members_can_destroy_packages", want: false},
 	}
 
 	for _, tt := range tests {
@@ -669,6 +701,16 @@ func TestUpdateCmdValidate(t *testing.T) {
 		{
 			name:    "only members-can-create-registries",
 			cmd:     UpdateCmd{TeamUUID: "team-uuid", MembersCanCreateRegistries: &boolTrue},
+			wantErr: false,
+		},
+		{
+			name:    "only members-can-destroy-registries",
+			cmd:     UpdateCmd{TeamUUID: "team-uuid", MembersCanDestroyRegistries: &boolFalse},
+			wantErr: false,
+		},
+		{
+			name:    "only members-can-destroy-packages",
+			cmd:     UpdateCmd{TeamUUID: "team-uuid", MembersCanDestroyPackages: &boolTrue},
 			wantErr: false,
 		},
 		{

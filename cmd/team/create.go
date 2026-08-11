@@ -18,14 +18,16 @@ import (
 )
 
 type CreateCmd struct {
-	Name                       string `arg:"" help:"Name of the team" name:"name"`
-	Description                string `help:"Description of the team" optional:""`
-	Privacy                    string `help:"Privacy setting for the team: visible or secret" optional:"" default:"visible" enum:"visible,secret"`
-	Default                    bool   `help:"Whether this is the default team for new members" optional:"" name:"default"`
-	DefaultMemberRole          string `help:"Default role for new members: member or maintainer" optional:"" name:"default-member-role" default:"member" enum:"member,maintainer"`
-	MembersCanCreatePipelines  bool   `help:"Whether members can create pipelines" optional:"" name:"members-can-create-pipelines" default:"true" negatable:""`
-	MembersCanCreateSuites     bool   `help:"Whether members can create test suites" optional:"" name:"members-can-create-suites" default:"true" negatable:""`
-	MembersCanCreateRegistries bool   `help:"Whether members can create registries" optional:"" name:"members-can-create-registries" default:"true" negatable:""`
+	Name                        string `arg:"" help:"Name of the team" name:"name"`
+	Description                 string `help:"Description of the team" optional:""`
+	Privacy                     string `help:"Privacy setting for the team: visible or secret" optional:"" default:"visible" enum:"visible,secret"`
+	Default                     bool   `help:"Whether this is the default team for new members" optional:"" name:"default"`
+	DefaultMemberRole           string `help:"Default role for new members: member or maintainer" optional:"" name:"default-member-role" default:"member" enum:"member,maintainer"`
+	MembersCanCreatePipelines   bool   `help:"Whether members can create pipelines" optional:"" name:"members-can-create-pipelines" default:"true" negatable:""`
+	MembersCanCreateSuites      bool   `help:"Whether members can create test suites" optional:"" name:"members-can-create-suites" default:"true" negatable:""`
+	MembersCanCreateRegistries  bool   `help:"Whether members can create registries" optional:"" name:"members-can-create-registries" default:"true" negatable:""`
+	MembersCanDestroyRegistries bool   `help:"Whether members can destroy registries" optional:"" name:"members-can-destroy-registries" default:"false" negatable:""`
+	MembersCanDestroyPackages   bool   `help:"Whether members can destroy packages" optional:"" name:"members-can-destroy-packages" default:"false" negatable:""`
 	output.OutputFlags
 }
 
@@ -47,14 +49,16 @@ Examples:
 
 func (c *CreateCmd) createTeamInput() buildkite.CreateTeam {
 	return buildkite.CreateTeam{
-		Name:                       c.Name,
-		Description:                c.Description,
-		Privacy:                    c.Privacy,
-		IsDefaultTeam:              c.Default,
-		DefaultMemberRole:          c.DefaultMemberRole,
-		MembersCanCreatePipelines:  c.MembersCanCreatePipelines,
-		MembersCanCreateSuites:     c.MembersCanCreateSuites,
-		MembersCanCreateRegistries: c.MembersCanCreateRegistries,
+		Name:                        c.Name,
+		Description:                 c.Description,
+		Privacy:                     c.Privacy,
+		IsDefaultTeam:               c.Default,
+		DefaultMemberRole:           c.DefaultMemberRole,
+		MembersCanCreatePipelines:   c.MembersCanCreatePipelines,
+		MembersCanCreateSuites:      c.MembersCanCreateSuites,
+		MembersCanCreateRegistries:  c.MembersCanCreateRegistries,
+		MembersCanDestroyRegistries: c.MembersCanDestroyRegistries,
+		MembersCanDestroyPackages:   c.MembersCanDestroyPackages,
 	}
 }
 

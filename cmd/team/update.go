@@ -18,15 +18,17 @@ import (
 )
 
 type UpdateCmd struct {
-	TeamUUID                   string  `arg:"" help:"UUID of the team to update" name:"team-uuid"`
-	Name                       string  `help:"New name for the team" optional:""`
-	Description                *string `help:"New description for the team" optional:""`
-	Privacy                    string  `help:"Privacy setting: visible or secret" optional:""`
-	Default                    *bool   `help:"Whether this is the default team for new members" optional:"" name:"default"`
-	DefaultMemberRole          string  `help:"Default role for new members: member or maintainer" optional:"" name:"default-member-role"`
-	MembersCanCreatePipelines  *bool   `help:"Whether members can create pipelines" optional:"" name:"members-can-create-pipelines" negatable:""`
-	MembersCanCreateSuites     *bool   `help:"Whether members can create test suites" optional:"" name:"members-can-create-suites" negatable:""`
-	MembersCanCreateRegistries *bool   `help:"Whether members can create registries" optional:"" name:"members-can-create-registries" negatable:""`
+	TeamUUID                    string  `arg:"" help:"UUID of the team to update" name:"team-uuid"`
+	Name                        string  `help:"New name for the team" optional:""`
+	Description                 *string `help:"New description for the team" optional:""`
+	Privacy                     string  `help:"Privacy setting: visible or secret" optional:""`
+	Default                     *bool   `help:"Whether this is the default team for new members" optional:"" name:"default"`
+	DefaultMemberRole           string  `help:"Default role for new members: member or maintainer" optional:"" name:"default-member-role"`
+	MembersCanCreatePipelines   *bool   `help:"Whether members can create pipelines" optional:"" name:"members-can-create-pipelines" negatable:""`
+	MembersCanCreateSuites      *bool   `help:"Whether members can create test suites" optional:"" name:"members-can-create-suites" negatable:""`
+	MembersCanCreateRegistries  *bool   `help:"Whether members can create registries" optional:"" name:"members-can-create-registries" negatable:""`
+	MembersCanDestroyRegistries *bool   `help:"Whether members can destroy registries" optional:"" name:"members-can-destroy-registries" negatable:""`
+	MembersCanDestroyPackages   *bool   `help:"Whether members can destroy packages" optional:"" name:"members-can-destroy-packages" negatable:""`
 	output.OutputFlags
 }
 
@@ -47,8 +49,8 @@ Examples:
 }
 
 func (c *UpdateCmd) Validate() error {
-	if c.Name == "" && c.Description == nil && c.Privacy == "" && c.Default == nil && c.DefaultMemberRole == "" && c.MembersCanCreatePipelines == nil && c.MembersCanCreateSuites == nil && c.MembersCanCreateRegistries == nil {
-		return fmt.Errorf("at least one of --name, --description, --privacy, --default, --default-member-role, --members-can-create-pipelines, --members-can-create-suites, or --members-can-create-registries must be provided")
+	if c.Name == "" && c.Description == nil && c.Privacy == "" && c.Default == nil && c.DefaultMemberRole == "" && c.MembersCanCreatePipelines == nil && c.MembersCanCreateSuites == nil && c.MembersCanCreateRegistries == nil && c.MembersCanDestroyRegistries == nil && c.MembersCanDestroyPackages == nil {
+		return fmt.Errorf("at least one of --name, --description, --privacy, --default, --default-member-role, --members-can-create-pipelines, --members-can-create-suites, --members-can-create-registries, --members-can-destroy-registries, or --members-can-destroy-packages must be provided")
 	}
 	if c.Privacy != "" && c.Privacy != "visible" && c.Privacy != "secret" {
 		return fmt.Errorf("--privacy must be either \"visible\" or \"secret\"")
@@ -84,6 +86,12 @@ func (c *UpdateCmd) updateTeamInput() buildkite.UpdateTeam {
 	}
 	if c.MembersCanCreateRegistries != nil {
 		input.MembersCanCreateRegistries = buildkite.Some(*c.MembersCanCreateRegistries)
+	}
+	if c.MembersCanDestroyRegistries != nil {
+		input.MembersCanDestroyRegistries = buildkite.Some(*c.MembersCanDestroyRegistries)
+	}
+	if c.MembersCanDestroyPackages != nil {
+		input.MembersCanDestroyPackages = buildkite.Some(*c.MembersCanDestroyPackages)
 	}
 	return input
 }

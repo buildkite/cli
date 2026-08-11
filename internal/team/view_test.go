@@ -68,17 +68,19 @@ func TestRenderTeamText(t *testing.T) {
 	createdAt := buildkite.Timestamp{Time: time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)}
 
 	team := buildkite.Team{
-		ID:                         "team-uuid-123",
-		Name:                       "Fearless Frontenders",
-		Slug:                       "fearless-frontenders",
-		Description:                "Frontend engineers",
-		Privacy:                    "secret",
-		Default:                    true,
-		DefaultMemberRole:          "maintainer",
-		MembersCanCreatePipelines:  true,
-		MembersCanCreateSuites:     false,
-		MembersCanCreateRegistries: true,
-		CreatedAt:                  &createdAt,
+		ID:                          "team-uuid-123",
+		Name:                        "Fearless Frontenders",
+		Slug:                        "fearless-frontenders",
+		Description:                 "Frontend engineers",
+		Privacy:                     "secret",
+		Default:                     true,
+		DefaultMemberRole:           "maintainer",
+		MembersCanCreatePipelines:   true,
+		MembersCanCreateSuites:      false,
+		MembersCanCreateRegistries:  true,
+		MembersCanDestroyRegistries: false,
+		MembersCanDestroyPackages:   true,
+		CreatedAt:                   &createdAt,
 		CreatedBy: &buildkite.User{
 			ID:    "user-1",
 			Name:  "Peter Pettigrew",
@@ -92,6 +94,8 @@ func TestRenderTeamText(t *testing.T) {
 		"Members Can Create Pipelines":   "true",
 		"Members Can Create Test Suites": "false",
 		"Members Can Create Registries":  "true",
+		"Members Can Destroy Registries": "false",
+		"Members Can Destroy Packages":   "true",
 	} {
 		matched := false
 		for _, line := range strings.Split(result, "\n") {
