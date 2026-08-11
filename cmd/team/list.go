@@ -105,7 +105,7 @@ func listTeams(ctx context.Context, f *factory.Factory, perPage, limit int) ([]b
 		return []buildkite.Team{}, false, nil
 	}
 
-	var all []buildkite.Team
+	all := []buildkite.Team{}
 	page := 1
 	var previousFirstTeamID string
 

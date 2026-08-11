@@ -906,6 +906,38 @@ func TestListTeamsPagination(t *testing.T) {
 		}
 	})
 
+	t.Run("empty first page returns an empty collection", func(t *testing.T) {
+		t.Parallel()
+
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode([]buildkite.Team{})
+		}))
+		defer s.Close()
+
+		teams, hasMore, err := listTeams(context.Background(), newListTestFactory(t, s.URL), 30, 100)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(teams) != 0 {
+			t.Errorf("expected no teams, got %d", len(teams))
+		}
+		if teams == nil {
+			t.Error("expected an initialized empty team slice, got nil")
+		}
+		if hasMore {
+			t.Error("expected hasMore to be false for an empty result")
+		}
+
+		encoded, err := json.Marshal(teams)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		if string(encoded) != "[]" {
+			t.Errorf("JSON output = %s, want []", encoded)
+		}
+	})
+
 	t.Run("limit of zero returns no teams without a request", func(t *testing.T) {
 		t.Parallel()
 
