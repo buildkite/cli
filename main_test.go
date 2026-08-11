@@ -51,8 +51,8 @@ func TestVNCCommandRegistration(t *testing.T) {
 		}
 		for _, subcommand := range command.Children {
 			if subcommand.Name == "vnc" {
-				if !subcommand.Hidden {
-					t.Error("job vnc should be hidden")
+				if subcommand.Hidden {
+					t.Error("job vnc should be visible")
 				}
 				return
 			}
