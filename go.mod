@@ -3,7 +3,7 @@ module github.com/buildkite/cli/v3
 go 1.25.0
 
 require (
-	github.com/alecthomas/kong v1.16.0
+	github.com/alecthomas/kong v1.16.1
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be
 	github.com/buildkite/go-buildkite/v5 v5.11.0
 	github.com/buildkite/termoji v0.0.0-20260330080310-c0aa4ebee0d1
