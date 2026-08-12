@@ -55,6 +55,24 @@ func createVNCSession(ctx context.Context, client *buildkite.Client, organizatio
 	return session, nil
 }
 
+func createSSHSession(ctx context.Context, client *buildkite.Client, organization, jobID string) (sshSession, error) {
+	req, err := client.NewRequest(ctx, http.MethodPost, organizationJobPath(organization, jobID, "ssh-session"), nil)
+	if err != nil {
+		return sshSession{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	var session sshSession
+	if _, err := client.Do(req, &session); err != nil {
+		return sshSession{}, err
+	}
+	if err := session.validate(); err != nil {
+		return sshSession{}, err
+	}
+
+	return session, nil
+}
+
 func reprioritizeJob(ctx context.Context, client *buildkite.Client, organization, jobID string, priority int) (buildkite.Job, error) {
 	req, err := client.NewRequest(ctx, "PUT", organizationJobPath(organization, jobID, "reprioritize"), &buildkite.JobReprioritizationOptions{
 		Priority: priority,

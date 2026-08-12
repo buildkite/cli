@@ -131,6 +131,7 @@ type (
 		Log          job.LogCmd          `cmd:"" help:"Get logs for a job."`
 		Reprioritize job.ReprioritizeCmd `cmd:"" help:"Reprioritize a job." aliases:"priority"`
 		Retry        job.RetryCmd        `cmd:"" help:"Retry a job."`
+		SSH          job.SSHCmd          `cmd:"" help:"Connect to a running hosted job over SSH."`
 		Unblock      job.UnblockCmd      `cmd:"" help:"Unblock a job."`
 		VNC          job.VNCCmd          `cmd:"" help:"Connect to a running hosted macOS job over VNC."`
 	}

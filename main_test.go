@@ -63,6 +63,38 @@ func TestVNCCommandRegistration(t *testing.T) {
 	t.Fatal("job command not found")
 }
 
+func TestSSHCommandRegistration(t *testing.T) {
+	cli := &CLI{}
+	parser, err := newKongParser(cli)
+	if err != nil {
+		t.Fatalf("failed to create parser: %v", err)
+	}
+
+	if _, err := parser.Parse([]string{"job", "ssh", "0190046e-e199-453b-a302-a21a4d649d31"}); err != nil {
+		t.Fatalf("failed to parse job ssh command: %v", err)
+	}
+	if cli.Job.SSH.JobID != "0190046e-e199-453b-a302-a21a4d649d31" {
+		t.Errorf("SSH job ID = %q", cli.Job.SSH.JobID)
+	}
+
+	for _, command := range parser.Model.Children {
+		if command.Name != "job" {
+			continue
+		}
+		for _, subcommand := range command.Children {
+			if subcommand.Name == "ssh" {
+				if subcommand.Hidden {
+					t.Error("job ssh should be visible")
+				}
+				return
+			}
+		}
+		t.Fatal("job ssh command not found")
+	}
+
+	t.Fatal("job command not found")
+}
+
 func TestApplyExperiments(t *testing.T) {
 	t.Run("preflight visible by default", func(t *testing.T) {
 		unsetEnv(t, "BUILDKITE_EXPERIMENTS")
