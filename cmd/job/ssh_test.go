@@ -47,7 +47,7 @@ func TestCreateSSHSession(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"endpoint":"wss://ssh.example.test/session","access_token":"namespace-access-token","expires_at":"2026-08-12T01:02:03Z","ssh":{"username":"root","private_key":"private-key"}}`)
+		fmt.Fprint(w, `{"endpoint":"wss://ssh.example.test/session","access_token":"namespace-access-token","expires_at":"2026-08-12T01:02:03Z","transport":"namespace_ingress","ssh":{"username":"root","private_key":"private-key"}}`)
 	}))
 	defer server.Close()
 
@@ -70,6 +70,7 @@ func TestCreateSSHSession(t *testing.T) {
 			AccessToken: "namespace-access-token",
 			ExpiresAt:   time.Date(2026, 8, 12, 1, 2, 3, 0, time.UTC),
 		},
+		Transport: sshTransportNamespaceIngress,
 		SSH: sshSessionCredentials{
 			Username:   "root",
 			PrivateKey: "private-key",
@@ -89,6 +90,7 @@ func TestSSHSessionValidation(t *testing.T) {
 			AccessToken: "namespace-access-token",
 			ExpiresAt:   time.Date(2026, 8, 12, 1, 2, 3, 0, time.UTC),
 		},
+		Transport: sshTransportNamespaceIngress,
 		SSH: sshSessionCredentials{
 			Username:   "root",
 			PrivateKey: "private-key",
@@ -103,6 +105,8 @@ func TestSSHSessionValidation(t *testing.T) {
 		{name: "missing endpoint", mutate: func(s *sshSession) { s.Endpoint = "" }, want: "without an endpoint"},
 		{name: "missing access token", mutate: func(s *sshSession) { s.AccessToken = "" }, want: "without an access token"},
 		{name: "missing expiry", mutate: func(s *sshSession) { s.ExpiresAt = time.Time{} }, want: "without an expiry"},
+		{name: "missing transport", mutate: func(s *sshSession) { s.Transport = "" }, want: "without a transport"},
+		{name: "unknown transport", mutate: func(s *sshSession) { s.Transport = "carrier_pigeon" }, want: `unsupported SSH transport "carrier_pigeon"`},
 		{name: "missing username", mutate: func(s *sshSession) { s.SSH.Username = "" }, want: "without an SSH username"},
 		{name: "missing private key", mutate: func(s *sshSession) { s.SSH.PrivateKey = "" }, want: "without an SSH private key"},
 	}
@@ -121,7 +125,68 @@ func TestSSHSessionValidation(t *testing.T) {
 	}
 }
 
-func TestSSHCmdRun(t *testing.T) {
+func TestSSHSessionTCPURLValidation(t *testing.T) {
+	t.Parallel()
+
+	valid := sshSession{
+		remoteSession: remoteSession{
+			Endpoint:    "tcp://ssh.example.test:22",
+			AccessToken: "namespace-access-token",
+			ExpiresAt:   time.Date(2026, 8, 12, 1, 2, 3, 0, time.UTC),
+		},
+		Transport: sshTransportTCP,
+		SSH: sshSessionCredentials{
+			Username:   "root",
+			PrivateKey: "private-key",
+		},
+	}
+
+	for _, endpoint := range []string{
+		"tcp://ssh.example.test:22",
+		"tcp://127.0.0.1:2222",
+		"tcp://[2001:db8::1]:22",
+	} {
+		t.Run("valid "+endpoint, func(t *testing.T) {
+			t.Parallel()
+
+			session := valid
+			session.Endpoint = endpoint
+			if err := session.validate(); err != nil {
+				t.Fatalf("validate() error = %v, want nil", err)
+			}
+		})
+	}
+
+	for _, endpoint := range []string{
+		"ssh.example.test:22",
+		"http://ssh.example.test:22",
+		"tcp://ssh.example.test",
+		"tcp://:22",
+		"tcp://ssh.example.test:not-a-port",
+		"tcp://ssh.example.test:+22",
+		"tcp://ssh.example.test:0",
+		"tcp://ssh.example.test:65536",
+		"tcp://user@ssh.example.test:22",
+		"tcp://ssh.example.test:22/",
+		"tcp://ssh.example.test:22/path",
+		"tcp://ssh.example.test:22?token=secret",
+		"tcp://ssh.example.test:22#fragment",
+		"tcp://ssh.example.test:22#",
+	} {
+		t.Run("invalid "+endpoint, func(t *testing.T) {
+			t.Parallel()
+
+			session := valid
+			session.Endpoint = endpoint
+			err := session.validate()
+			if err == nil || !strings.Contains(err.Error(), "invalid TCP endpoint") {
+				t.Fatalf("validate() error = %v, want invalid TCP endpoint error", err)
+			}
+		})
+	}
+}
+
+func TestSSHCmdRunNamespaceIngress(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -167,6 +232,7 @@ func TestSSHCmdRun(t *testing.T) {
 			AccessToken: accessToken,
 			ExpiresAt:   time.Date(2026, 8, 12, 1, 2, 3, 0, time.UTC),
 		},
+		Transport: sshTransportNamespaceIngress,
 		SSH: sshSessionCredentials{
 			Username:   username,
 			PrivateKey: privateKey,
@@ -205,6 +271,92 @@ func TestSSHCmdRun(t *testing.T) {
 	}
 }
 
+func TestSSHCmdRunTCP(t *testing.T) {
+	t.Parallel()
+
+	const (
+		accessToken = "namespace-access-token-must-not-be-sent"
+		username    = "root"
+		clientData  = "from local terminal"
+		serverData  = "from hosted Linux container"
+	)
+
+	clientSigner, privateKey := newSSHTestKey(t)
+	hostSigner, _ := newSSHTestKey(t)
+	serverConfig := &ssh.ServerConfig{
+		PublicKeyCallback: func(_ ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			if !bytes.Equal(key.Marshal(), clientSigner.PublicKey().Marshal()) {
+				return nil, errors.New("unexpected SSH public key")
+			}
+			return nil, nil
+		},
+	}
+	serverConfig.AddHostKey(hostSigner)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen for SSH: %v", err)
+	}
+	defer listener.Close()
+
+	serverErr := make(chan error, 1)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			serverErr <- fmt.Errorf("accept TCP connection: %w", err)
+			return
+		}
+		defer conn.Close()
+
+		prefix := make([]byte, 4)
+		if _, err := io.ReadFull(conn, prefix); err != nil {
+			serverErr <- fmt.Errorf("read SSH identification prefix: %w", err)
+			return
+		}
+		if got := string(prefix); got != "SSH-" {
+			serverErr <- fmt.Errorf("TCP connection started with %q, want SSH identification without access token", got)
+			return
+		}
+
+		serverErr <- serveSSHTestConnection(&prefixedConn{Conn: conn, prefix: bytes.NewReader(prefix)}, serverConfig, username, clientData, serverData)
+	}()
+
+	client := newSSHSessionTestClient(t, sshSession{
+		remoteSession: remoteSession{
+			Endpoint:    "tcp://" + listener.Addr().String(),
+			AccessToken: accessToken,
+			ExpiresAt:   time.Date(2026, 8, 12, 1, 2, 3, 0, time.UTC),
+		},
+		Transport: sshTransportTCP,
+		SSH: sshSessionCredentials{
+			Username:   username,
+			PrivateKey: privateKey,
+		},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var stdout, stderr bytes.Buffer
+	cmd := SSHCmd{JobID: "job-uuid"}
+	if err := cmd.run(ctx, sshStreams{
+		Stdin:  strings.NewReader(clientData),
+		Stdout: &stdout,
+		Stderr: &stderr,
+	}, client, "buildkite"); err != nil {
+		t.Fatalf("run() error = %v", err)
+	}
+	if err := <-serverErr; err != nil {
+		t.Error(err)
+	}
+	if got := stdout.String(); got != serverData {
+		t.Errorf("stdout = %q, want %q", got, serverData)
+	}
+	if stderr.Len() != 0 {
+		t.Errorf("stderr = %q, want empty", stderr.String())
+	}
+}
+
 func TestSSHCmdRunInvalidPrivateKey(t *testing.T) {
 	t.Parallel()
 
@@ -214,6 +366,7 @@ func TestSSHCmdRunInvalidPrivateKey(t *testing.T) {
 			AccessToken: "namespace-access-token",
 			ExpiresAt:   time.Date(2026, 8, 12, 1, 2, 3, 0, time.UTC),
 		},
+		Transport: sshTransportNamespaceIngress,
 		SSH: sshSessionCredentials{
 			Username:   "root",
 			PrivateKey: "not-a-private-key",
@@ -272,6 +425,7 @@ func TestSSHCmdRunCancellation(t *testing.T) {
 			AccessToken: accessToken,
 			ExpiresAt:   time.Date(2026, 8, 12, 1, 2, 3, 0, time.UTC),
 		},
+		Transport: sshTransportNamespaceIngress,
 		SSH: sshSessionCredentials{
 			Username:   "root",
 			PrivateKey: privateKey,
@@ -322,7 +476,7 @@ func newSSHSessionTestClient(t *testing.T, session sshSession) *buildkite.Client
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"endpoint":%q,"access_token":%q,"expires_at":%q,"ssh":{"username":%q,"private_key":%q}}`, session.Endpoint, session.AccessToken, session.ExpiresAt.Format(time.RFC3339), session.SSH.Username, session.SSH.PrivateKey)
+		fmt.Fprintf(w, `{"endpoint":%q,"access_token":%q,"expires_at":%q,"transport":%q,"ssh":{"username":%q,"private_key":%q}}`, session.Endpoint, session.AccessToken, session.ExpiresAt.Format(time.RFC3339), session.Transport, session.SSH.Username, session.SSH.PrivateKey)
 	}))
 	t.Cleanup(server.Close)
 
@@ -334,6 +488,25 @@ func newSSHSessionTestClient(t *testing.T, session sshSession) *buildkite.Client
 		t.Fatalf("new client: %v", err)
 	}
 	return client
+}
+
+type prefixedConn struct {
+	net.Conn
+	prefix io.Reader
+}
+
+func (c *prefixedConn) Read(p []byte) (int, error) {
+	if c.prefix != nil {
+		n, err := c.prefix.Read(p)
+		if !errors.Is(err, io.EOF) {
+			return n, err
+		}
+		c.prefix = nil
+		if n > 0 {
+			return n, nil
+		}
+	}
+	return c.Conn.Read(p)
 }
 
 func newSSHTestKey(t *testing.T) (ssh.Signer, string) {
