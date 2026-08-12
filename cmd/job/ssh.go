@@ -129,6 +129,10 @@ func (c *SSHCmd) run(ctx context.Context, streams sshStreams, client *buildkite.
 		return fmt.Errorf("connect to the SSH service: %w", err)
 	}
 	defer remote.Close()
+	stopRemoteClose := context.AfterFunc(ctx, func() {
+		_ = remote.Close()
+	})
+	defer stopRemoteClose()
 
 	config := &ssh.ClientConfig{
 		User: session.SSH.Username,
@@ -140,6 +144,9 @@ func (c *SSHCmd) run(ctx context.Context, streams sshStreams, client *buildkite.
 
 	connection, channels, requests, err := ssh.NewClientConn(remote, remote.RemoteAddr().String(), config)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil
+		}
 		return fmt.Errorf("negotiate SSH connection: %w", err)
 	}
 	sshClient := ssh.NewClient(connection, channels, requests)

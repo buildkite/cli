@@ -464,6 +464,79 @@ func TestSSHCmdRunCancellation(t *testing.T) {
 	}
 }
 
+func TestSSHCmdRunCancellationDuringHandshake(t *testing.T) {
+	t.Parallel()
+
+	const accessToken = "namespace-access-token"
+
+	_, privateKey := newSSHTestKey(t)
+	handshakeStarted := make(chan struct{})
+	releaseServer := make(chan struct{})
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer "+accessToken {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		ws, err := new(websocket.Upgrader).Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		conn := cnet.NewWebSocketConn(ws)
+		defer conn.Close()
+
+		identificationPrefix := make([]byte, 4)
+		if _, err := io.ReadFull(conn, identificationPrefix); err != nil {
+			return
+		}
+		close(handshakeStarted)
+		<-releaseServer
+	}))
+	defer func() {
+		close(releaseServer)
+		gateway.Close()
+	}()
+
+	client := newSSHSessionTestClient(t, sshSession{
+		remoteSession: remoteSession{
+			Endpoint:    "ws" + strings.TrimPrefix(gateway.URL, "http"),
+			AccessToken: accessToken,
+			ExpiresAt:   time.Date(2026, 8, 12, 1, 2, 3, 0, time.UTC),
+		},
+		Transport: sshTransportNamespaceIngress,
+		SSH: sshSessionCredentials{
+			Username:   "root",
+			PrivateKey: privateKey,
+		},
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	runErr := make(chan error, 1)
+	go func() {
+		cmd := SSHCmd{JobID: "job-uuid"}
+		runErr <- cmd.run(ctx, sshStreams{
+			Stdout: io.Discard,
+			Stderr: io.Discard,
+		}, client, "buildkite")
+	}()
+
+	select {
+	case <-handshakeStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("SSH handshake did not start")
+	}
+	cancel()
+
+	select {
+	case err := <-runErr:
+		if err != nil {
+			t.Fatalf("run() after cancellation error = %v, want nil", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("run did not finish after cancellation during the SSH handshake")
+	}
+}
+
 func newSSHSessionTestClient(t *testing.T, session sshSession) *buildkite.Client {
 	t.Helper()
 
