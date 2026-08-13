@@ -20,6 +20,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/jpillora/chisel/share/cnet"
 	"golang.org/x/crypto/ssh"
+	"namespacelabs.dev/integrations/nsc/ingress"
 )
 
 func TestCreateSSHSession(t *testing.T) {
@@ -101,6 +102,10 @@ func TestSSHSessionValidation(t *testing.T) {
 		want   string
 	}{
 		{name: "missing endpoint", mutate: func(s *sshSession) { s.Endpoint = "" }, want: "without an endpoint"},
+		{name: "invalid endpoint", mutate: func(s *sshSession) { s.Endpoint = "://" }, want: "invalid endpoint"},
+		{name: "insecure websocket endpoint", mutate: func(s *sshSession) { s.Endpoint = "ws://ssh.example.test/session" }, want: `must use "wss"`},
+		{name: "TCP endpoint", mutate: func(s *sshSession) { s.Endpoint = "tcp://ssh.example.test:22" }, want: `must use "wss"`},
+		{name: "missing endpoint hostname", mutate: func(s *sshSession) { s.Endpoint = "wss:///session" }, want: "without a hostname"},
 		{name: "missing access token", mutate: func(s *sshSession) { s.AccessToken = "" }, want: "without an access token"},
 		{name: "missing expiry", mutate: func(s *sshSession) { s.ExpiresAt = time.Time{} }, want: "without an expiry"},
 		{name: "missing username", mutate: func(s *sshSession) { s.SSH.Username = "" }, want: "without an SSH username"},
@@ -163,7 +168,7 @@ func TestSSHCmdRun(t *testing.T) {
 
 	client := newSSHSessionTestClient(t, sshSession{
 		remoteSession: remoteSession{
-			Endpoint:    "ws" + strings.TrimPrefix(gateway.URL, "http"),
+			Endpoint:    "wss" + strings.TrimPrefix(gateway.URL, "http"),
 			AccessToken: accessToken,
 			ExpiresAt:   time.Date(2026, 8, 12, 1, 2, 3, 0, time.UTC),
 		},
@@ -178,11 +183,11 @@ func TestSSHCmdRun(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	cmd := SSHCmd{JobID: "job-uuid"}
-	if err := cmd.run(ctx, sshStreams{
+	if err := cmd.runWithDialer(ctx, sshStreams{
 		Stdin:  strings.NewReader(clientData),
 		Stdout: &stdout,
 		Stderr: &stderr,
-	}, client, "buildkite"); err != nil {
+	}, client, "buildkite", dialInsecureTestSSHEndpoint); err != nil {
 		t.Fatalf("run() error = %v", err)
 	}
 	if ctx.Err() != nil {
@@ -268,7 +273,7 @@ func TestSSHCmdRunCancellation(t *testing.T) {
 
 	client := newSSHSessionTestClient(t, sshSession{
 		remoteSession: remoteSession{
-			Endpoint:    "ws" + strings.TrimPrefix(gateway.URL, "http"),
+			Endpoint:    "wss" + strings.TrimPrefix(gateway.URL, "http"),
 			AccessToken: accessToken,
 			ExpiresAt:   time.Date(2026, 8, 12, 1, 2, 3, 0, time.UTC),
 		},
@@ -286,11 +291,11 @@ func TestSSHCmdRunCancellation(t *testing.T) {
 	runErr := make(chan error, 1)
 	go func() {
 		cmd := SSHCmd{JobID: "job-uuid"}
-		runErr <- cmd.run(ctx, sshStreams{
+		runErr <- cmd.runWithDialer(ctx, sshStreams{
 			Stdin:  stdinReader,
 			Stdout: io.Discard,
 			Stderr: io.Discard,
-		}, client, "buildkite")
+		}, client, "buildkite", dialInsecureTestSSHEndpoint)
 	}()
 
 	select {
@@ -345,7 +350,7 @@ func TestSSHCmdRunCancellationDuringHandshake(t *testing.T) {
 
 	client := newSSHSessionTestClient(t, sshSession{
 		remoteSession: remoteSession{
-			Endpoint:    "ws" + strings.TrimPrefix(gateway.URL, "http"),
+			Endpoint:    "wss" + strings.TrimPrefix(gateway.URL, "http"),
 			AccessToken: accessToken,
 			ExpiresAt:   time.Date(2026, 8, 12, 1, 2, 3, 0, time.UTC),
 		},
@@ -359,10 +364,10 @@ func TestSSHCmdRunCancellationDuringHandshake(t *testing.T) {
 	runErr := make(chan error, 1)
 	go func() {
 		cmd := SSHCmd{JobID: "job-uuid"}
-		runErr <- cmd.run(ctx, sshStreams{
+		runErr <- cmd.runWithDialer(ctx, sshStreams{
 			Stdout: io.Discard,
 			Stderr: io.Discard,
-		}, client, "buildkite")
+		}, client, "buildkite", dialInsecureTestSSHEndpoint)
 	}()
 
 	select {
@@ -406,6 +411,16 @@ func newSSHSessionTestClient(t *testing.T, session sshSession) *buildkite.Client
 		t.Fatalf("new client: %v", err)
 	}
 	return client
+}
+
+func dialInsecureTestSSHEndpoint(ctx context.Context, token remoteAccessToken, endpoint string) (net.Conn, error) {
+	if !strings.HasPrefix(endpoint, "wss://") {
+		return nil, fmt.Errorf("test SSH endpoint = %q, want wss:// endpoint", endpoint)
+	}
+	// The API fixture advertises wss:// so the production validation is exercised.
+	// Rewrite it to ws:// only when dialing the local test server, avoiding test
+	// certificate setup while keeping plaintext WebSockets out of production.
+	return ingress.DialEndpoint(ctx, io.Discard, token, "ws://"+strings.TrimPrefix(endpoint, "wss://"))
 }
 
 func newSSHTestKey(t *testing.T) (ssh.Signer, string) {

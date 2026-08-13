@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -36,6 +38,16 @@ type sshSessionCredentials struct {
 func (s sshSession) validate() error {
 	if err := s.remoteSession.validate("an SSH"); err != nil {
 		return err
+	}
+	endpoint, err := url.Parse(s.Endpoint)
+	if err != nil {
+		return fmt.Errorf("buildkite API returned an SSH session with an invalid endpoint: %w", err)
+	}
+	if endpoint.Scheme != "wss" {
+		return fmt.Errorf("buildkite API returned an SSH session endpoint that must use %q, got %q", "wss", endpoint.Scheme)
+	}
+	if endpoint.Hostname() == "" {
+		return errors.New("buildkite API returned an SSH session endpoint without a hostname")
 	}
 
 	switch {
@@ -89,6 +101,16 @@ type sshStreams struct {
 }
 
 func (c *SSHCmd) run(ctx context.Context, streams sshStreams, client *buildkite.Client, organization string) error {
+	return c.runWithDialer(ctx, streams, client, organization, dialSSHEndpoint)
+}
+
+type sshEndpointDialer func(context.Context, remoteAccessToken, string) (net.Conn, error)
+
+func dialSSHEndpoint(ctx context.Context, token remoteAccessToken, endpoint string) (net.Conn, error) {
+	return ingress.DialEndpoint(ctx, io.Discard, token, endpoint)
+}
+
+func (c *SSHCmd) runWithDialer(ctx context.Context, streams sshStreams, client *buildkite.Client, organization string, dialEndpoint sshEndpointDialer) error {
 	session, err := createSSHSession(ctx, client, organization, c.JobID)
 	if err != nil {
 		return fmt.Errorf("create SSH session: %w", err)
@@ -99,7 +121,7 @@ func (c *SSHCmd) run(ctx context.Context, streams sshStreams, client *buildkite.
 		return fmt.Errorf("parse SSH private key: %w", err)
 	}
 
-	remote, err := ingress.DialEndpoint(ctx, io.Discard, remoteAccessToken(session.AccessToken), session.Endpoint)
+	remote, err := dialEndpoint(ctx, remoteAccessToken(session.AccessToken), session.Endpoint)
 	if err != nil {
 		return fmt.Errorf("connect to the SSH service: %w", err)
 	}
