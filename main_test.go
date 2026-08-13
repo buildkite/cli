@@ -86,6 +86,9 @@ func TestSSHCommandRegistration(t *testing.T) {
 				if subcommand.Hidden {
 					t.Error("job ssh should be visible")
 				}
+				if !strings.Contains(subcommand.Help, "hosted macOS job") {
+					t.Errorf("job ssh help = %q, want macOS scope", subcommand.Help)
+				}
 				return
 			}
 		}

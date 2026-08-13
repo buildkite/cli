@@ -81,6 +81,14 @@ func TestCreateSSHSession(t *testing.T) {
 	}
 }
 
+func TestSSHCmdHelpMentionsMacOS(t *testing.T) {
+	t.Parallel()
+
+	if help := new(SSHCmd).Help(); !strings.Contains(help, "hosted macOS job") {
+		t.Errorf("Help() = %q, want macOS scope", help)
+	}
+}
+
 func TestSSHSessionValidation(t *testing.T) {
 	t.Parallel()
 

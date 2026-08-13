@@ -63,7 +63,7 @@ func (s sshSession) validate() error {
 func (c *SSHCmd) Help() string {
 	return `
 Examples:
-	# Open an interactive shell on a running hosted job
+	# Open an interactive shell on a running hosted macOS job
 	$ bk job ssh 0190046e-e199-453b-a302-a21a4d649d31
 `
 }
@@ -86,18 +86,20 @@ func (c *SSHCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	defer stop()
 
 	return c.run(ctx, sshStreams{
-		Stdin:    os.Stdin,
-		Stdout:   kongCtx.Stdout,
-		Stderr:   kongCtx.Stderr,
-		Terminal: os.Stdin,
+		Stdin:         os.Stdin,
+		Stdout:        kongCtx.Stdout,
+		Stderr:        kongCtx.Stderr,
+		TerminalInput: os.Stdin,
+		TerminalSize:  terminalSizeFile(os.Stdin, os.Stdout),
 	}, f.RestAPIClient, organization)
 }
 
 type sshStreams struct {
-	Stdin    io.Reader
-	Stdout   io.Writer
-	Stderr   io.Writer
-	Terminal *os.File
+	Stdin         io.Reader
+	Stdout        io.Writer
+	Stderr        io.Writer
+	TerminalInput *os.File
+	TerminalSize  *os.File
 }
 
 func (c *SSHCmd) run(ctx context.Context, streams sshStreams, client *buildkite.Client, organization string) error {
@@ -171,7 +173,7 @@ func (c *SSHCmd) runWithDialer(ctx context.Context, streams sshStreams, client *
 		defer remoteStdin.Close()
 	}
 
-	restoreTerminal, err := configureSSHPTY(ctx, sshShell, streams.Terminal)
+	restoreTerminal, err := configureSSHPTY(ctx, sshShell, streams.TerminalInput, streams.TerminalSize)
 	if err != nil {
 		return err
 	}
@@ -199,23 +201,26 @@ func (c *SSHCmd) runWithDialer(ctx context.Context, streams sshStreams, client *
 	return nil
 }
 
-func configureSSHPTY(ctx context.Context, session *ssh.Session, terminal *os.File) (func(), error) {
-	if terminal == nil || !term.IsTerminal(int(terminal.Fd())) {
+func configureSSHPTY(ctx context.Context, session *ssh.Session, terminalInput, terminalSize *os.File) (func(), error) {
+	if terminalInput == nil || !term.IsTerminal(int(terminalInput.Fd())) {
 		return func() {}, nil
 	}
+	if terminalSize == nil {
+		return nil, errors.New("terminal size handle is unavailable")
+	}
 
-	fd := int(terminal.Fd())
-	width, height, err := term.GetSize(fd)
+	inputFD := int(terminalInput.Fd())
+	width, height, err := term.GetSize(int(terminalSize.Fd()))
 	if err != nil {
 		return nil, fmt.Errorf("get terminal size: %w", err)
 	}
 
-	state, err := term.MakeRaw(fd)
+	state, err := term.MakeRaw(inputFD)
 	if err != nil {
 		return nil, fmt.Errorf("put terminal in raw mode: %w", err)
 	}
 	restore := func() {
-		_ = term.Restore(fd, state)
+		_ = term.Restore(inputFD, state)
 	}
 
 	if err := session.RequestPty("xterm", height, width, nil); err != nil {
@@ -224,9 +229,9 @@ func configureSSHPTY(ctx context.Context, session *ssh.Session, terminal *os.Fil
 	}
 
 	resizeSignals := make(chan os.Signal, 1)
-	stopSignals := startWindowSizeNotifications(resizeSignals)
+	stopSignals := startWindowSizeNotifications(terminalSize, width, height, resizeSignals)
 	resizeCtx, stopResize := context.WithCancel(ctx)
-	go forwardSSHWindowChanges(resizeCtx, terminal, session, resizeSignals)
+	go forwardSSHWindowChanges(resizeCtx, terminalSize, session, resizeSignals)
 
 	return func() {
 		stopResize()
