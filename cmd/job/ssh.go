@@ -5,12 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
-	"net/url"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
 	"syscall"
 
 	"github.com/alecthomas/kong"
@@ -29,16 +25,8 @@ type SSHCmd struct {
 
 type sshSession struct {
 	remoteSession
-	Transport sshTransport          `json:"transport"`
-	SSH       sshSessionCredentials `json:"ssh"`
+	SSH sshSessionCredentials `json:"ssh"`
 }
-
-type sshTransport string
-
-const (
-	sshTransportTCP              sshTransport = "tcp"
-	sshTransportNamespaceIngress sshTransport = "namespace_ingress"
-)
 
 type sshSessionCredentials struct {
 	Username   string `json:"username"`
@@ -48,19 +36,6 @@ type sshSessionCredentials struct {
 func (s sshSession) validate() error {
 	if err := s.remoteSession.validate("an SSH"); err != nil {
 		return err
-	}
-
-	switch s.Transport {
-	case "":
-		return errors.New("buildkite API returned an SSH session without a transport")
-	case sshTransportTCP:
-		if _, err := sshTCPEndpointAddress(s.Endpoint); err != nil {
-			return fmt.Errorf("buildkite API returned an SSH session with an invalid TCP endpoint: %w", err)
-		}
-	case sshTransportNamespaceIngress:
-		// Namespace ingress validates its own endpoint when dialing.
-	default:
-		return fmt.Errorf("buildkite API returned unsupported SSH transport %q", s.Transport)
 	}
 
 	switch {
@@ -124,7 +99,7 @@ func (c *SSHCmd) run(ctx context.Context, streams sshStreams, client *buildkite.
 		return fmt.Errorf("parse SSH private key: %w", err)
 	}
 
-	remote, err := dialSSHSession(ctx, session)
+	remote, err := ingress.DialEndpoint(ctx, io.Discard, remoteAccessToken(session.AccessToken), session.Endpoint)
 	if err != nil {
 		return fmt.Errorf("connect to the SSH service: %w", err)
 	}
@@ -137,8 +112,8 @@ func (c *SSHCmd) run(ctx context.Context, streams sshStreams, client *buildkite.
 	config := &ssh.ClientConfig{
 		User: session.SSH.Username,
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(signer)},
-		// Hosted jobs use ephemeral SSH servers, and the session contract does not
-		// provide a stable host key that can be verified through known_hosts.
+		// Namespace provides an ephemeral SSH server behind an authenticated WSS
+		// endpoint, so it has no stable host key to put in known_hosts.
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec
 	}
 
@@ -200,62 +175,6 @@ func (c *SSHCmd) run(ctx context.Context, streams sshStreams, client *buildkite.
 	}
 
 	return nil
-}
-
-func dialSSHSession(ctx context.Context, session sshSession) (net.Conn, error) {
-	switch session.Transport {
-	case sshTransportTCP:
-		address, err := sshTCPEndpointAddress(session.Endpoint)
-		if err != nil {
-			return nil, err
-		}
-		return new(net.Dialer).DialContext(ctx, "tcp", address)
-	case sshTransportNamespaceIngress:
-		return ingress.DialEndpoint(ctx, io.Discard, remoteAccessToken(session.AccessToken), session.Endpoint)
-	default:
-		return nil, fmt.Errorf("unsupported SSH transport %q", session.Transport)
-	}
-}
-
-func sshTCPEndpointAddress(endpoint string) (string, error) {
-	parsedURL, err := url.Parse(endpoint)
-	if err != nil {
-		return "", errors.New("URL could not be parsed")
-	}
-	if parsedURL.Scheme != "tcp" {
-		return "", fmt.Errorf("scheme must be tcp, got %q", parsedURL.Scheme)
-	}
-	if parsedURL.User != nil {
-		return "", errors.New("userinfo is not allowed")
-	}
-	if parsedURL.Path != "" || parsedURL.RawPath != "" {
-		return "", errors.New("path is not allowed")
-	}
-	if parsedURL.RawQuery != "" || parsedURL.ForceQuery {
-		return "", errors.New("query is not allowed")
-	}
-	if parsedURL.Fragment != "" || strings.Contains(endpoint, "#") {
-		return "", errors.New("fragment is not allowed")
-	}
-
-	host, port, err := net.SplitHostPort(parsedURL.Host)
-	if err != nil {
-		return "", fmt.Errorf("host and port are required: %w", err)
-	}
-	if host == "" {
-		return "", errors.New("host is required")
-	}
-	if strings.IndexFunc(port, func(character rune) bool {
-		return character < '0' || character > '9'
-	}) != -1 {
-		return "", fmt.Errorf("port must be numeric, got %q", port)
-	}
-	portNumber, err := strconv.Atoi(port)
-	if err != nil || portNumber < 1 || portNumber > 65535 {
-		return "", fmt.Errorf("port must be between 1 and 65535, got %q", port)
-	}
-
-	return parsedURL.Host, nil
 }
 
 func configureSSHPTY(ctx context.Context, session *ssh.Session, terminal *os.File) (func(), error) {
