@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -127,6 +128,29 @@ func TestUnblockFields(t *testing.T) {
 				t.Fatalf("unblockFields() = %#v, want %#v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestUnblockFieldsPrefersDataOverEmptyNonTTYStdin(t *testing.T) {
+	t.Parallel()
+
+	stdin, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatalf("open null device: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = stdin.Close()
+	})
+
+	cmd := UnblockCmd{Data: `{"source":"data"}`}
+	got, err := cmd.unblockFields(stdin)
+	if err != nil {
+		t.Fatalf("unblockFields() error = %v", err)
+	}
+
+	want := map[string]any{"source": "data"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("unblockFields() = %#v, want %#v", got, want)
 	}
 }
 
