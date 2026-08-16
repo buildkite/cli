@@ -127,10 +127,10 @@ func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 func watchJobs(jobs []buildkite.Job) []buildkite.Job {
 	out := make([]buildkite.Job, 0, len(jobs))
 	for _, j := range jobs {
-			if j.State == "broken" {
-					continue
-			}
-			out = append(out, j)
+		if j.State == "broken" {
+			continue
+		}
+		out = append(out, j)
 	}
 	return out
 }
