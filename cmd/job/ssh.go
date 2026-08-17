@@ -170,7 +170,6 @@ func (c *SSHCmd) runWithDialer(ctx context.Context, streams sshStreams, client *
 		if err != nil {
 			return fmt.Errorf("open SSH stdin: %w", err)
 		}
-		defer remoteStdin.Close()
 	}
 
 	restoreTerminal, err := configureSSHPTY(ctx, sshShell, streams.TerminalInput, streams.TerminalSize)
@@ -192,7 +191,7 @@ func (c *SSHCmd) runWithDialer(ctx context.Context, streams sshStreams, client *
 		}()
 	}
 	if err := sshShell.Wait(); err != nil {
-		if ctx.Err() != nil {
+		if isExpectedSSHExit(ctx, err) {
 			return nil
 		}
 		return fmt.Errorf("wait for SSH shell: %w", err)
@@ -201,12 +200,23 @@ func (c *SSHCmd) runWithDialer(ctx context.Context, streams sshStreams, client *
 	return nil
 }
 
-func configureSSHPTY(ctx context.Context, session *ssh.Session, terminalInput, terminalSize *os.File) (func(), error) {
-	if terminalInput == nil || !term.IsTerminal(int(terminalInput.Fd())) {
-		return func() {}, nil
+func isExpectedSSHExit(ctx context.Context, err error) bool {
+	if ctx.Err() != nil {
+		return true
 	}
-	if terminalSize == nil {
-		return nil, errors.New("terminal size handle is unavailable")
+
+	var exitErr *ssh.ExitError
+	if errors.As(err, &exitErr) {
+		return true
+	}
+
+	var missingErr *ssh.ExitMissingError
+	return errors.As(err, &missingErr)
+}
+
+func configureSSHPTY(ctx context.Context, session *ssh.Session, terminalInput, terminalSize *os.File) (func(), error) {
+	if !sshPTYAvailable(terminalInput, terminalSize, term.IsTerminal) {
+		return func() {}, nil
 	}
 
 	inputFD := int(terminalInput.Fd())
@@ -238,6 +248,11 @@ func configureSSHPTY(ctx context.Context, session *ssh.Session, terminalInput, t
 		stopSignals()
 		restore()
 	}, nil
+}
+
+func sshPTYAvailable(terminalInput, terminalSize *os.File, isTerminal func(int) bool) bool {
+	return terminalInput != nil && terminalSize != nil &&
+		isTerminal(int(terminalInput.Fd())) && isTerminal(int(terminalSize.Fd()))
 }
 
 func forwardSSHWindowChanges(ctx context.Context, terminal *os.File, session *ssh.Session, signals <-chan os.Signal) {

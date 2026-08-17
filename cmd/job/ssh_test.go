@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -392,6 +393,88 @@ func TestSSHCmdRunCancellationDuringHandshake(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("run did not finish after cancellation during the SSH handshake")
+	}
+}
+
+func TestIsExpectedSSHExit(t *testing.T) {
+	t.Parallel()
+
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	tests := []struct {
+		name string
+		ctx  context.Context
+		err  error
+		want bool
+	}{
+		{name: "context canceled", ctx: canceledCtx, err: errors.New("connection closed"), want: true},
+		{name: "remote exit", ctx: context.Background(), err: fmt.Errorf("wait: %w", &ssh.ExitError{}), want: true},
+		{name: "missing remote exit status", ctx: context.Background(), err: fmt.Errorf("wait: %w", &ssh.ExitMissingError{}), want: true},
+		{name: "other wait error", ctx: context.Background(), err: errors.New("connection failed"), want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := isExpectedSSHExit(test.ctx, test.err); got != test.want {
+				t.Errorf("isExpectedSSHExit() = %t, want %t", got, test.want)
+			}
+		})
+	}
+}
+
+func TestSSHPTYAvailable(t *testing.T) {
+	t.Parallel()
+
+	terminalInput, err := os.CreateTemp(t.TempDir(), "terminal-input")
+	if err != nil {
+		t.Fatalf("create terminal input: %v", err)
+	}
+	t.Cleanup(func() { _ = terminalInput.Close() })
+
+	terminalSize, err := os.CreateTemp(t.TempDir(), "terminal-size")
+	if err != nil {
+		t.Fatalf("create terminal size handle: %v", err)
+	}
+	t.Cleanup(func() { _ = terminalSize.Close() })
+
+	tests := []struct {
+		name            string
+		input           *os.File
+		size            *os.File
+		inputIsTerminal bool
+		sizeIsTerminal  bool
+		want            bool
+	}{
+		{name: "interactive input and output", input: terminalInput, size: terminalSize, inputIsTerminal: true, sizeIsTerminal: true, want: true},
+		{name: "redirected input", input: terminalInput, size: terminalSize, sizeIsTerminal: true, want: false},
+		{name: "redirected output", input: terminalInput, size: terminalSize, inputIsTerminal: true, want: false},
+		{name: "missing input", size: terminalSize, sizeIsTerminal: true, want: false},
+		{name: "missing output", input: terminalInput, inputIsTerminal: true, want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			isTerminal := func(fd int) bool {
+				switch fd {
+				case int(terminalInput.Fd()):
+					return test.inputIsTerminal
+				case int(terminalSize.Fd()):
+					return test.sizeIsTerminal
+				default:
+					t.Fatalf("unexpected file descriptor %d", fd)
+					return false
+				}
+			}
+
+			if got := sshPTYAvailable(test.input, test.size, isTerminal); got != test.want {
+				t.Errorf("sshPTYAvailable() = %t, want %t", got, test.want)
+			}
+		})
 	}
 }
 
