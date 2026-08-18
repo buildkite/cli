@@ -36,8 +36,8 @@ type sshSessionCredentials struct {
 }
 
 func (s sshSession) validate() error {
-	if err := s.remoteSession.validate("an SSH"); err != nil {
-		return err
+	if err := s.remoteSession.validate(); err != nil {
+		return fmt.Errorf("buildkite API returned an SSH session %w", err)
 	}
 	endpoint, err := url.Parse(s.Endpoint)
 	if err != nil {
@@ -202,11 +202,6 @@ func (c *SSHCmd) runWithDialer(ctx context.Context, streams sshStreams, client *
 
 func isExpectedSSHExit(ctx context.Context, err error) bool {
 	if ctx.Err() != nil {
-		return true
-	}
-
-	var exitErr *ssh.ExitError
-	if errors.As(err, &exitErr) {
 		return true
 	}
 

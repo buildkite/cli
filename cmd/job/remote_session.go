@@ -3,7 +3,6 @@ package job
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 )
 
@@ -13,14 +12,14 @@ type remoteSession struct {
 	ExpiresAt   time.Time `json:"expires_at"`
 }
 
-func (s remoteSession) validate(kind string) error {
+func (s remoteSession) validate() error {
 	switch {
 	case s.Endpoint == "":
-		return fmt.Errorf("buildkite API returned %s session without an endpoint", kind)
+		return errors.New("without an endpoint")
 	case s.AccessToken == "":
-		return fmt.Errorf("buildkite API returned %s session without an access token", kind)
+		return errors.New("without an access token")
 	case s.ExpiresAt.IsZero():
-		return fmt.Errorf("buildkite API returned %s session without an expiry", kind)
+		return errors.New("without an expiry")
 	default:
 		return nil
 	}

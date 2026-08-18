@@ -37,8 +37,8 @@ type vncSessionCredentials struct {
 }
 
 func (s vncSession) validate() error {
-	if err := s.remoteSession.validate("a VNC"); err != nil {
-		return err
+	if err := s.remoteSession.validate(); err != nil {
+		return fmt.Errorf("buildkite API returned a VNC session %w", err)
 	}
 
 	switch {

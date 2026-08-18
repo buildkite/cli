@@ -409,7 +409,7 @@ func TestIsExpectedSSHExit(t *testing.T) {
 		want bool
 	}{
 		{name: "context canceled", ctx: canceledCtx, err: errors.New("connection closed"), want: true},
-		{name: "remote exit", ctx: context.Background(), err: fmt.Errorf("wait: %w", &ssh.ExitError{}), want: true},
+		{name: "remote non-zero exit", ctx: context.Background(), err: fmt.Errorf("wait: %w", &ssh.ExitError{}), want: false},
 		{name: "missing remote exit status", ctx: context.Background(), err: fmt.Errorf("wait: %w", &ssh.ExitMissingError{}), want: true},
 		{name: "other wait error", ctx: context.Background(), err: errors.New("connection failed"), want: false},
 	}
