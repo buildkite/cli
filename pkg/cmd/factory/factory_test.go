@@ -124,6 +124,11 @@ func TestRedactBody(t *testing.T) {
 			want:  `{"endpoint":"wss://vnc.example.test/session","access_token":"[REDACTED]","vnc":{"username":"vnc-user","password": "[REDACTED]"}}`,
 		},
 		{
+			name:  "SSH session response",
+			input: `{"endpoint":"wss://ssh.example.test/session","access_token":"namespace-secret","ssh":{"username":"root","private_key": "private-key-secret"}}`,
+			want:  `{"endpoint":"wss://ssh.example.test/session","access_token":"[REDACTED]","ssh":{"username":"root","private_key": "[REDACTED]"}}`,
+		},
+		{
 			name:  "truncated JSON string",
 			input: `{"access_token":"truncated-secret`,
 			want:  `{"access_token":"[REDACTED]`,

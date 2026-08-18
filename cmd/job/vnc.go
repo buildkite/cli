@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
@@ -28,10 +27,8 @@ type VNCCmd struct {
 }
 
 type vncSession struct {
-	Endpoint    string                `json:"endpoint"`
-	AccessToken string                `json:"access_token"`
-	ExpiresAt   time.Time             `json:"expires_at"`
-	VNC         vncSessionCredentials `json:"vnc"`
+	remoteSession
+	VNC vncSessionCredentials `json:"vnc"`
 }
 
 type vncSessionCredentials struct {
@@ -40,13 +37,11 @@ type vncSessionCredentials struct {
 }
 
 func (s vncSession) validate() error {
+	if err := s.remoteSession.validate(); err != nil {
+		return fmt.Errorf("buildkite API returned a VNC session %w", err)
+	}
+
 	switch {
-	case s.Endpoint == "":
-		return errors.New("buildkite API returned a VNC session without an endpoint")
-	case s.AccessToken == "":
-		return errors.New("buildkite API returned a VNC session without an access token")
-	case s.ExpiresAt.IsZero():
-		return errors.New("buildkite API returned a VNC session without an expiry")
 	case s.VNC.Username == "":
 		return errors.New("buildkite API returned a VNC session without a VNC username")
 	case s.VNC.Password == "":
@@ -90,7 +85,7 @@ func (c *VNCCmd) run(ctx context.Context, stdout io.Writer, quiet bool, client *
 		return fmt.Errorf("create VNC session: %w", err)
 	}
 
-	remote, err := ingress.DialEndpoint(ctx, io.Discard, vncAccessToken(session.AccessToken), session.Endpoint)
+	remote, err := ingress.DialEndpoint(ctx, io.Discard, remoteAccessToken(session.AccessToken), session.Endpoint)
 	if err != nil {
 		return fmt.Errorf("connect to the VNC service: %w", err)
 	}
@@ -172,10 +167,4 @@ func vncClientURL(address, username, password string) string {
 		User:   url.UserPassword(username, password),
 		Host:   address,
 	}).String()
-}
-
-type vncAccessToken string
-
-func (t vncAccessToken) IssueToken(context.Context, time.Duration, bool) (string, error) {
-	return string(t), nil
 }

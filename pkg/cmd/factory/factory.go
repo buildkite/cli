@@ -129,7 +129,7 @@ func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 // The closing JSON quote is optional so truncated response dumps fail closed.
 var sensitiveBodyPatterns = regexp.MustCompile(
 	`((?:refresh_token|access_token|code|code_verifier)=)[^&\s]+` +
-		`|("(?:access_token|refresh_token|code|password)":\s*")[^"]+("?)`,
+		`|("(?:access_token|refresh_token|code|password|private_key|ssh_private_key)":\s*")[^"]+("?)`,
 )
 
 // redactBody replaces sensitive token values in HTTP dumps.

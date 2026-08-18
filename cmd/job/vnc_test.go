@@ -60,9 +60,11 @@ func TestCreateVNCSession(t *testing.T) {
 	}
 
 	want := vncSession{
-		Endpoint:    "wss://vnc.example.test/session",
-		AccessToken: "namespace-access-token",
-		ExpiresAt:   time.Date(2026, 8, 10, 1, 2, 3, 0, time.UTC),
+		remoteSession: remoteSession{
+			Endpoint:    "wss://vnc.example.test/session",
+			AccessToken: "namespace-access-token",
+			ExpiresAt:   time.Date(2026, 8, 10, 1, 2, 3, 0, time.UTC),
+		},
 		VNC: vncSessionCredentials{
 			Username: "vnc-user",
 			Password: "vnc-password",
@@ -77,9 +79,11 @@ func TestVNCSessionValidation(t *testing.T) {
 	t.Parallel()
 
 	valid := vncSession{
-		Endpoint:    "wss://vnc.example.test/session",
-		AccessToken: "namespace-access-token",
-		ExpiresAt:   time.Date(2026, 8, 10, 1, 2, 3, 0, time.UTC),
+		remoteSession: remoteSession{
+			Endpoint:    "wss://vnc.example.test/session",
+			AccessToken: "namespace-access-token",
+			ExpiresAt:   time.Date(2026, 8, 10, 1, 2, 3, 0, time.UTC),
+		},
 		VNC: vncSessionCredentials{
 			Username: "vnc-user",
 			Password: "vnc-password",
@@ -188,9 +192,11 @@ func TestVNCCmdRun(t *testing.T) {
 	defer gateway.Close()
 
 	client := newVNCSessionTestClient(t, vncSession{
-		Endpoint:    "ws" + strings.TrimPrefix(gateway.URL, "http"),
-		AccessToken: accessToken,
-		ExpiresAt:   time.Date(2026, 8, 10, 1, 2, 3, 0, time.UTC),
+		remoteSession: remoteSession{
+			Endpoint:    "ws" + strings.TrimPrefix(gateway.URL, "http"),
+			AccessToken: accessToken,
+			ExpiresAt:   time.Date(2026, 8, 10, 1, 2, 3, 0, time.UTC),
+		},
 		VNC: vncSessionCredentials{
 			Username: username,
 			Password: password,
@@ -305,9 +311,11 @@ func TestVNCCmdRunGatewayDisconnect(t *testing.T) {
 	defer gateway.Close()
 
 	client := newVNCSessionTestClient(t, vncSession{
-		Endpoint:    "ws" + strings.TrimPrefix(gateway.URL, "http"),
-		AccessToken: accessToken,
-		ExpiresAt:   time.Date(2026, 8, 10, 1, 2, 3, 0, time.UTC),
+		remoteSession: remoteSession{
+			Endpoint:    "ws" + strings.TrimPrefix(gateway.URL, "http"),
+			AccessToken: accessToken,
+			ExpiresAt:   time.Date(2026, 8, 10, 1, 2, 3, 0, time.UTC),
+		},
 		VNC: vncSessionCredentials{
 			Username: "vnc-user",
 			Password: "vnc-password",
