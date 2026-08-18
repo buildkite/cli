@@ -50,14 +50,14 @@ func (s sshSession) validate() error {
 		return errors.New("buildkite API returned an SSH session endpoint without a hostname")
 	}
 
-	switch {
-	case s.SSH.Username == "":
+	if s.SSH.Username == "" {
 		return errors.New("buildkite API returned an SSH session without an SSH username")
-	case s.SSH.PrivateKey == "":
-		return errors.New("buildkite API returned an SSH session without an SSH private key")
-	default:
-		return nil
 	}
+	if s.SSH.PrivateKey == "" {
+		return errors.New("buildkite API returned an SSH session without an SSH private key")
+	}
+
+	return nil
 }
 
 func (c *SSHCmd) Help() string {
