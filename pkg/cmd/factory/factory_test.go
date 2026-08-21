@@ -125,8 +125,8 @@ func TestRedactBody(t *testing.T) {
 		},
 		{
 			name:  "SSH session response",
-			input: `{"endpoint":"wss://ssh.example.test/session","access_token":"namespace-secret","ssh":{"username":"root","private_key": "private-key-secret"}}`,
-			want:  `{"endpoint":"wss://ssh.example.test/session","access_token":"[REDACTED]","ssh":{"username":"root","private_key": "[REDACTED]"}}`,
+			input: `{"endpoint":"tcp://ssh.example.test:22","access_token":"namespace-secret","transport":"tcp","ssh":{"username":"root","private_key": "private-key-secret","host_keys":["ssh-ed25519 public-host-key"]}}`,
+			want:  `{"endpoint":"tcp://ssh.example.test:22","access_token":"[REDACTED]","transport":"tcp","ssh":{"username":"root","private_key": "[REDACTED]","host_keys":["ssh-ed25519 public-host-key"]}}`,
 		},
 		{
 			name:  "truncated JSON string",

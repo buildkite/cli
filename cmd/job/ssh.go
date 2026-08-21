@@ -1,6 +1,7 @@
 package job
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/alecthomas/kong"
@@ -27,27 +30,57 @@ type SSHCmd struct {
 
 type sshSession struct {
 	remoteSession
-	SSH sshSessionCredentials `json:"ssh"`
+	Transport sshTransport          `json:"transport"`
+	SSH       sshSessionCredentials `json:"ssh"`
 }
 
+type sshTransport string
+
+const (
+	sshTransportTCP              sshTransport = "tcp"
+	sshTransportNamespaceIngress sshTransport = "namespace_ingress"
+)
+
 type sshSessionCredentials struct {
-	Username   string `json:"username"`
-	PrivateKey string `json:"private_key"`
+	Username   string   `json:"username"`
+	PrivateKey string   `json:"private_key"`
+	HostKeys   []string `json:"host_keys"`
 }
 
 func (s sshSession) validate() error {
-	if err := s.remoteSession.validate(); err != nil {
-		return fmt.Errorf("buildkite API returned an SSH session %w", err)
+	if s.Endpoint == "" {
+		return errors.New("buildkite API returned an SSH session without an endpoint")
 	}
-	endpoint, err := url.Parse(s.Endpoint)
-	if err != nil {
-		return fmt.Errorf("buildkite API returned an SSH session with an invalid endpoint: %w", err)
+	if s.ExpiresAt.IsZero() {
+		return errors.New("buildkite API returned an SSH session without an expiry")
 	}
-	if endpoint.Scheme != "wss" {
-		return fmt.Errorf("buildkite API returned an SSH session endpoint that must use %q, got %q", "wss", endpoint.Scheme)
-	}
-	if endpoint.Hostname() == "" {
-		return errors.New("buildkite API returned an SSH session endpoint without a hostname")
+
+	switch s.Transport {
+	case "":
+		return errors.New("buildkite API returned an SSH session without a transport")
+	case sshTransportTCP:
+		if _, err := sshTCPEndpointAddress(s.Endpoint); err != nil {
+			return fmt.Errorf("buildkite API returned an SSH session with an invalid TCP endpoint: %w", err)
+		}
+		if len(s.SSH.HostKeys) == 0 {
+			return errors.New("buildkite API returned a TCP SSH session without SSH host keys")
+		}
+	case sshTransportNamespaceIngress:
+		if s.AccessToken == "" {
+			return errors.New("buildkite API returned an SSH session without an access token")
+		}
+		endpoint, err := url.Parse(s.Endpoint)
+		if err != nil {
+			return fmt.Errorf("buildkite API returned an SSH session with an invalid endpoint: %w", err)
+		}
+		if endpoint.Scheme != "wss" {
+			return fmt.Errorf("buildkite API returned an SSH session endpoint that must use %q, got %q", "wss", endpoint.Scheme)
+		}
+		if endpoint.Hostname() == "" {
+			return errors.New("buildkite API returned an SSH session endpoint without a hostname")
+		}
+	default:
+		return fmt.Errorf("buildkite API returned unsupported SSH transport %q", s.Transport)
 	}
 
 	if s.SSH.Username == "" {
@@ -56,6 +89,9 @@ func (s sshSession) validate() error {
 	if s.SSH.PrivateKey == "" {
 		return errors.New("buildkite API returned an SSH session without an SSH private key")
 	}
+	if _, err := parseSSHHostKeys(s.SSH.HostKeys); err != nil {
+		return fmt.Errorf("buildkite API returned an SSH session with invalid SSH host keys: %w", err)
+	}
 
 	return nil
 }
@@ -63,7 +99,7 @@ func (s sshSession) validate() error {
 func (c *SSHCmd) Help() string {
 	return `
 Examples:
-	# Open an interactive shell on a running hosted macOS job
+	# Open an interactive shell on a running hosted job
 	$ bk job ssh 0190046e-e199-453b-a302-a21a4d649d31
 `
 }
@@ -103,16 +139,27 @@ type sshStreams struct {
 }
 
 func (c *SSHCmd) run(ctx context.Context, streams sshStreams, client *buildkite.Client, organization string) error {
-	return c.runWithDialer(ctx, streams, client, organization, dialSSHEndpoint)
+	return c.runWithDialer(ctx, streams, client, organization, dialSSHSession)
 }
 
-type sshEndpointDialer func(context.Context, remoteAccessToken, string) (net.Conn, error)
+type sshSessionDialer func(context.Context, sshSession) (net.Conn, error)
 
-func dialSSHEndpoint(ctx context.Context, token remoteAccessToken, endpoint string) (net.Conn, error) {
-	return ingress.DialEndpoint(ctx, io.Discard, token, endpoint)
+func dialSSHSession(ctx context.Context, session sshSession) (net.Conn, error) {
+	switch session.Transport {
+	case sshTransportTCP:
+		address, err := sshTCPEndpointAddress(session.Endpoint)
+		if err != nil {
+			return nil, err
+		}
+		return new(net.Dialer).DialContext(ctx, "tcp", address)
+	case sshTransportNamespaceIngress:
+		return ingress.DialEndpoint(ctx, io.Discard, remoteAccessToken(session.AccessToken), session.Endpoint)
+	default:
+		return nil, fmt.Errorf("unsupported SSH transport %q", session.Transport)
+	}
 }
 
-func (c *SSHCmd) runWithDialer(ctx context.Context, streams sshStreams, client *buildkite.Client, organization string, dialEndpoint sshEndpointDialer) error {
+func (c *SSHCmd) runWithDialer(ctx context.Context, streams sshStreams, client *buildkite.Client, organization string, dialSession sshSessionDialer) error {
 	session, err := createSSHSession(ctx, client, organization, c.JobID)
 	if err != nil {
 		return fmt.Errorf("create SSH session: %w", err)
@@ -123,7 +170,12 @@ func (c *SSHCmd) runWithDialer(ctx context.Context, streams sshStreams, client *
 		return fmt.Errorf("parse SSH private key: %w", err)
 	}
 
-	remote, err := dialEndpoint(ctx, remoteAccessToken(session.AccessToken), session.Endpoint)
+	hostKeyCallback, err := sshHostKeyCallback(session)
+	if err != nil {
+		return err
+	}
+
+	remote, err := dialSession(ctx, session)
 	if err != nil {
 		return fmt.Errorf("connect to the SSH service: %w", err)
 	}
@@ -134,11 +186,9 @@ func (c *SSHCmd) runWithDialer(ctx context.Context, streams sshStreams, client *
 	defer stopRemoteClose()
 
 	config := &ssh.ClientConfig{
-		User: session.SSH.Username,
-		Auth: []ssh.AuthMethod{ssh.PublicKeys(signer)},
-		// Namespace provides an ephemeral SSH server behind an authenticated WSS
-		// endpoint, so it has no stable host key to put in known_hosts.
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec
+		User:            session.SSH.Username,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
+		HostKeyCallback: hostKeyCallback,
 	}
 
 	connection, channels, requests, err := ssh.NewClientConn(remote, remote.RemoteAddr().String(), config)
@@ -198,6 +248,87 @@ func (c *SSHCmd) runWithDialer(ctx context.Context, streams sshStreams, client *
 	}
 
 	return nil
+}
+
+func sshHostKeyCallback(session sshSession) (ssh.HostKeyCallback, error) {
+	if len(session.SSH.HostKeys) == 0 {
+		if session.Transport != sshTransportNamespaceIngress {
+			return nil, errors.New("refusing to connect without SSH host keys over an unauthenticated transport")
+		}
+		// Namespace ingress authenticates the endpoint using WebPKI and the
+		// instance-scoped bearer token before any SSH traffic is exchanged.
+		return ssh.InsecureIgnoreHostKey(), nil //nolint:gosec
+	}
+
+	hostKeys, err := parseSSHHostKeys(session.SSH.HostKeys)
+	if err != nil {
+		return nil, fmt.Errorf("parse SSH host keys: %w", err)
+	}
+
+	return func(_ string, _ net.Addr, presented ssh.PublicKey) error {
+		for _, expected := range hostKeys {
+			if bytes.Equal(presented.Marshal(), expected.Marshal()) {
+				return nil
+			}
+		}
+		return errors.New("SSH host key does not match any key provided by the Buildkite API")
+	}, nil
+}
+
+func parseSSHHostKeys(encoded []string) ([]ssh.PublicKey, error) {
+	hostKeys := make([]ssh.PublicKey, 0, len(encoded))
+	for index, encodedKey := range encoded {
+		hostKey, _, _, rest, err := ssh.ParseAuthorizedKey([]byte(encodedKey))
+		if err != nil {
+			return nil, fmt.Errorf("host key %d is not a valid OpenSSH public key", index+1)
+		}
+		if len(bytes.TrimSpace(rest)) != 0 {
+			return nil, fmt.Errorf("host key %d contains more than one public key", index+1)
+		}
+		hostKeys = append(hostKeys, hostKey)
+	}
+	return hostKeys, nil
+}
+
+func sshTCPEndpointAddress(endpoint string) (string, error) {
+	parsedURL, err := url.Parse(endpoint)
+	if err != nil {
+		return "", errors.New("URL could not be parsed")
+	}
+	if parsedURL.Scheme != "tcp" {
+		return "", fmt.Errorf("scheme must be tcp, got %q", parsedURL.Scheme)
+	}
+	if parsedURL.User != nil {
+		return "", errors.New("userinfo is not allowed")
+	}
+	if parsedURL.Path != "" || parsedURL.RawPath != "" {
+		return "", errors.New("path is not allowed")
+	}
+	if parsedURL.RawQuery != "" || parsedURL.ForceQuery {
+		return "", errors.New("query is not allowed")
+	}
+	if parsedURL.Fragment != "" || strings.Contains(endpoint, "#") {
+		return "", errors.New("fragment is not allowed")
+	}
+
+	host, port, err := net.SplitHostPort(parsedURL.Host)
+	if err != nil {
+		return "", fmt.Errorf("host and port are required: %w", err)
+	}
+	if host == "" {
+		return "", errors.New("host is required")
+	}
+	if strings.IndexFunc(port, func(character rune) bool {
+		return character < '0' || character > '9'
+	}) != -1 {
+		return "", fmt.Errorf("port must be numeric, got %q", port)
+	}
+	portNumber, err := strconv.Atoi(port)
+	if err != nil || portNumber < 1 || portNumber > 65535 {
+		return "", fmt.Errorf("port must be between 1 and 65535, got %q", port)
+	}
+
+	return parsedURL.Host, nil
 }
 
 func isExpectedSSHExit(ctx context.Context, err error) bool {
