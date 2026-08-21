@@ -26,6 +26,8 @@ import (
 const (
 	maxJobLimit = 5000
 	pageSize    = 100
+	// Pages to walk while a filter the server cannot apply is discarding results.
+	maxClientFilterPages = 20
 )
 
 type ListCmd struct {
@@ -49,14 +51,13 @@ func (c *ListCmd) Help() string {
 When a build number is known, use --build to fetch its jobs directly. The pipeline
 can be passed with --pipeline or resolved from the current repository or config.
 
-Client-side filters: --queue, --state, --duration
-Server-side filters: --pipeline, --build, --step-key, --group-key, --since, --until
+Server-side filters: --pipeline, --build, --step-key, --group-key, --since,
+--until, --queue, --state
 
-With --build, --state is also applied by the server. Client-side filters and
-ordering are applied after all required cursor pages have been fetched.
+Client-side filters: --duration, and --state without --queue or --build
 
 Without --build, the command fetches up to 200 builds for filtering by default.
-Use --no-limit if you need to search across more builds to find all matching jobs.
+Use --no-limit to search further.
 
 Jobs can be filtered by queue, state, duration, and other attributes.
 When filtering by duration, you can use operators like >, <, >=, and <= to specify your criteria.
@@ -68,6 +69,9 @@ Examples:
 
   # List jobs from a specific queue
   $ bk job list --queue test-queue
+
+  # List running jobs in a queue (both filters applied by the server)
+  $ bk job list --queue test-queue --state running
 
   # List running jobs
   $ bk job list --state running
@@ -381,15 +385,25 @@ func fetchJobs(ctx context.Context, f *factory.Factory, org string, opts jobList
 	return allJobs, nil
 }
 
-type listJobsByQueue func(ctx context.Context, f *factory.Factory, org string, queueIDs []string, cursor *string) ([]buildkite.Job, *string, bool, error)
+type listJobsByQueue func(ctx context.Context, f *factory.Factory, org string, queueIDs []string, states []bkGraphQL.JobStates, cursor *string) ([]buildkite.Job, *string, bool, error)
 
 func listJobsWithPagination(ctx context.Context, f *factory.Factory, org string, queueIDs []string, opts jobListOptions, listJobs listJobsByQueue) ([]buildkite.Job, error) {
 	var jobs []buildkite.Job
 	var cursor *string
-	noQueueOpts := opts.withoutQueue()
+	states, exactStates := graphQLStatesFor(opts.state)
+
+	clientOpts := opts.withoutQueue()
+	if exactStates {
+		clientOpts.state = nil
+	}
+
+	// Without a bound, a filter matching fewer than --limit jobs walks the
+	// queue's entire history.
+	pagesRemaining := maxClientFilterPages
+	boundPages := !opts.noLimit && (len(clientOpts.state) > 0 || clientOpts.duration != "")
 
 	for len(jobs) < opts.limit {
-		jobBatch, nextCursor, hasNext, err := listJobs(ctx, f, org, queueIDs, cursor)
+		jobBatch, nextCursor, hasNext, err := listJobs(ctx, f, org, queueIDs, states, cursor)
 		if err != nil {
 			return nil, err
 		}
@@ -398,8 +412,8 @@ func listJobsWithPagination(ctx context.Context, f *factory.Factory, org string,
 		}
 
 		// Apply client-side filters if needed
-		if len(noQueueOpts.state) > 0 || noQueueOpts.duration != "" {
-			jobBatch, err = applyClientSideFilters(jobBatch, noQueueOpts, nil)
+		if len(clientOpts.state) > 0 || clientOpts.duration != "" {
+			jobBatch, err = applyClientSideFilters(jobBatch, clientOpts, nil)
 			if err != nil {
 				return nil, fmt.Errorf("failed to apply filters: %w", err)
 			}
@@ -414,6 +428,12 @@ func listJobsWithPagination(ctx context.Context, f *factory.Factory, org string,
 
 		if !hasNext {
 			break
+		}
+		if boundPages {
+			if pagesRemaining--; pagesRemaining <= 0 {
+				fmt.Fprintf(os.Stderr, "Stopped after searching %d jobs. Narrow the search, or use --no-limit to keep going.\n", maxClientFilterPages*pageSize)
+				break
+			}
 		}
 		cursor = nextCursor
 	}
@@ -570,9 +590,9 @@ func fetchQueuesForCluster(ctx context.Context, client graphql.Client, clusterID
 	return matchingQueueIDs, nil
 }
 
-func listJobsByClusterQueue(ctx context.Context, f *factory.Factory, org string, queueIDs []string, cursor *string) ([]buildkite.Job, *string, bool, error) {
+func listJobsByClusterQueue(ctx context.Context, f *factory.Factory, org string, queueIDs []string, states []bkGraphQL.JobStates, cursor *string) ([]buildkite.Job, *string, bool, error) {
 	first := pageSize
-	resp, err := bkGraphQL.ListJobsByQueue(ctx, f.GraphQLClient, org, queueIDs, &first, cursor)
+	resp, err := bkGraphQL.ListJobsByQueue(ctx, f.GraphQLClient, org, queueIDs, states, &first, cursor)
 	if err != nil {
 		return nil, nil, false, fmt.Errorf("failed to list jobs: %w", err)
 	}
@@ -633,10 +653,10 @@ func convertGraphQLJobToBuildkiteJob(jobNode *bkGraphQL.ListJobsByQueueOrganizat
 	}
 }
 
-func listJobsByAgentQueryRules(ctx context.Context, f *factory.Factory, org string, agentQueryRules []string, cursor *string) ([]buildkite.Job, *string, bool, error) {
+func listJobsByAgentQueryRules(ctx context.Context, f *factory.Factory, org string, agentQueryRules []string, states []bkGraphQL.JobStates, cursor *string) ([]buildkite.Job, *string, bool, error) {
 	first := pageSize
 
-	resp, err := bkGraphQL.ListJobsByAgentQueryRules(ctx, f.GraphQLClient, org, agentQueryRules, &first, cursor)
+	resp, err := bkGraphQL.ListJobsByAgentQueryRules(ctx, f.GraphQLClient, org, agentQueryRules, states, &first, cursor)
 	if err != nil {
 		return nil, nil, false, fmt.Errorf("failed to list jobs: %w", err)
 	}
@@ -734,31 +754,53 @@ func derefString(s *string) string {
 
 // mapGraphQLState converts GraphQL job states to REST API equivalent states
 func mapGraphQLState(graphqlState, exitStatus string) string {
-	switch graphqlState {
-	case "FINISHED":
-		// For finished jobs, determine success/failure based on exit status
+	// FINISHED is the only state REST splits, by exit status. A job with no
+	// exit status recorded counts as failed.
+	if graphqlState == "FINISHED" {
 		if exitStatus == "0" {
 			return "passed"
 		}
 		return "failed"
-	case "RUNNING":
-		return "running"
-	case "SCHEDULED", "ASSIGNED", "ACCEPTED":
-		return "scheduled"
-	case "CANCELED", "CANCELING":
-		return "canceled"
-	case "TIMED_OUT", "TIMING_OUT":
-		return "timed_out"
-	case "SKIPPED":
-		return "skipped"
-	case "BLOCKED":
-		return "blocked"
-	case "WAITING":
-		return "waiting"
-	default:
-		// For unknown states, return lowercase version of GraphQL state
-		return strings.ToLower(graphqlState)
 	}
+
+	return strings.ToLower(graphqlState)
+}
+
+// --state values with no single JobStates equivalent.
+var inexactGraphQLStates = map[string][]bkGraphQL.JobStates{
+	"passed": {bkGraphQL.JobStatesFinished},
+	"failed": {bkGraphQL.JobStatesFinished},
+}
+
+// graphQLStatesFor maps --state values onto JobStates for the server-side
+// filter. The bool reports whether the server alone produces the exact set;
+// passed and failed are both FINISHED, so those still need the client pass.
+func graphQLStatesFor(states []string) ([]bkGraphQL.JobStates, bool) {
+	var mapped []bkGraphQL.JobStates
+	seen := make(map[bkGraphQL.JobStates]struct{}, len(states))
+	exact := true
+
+	for _, state := range states {
+		normalized := strings.ToLower(strings.TrimSpace(state))
+
+		candidates, inexact := inexactGraphQLStates[normalized]
+		if inexact {
+			exact = false
+		} else {
+			// Uppercasing also covers states newer than the vendored schema.
+			candidates = []bkGraphQL.JobStates{bkGraphQL.JobStates(strings.ToUpper(normalized))}
+		}
+
+		for _, candidate := range candidates {
+			if _, ok := seen[candidate]; ok {
+				continue
+			}
+			seen[candidate] = struct{}{}
+			mapped = append(mapped, candidate)
+		}
+	}
+
+	return mapped, exact
 }
 
 func jobListOptionsFromFlags(opts *jobListOptions) (*buildkite.BuildsListOptions, error) {
