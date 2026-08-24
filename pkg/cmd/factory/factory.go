@@ -2,6 +2,7 @@ package factory
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -109,7 +110,7 @@ func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	if dump, err := httputil.DumpRequestOut(reqCopy, true); err == nil {
-		fmt.Fprintf(os.Stderr, "DEBUG request uri=%s\n%s\n", req.URL, redactBody(string(dump)))
+		fmt.Fprintf(os.Stderr, "DEBUG request uri=%s\n%s\n", req.URL, redactRequestDump(req, string(dump)))
 	}
 
 	resp, err := d.transport.RoundTrip(req)
@@ -122,6 +123,50 @@ func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	return resp, nil
+}
+
+func redactRequestDump(req *http.Request, dump string) string {
+	if !isClusterSecretValueRequest(req) {
+		return redactBody(dump)
+	}
+
+	bodyStart := strings.Index(dump, "\r\n\r\n")
+	separatorLength := 4
+	if bodyStart == -1 {
+		bodyStart = strings.Index(dump, "\n\n")
+		separatorLength = 2
+	}
+	if bodyStart == -1 {
+		return "[REDACTED]"
+	}
+	bodyStart += separatorLength
+
+	var body map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(dump[bodyStart:]), &body); err != nil {
+		return redactBody(dump[:bodyStart] + "[REDACTED]")
+	}
+	if _, ok := body["value"]; !ok {
+		return redactBody(dump[:bodyStart] + "[REDACTED]")
+	}
+	body["value"] = json.RawMessage(`"[REDACTED]"`)
+	redacted, err := json.Marshal(body)
+	if err != nil {
+		return redactBody(dump[:bodyStart] + "[REDACTED]")
+	}
+
+	return redactBody(dump[:bodyStart] + string(redacted))
+}
+
+func isClusterSecretValueRequest(req *http.Request) bool {
+	path := strings.TrimSuffix(req.URL.Path, "/")
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if req.Method == http.MethodPost && len(parts) >= 3 {
+		return parts[len(parts)-3] == "clusters" && parts[len(parts)-1] == "secrets"
+	}
+	if req.Method == http.MethodPut && len(parts) >= 5 {
+		return parts[len(parts)-5] == "clusters" && parts[len(parts)-3] == "secrets" && parts[len(parts)-1] == "value"
+	}
+	return false
 }
 
 // sensitiveBodyPatterns matches token values in form-encoded request bodies
