@@ -250,6 +250,14 @@ func TestDebugTransportRedactsClusterSecretValues(t *testing.T) {
 			secretMarkers: []string{"replacement-secret"},
 		},
 		{
+			name:          "malformed cluster ID still redacts",
+			method:        http.MethodPost,
+			path:          "/v2/organizations/test/clusters/cluster-1//secrets",
+			body:          `{"key":"API_KEY","value":"malformed-id-secret"}`,
+			secretMarkers: []string{"malformed-id-secret"},
+			wantVisible:   `"key":"API_KEY"`,
+		},
+		{
 			name:          "malformed secret request fails closed",
 			method:        http.MethodPost,
 			path:          "/v2/organizations/test/clusters/cluster-1/secrets",
