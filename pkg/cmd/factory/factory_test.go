@@ -249,6 +249,13 @@ func TestDebugTransportOmitsClusterSecretRequestBodies(t *testing.T) {
 			secretMarkers: []string{"replacement-secret"},
 		},
 		{
+			name:          "query string after secret endpoint still omits body",
+			method:        http.MethodPost,
+			path:          "/v2/organizations/test/clusters/cluster-1/secrets?somequerystring=something",
+			body:          `{"key":"API_KEY","value":"query-string-secret"}`,
+			secretMarkers: []string{"API_KEY", "query-string-secret"},
+		},
+		{
 			name:          "malformed cluster ID still omits body",
 			method:        http.MethodPost,
 			path:          "/v2/organizations/test/clusters/cluster-1//secrets",

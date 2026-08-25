@@ -132,21 +132,29 @@ func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func isClusterSecretValueRequest(req *http.Request) bool {
-	target := req.URL.Path
+	path := strings.TrimSuffix(req.URL.Path, "/")
+	if isClusterSecretValueTarget(req.Method, path) {
+		return true
+	}
+
+	target := path
 	if req.URL.RawQuery != "" {
 		target += "?" + req.URL.RawQuery
 	}
 	if req.URL.Fragment != "" {
 		target += "#" + req.URL.Fragment
 	}
-	target = strings.TrimSuffix(target, "/")
+	return isClusterSecretValueTarget(req.Method, strings.TrimSuffix(target, "/"))
+}
+
+func isClusterSecretValueTarget(method, target string) bool {
 	if !strings.Contains(target, "/clusters/") {
 		return false
 	}
-	if req.Method == http.MethodPost {
+	if method == http.MethodPost {
 		return strings.HasSuffix(target, "/secrets")
 	}
-	return req.Method == http.MethodPut && strings.Contains(target, "/secrets/") && strings.HasSuffix(target, "/value")
+	return method == http.MethodPut && strings.Contains(target, "/secrets/") && strings.HasSuffix(target, "/value")
 }
 
 // sensitiveBodyPatterns matches token values in form-encoded request bodies
