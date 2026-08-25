@@ -158,14 +158,21 @@ func redactRequestDump(req *http.Request, dump string) string {
 }
 
 func isClusterSecretValueRequest(req *http.Request) bool {
-	path := strings.TrimSuffix(req.URL.Path, "/")
-	if !strings.Contains(path, "/clusters/") {
+	target := req.URL.Path
+	if req.URL.RawQuery != "" {
+		target += "?" + req.URL.RawQuery
+	}
+	if req.URL.Fragment != "" {
+		target += "#" + req.URL.Fragment
+	}
+	target = strings.TrimSuffix(target, "/")
+	if !strings.Contains(target, "/clusters/") {
 		return false
 	}
 	if req.Method == http.MethodPost {
-		return strings.HasSuffix(path, "/secrets")
+		return strings.HasSuffix(target, "/secrets")
 	}
-	return req.Method == http.MethodPut && strings.Contains(path, "/secrets/") && strings.HasSuffix(path, "/value")
+	return req.Method == http.MethodPut && strings.Contains(target, "/secrets/") && strings.HasSuffix(target, "/value")
 }
 
 // sensitiveBodyPatterns matches token values in form-encoded request bodies
