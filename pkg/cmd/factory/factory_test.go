@@ -258,6 +258,21 @@ func TestDebugTransportRedactsClusterSecretValues(t *testing.T) {
 			wantVisible:   `"key":"API_KEY"`,
 		},
 		{
+			name:          "query delimiter in cluster ID still redacts",
+			method:        http.MethodPost,
+			path:          "/v2/organizations/test/clusters/cluster-1?/secrets",
+			body:          `{"key":"API_KEY","value":"query-delimiter-secret"}`,
+			secretMarkers: []string{"query-delimiter-secret"},
+			wantVisible:   `"key":"API_KEY"`,
+		},
+		{
+			name:          "fragment delimiter in secret ID still redacts",
+			method:        http.MethodPut,
+			path:          "/v2/organizations/test/clusters/cluster-1/secrets/secret-1#/value",
+			body:          `{"value":"fragment-delimiter-secret"}`,
+			secretMarkers: []string{"fragment-delimiter-secret"},
+		},
+		{
 			name:          "malformed secret request fails closed",
 			method:        http.MethodPost,
 			path:          "/v2/organizations/test/clusters/cluster-1/secrets",
