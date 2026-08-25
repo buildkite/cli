@@ -379,7 +379,7 @@ func TestDebugTransportHandlesNilBody(t *testing.T) {
 	}
 }
 
-func TestDebugTransportRedactsClusterSecretValues(t *testing.T) {
+func TestDebugTransportOmitsClusterSecretRequestBodies(t *testing.T) {
 	tests := []struct {
 		name          string
 		method        string
@@ -393,8 +393,7 @@ func TestDebugTransportRedactsClusterSecretValues(t *testing.T) {
 			method:        http.MethodPost,
 			path:          "/v2/organizations/test/clusters/cluster-1/secrets",
 			body:          "{\n  \"key\": \"API_KEY\",\n  \"value\" : \"secret-prefix-\\\"quoted\\\"-\\\\path\\nsecret-suffix\"\n}",
-			secretMarkers: []string{"secret-prefix", "quoted", "secret-suffix"},
-			wantVisible:   `"key":"API_KEY"`,
+			secretMarkers: []string{"API_KEY", "secret-prefix", "quoted", "secret-suffix"},
 		},
 		{
 			name:          "update secret value",
@@ -404,23 +403,21 @@ func TestDebugTransportRedactsClusterSecretValues(t *testing.T) {
 			secretMarkers: []string{"replacement-secret"},
 		},
 		{
-			name:          "malformed cluster ID still redacts",
+			name:          "malformed cluster ID still omits body",
 			method:        http.MethodPost,
 			path:          "/v2/organizations/test/clusters/cluster-1//secrets",
 			body:          `{"key":"API_KEY","value":"malformed-id-secret"}`,
-			secretMarkers: []string{"malformed-id-secret"},
-			wantVisible:   `"key":"API_KEY"`,
+			secretMarkers: []string{"API_KEY", "malformed-id-secret"},
 		},
 		{
-			name:          "query delimiter in cluster ID still redacts",
+			name:          "query delimiter in cluster ID still omits body",
 			method:        http.MethodPost,
 			path:          "/v2/organizations/test/clusters/cluster-1?/secrets",
 			body:          `{"key":"API_KEY","value":"query-delimiter-secret"}`,
-			secretMarkers: []string{"query-delimiter-secret"},
-			wantVisible:   `"key":"API_KEY"`,
+			secretMarkers: []string{"API_KEY", "query-delimiter-secret"},
 		},
 		{
-			name:          "fragment delimiter in secret ID still redacts",
+			name:          "fragment delimiter in secret ID still omits body",
 			method:        http.MethodPut,
 			path:          "/v2/organizations/test/clusters/cluster-1/secrets/secret-1#/value",
 			body:          `{"value":"fragment-delimiter-secret"}`,
@@ -481,8 +478,8 @@ func TestDebugTransportRedactsClusterSecretValues(t *testing.T) {
 					t.Errorf("stderr contains secret marker %q:\n%s", marker, stderr)
 				}
 			}
-			if len(test.secretMarkers) > 0 && !strings.Contains(stderr, "[REDACTED]") {
-				t.Errorf("stderr does not contain a redaction marker:\n%s", stderr)
+			if len(test.secretMarkers) > 0 && !strings.Contains(stderr, omittedRequestBody) {
+				t.Errorf("stderr does not say the request body was omitted:\n%s", stderr)
 			}
 			if test.wantVisible != "" && !strings.Contains(stderr, test.wantVisible) {
 				t.Errorf("stderr does not contain %q:\n%s", test.wantVisible, stderr)

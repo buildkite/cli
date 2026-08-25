@@ -2,7 +2,6 @@ package factory
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -85,6 +84,8 @@ type debugTransport struct {
 // sensitiveHeaders contains headers that should be redacted in debug output
 var sensitiveHeaders = []string{"Authorization"}
 
+const omittedRequestBody = "[request body omitted]"
+
 func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Save and restore the request body so that dumping it does not consume
 	// the body before the real transport sends it. req.Clone() shares the
@@ -109,8 +110,13 @@ func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		reqCopy.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	}
 
-	if dump, err := httputil.DumpRequestOut(reqCopy, true); err == nil {
-		fmt.Fprintf(os.Stderr, "DEBUG request uri=%s\n%s\n", req.URL, redactRequestDump(req, string(dump)))
+	includeBody := !isClusterSecretValueRequest(req)
+	if dump, err := httputil.DumpRequestOut(reqCopy, includeBody); err == nil {
+		redacted := redactBody(string(dump))
+		if !includeBody {
+			redacted += "\n" + omittedRequestBody
+		}
+		fmt.Fprintf(os.Stderr, "DEBUG request uri=%s\n%s\n", req.URL, redacted)
 	}
 
 	resp, err := d.transport.RoundTrip(req)
@@ -123,38 +129,6 @@ func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	return resp, nil
-}
-
-func redactRequestDump(req *http.Request, dump string) string {
-	if !isClusterSecretValueRequest(req) {
-		return redactBody(dump)
-	}
-
-	bodyStart := strings.Index(dump, "\r\n\r\n")
-	separatorLength := 4
-	if bodyStart == -1 {
-		bodyStart = strings.Index(dump, "\n\n")
-		separatorLength = 2
-	}
-	if bodyStart == -1 {
-		return "[REDACTED]"
-	}
-	bodyStart += separatorLength
-
-	var body map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(dump[bodyStart:]), &body); err != nil {
-		return redactBody(dump[:bodyStart] + "[REDACTED]")
-	}
-	if _, ok := body["value"]; !ok {
-		return redactBody(dump[:bodyStart] + "[REDACTED]")
-	}
-	body["value"] = json.RawMessage(`"[REDACTED]"`)
-	redacted, err := json.Marshal(body)
-	if err != nil {
-		return redactBody(dump[:bodyStart] + "[REDACTED]")
-	}
-
-	return redactBody(dump[:bodyStart] + string(redacted))
 }
 
 func isClusterSecretValueRequest(req *http.Request) bool {
