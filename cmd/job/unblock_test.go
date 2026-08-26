@@ -6,6 +6,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"reflect"
+	"strings"
 	"testing"
 
 	buildkite "github.com/buildkite/go-buildkite/v5"
@@ -83,6 +86,71 @@ func TestParseUnblockFields(t *testing.T) {
 				t.Fatalf("parseUnblockFields() = %s, want %s", gotJSON, wantJSON)
 			}
 		})
+	}
+}
+
+func TestUnblockFields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		data  string
+		stdin string
+		want  map[string]any
+	}{
+		{
+			name:  "data takes precedence over stdin",
+			data:  `{"source":"data"}`,
+			stdin: `{"source":"stdin"}`,
+			want:  map[string]any{"source": "data"},
+		},
+		{
+			name:  "reads stdin when data is absent",
+			stdin: `{"source":"stdin"}`,
+			want:  map[string]any{"source": "stdin"},
+		},
+		{
+			name: "returns nil when no data is provided",
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := UnblockCmd{Data: tt.data}
+			got, err := cmd.unblockFields(strings.NewReader(tt.stdin))
+			if err != nil {
+				t.Fatalf("unblockFields() error = %v", err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("unblockFields() = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestUnblockFieldsPrefersDataOverEmptyNonTTYStdin(t *testing.T) {
+	t.Parallel()
+
+	stdin, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatalf("open null device: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = stdin.Close()
+	})
+
+	cmd := UnblockCmd{Data: `{"source":"data"}`}
+	got, err := cmd.unblockFields(stdin)
+	if err != nil {
+		t.Fatalf("unblockFields() error = %v", err)
+	}
+
+	want := map[string]any{"source": "data"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("unblockFields() = %#v, want %#v", got, want)
 	}
 }
 

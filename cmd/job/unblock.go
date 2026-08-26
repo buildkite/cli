@@ -60,7 +60,7 @@ func (c *UnblockCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	ctx := context.Background()
 
-	fields, err := c.unblockFields()
+	fields, err := c.unblockFields(os.Stdin)
 	if err != nil {
 		return err
 	}
@@ -88,15 +88,17 @@ func (c *UnblockCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	return nil
 }
 
-func (c *UnblockCmd) unblockFields() (map[string]any, error) {
-	if bkIO.HasDataAvailable(os.Stdin) {
-		stdin := new(strings.Builder)
-		if _, err := io.Copy(stdin, os.Stdin); err != nil {
-			return nil, err
-		}
-		return parseUnblockFields(stdin.String())
-	} else if c.Data != "" {
+func (c *UnblockCmd) unblockFields(stdin io.Reader) (map[string]any, error) {
+	if c.Data != "" {
 		return parseUnblockFields(c.Data)
+	}
+
+	if bkIO.HasDataAvailable(stdin) {
+		input, err := io.ReadAll(stdin)
+		if err != nil {
+			return nil, fmt.Errorf("reading unblock data from stdin: %w", err)
+		}
+		return parseUnblockFields(string(input))
 	}
 
 	return nil, nil
