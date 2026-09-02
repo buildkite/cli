@@ -2,14 +2,11 @@ package preflight
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
-
-	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 type testPresenter struct{}
@@ -19,14 +16,6 @@ type summarySuiteColumnWidths struct {
 	Failed  int
 	Passed  int
 	Skipped int
-}
-
-func (p testPresenter) Line(t buildkite.BuildTest) string {
-	return p.line(t, false)
-}
-
-func (p testPresenter) ColoredLine(t buildkite.BuildTest) string {
-	return p.line(t, true)
 }
 
 func (p testPresenter) SummarySuiteLine(summary internalpreflight.SummaryTestRun, widths summarySuiteColumnWidths) string {
@@ -89,131 +78,6 @@ func (p testPresenter) SummaryFailureLine(failure internalpreflight.SummaryTestF
 	}
 
 	return strings.Join(lines, "\n")
-}
-
-func (p testPresenter) line(t buildkite.BuildTest, colored bool) string {
-	name := t.Name
-	if t.Scope != "" {
-		name = t.Scope + " " + name
-	}
-	name = truncateToWidth(name, 80)
-
-	latestExecution := latestTestExecution(t)
-
-	statusIcon := formatTestStatusIcon(latestExecution, colored)
-	line := fmt.Sprintf("%s %s", statusIcon, name)
-
-	if !isFailedTestExecution(latestExecution) {
-		return line
-	}
-
-	detailParts := make([]string, 0, 2)
-	if attemptSummary := testAttemptCounts(t); attemptSummary != "" {
-		detailParts = append(detailParts, attemptSummary)
-	}
-	if location := latestExecution.Location; location != "" {
-		detailParts = append(detailParts, location)
-	} else if t.Location != "" {
-		detailParts = append(detailParts, t.Location)
-	}
-	if len(detailParts) > 0 {
-		line += fmt.Sprintf("\n    %s", formatTestDetail(strings.Join(detailParts, " — "), colored))
-	}
-
-	if latestExecution.FailureReason != "" {
-		line += fmt.Sprintf("\n    %s", formatTestDetail(latestExecution.FailureReason, colored))
-	}
-
-	return line
-}
-
-func testAttemptCounts(t buildkite.BuildTest) string {
-	attempts := t.ExecutionsCount
-	if attempts == 0 {
-		return ""
-	}
-
-	passed := t.ExecutionsCountByResult.Passed
-	failed := t.ExecutionsCountByResult.Failed
-	return fmt.Sprintf("%d %s (%d passed, %d failed)", attempts, plural(attempts, "attempt"), passed, failed)
-}
-
-func latestTestExecution(t buildkite.BuildTest) *buildkite.BuildTestExecution {
-	executions := testExecutionsInTimestampOrder(t.Executions)
-	if len(executions) == 0 {
-		return nil
-	}
-
-	latest := executions[len(executions)-1]
-	if latest.Timestamp == nil {
-		return nil
-	}
-
-	return &latest
-}
-
-func testExecutionsInTimestampOrder(executions []buildkite.BuildTestExecution) []buildkite.BuildTestExecution {
-	ordered := append([]buildkite.BuildTestExecution(nil), executions...)
-	sort.SliceStable(ordered, func(i, j int) bool {
-		left := ordered[i]
-		right := ordered[j]
-
-		switch {
-		case left.Timestamp == nil && right.Timestamp == nil:
-			return false
-		case left.Timestamp == nil:
-			return true
-		case right.Timestamp == nil:
-			return false
-		default:
-			return left.Timestamp.Before(right.Timestamp.Time)
-		}
-	})
-
-	return ordered
-}
-
-func isFailedTestExecution(execution *buildkite.BuildTestExecution) bool {
-	if execution == nil {
-		return false
-	}
-
-	return strings.EqualFold(execution.Status, "failed")
-}
-
-func formatTestDetail(text string, colored bool) string {
-	if !colored {
-		return text
-	}
-
-	return "\033[2m" + text + "\033[0m"
-}
-
-func formatTestStatusIcon(execution *buildkite.BuildTestExecution, colored bool) string {
-	status := ""
-	if execution != nil {
-		status = execution.Status
-	}
-
-	if !colored {
-		switch {
-		case strings.EqualFold(status, "passed"):
-			return "✓"
-		case strings.EqualFold(status, "failed"):
-			return "✗"
-		default:
-			return "?"
-		}
-	}
-
-	switch {
-	case strings.EqualFold(status, "passed"):
-		return "\033[32m✓\033[0m"
-	case strings.EqualFold(status, "failed"):
-		return "\033[31m✗\033[0m"
-	default:
-		return "\033[2m?\033[0m"
-	}
 }
 
 func truncateToWidth(s string, width int) string {
