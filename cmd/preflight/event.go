@@ -22,7 +22,6 @@ const (
 	// early (promised) failure, ahead of reaching a terminal state.
 	EventJobPromisedFailure EventType = "job_promised_failure"
 	EventBuildSummary       EventType = "build_summary"
-	EventTestFailure        EventType = "test_failure"
 )
 
 // Event is the single data model emitted by a preflight run.
@@ -66,9 +65,6 @@ type Event struct {
 
 	// Duration is set for build_summary events. Total elapsed time of the preflight run.
 	Duration time.Duration `json:"duration_ns,omitempty"`
-
-	// TestFailures is set for test_failure events.
-	TestFailures []buildkite.BuildTest `json:"test_failures,omitempty"`
 
 	// Tests is set for build_summary events when aggregated test summary data is available.
 	Tests internalpreflight.SummaryTests `json:"tests,omitempty"`
@@ -145,8 +141,7 @@ func (e Event) MarshalJSON() ([]byte, error) {
 
 		Duration time.Duration `json:"duration_ns,omitempty"`
 
-		TestFailures []buildkite.BuildTest           `json:"test_failures,omitempty"`
-		Tests        *internalpreflight.SummaryTests `json:"tests,omitempty"`
+		Tests *internalpreflight.SummaryTests `json:"tests,omitempty"`
 	}
 
 	var job *jsonJob
@@ -178,7 +173,6 @@ func (e Event) MarshalJSON() ([]byte, error) {
 		FailedJobs:    newJSONJobs(e.FailedJobs),
 		PassedJobs:    newJSONJobs(e.PassedJobs),
 		Duration:      e.Duration,
-		TestFailures:  e.TestFailures,
 		Tests:         tests,
 	})
 }
