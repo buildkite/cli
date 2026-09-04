@@ -56,5 +56,5 @@ go run main.go --help
 ```
 
 `mise.toml` pins the shared toolchain, including the release helpers used in
-CI. The module itself remains compatible with Go `1.25.0` as declared in
+CI. The module itself remains compatible with Go `1.26.0` as declared in
 `go.mod`.
