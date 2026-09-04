@@ -115,8 +115,8 @@ github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUq
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
 github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 h1:BQSFePA1RWJOlocH6Fxy8MmwDt+yVQYULKfN0RoTN8A=
 github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99/go.mod h1:1lJo3i6rXxKeerYnT8Nvf0QmHCRC1n8sfWVwXF2Frvo=
-github.com/jpillora/chisel v1.12.0 h1:dSbh+gzYF8PWj7aWIRDB48ntSIkrFAWEYNhbsl/XOCg=
-github.com/jpillora/chisel v1.12.0/go.mod h1:HbVSQorRhEvKNesMuOT51r+REHn6Zp6V4XQc2AJrEvA=
+github.com/jpillora/chisel v1.12.1 h1:L+qsitUGKt471qVMpmlFHLTxbUZGChfPbEVXaRv5T3I=
+github.com/jpillora/chisel v1.12.1/go.mod h1:HbVSQorRhEvKNesMuOT51r+REHn6Zp6V4XQc2AJrEvA=
 github.com/jpillora/sizestr v1.0.0 h1:4tr0FLxs1Mtq3TnsLDV+GYUWG7Q26a6s+tV5Zfw2ygw=
 github.com/jpillora/sizestr v1.0.0/go.mod h1:bUhLv4ctkknatr6gR42qPxirmd5+ds1u7mzD+MZ33f0=
 github.com/jxskiss/base62 v1.1.0 h1:A5zbF8v8WXx2xixnAKD2w+abC+sIzYJX+nxmhA6HWFw=
