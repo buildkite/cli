@@ -107,6 +107,7 @@ func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	interval := time.Duration(c.Interval) * time.Second
 
 	_, err = watch.WatchBuild(ctx, f.RestAPIClient, bld.Organization, bld.Pipeline, bld.BuildNumber, interval, func(b buildkite.Build) error {
+		b.Jobs = watchJobs(b.Jobs)
 		summary := shared.BuildSummaryWithJobs(&b, bld.Organization, bld.Pipeline)
 		if tty {
 			fmt.Print("\033[H\033[2J")
@@ -121,4 +122,15 @@ func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	return err
+}
+
+func watchJobs(jobs []buildkite.Job) []buildkite.Job {
+	out := make([]buildkite.Job, 0, len(jobs))
+	for _, j := range jobs {
+		if j.State == "broken" {
+			continue
+		}
+		out = append(out, j)
+	}
+	return out
 }
