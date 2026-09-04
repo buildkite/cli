@@ -256,9 +256,8 @@ func TestLoginCmdValidateDeviceIncompatibleFlags(t *testing.T) {
 			wantErr: "--device cannot be used with --token",
 		},
 		{
-			name:    "device with org",
-			cmd:     LoginCmd{Device: true, Org: "buildkite"},
-			wantErr: "--org is not supported with --device; choose an organization on the authorization page",
+			name: "device with org",
+			cmd:  LoginCmd{Device: true, Org: "buildkite"},
 		},
 		{
 			name: "device only",
@@ -499,6 +498,12 @@ func TestLoginCmdRunDeviceFlow(t *testing.T) {
 			if got := r.FormValue("scope"); got != "read_user read_organizations" {
 				t.Errorf("scope = %q, want requested scopes", got)
 			}
+			if got := r.FormValue("organization"); got != "test-org" {
+				t.Errorf("organization = %q, want test-org", got)
+			}
+			if got := r.FormValue("organization_uuid"); got != "" {
+				t.Errorf("organization_uuid = %q, want empty", got)
+			}
 			_ = json.NewEncoder(w).Encode(oauth.DeviceAuthorizationResponse{
 				DeviceCode:              "device-code",
 				UserCode:                "ABCD-EFGH",
@@ -547,7 +552,7 @@ func TestLoginCmdRunDeviceFlow(t *testing.T) {
 	t.Setenv("BUILDKITE_HOST", strings.TrimPrefix(server.URL, "https://"))
 	t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
 
-	cmd := &LoginCmd{Device: true, Scopes: "read_user read_organizations"}
+	cmd := &LoginCmd{Device: true, Org: "test-org", Scopes: "read_user read_organizations"}
 	if err := cmd.Run(nil, authStubGlobals{}); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
