@@ -19,9 +19,11 @@ type stubCredentialStore struct {
 	accessToken        string
 	refreshToken       string
 	refreshTokenReads  []string
+	checkWritableErr   error
 	setAccessErr       error
 	setRefreshTokenErr error
 	deleteRefreshCalls int
+	checkWritableCalls int
 }
 
 func (s *stubCredentialStore) Set(_ string, token string) error {
@@ -72,6 +74,14 @@ func (s *stubCredentialStore) DeleteRefreshToken(string) error {
 	s.deleteRefreshCalls++
 	s.refreshToken = ""
 	return nil
+}
+
+func (s *stubCredentialStore) CheckWritable() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.checkWritableCalls++
+	return s.checkWritableErr
 }
 
 func TestRefreshTransport_PassesThroughNon401(t *testing.T) {
@@ -196,6 +206,66 @@ func TestRefreshTransport_CompareAfterLock_SkipsRedundantRefresh(t *testing.T) {
 	// Should have made exactly 2 API calls: the initial 401 + the retry
 	if got := apiCalls.Load(); got != 2 {
 		t.Fatalf("expected 2 API calls (initial + retry), got %d", got)
+	}
+}
+
+func TestRefreshTransport_UnwritableCredentialStoreDoesNotExchangeRefreshToken(t *testing.T) {
+	var refreshRequests atomic.Int32
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/oauth/token":
+			refreshRequests.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"new-token","refresh_token":"new-refresh-token","token_type":"Bearer","expires_in":3600}`))
+		default:
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+	}))
+	defer server.Close()
+
+	origTransport := http.DefaultTransport
+	http.DefaultTransport = server.Client().Transport
+	defer func() { http.DefaultTransport = origTransport }()
+
+	writeErr := errors.New("keychain is read-only")
+	store := &stubCredentialStore{
+		accessToken:      "old-token",
+		refreshToken:     "old-refresh-token",
+		checkWritableErr: writeErr,
+	}
+	transport := &RefreshTransport{
+		Base:        server.Client().Transport,
+		Org:         "test-org",
+		Keyring:     store,
+		TokenSource: NewTokenSource("old-token"),
+	}
+
+	t.Setenv("BUILDKITE_HOST", strings.TrimPrefix(server.URL, "https://"))
+
+	req, _ := http.NewRequest(http.MethodGet, server.URL+"/test", nil)
+	req.Header.Set("Authorization", "Bearer old-token")
+
+	resp, err := transport.RoundTrip(req)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if resp != nil {
+		t.Fatalf("expected nil response on credential persistence failure, got %#v", resp)
+	}
+	if !errors.Is(err, errCredentialPersistence) || !errors.Is(err, writeErr) {
+		t.Fatalf("expected wrapped credential persistence error, got %v", err)
+	}
+	if got := refreshRequests.Load(); got != 0 {
+		t.Fatalf("expected no refresh token exchange, got %d requests", got)
+	}
+	if store.checkWritableCalls != 1 {
+		t.Fatalf("expected one credential store check, got %d", store.checkWritableCalls)
+	}
+	if store.refreshToken != "old-refresh-token" {
+		t.Fatalf("expected refresh token to remain unchanged, got %q", store.refreshToken)
+	}
+	if transport.TokenSource.Token() != "old-token" {
+		t.Fatalf("expected token source to remain unchanged, got %q", transport.TokenSource.Token())
 	}
 }
 
