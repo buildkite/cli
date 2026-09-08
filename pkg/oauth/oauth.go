@@ -383,6 +383,11 @@ func RequestDeviceAuthorization(ctx context.Context, cfg *Config) (*DeviceAuthor
 		"client_id": {cfg.ClientID},
 		"scope":     {cfg.Scopes},
 	}
+	if cfg.OrgUUID != "" {
+		data.Set("organization_uuid", cfg.OrgUUID)
+	} else if cfg.OrgSlug != "" {
+		data.Set("organization", cfg.OrgSlug)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", deviceURL, strings.NewReader(data.Encode()))
 	if err != nil {

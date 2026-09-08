@@ -25,61 +25,85 @@ func (rt *failingRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 }
 
 func TestRequestDeviceAuthorization(t *testing.T) {
-	var sawRequest bool
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sawRequest = true
+	tests := []struct {
+		name             string
+		orgSlug          string
+		orgUUID          string
+		wantOrganization string
+		wantUUID         string
+	}{
+		{name: "without organization"},
+		{name: "with organization slug", orgSlug: "buildkite", wantOrganization: "buildkite"},
+		{name: "with organization UUID", orgSlug: "ignored", orgUUID: "018f2f7e-7e99-7d77-b4d3-a95cb01805f4", wantUUID: "018f2f7e-7e99-7d77-b4d3-a95cb01805f4"},
+	}
 
-		if r.Method != "POST" {
-			t.Errorf("method = %s, want POST", r.Method)
-		}
-		if r.URL.Path != "/oauth/device_authorization" {
-			t.Errorf("path = %s, want /oauth/device_authorization", r.URL.Path)
-		}
-		if err := r.ParseForm(); err != nil {
-			t.Fatalf("ParseForm: %v", err)
-		}
-		if got := r.FormValue("client_id"); got != "test-client" {
-			t.Errorf("client_id = %q, want test-client", got)
-		}
-		if got := r.FormValue("scope"); got != "read_user read_organizations" {
-			t.Errorf("scope = %q, want requested scopes", got)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var sawRequest bool
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				sawRequest = true
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(DeviceAuthorizationResponse{
-			DeviceCode:              "device-code",
-			UserCode:                "ABCD-EFGH",
-			VerificationURI:         "https://buildkite.example/oauth/device",
-			VerificationURIComplete: "https://buildkite.example/oauth/device/ABCD-EFGH",
-			ExpiresIn:               600,
-			Interval:                5,
+				if r.Method != "POST" {
+					t.Errorf("method = %s, want POST", r.Method)
+				}
+				if r.URL.Path != "/oauth/device_authorization" {
+					t.Errorf("path = %s, want /oauth/device_authorization", r.URL.Path)
+				}
+				if err := r.ParseForm(); err != nil {
+					t.Fatalf("ParseForm: %v", err)
+				}
+				if got := r.FormValue("client_id"); got != "test-client" {
+					t.Errorf("client_id = %q, want test-client", got)
+				}
+				if got := r.FormValue("scope"); got != "read_user read_organizations" {
+					t.Errorf("scope = %q, want requested scopes", got)
+				}
+				if got := r.FormValue("organization"); got != tt.wantOrganization {
+					t.Errorf("organization = %q, want %q", got, tt.wantOrganization)
+				}
+				if got := r.FormValue("organization_uuid"); got != tt.wantUUID {
+					t.Errorf("organization_uuid = %q, want %q", got, tt.wantUUID)
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(DeviceAuthorizationResponse{
+					DeviceCode:              "device-code",
+					UserCode:                "ABCD-EFGH",
+					VerificationURI:         "https://buildkite.example/oauth/device",
+					VerificationURIComplete: "https://buildkite.example/oauth/device/ABCD-EFGH",
+					ExpiresIn:               600,
+					Interval:                5,
+				})
+			}))
+			defer server.Close()
+
+			origTransport := http.DefaultTransport
+			http.DefaultTransport = server.Client().Transport
+			defer func() { http.DefaultTransport = origTransport }()
+
+			deviceAuth, err := RequestDeviceAuthorization(context.Background(), &Config{
+				Host:     server.URL[len("https://"):],
+				ClientID: "test-client",
+				Scopes:   "read_user read_organizations",
+				OrgSlug:  tt.orgSlug,
+				OrgUUID:  tt.orgUUID,
+			})
+			if err != nil {
+				t.Fatalf("RequestDeviceAuthorization: %v", err)
+			}
+			if !sawRequest {
+				t.Fatal("server did not receive request")
+			}
+			if deviceAuth.DeviceCode != "device-code" {
+				t.Errorf("DeviceCode = %q, want device-code", deviceAuth.DeviceCode)
+			}
+			if deviceAuth.UserCode != "ABCD-EFGH" {
+				t.Errorf("UserCode = %q, want ABCD-EFGH", deviceAuth.UserCode)
+			}
+			if deviceAuth.VerificationURIComplete != "https://buildkite.example/oauth/device/ABCD-EFGH" {
+				t.Errorf("VerificationURIComplete = %q", deviceAuth.VerificationURIComplete)
+			}
 		})
-	}))
-	defer server.Close()
-
-	origTransport := http.DefaultTransport
-	http.DefaultTransport = server.Client().Transport
-	defer func() { http.DefaultTransport = origTransport }()
-
-	deviceAuth, err := RequestDeviceAuthorization(context.Background(), &Config{
-		Host:     server.URL[len("https://"):],
-		ClientID: "test-client",
-		Scopes:   "read_user read_organizations",
-	})
-	if err != nil {
-		t.Fatalf("RequestDeviceAuthorization: %v", err)
-	}
-	if !sawRequest {
-		t.Fatal("server did not receive request")
-	}
-	if deviceAuth.DeviceCode != "device-code" {
-		t.Errorf("DeviceCode = %q, want device-code", deviceAuth.DeviceCode)
-	}
-	if deviceAuth.UserCode != "ABCD-EFGH" {
-		t.Errorf("UserCode = %q, want ABCD-EFGH", deviceAuth.UserCode)
-	}
-	if deviceAuth.VerificationURIComplete != "https://buildkite.example/oauth/device/ABCD-EFGH" {
-		t.Errorf("VerificationURIComplete = %q", deviceAuth.VerificationURIComplete)
 	}
 }
 

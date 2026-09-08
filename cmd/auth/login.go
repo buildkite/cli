@@ -59,8 +59,8 @@ Examples:
   # Login non-interactively with an API token
   $ bk auth login --org my-org --token my-token
 
-  # Login on a headless machine or remote shell
-  $ bk auth login --device
+  # Login to a specific organization on a headless machine or remote shell
+  $ bk auth login --device --org my-org
 
   # Login on a headless Linux host using an in-memory /dev/shm credential store
   $ bk auth login --device --credential-store shm
@@ -293,9 +293,6 @@ func (c *LoginCmd) validate(kongCtx *kong.Context) error {
 	if c.Device && c.Token != "" {
 		return errors.New("--device cannot be used with --token")
 	}
-	if c.Device && c.Org != "" {
-		return errors.New("--org is not supported with --device; choose an organization on the authorization page")
-	}
 	return nil
 }
 
@@ -312,8 +309,11 @@ func (c *LoginCmd) credentialStoreFlagProvided(kongCtx *kong.Context) bool {
 }
 
 func (c *LoginCmd) runDeviceLogin(ctx context.Context, f *factory.Factory, resolvedScopes string, credentialStore oauthTokenStore) error {
+	orgSlug, orgUUID := organizationIdentifier(c.Org)
 	cfg := &oauth.Config{
 		ClientID: oauth.DefaultClientID,
+		OrgSlug:  orgSlug,
+		OrgUUID:  orgUUID,
 		Scopes:   resolvedScopes,
 	}
 
