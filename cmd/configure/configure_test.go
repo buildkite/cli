@@ -1,13 +1,72 @@
 package configure
 
 import (
+	"os"
 	"testing"
 
+	"github.com/alecthomas/kong"
+	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/keyring"
 	"github.com/spf13/afero"
 )
+
+func TestConfigureOrganizationEnvironment(t *testing.T) {
+	for _, command := range [][]string{{"configure"}, {"configure", "add"}} {
+		for _, override := range []string{"", "flag-org"} {
+			t.Run(command[len(command)-1]+"/"+override, func(t *testing.T) {
+				t.Chdir(t.TempDir())
+				t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+				t.Setenv("BUILDKITE_API_TOKEN", "")
+				t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "env-Org")
+				keyring.MockForTesting()
+
+				// An ignored organization must fail rather than wait for terminal input.
+				stdin, err := os.Open(os.DevNull)
+				if err != nil {
+					t.Fatal(err)
+				}
+				oldStdin := os.Stdin
+				os.Stdin = stdin
+				t.Cleanup(func() {
+					os.Stdin = oldStdin
+					stdin.Close()
+				})
+
+				var app struct {
+					Configure ConfigureCmd `cmd:""`
+				}
+				parser, err := kong.New(&app)
+				if err != nil {
+					t.Fatal(err)
+				}
+				args := append(append([]string{}, command...), "--token", "test-token")
+				wantOrg := "env-Org"
+				if override != "" {
+					args = append(args, "--org", override)
+					wantOrg = override
+				}
+				ctx, err := parser.Parse(args)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := app.Configure.Run(ctx, cli.Globals{}); err != nil {
+					t.Fatalf("configure failed: %v", err)
+				}
+				token, err := keyring.New().Get(wantOrg)
+				if err != nil || token != "test-token" {
+					t.Fatalf("token for %q = %q, %v; want test-token", wantOrg, token, err)
+				}
+				// Clear the env override to verify the persisted organization.
+				t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
+				if got := config.New(afero.NewOsFs(), nil).OrganizationSlug(); got != wantOrg {
+					t.Fatalf("persisted organization = %q, want %q", got, wantOrg)
+				}
+			})
+		}
+	}
+}
 
 func TestGetTokenForOrg(t *testing.T) {
 	t.Run("returns empty string when no token exists", func(t *testing.T) {
