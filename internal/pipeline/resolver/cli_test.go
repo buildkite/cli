@@ -35,10 +35,10 @@ func TestParsePipelineArg(t *testing.T) {
 			org:      "testing",
 			pipeline: "shared-gem",
 		},
-		"uppercase_normalized_to_lowercase": {
+		"casing_preserved": {
 			url:      "My_Org/Shared_Gem",
-			org:      "my-org",
-			pipeline: "shared-gem",
+			org:      "My-Org",
+			pipeline: "Shared-Gem",
 		},
 	}
 

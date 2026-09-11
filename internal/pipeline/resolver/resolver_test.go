@@ -88,8 +88,8 @@ func TestWithOrg(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if p.Org != "override-org" {
-			t.Fatalf("expected org override-org, got %s", p.Org)
+		if p.Org != "Override-Org" {
+			t.Fatalf("expected org Override-Org, got %s", p.Org)
 		}
 	})
 }
