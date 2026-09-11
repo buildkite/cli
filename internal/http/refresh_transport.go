@@ -75,6 +75,7 @@ type credentialStore interface {
 	GetRefreshToken(org string) (string, error)
 	SetRefreshToken(org, token string) error
 	DeleteRefreshToken(org string) error
+	CheckWritable() error
 }
 
 var errCredentialPersistence = errors.New("credential persistence failed")
@@ -179,6 +180,12 @@ func (t *RefreshTransport) doRefresh(ctx context.Context, failedToken string) (s
 	refreshToken, err := t.Keyring.GetRefreshToken(t.Org)
 	if err != nil || refreshToken == "" {
 		return "", fmt.Errorf("no refresh token available")
+	}
+
+	// OAuth refresh tokens rotate when exchanged, so verify persistence before
+	// asking the server to invalidate the credential currently stored on disk.
+	if err := t.Keyring.CheckWritable(); err != nil {
+		return "", fmt.Errorf("%w: credential store is not writable: %w", errCredentialPersistence, err)
 	}
 
 	tokenResp, err := oauth.RefreshAccessToken(ctx, "", "", refreshToken)

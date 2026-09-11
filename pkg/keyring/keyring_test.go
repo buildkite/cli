@@ -13,6 +13,15 @@ import (
 	oskeyring "github.com/zalando/go-keyring"
 )
 
+type setErrorCredentialBackend struct {
+	credentialBackend
+	err error
+}
+
+func (b setErrorCredentialBackend) Set(string, string, string) error {
+	return b.err
+}
+
 // setEnv sets an environment variable for the duration of the test and
 // restores the original value (or unsets it) via t.Cleanup.
 func setEnv(t *testing.T, key, value string) {
@@ -233,6 +242,69 @@ func TestExplicitKeyringCredentialStoreIgnoresCIDisable(t *testing.T) {
 	kr = New()
 	if !kr.IsAvailable() {
 		t.Fatal("env-selected keyring store reported unavailable under CI")
+	}
+}
+
+func TestCheckWritable(t *testing.T) {
+	MockForTesting()
+	t.Cleanup(ResetForTesting)
+
+	kr, err := NewWithCredentialStore(StoreKeyring)
+	if err != nil {
+		t.Fatalf("NewWithCredentialStore(%q) error = %v", StoreKeyring, err)
+	}
+	if err := kr.CheckWritable(); err != nil {
+		t.Fatalf("CheckWritable() error = %v", err)
+	}
+}
+
+func TestCheckWritableReturnsKeyringWriteError(t *testing.T) {
+	MockForTesting()
+	t.Cleanup(ResetForTesting)
+
+	originalBackend := keyringBackend
+	writeErr := errors.New("keychain is read-only")
+	keyringBackend = setErrorCredentialBackend{credentialBackend: originalBackend, err: writeErr}
+	t.Cleanup(func() { keyringBackend = originalBackend })
+
+	kr, err := NewWithCredentialStore(StoreKeyring)
+	if err != nil {
+		t.Fatalf("NewWithCredentialStore(%q) error = %v", StoreKeyring, err)
+	}
+	if err := kr.CheckWritable(); !errors.Is(err, writeErr) {
+		t.Fatalf("CheckWritable() error = %v, want %v", err, writeErr)
+	}
+}
+
+func TestCheckWritableSelectsSHMFallback(t *testing.T) {
+	path := shmCredentialPathForTest(t)
+	setEnv(t, CredentialStorePathEnv, path)
+	MockForTesting()
+	t.Cleanup(ResetForTesting)
+
+	originalBackend := keyringBackend
+	keyringBackend = setErrorCredentialBackend{
+		credentialBackend: originalBackend,
+		err:               errors.New("keychain is read-only"),
+	}
+	t.Cleanup(func() { keyringBackend = originalBackend })
+
+	kr := New()
+	if err := kr.CheckWritable(); err != nil {
+		t.Fatalf("CheckWritable() error = %v", err)
+	}
+	if got := kr.Description(); got != "the /dev/shm credential store" {
+		t.Fatalf("Description() = %q, want shm description", got)
+	}
+	if err := kr.Set("my-org", "token"); err != nil {
+		t.Fatalf("Set() error = %v", err)
+	}
+	shmStore, err := NewWithCredentialStore(StoreSHM)
+	if err != nil {
+		t.Fatalf("NewWithCredentialStore(%q) error = %v", StoreSHM, err)
+	}
+	if token, err := shmStore.Get("my-org"); err != nil || token != "token" {
+		t.Fatalf("forced shm Get() = %q, %v; want token, nil", token, err)
 	}
 }
 
