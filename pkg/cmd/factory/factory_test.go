@@ -1,6 +1,7 @@
 package factory
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -222,6 +223,155 @@ func TestDebugTransportHandlesNilBody(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected status 200, got %d", resp.StatusCode)
 	}
+}
+
+func TestDebugTransportOmitsClusterSecretRequestBodies(t *testing.T) {
+	tests := []struct {
+		name          string
+		method        string
+		path          string
+		body          string
+		secretMarkers []string
+		wantVisible   string
+	}{
+		{
+			name:          "create secret",
+			method:        http.MethodPost,
+			path:          "/v2/organizations/test/clusters/cluster-1/secrets",
+			body:          "{\n  \"key\": \"API_KEY\",\n  \"value\" : \"secret-prefix-\\\"quoted\\\"-\\\\path\\nsecret-suffix\"\n}",
+			secretMarkers: []string{"API_KEY", "secret-prefix", "quoted", "secret-suffix"},
+		},
+		{
+			name:          "update secret value",
+			method:        http.MethodPut,
+			path:          "/v2/organizations/test/clusters/cluster-1/secrets/secret-1/value",
+			body:          `{ "value" : "replacement-secret" }`,
+			secretMarkers: []string{"replacement-secret"},
+		},
+		{
+			name:          "query string after secret endpoint still omits body",
+			method:        http.MethodPost,
+			path:          "/v2/organizations/test/clusters/cluster-1/secrets?somequerystring=something",
+			body:          `{"key":"API_KEY","value":"query-string-secret"}`,
+			secretMarkers: []string{"API_KEY", "query-string-secret"},
+		},
+		{
+			name:          "malformed cluster ID still omits body",
+			method:        http.MethodPost,
+			path:          "/v2/organizations/test/clusters/cluster-1//secrets",
+			body:          `{"key":"API_KEY","value":"malformed-id-secret"}`,
+			secretMarkers: []string{"API_KEY", "malformed-id-secret"},
+		},
+		{
+			name:          "query delimiter in cluster ID still omits body",
+			method:        http.MethodPost,
+			path:          "/v2/organizations/test/clusters/cluster-1?/secrets",
+			body:          `{"key":"API_KEY","value":"query-delimiter-secret"}`,
+			secretMarkers: []string{"API_KEY", "query-delimiter-secret"},
+		},
+		{
+			name:          "fragment delimiter in secret ID still omits body",
+			method:        http.MethodPut,
+			path:          "/v2/organizations/test/clusters/cluster-1/secrets/secret-1#/value",
+			body:          `{"value":"fragment-delimiter-secret"}`,
+			secretMarkers: []string{"fragment-delimiter-secret"},
+		},
+		{
+			name:          "malformed secret request fails closed",
+			method:        http.MethodPost,
+			path:          "/v2/organizations/test/clusters/cluster-1/secrets",
+			body:          `{"key":"API_KEY","value":"truncated-secret`,
+			secretMarkers: []string{"API_KEY", "truncated-secret"},
+		},
+		{
+			name:        "unrelated value remains visible",
+			method:      http.MethodPost,
+			path:        "/v2/organizations/test/pipelines",
+			body:        `{"value": "useful-debug-value"}`,
+			wantVisible: `"value": "useful-debug-value"`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var forwardedBody string
+			transport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				body, err := io.ReadAll(req.Body)
+				if err != nil {
+					t.Fatalf("read forwarded request body: %v", err)
+				}
+				forwardedBody = string(body)
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(`{"ok":true}`)),
+					Request:    req,
+				}, nil
+			})
+
+			req, err := http.NewRequest(test.method, "https://api.buildkite.com"+test.path, strings.NewReader(test.body))
+			if err != nil {
+				t.Fatalf("create request: %v", err)
+			}
+			req.Header.Set("Content-Type", "application/json")
+
+			stderr := captureStderr(t, func() {
+				resp, err := (&debugTransport{transport: transport}).RoundTrip(req)
+				if err != nil {
+					t.Fatalf("RoundTrip: %v", err)
+				}
+				resp.Body.Close()
+			})
+
+			if forwardedBody != test.body {
+				t.Errorf("forwarded body = %q, want %q", forwardedBody, test.body)
+			}
+			for _, marker := range test.secretMarkers {
+				if strings.Contains(stderr, marker) {
+					t.Errorf("stderr contains secret marker %q:\n%s", marker, stderr)
+				}
+			}
+			if len(test.secretMarkers) > 0 && !strings.Contains(stderr, omittedRequestBody) {
+				t.Errorf("stderr does not say the request body was omitted:\n%s", stderr)
+			}
+			if test.wantVisible != "" && !strings.Contains(stderr, test.wantVisible) {
+				t.Errorf("stderr does not contain %q:\n%s", test.wantVisible, stderr)
+			}
+		})
+	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+
+	read, write, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create stderr pipe: %v", err)
+	}
+	original := os.Stderr
+	os.Stderr = write
+	t.Cleanup(func() { os.Stderr = original })
+
+	fn()
+	if err := write.Close(); err != nil {
+		t.Fatalf("close stderr pipe: %v", err)
+	}
+	os.Stderr = original
+
+	var output bytes.Buffer
+	if _, err := io.Copy(&output, read); err != nil {
+		t.Fatalf("read stderr: %v", err)
+	}
+	if err := read.Close(); err != nil {
+		t.Fatalf("close stderr reader: %v", err)
+	}
+	return output.String()
 }
 
 func TestBuildUserAgent(t *testing.T) {
