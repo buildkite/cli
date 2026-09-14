@@ -84,6 +84,8 @@ type debugTransport struct {
 // sensitiveHeaders contains headers that should be redacted in debug output
 var sensitiveHeaders = []string{"Authorization"}
 
+const omittedRequestBody = "[request body omitted]"
+
 func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Save and restore the request body so that dumping it does not consume
 	// the body before the real transport sends it. req.Clone() shares the
@@ -108,8 +110,13 @@ func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		reqCopy.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	}
 
-	if dump, err := httputil.DumpRequestOut(reqCopy, true); err == nil {
-		fmt.Fprintf(os.Stderr, "DEBUG request uri=%s\n%s\n", req.URL, redactBody(string(dump)))
+	includeBody := !isClusterSecretValueRequest(req)
+	if dump, err := httputil.DumpRequestOut(reqCopy, includeBody); err == nil {
+		redacted := redactBody(string(dump))
+		if !includeBody {
+			redacted += "\n" + omittedRequestBody
+		}
+		fmt.Fprintf(os.Stderr, "DEBUG request uri=%s\n%s\n", req.URL, redacted)
 	}
 
 	resp, err := d.transport.RoundTrip(req)
@@ -122,6 +129,32 @@ func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	return resp, nil
+}
+
+func isClusterSecretValueRequest(req *http.Request) bool {
+	path := strings.TrimSuffix(req.URL.Path, "/")
+	if isClusterSecretValueTarget(req.Method, path) {
+		return true
+	}
+
+	target := path
+	if req.URL.RawQuery != "" {
+		target += "?" + req.URL.RawQuery
+	}
+	if req.URL.Fragment != "" {
+		target += "#" + req.URL.Fragment
+	}
+	return isClusterSecretValueTarget(req.Method, strings.TrimSuffix(target, "/"))
+}
+
+func isClusterSecretValueTarget(method, target string) bool {
+	if !strings.Contains(target, "/clusters/") {
+		return false
+	}
+	if method == http.MethodPost {
+		return strings.HasSuffix(target, "/secrets")
+	}
+	return method == http.MethodPut && strings.Contains(target, "/secrets/") && strings.HasSuffix(target, "/value")
 }
 
 // sensitiveBodyPatterns matches token values in form-encoded request bodies
