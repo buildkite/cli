@@ -3,6 +3,7 @@ package build
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,10 +11,79 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/build/view"
+	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v5"
 )
+
+func TestViewCmdCreatorSelection(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		args        []string
+		creator     string
+		buildNumber int
+		userCalls   int
+	}{
+		{name: "latest from any creator", buildNumber: 43},
+		{name: "mine", args: []string{"--mine"}, creator: "current-user", buildNumber: 42, userCalls: 1},
+		{name: "explicit user", args: []string{"--user", "other-user"}, creator: "other-user", buildNumber: 41},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var userCalls, detailNumber int
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/v2/user":
+					userCalls++
+					_ = json.NewEncoder(w).Encode(map[string]string{"id": "current-user"})
+				case "/v2/organizations/acme/pipelines/widgets/builds":
+					creator := r.URL.Query().Get("creator")
+					if creator != tt.creator {
+						t.Errorf("creator = %q, want %q", creator, tt.creator)
+					}
+					if branch := r.URL.Query().Get("branch[]"); branch != "feature" {
+						t.Errorf("branch = %q, want feature", branch)
+					}
+					number := 43
+					if creator == "current-user" {
+						number = 42
+					} else if creator == "other-user" {
+						number = 41
+					}
+					_ = json.NewEncoder(w).Encode([]buildkite.Build{{Number: number}})
+				default:
+					var number int
+					if _, err := fmt.Sscanf(r.URL.Path, "/v2/organizations/acme/pipelines/widgets/builds/%d", &number); err != nil {
+						t.Errorf("unexpected request: %s", r.URL.Path)
+						http.NotFound(w, r)
+						return
+					}
+					detailNumber = number
+					_ = json.NewEncoder(w).Encode(buildkite.Build{Number: number, State: "passed"})
+				}
+			}))
+			defer server.Close()
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+			t.Setenv("BUILDKITE_API_TOKEN", "test-token")
+			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "acme")
+
+			var cmd ViewCmd
+			parser := kong.Must(&cmd, kong.Vars{"output_default_format": ""})
+			args := append([]string{"--pipeline", "widgets", "--branch", "feature", "--summary", "--json"}, tt.args...)
+			ctx, err := parser.Parse(args)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := cmd.Run(ctx, cli.Globals{NoInput: true, Quiet: true, NoPager: true}); err != nil {
+				t.Fatal(err)
+			}
+			if detailNumber != tt.buildNumber || userCalls != tt.userCalls {
+				t.Fatalf("viewed build %d with %d user lookups; want build %d with %d lookups", detailNumber, userCalls, tt.buildNumber, tt.userCalls)
+			}
+		})
+	}
+}
 
 func TestViewCmd_BuildGetOptions_WithJobStates(t *testing.T) {
 	cmd := &ViewCmd{

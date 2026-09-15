@@ -34,6 +34,7 @@ type ViewCmd struct {
 
 func (c *ViewCmd) Help() string {
 	return `You can pass an optional build number to view. If omitted, the most recent build on the current branch will be resolved.
+Builds from all creators are included by default. Use --mine or --user to filter by creator.
 
 Examples:
   # By default, the most recent build for the current branch is shown
@@ -118,7 +119,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		c.User != "",
 		options.ResolveUserFromFlag(c.User),
 	).WithResolverWhen(
-		c.Mine || c.User == "",
+		c.Mine,
 		options.ResolveCurrentUser(ctx, f),
 	)
 
