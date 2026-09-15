@@ -22,10 +22,18 @@ import (
 )
 
 type WatchCmd struct {
-	BuildNumber string `arg:"" optional:"" help:"Build number to watch (omit for most recent build)"`
-	Pipeline    string `help:"The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
-	Branch      string `help:"The branch to watch builds for." short:"b"`
-	Interval    int    `help:"Polling interval in seconds" default:"1"`
+	BuildNumber string        `arg:"" optional:"" help:"Build number to watch (omit for most recent build)"`
+	Pipeline    string        `help:"The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
+	Branch      string        `help:"The branch to watch builds for." short:"b"`
+	Interval    int           `help:"Polling interval in seconds" default:"1"`
+	Timeout     time.Duration `help:"Maximum time to resolve and watch the build (e.g. 30s, 20m). 0 means no timeout. Timing out does not cancel the build." default:"0"`
+}
+
+func (c *WatchCmd) Validate() error {
+	if c.Timeout < 0 {
+		return fmt.Errorf("timeout must not be negative")
+	}
+	return nil
 }
 
 func (c *WatchCmd) Help() string {
@@ -44,7 +52,10 @@ Examples:
   $ bk build watch --pipeline my-pipeline
 
   # Set a custom polling interval (in seconds)
-  $ bk build watch --interval 5 --pipeline my-pipeline`
+  $ bk build watch --interval 5 --pipeline my-pipeline
+
+  # Stop watching after 20 minutes without canceling the build
+  $ bk build watch 429 --pipeline my-pipeline --timeout 20m`
 }
 
 func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
@@ -73,6 +84,11 @@ func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	ctx := context.Background()
+	if c.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.Timeout)
+		defer cancel()
+	}
 
 	pipelineRes := pipelineResolver.NewAggregateResolver(
 		pipelineResolver.ResolveFromFlag(c.Pipeline, f.Config),
