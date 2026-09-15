@@ -46,9 +46,10 @@ func TestViewCmdCreatorSelection(t *testing.T) {
 						t.Errorf("branch = %q, want feature", branch)
 					}
 					number := 43
-					if creator == "current-user" {
+					switch creator {
+					case "current-user":
 						number = 42
-					} else if creator == "other-user" {
+					case "other-user":
 						number = 41
 					}
 					_ = json.NewEncoder(w).Encode([]buildkite.Build{{Number: number}})
