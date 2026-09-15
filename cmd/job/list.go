@@ -630,7 +630,7 @@ func convertGraphQLJobToBuildkiteJob(jobNode *bkGraphQL.ListJobsByQueueOrganizat
 		label := derefString(job.Command)
 
 		return buildkite.Job{
-			ID:              job.Id,
+			ID:              job.Uuid,
 			Type:            "script",
 			Name:            job.Uuid, // Use UUID as name
 			Label:           label,
@@ -691,7 +691,7 @@ func convertGraphQLAgentQueryRulesJobToBuildkiteJob(jobNode *bkGraphQL.ListJobsB
 
 		if job.Agent != nil {
 			agent = buildkite.Agent{
-				ID:       job.Agent.Id,
+				ID:       job.Agent.Uuid,
 				Name:     job.Agent.Name,
 				Hostname: derefString(job.Agent.Hostname),
 				Metadata: job.Agent.MetaData,
@@ -702,7 +702,7 @@ func convertGraphQLAgentQueryRulesJobToBuildkiteJob(jobNode *bkGraphQL.ListJobsB
 		label := derefString(job.Command)
 
 		return buildkite.Job{
-			ID:              job.Id,
+			ID:              job.Uuid,
 			Type:            "script",
 			Name:            job.Uuid, // Use UUID as name
 			Label:           label,
@@ -738,7 +738,7 @@ func convertAgent(agentNode *bkGraphQL.ListJobsByQueueOrganizationJobsJobConnect
 	}
 
 	return buildkite.Agent{
-		ID:       agentNode.Id,
+		ID:       agentNode.Uuid,
 		Name:     agentNode.Name,
 		Hostname: derefString(agentNode.Hostname),
 		Metadata: agentNode.MetaData,
