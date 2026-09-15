@@ -27,21 +27,21 @@ func TestResolveFromFlag(t *testing.T) {
 		}
 	})
 
-	t.Run("pipeline slug uses config org", func(t *testing.T) {
+	t.Run("pipeline slug uses config org and preserves case", func(t *testing.T) {
 		t.Parallel()
 
 		conf := config.New(afero.NewMemMapFs(), nil)
-		conf.SelectOrganization("testing", true)
-		f := resolver.ResolveFromFlag("my-pipeline", conf)
+		conf.SelectOrganization("ExampleOrg", true)
+		f := resolver.ResolveFromFlag("ExamplePipeline", conf)
 		pipeline, err := f(context.Background())
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
-		if pipeline.Org != "testing" {
-			t.Errorf("expected org 'testing', got '%s'", pipeline.Org)
+		if pipeline.Org != "ExampleOrg" {
+			t.Errorf("expected org 'ExampleOrg', got '%s'", pipeline.Org)
 		}
-		if pipeline.Name != "my-pipeline" {
-			t.Errorf("expected pipeline 'my-pipeline', got '%s'", pipeline.Name)
+		if pipeline.Name != "ExamplePipeline" {
+			t.Errorf("expected pipeline 'ExamplePipeline', got '%s'", pipeline.Name)
 		}
 	})
 
@@ -60,21 +60,21 @@ func TestResolveFromFlag(t *testing.T) {
 		}
 	})
 
-	t.Run("org/pipeline slug extracts org", func(t *testing.T) {
+	t.Run("org/pipeline slug extracts org and preserves case", func(t *testing.T) {
 		t.Parallel()
 
 		conf := config.New(afero.NewMemMapFs(), nil)
 		conf.SelectOrganization("testing", true)
-		f := resolver.ResolveFromFlag("other-org/my-pipeline", conf)
+		f := resolver.ResolveFromFlag("ExampleOrg/Example-Pipeline", conf)
 		pipeline, err := f(context.Background())
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
-		if pipeline.Org != "other-org" {
-			t.Errorf("expected org 'other-org', got '%s'", pipeline.Org)
+		if pipeline.Org != "ExampleOrg" {
+			t.Errorf("expected org 'ExampleOrg', got '%s'", pipeline.Org)
 		}
-		if pipeline.Name != "my-pipeline" {
-			t.Errorf("expected pipeline 'my-pipeline', got '%s'", pipeline.Name)
+		if pipeline.Name != "Example-Pipeline" {
+			t.Errorf("expected pipeline 'Example-Pipeline', got '%s'", pipeline.Name)
 		}
 	})
 }
