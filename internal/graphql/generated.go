@@ -2734,6 +2734,8 @@ func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJ
 // An agent
 type ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent struct {
 	Id string `json:"id"`
+	// The public UUID for the agent
+	Uuid string `json:"uuid"`
 	// The name of the agent
 	Name string `json:"name"`
 	// The hostname of the machine running the agent
@@ -2745,6 +2747,11 @@ type ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTy
 // GetId returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent.Id, and is useful for accessing the field via an interface.
 func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent) GetId() string {
 	return v.Id
+}
+
+// GetUuid returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent.Uuid, and is useful for accessing the field via an interface.
+func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent) GetUuid() string {
+	return v.Uuid
 }
 
 // GetName returns ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent.Name, and is useful for accessing the field via an interface.
@@ -3144,6 +3151,8 @@ func (v *ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeComm
 // An agent
 type ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent struct {
 	Id string `json:"id"`
+	// The public UUID for the agent
+	Uuid string `json:"uuid"`
 	// The name of the agent
 	Name string `json:"name"`
 	// The hostname of the machine running the agent
@@ -3155,6 +3164,11 @@ type ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandA
 // GetId returns ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent.Id, and is useful for accessing the field via an interface.
 func (v *ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent) GetId() string {
 	return v.Id
+}
+
+// GetUuid returns ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent.Uuid, and is useful for accessing the field via an interface.
+func (v *ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent) GetUuid() string {
+	return v.Uuid
 }
 
 // GetName returns ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommandAgent.Name, and is useful for accessing the field via an interface.
@@ -4370,6 +4384,7 @@ query ListJobsByAgentQueryRules ($org: ID!, $agentQueryRules: [String!], $state:
 						createdAt
 						agent {
 							id
+							uuid
 							name
 							hostname
 							metaData
@@ -4447,6 +4462,7 @@ query ListJobsByQueue ($org: ID!, $clusterQueue: [ID!], $state: [JobStates!], $f
 						}
 						agent {
 							id
+							uuid
 							name
 							hostname
 							metaData
