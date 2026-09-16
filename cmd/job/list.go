@@ -31,7 +31,7 @@ const (
 )
 
 type ListCmd struct {
-	Pipeline string   `help:"Filter by pipeline slug" short:"p"`
+	Pipeline string   `help:"Pipeline slug (uses the selected organization), org/pipeline, or Buildkite pipeline URL." short:"p"`
 	Build    string   `help:"Filter by build number (requires a resolvable pipeline)"`
 	StepKey  string   `help:"Filter by step key (requires --build)" name:"step-key"`
 	GroupKey string   `help:"Filter by group key (requires --build)" name:"group-key"`
@@ -129,12 +129,29 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
+	ctx := context.Background()
+	org := f.Config.OrganizationSlug()
+	pipelineName := c.Pipeline
+	if c.Pipeline != "" {
+		p, err := pipelineResolver.ResolveFromFlag(c.Pipeline, f.Config)(ctx)
+		if err != nil {
+			return err
+		}
+		org, pipelineName = p.Org, p.Name
+		if org != f.Config.OrganizationSlug() {
+			f, err = factory.New(factory.WithDebug(globals.EnableDebug()), factory.WithOrgOverride(org))
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	f.SkipConfirm = globals.SkipConfirmation()
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
 	f.NoPager = f.NoPager || globals.DisablePager()
 
-	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
+	if err := validation.ValidateConfigurationForOrg(f.Config, kongCtx.Command(), org); err != nil {
 		return err
 	}
 
@@ -164,8 +181,6 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
-	ctx := context.Background()
-	org := f.Config.OrganizationSlug()
 	var jobs []buildkite.Job
 	var resolvedPipeline *pipeline.Pipeline
 	var queueIDs []string
@@ -210,7 +225,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		if resolvedPipeline != nil {
 			target = fmt.Sprintf("%s/%s", resolvedPipeline.Org, resolvedPipeline.Name)
 		} else if c.Pipeline != "" {
-			target = fmt.Sprintf("%s/%s", org, c.Pipeline)
+			target = fmt.Sprintf("%s/%s", org, pipelineName)
 		}
 
 		fmt.Fprintf(writer, "Showing %d jobs for %s\n\n", len(jobs), target)
@@ -347,7 +362,7 @@ func fetchJobs(ctx context.Context, f *factory.Factory, org string, opts jobList
 		var err error
 
 		if opts.pipeline != "" {
-			builds, err = getBuildsByPipeline(ctx, f, org, opts.pipeline, listOpts)
+			builds, err = getBuildsByPipeline(ctx, f, opts.pipeline, listOpts)
 		} else {
 			builds, _, err = f.RestAPIClient.Builds.ListByOrg(ctx, org, listOpts)
 		}
@@ -840,7 +855,7 @@ func jobListOptionsFromFlags(opts *jobListOptions) (*buildkite.BuildsListOptions
 	return listOpts, nil
 }
 
-func getBuildsByPipeline(ctx context.Context, f *factory.Factory, org, pipelineFlag string, listOpts *buildkite.BuildsListOptions) ([]buildkite.Build, error) {
+func getBuildsByPipeline(ctx context.Context, f *factory.Factory, pipelineFlag string, listOpts *buildkite.BuildsListOptions) ([]buildkite.Build, error) {
 	pipelineRes := pipelineResolver.NewAggregateResolver(
 		pipelineResolver.ResolveFromFlag(pipelineFlag, f.Config),
 		pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOneWithFactory(f)),
@@ -851,7 +866,7 @@ func getBuildsByPipeline(ctx context.Context, f *factory.Factory, org, pipelineF
 		return nil, err
 	}
 
-	builds, _, err := f.RestAPIClient.Builds.ListByPipeline(ctx, org, pipeline.Name, listOpts)
+	builds, _, err := f.RestAPIClient.Builds.ListByPipeline(ctx, pipeline.Org, pipeline.Name, listOpts)
 	return builds, err
 }
 

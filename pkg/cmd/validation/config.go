@@ -36,11 +36,6 @@ func validateConfiguration(conf *config.Config, commandPath, orgOverride string)
 	}
 
 	token := conf.APITokenForOrg(org)
-	if token == "" && orgOverride != "" {
-		// The override org has no credential of its own; fall back to the
-		// selected org's token.
-		token = conf.APIToken()
-	}
 
 	missingToken := token == ""
 	missingOrg := org == ""
@@ -62,7 +57,7 @@ func validateConfiguration(conf *config.Config, commandPath, orgOverride string)
 	case missingToken && missingOrg:
 		return errors.New("you are not authenticated. Run bk auth login to authenticate, or run bk use to select a configured organization")
 	case missingToken:
-		return errors.New("you are not authenticated. Run bk auth login to authenticate")
+		return fmt.Errorf("no stored credentials for organization %q. Run bk auth login --org %s, or supply BUILDKITE_API_TOKEN for this invocation", org, org)
 	// an organization may not be present if the user is only viewing public resources
 	case missingOrg:
 		fmt.Fprintln(os.Stderr, "Warning: no organization set, only public pipelines will be visible. Run bk auth login, or bk use, to set an organization")
