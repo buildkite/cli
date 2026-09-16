@@ -1,14 +1,182 @@
 package main
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/internal/config"
+	"github.com/buildkite/cli/v3/pkg/keyring"
 	"github.com/spf13/afero"
 )
+
+func TestListAssociatedOrganization(t *testing.T) {
+	for _, command := range []struct {
+		name string
+		args []string
+	}{
+		{"build summary", []string{"build", "list", "--summary", "--json"}},
+		{"build text", []string{"build", "list", "--text"}},
+		{"build creator", []string{"build", "list", "--summary", "--json", "--creator=person@example.com"}},
+		{"job search", []string{"job", "list", "--json"}},
+		{"job text", []string{"job", "list", "--text"}},
+		{"job build", []string{"job", "list", "--build=42", "--json"}},
+	} {
+		for _, tt := range []struct {
+			name, pipeline, selected, wantOrg, wantToken string
+			noTargetToken, envToken                      bool
+		}{
+			{name: "qualified", pipeline: "other/widgets", selected: "acme", wantOrg: "other", wantToken: "other-token"},
+			{name: "URL", pipeline: "https://buildkite.com/other/widgets", selected: "acme", wantOrg: "other", wantToken: "other-token"},
+			{name: "bare slug", pipeline: "widgets", selected: "acme", wantOrg: "acme", wantToken: "acme-token"},
+			{name: "organization-wide", selected: "acme", wantOrg: "acme", wantToken: "acme-token"},
+			{name: "no selected org", pipeline: "other/widgets", wantOrg: "other", wantToken: "other-token"},
+			{name: "missing target credentials", pipeline: "other/widgets", selected: "acme", wantOrg: "other", noTargetToken: true},
+			{name: "environment token without stored credentials", pipeline: "other/widgets", selected: "acme", wantOrg: "other", wantToken: "env-token", noTargetToken: true, envToken: true},
+			{name: "environment token", pipeline: "other/widgets", selected: "acme", wantOrg: "other", wantToken: "env-token", envToken: true},
+		} {
+			if tt.pipeline == "" && command.name == "job build" {
+				continue // A known build requires a pipeline.
+			}
+			t.Run(command.name+"/"+tt.name, func(t *testing.T) {
+				t.Chdir(t.TempDir())
+				t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+				t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
+				if err := config.New(nil, nil).SelectOrganization(tt.selected, false); err != nil {
+					t.Fatal(err)
+				}
+				t.Setenv("BUILDKITE_API_TOKEN", "")
+				t.Setenv(keyring.CredentialStoreEnv, keyring.StoreKeyring)
+				keyring.MockForTesting()
+				kr := keyring.New()
+				if err := kr.Set("acme", "acme-token"); err != nil {
+					t.Fatal(err)
+				}
+				if !tt.noTargetToken {
+					if err := kr.Set("other", "other-token"); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if tt.envToken {
+					t.Setenv("BUILDKITE_API_TOKEN", "env-token")
+				}
+				requests, lookups := 0, 0
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.Header.Get("Authorization") != "Bearer "+tt.wantToken {
+						t.Error("request used the wrong organization's credential")
+					}
+					w.Header().Set("Content-Type", "application/json")
+					if r.URL.Path == "/graphql" {
+						lookups++
+						var query struct{ Variables map[string]any }
+						if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
+							t.Error(err)
+						}
+						if query.Variables["organization"] != tt.wantOrg {
+							t.Errorf("creator lookup org = %v, want %s", query.Variables["organization"], tt.wantOrg)
+						}
+						id := base64.StdEncoding.EncodeToString([]byte("User---creator-uuid"))
+						fmt.Fprintf(w, `{"data":{"organization":{"members":{"edges":[{"node":{"user":{"id":%q}}}]}}}}`, id)
+						return
+					}
+					requests++
+					path := "/v2/organizations/" + tt.wantOrg + "/pipelines/widgets/builds"
+					if tt.pipeline == "" {
+						path = "/v2/organizations/" + tt.wantOrg + "/builds"
+					}
+					if command.name == "job build" {
+						path += "/42/jobs"
+					}
+					if r.Method != http.MethodGet || r.URL.Path != path {
+						t.Errorf("request = %s %s, want GET %s", r.Method, r.URL.Path, path)
+					}
+					if command.name == "build creator" && r.URL.Query().Get("creator") != "creator-uuid" {
+						t.Errorf("creator query = %q", r.URL.RawQuery)
+					}
+					if command.name == "job build" {
+						fmt.Fprint(w, `{"items":[{"id":"job-id","state":"failed"}],"links":{}}`)
+					} else {
+						fmt.Fprint(w, `[{"number":42,"state":"failed","jobs":[{"id":"job-id","state":"failed"}]}]`)
+					}
+				}))
+				defer server.Close()
+				t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+				t.Setenv("BUILDKITE_GRAPHQL_ENDPOINT", server.URL+"/graphql")
+				before := config.New(nil, nil).OrganizationSlug()
+				out, err := os.CreateTemp(t.TempDir(), "stdout")
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer out.Close()
+				stdout := os.Stdout
+				os.Stdout = out
+				defer func() { os.Stdout = stdout }()
+				var cmd CLI
+				parser, err := newKongParser(&cmd)
+				if err != nil {
+					t.Fatal(err)
+				}
+				args := append(append([]string{}, command.args...), "--pipeline", tt.pipeline, "--limit=1")
+				ctx, err := parser.Parse(args)
+				if err != nil {
+					t.Fatal(err)
+				}
+				globals := cli.Globals{NoInput: true, Quiet: true, NoPager: true}
+				if command.args[0] == "build" {
+					err = cmd.Build.List.Run(ctx, globals)
+				} else {
+					err = cmd.Job.List.Run(ctx, globals)
+				}
+				if tt.noTargetToken && !tt.envToken {
+					if err == nil || !strings.Contains(err.Error(), "bk auth login --org other") || !strings.Contains(err.Error(), "BUILDKITE_API_TOKEN") {
+						t.Fatalf("expected actionable missing-credential error, got %v", err)
+					}
+					if requests != 0 || lookups != 0 {
+						t.Fatalf("unauthenticated target made %d API requests and %d lookups", requests, lookups)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				if requests != 1 || (command.name == "build creator" && lookups != 1) {
+					t.Fatalf("requests = %d, creator lookups = %d", requests, lookups)
+				}
+				data, err := os.ReadFile(out.Name())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if strings.Contains(command.name, "text") {
+					target := tt.wantOrg
+					if tt.pipeline != "" {
+						target += "/widgets"
+					}
+					if !strings.Contains(string(data), "for "+target+"\n") {
+						t.Fatalf("wrong text identity: %s", data)
+					}
+				} else {
+					var rows []map[string]any
+					if err := json.Unmarshal(data, &rows); err != nil || len(rows) != 1 {
+						t.Fatalf("output = %s, error = %v", data, err)
+					}
+					if command.args[0] == "build" && (rows[0]["organization"] != tt.wantOrg || (tt.pipeline != "" && rows[0]["pipeline"] != "widgets")) {
+						t.Fatalf("wrong summary identity: %s", data)
+					}
+				}
+				if got := config.New(nil, nil).OrganizationSlug(); got != before {
+					t.Fatalf("selected org changed from %q to %q", before, got)
+				}
+			})
+		}
+	}
+}
 
 func unsetEnv(t *testing.T, key string) {
 	t.Helper()
