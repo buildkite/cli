@@ -225,11 +225,6 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 	}
 
 	token := conf.APITokenForOrg(org)
-	if token == "" && cfg.orgOverride != "" {
-		// The override org has no credential of its own; fall back to the
-		// selected org's token.
-		token = conf.APIToken()
-	}
 
 	userAgent := buildUserAgent(cfg.userAgentSuffix)
 
@@ -257,9 +252,10 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 		UserAgent:   userAgent,
 	}
 
-	// Add refresh transport if a refresh token is available for this org.
+	// Only stored credentials may be refreshed. An explicit environment token
+	// must never be replaced by a different stored identity after a 401.
 	kr := keyring.New()
-	if refreshToken, err := kr.GetRefreshToken(org); err == nil && refreshToken != "" {
+	if refreshToken, err := kr.GetRefreshToken(org); os.Getenv("BUILDKITE_API_TOKEN") == "" && token != "" && err == nil && refreshToken != "" {
 		transport = &bkhttp.RefreshTransport{
 			Base:        transport,
 			Org:         org,

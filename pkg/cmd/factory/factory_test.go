@@ -1,6 +1,7 @@
 package factory
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,159 @@ import (
 	buildkite "github.com/buildkite/go-buildkite/v5"
 	"github.com/spf13/afero"
 )
+
+func TestFactoryDoesNotBorrowCredentials(t *testing.T) {
+	for _, targetRefresh := range []string{"", "target-refresh-only"} {
+		name := "no target credentials"
+		if targetRefresh != "" {
+			name = "target refresh token only"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("BUILDKITE_API_TOKEN", "")
+			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "selected")
+			t.Setenv(keyring.CredentialStoreEnv, keyring.StoreKeyring)
+			keyring.MockForTesting()
+			defer keyring.ResetForTesting()
+			kr := keyring.New()
+			if err := kr.Set("selected", "selected-access"); err != nil {
+				t.Fatal(err)
+			}
+			if err := kr.SetRefreshToken("selected", "selected-refresh"); err != nil {
+				t.Fatal(err)
+			}
+			if targetRefresh != "" {
+				if err := kr.SetRefreshToken("target", targetRefresh); err != nil {
+					t.Fatal(err)
+				}
+			}
+			requests, refreshes := 0, 0
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/oauth/token" {
+					refreshes++
+				} else {
+					requests++
+					if r.URL.Path != "/v2/organizations/target/pipelines/widgets/builds" {
+						t.Errorf("unexpected request path: %s", r.URL.Path)
+					}
+					// The SDK emits an empty Bearer header when no token is supplied.
+					if auth := r.Header.Get("Authorization"); auth != "" && auth != "Bearer" {
+						t.Error("factory injected credentials despite missing target access token")
+					}
+				}
+				w.WriteHeader(http.StatusUnauthorized)
+			}))
+			defer server.Close()
+			transport := http.DefaultTransport
+			http.DefaultTransport = server.Client().Transport
+			defer func() { http.DefaultTransport = transport }()
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+			t.Setenv("BUILDKITE_HOST", strings.TrimPrefix(server.URL, "https://"))
+			f, err := New(WithOrgOverride("target"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Bypass command validation to test the factory's own credential policy.
+			_, response, err := f.RestAPIClient.Builds.ListByPipeline(context.Background(), "target", "widgets", nil)
+			if err == nil || response == nil || response.StatusCode != http.StatusUnauthorized || requests != 1 || refreshes != 0 {
+				t.Fatalf("expected one unauthenticated request without refresh: err=%v requests=%d refreshes=%d", err, requests, refreshes)
+			}
+		})
+	}
+}
+
+func TestOrganizationCredentialRefresh(t *testing.T) {
+	for _, environmentToken := range []bool{false, true} {
+		name := "target stored credentials refresh"
+		if environmentToken {
+			name = "environment credentials never refresh"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("BUILDKITE_API_TOKEN", "")
+			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "selected")
+			t.Setenv(keyring.CredentialStoreEnv, keyring.StoreKeyring)
+			keyring.MockForTesting()
+			defer keyring.ResetForTesting()
+			kr := keyring.New()
+			for _, org := range []string{"selected", "target"} {
+				if err := kr.Set(org, org+"-access"); err != nil {
+					t.Fatal(err)
+				}
+				if err := kr.SetRefreshToken(org, org+"-refresh"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if environmentToken {
+				t.Setenv("BUILDKITE_API_TOKEN", "explicit-access")
+			}
+			requests, refreshes := 0, 0
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if r.URL.Path == "/oauth/token" {
+					refreshes++
+					if err := r.ParseForm(); err != nil {
+						t.Error(err)
+					}
+					if r.Form.Get("refresh_token") != "target-refresh" {
+						t.Error("refresh used the wrong organization's token")
+					}
+					_, _ = io.WriteString(w, `{"access_token":"rotated-access","refresh_token":"rotated-refresh","token_type":"Bearer","expires_in":3600}`)
+					return
+				}
+				requests++
+				if r.URL.Path != "/v2/organizations/target/pipelines/widgets/builds" {
+					t.Errorf("unexpected path %s", r.URL.Path)
+				}
+				want := "target-access"
+				if environmentToken {
+					want = "explicit-access"
+				} else if requests > 1 {
+					want = "rotated-access"
+				}
+				if r.Header.Get("Authorization") != "Bearer "+want {
+					t.Error("request used unexpected credentials")
+				}
+				if requests == 1 {
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+				_, _ = io.WriteString(w, `[]`)
+			}))
+			defer server.Close()
+			transport := http.DefaultTransport
+			http.DefaultTransport = server.Client().Transport
+			defer func() { http.DefaultTransport = transport }()
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+			t.Setenv("BUILDKITE_HOST", strings.TrimPrefix(server.URL, "https://"))
+			f, err := New(WithOrgOverride("target"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, _, err = f.RestAPIClient.Builds.ListByPipeline(context.Background(), "target", "widgets", nil)
+			if environmentToken {
+				if err == nil || requests != 1 || refreshes != 0 {
+					t.Fatalf("expected original auth failure without refresh: err=%v requests=%d refreshes=%d", err, requests, refreshes)
+				}
+			} else if err != nil || requests != 2 || refreshes != 1 {
+				t.Fatalf("expected target refresh and retry: err=%v requests=%d refreshes=%d", err, requests, refreshes)
+			}
+			for _, org := range []string{"selected", "target"} {
+				wantAccess, wantRefresh := org+"-access", org+"-refresh"
+				if org == "target" && !environmentToken {
+					wantAccess, wantRefresh = "rotated-access", "rotated-refresh"
+				}
+				access, _ := kr.Get(org)
+				refresh, _ := kr.GetRefreshToken(org)
+				if access != wantAccess || refresh != wantRefresh {
+					t.Errorf("unexpected credential changes for %s", org)
+				}
+			}
+		})
+	}
+}
 
 // withCredentialStoreEnv sets BUILDKITE_CREDENTIAL_STORE for the test (or
 // unsets it when value is empty) and restores prior state via t.Cleanup.
