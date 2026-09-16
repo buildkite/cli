@@ -31,6 +31,29 @@ it with that tool instead.
 bk auth login
 ```
 
+Stored credentials are selected per organization. When targeting another
+organization, authenticate it explicitly:
+
+```sh
+bk auth login --org other-org
+```
+
+Logging in also selects that organization in your user-wide configuration.
+Repository configuration and `BUILDKITE_ORGANIZATION_SLUG` still take precedence.
+To target an organization without changing your selection, use a qualified pipeline
+or URL with `build list` or `job list`:
+
+```sh
+bk build list --pipeline other-org/my-pipeline
+bk job list --pipeline https://buildkite.com/other-org/my-pipeline --build 123
+```
+
+The CLI does not fall back to another organization's stored credentials. For
+automation or a token with access to multiple organizations, supply
+`BUILDKITE_API_TOKEN` explicitly. This environment token takes precedence over
+stored credentials and is not replaced by stored OAuth credentials if a request
+fails authentication.
+
 ## Feedback
 
 We'd love to hear any feedback and questions you might have. Please [file an issue on GitHub](https://github.com/buildkite/cli/issues) and let us know!
