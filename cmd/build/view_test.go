@@ -86,6 +86,39 @@ func TestViewCmdCreatorSelection(t *testing.T) {
 	}
 }
 
+func TestViewCmdPreservesMixedCaseSlugsInAPIPath(t *testing.T) {
+	const wantPath = "/v2/organizations/ExampleOrg/pipelines/Example-Pipeline/builds/177"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != wantPath {
+			t.Errorf("request path = %q, want %q", r.URL.Path, wantPath)
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(buildkite.Build{Number: 177, State: "passed"})
+	}))
+	defer server.Close()
+
+	t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+	t.Setenv("BUILDKITE_API_TOKEN", "test-token")
+	t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "ConfiguredOrg")
+
+	var cmd ViewCmd
+	parser := kong.Must(&cmd, kong.Vars{"output_default_format": ""})
+	ctx, err := parser.Parse([]string{
+		"177",
+		"--pipeline", "ExampleOrg/Example-Pipeline",
+		"--summary",
+		"--json",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Run(ctx, cli.Globals{NoInput: true, Quiet: true, NoPager: true}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestViewCmd_BuildGetOptions_WithJobStates(t *testing.T) {
 	cmd := &ViewCmd{
 		JobStates: []string{"failed", "broken"},
