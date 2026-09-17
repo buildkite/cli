@@ -18,7 +18,7 @@ require (
 	github.com/jpillora/chisel v1.12.1
 	github.com/mcncl/terminal-to-llm v0.1.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
-	github.com/posthog/posthog-go v1.25.1
+	github.com/posthog/posthog-go v1.25.2
 	github.com/vektah/gqlparser/v2 v2.5.37
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/zalando/go-keyring v0.2.8
