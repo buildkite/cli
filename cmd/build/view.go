@@ -156,7 +156,7 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return browser.OpenURL(buildURL)
 	}
 
-	var build buildkite.Build
+	var build buildDetails
 	var artifacts []buildkite.Artifact
 	var annotations []buildkite.Annotation
 	if err = bkIO.SpinWhile(f, "Loading build information", func() error {
@@ -167,23 +167,13 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	if c.Summary {
-		return output.Write(os.Stdout, newBuildSummaryOutput(build, opts.Organization, opts.Pipeline), format)
+		return output.Write(os.Stdout, newBuildSummaryOutput(build.Build, opts.Organization, opts.Pipeline), format)
 	}
 
 	// Create a combined view for JSON/YAML output
-	type BuildOutput struct {
-		buildkite.Build
-		Artifacts   []buildkite.Artifact   `json:"artifacts,omitempty"`
-		Annotations []buildkite.Annotation `json:"annotations,omitempty"`
-	}
-
-	buildOutput := output.Viewable[BuildOutput]{
-		Data: BuildOutput{
-			Build:       build,
-			Artifacts:   artifacts,
-			Annotations: annotations,
-		},
-		Render: func(b BuildOutput) string {
+	buildOutput := output.Viewable[buildOutput]{
+		Data: build.output(artifacts, annotations),
+		Render: func(b buildOutput) string {
 			return view.NewBuildView(&b.Build, b.Artifacts, b.Annotations, opts.Organization, opts.Pipeline).Render()
 		},
 	}
@@ -199,13 +189,13 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	return output.Write(os.Stdout, buildOutput, format)
 }
 
-func (c *ViewCmd) fetchBuildDetails(ctx context.Context, f *factory.Factory, opts view.ViewOptions) (buildkite.Build, []buildkite.Artifact, []buildkite.Annotation, error) {
+func (c *ViewCmd) fetchBuildDetails(ctx context.Context, f *factory.Factory, opts view.ViewOptions) (buildDetails, []buildkite.Artifact, []buildkite.Annotation, error) {
 	if c.Summary {
 		build, _, err := f.RestAPIClient.Builds.Get(ctx, opts.Organization, opts.Pipeline, fmt.Sprint(opts.BuildNumber), c.buildGetOptions())
-		return build, nil, nil, err
+		return buildDetails{Build: build}, nil, nil, err
 	}
 
-	var build buildkite.Build
+	var build buildDetails
 	var artifacts []buildkite.Artifact
 	var annotations []buildkite.Annotation
 	var fetchErr error
@@ -216,7 +206,7 @@ func (c *ViewCmd) fetchBuildDetails(ctx context.Context, f *factory.Factory, opt
 	go func() {
 		defer wg.Done()
 		var apiErr error
-		build, _, apiErr = f.RestAPIClient.Builds.Get(ctx, opts.Organization, opts.Pipeline, fmt.Sprint(opts.BuildNumber), c.buildGetOptions())
+		build, apiErr = getBuildDetails(ctx, f.RestAPIClient, opts, c.JobStates)
 		if apiErr != nil {
 			mu.Lock()
 			fetchErr = apiErr
