@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/alecthomas/kong"
+	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/output"
@@ -308,5 +310,138 @@ func TestResolveTeamSlugs(t *testing.T) {
 	}
 	if teams, err := resolveTeamSlugs(context.Background(), nil, "org", nil); err != nil || teams != nil {
 		t.Fatalf("empty assignment should not perform a lookup: %v, %v", teams, err)
+	}
+}
+
+func TestCreateWithoutTeamsReturnsValidationError(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("BUILDKITE_API_TOKEN", "test-token")
+	posts, lists := 0, 0
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path != "/v2/organizations/org/pipelines" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		switch r.Method {
+		case http.MethodPost:
+			posts++
+			var body map[string]json.RawMessage
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Error(err)
+			}
+			if _, present := body["teams"]; present {
+				t.Error("creation without --team must omit teams")
+			}
+			// Model a non-admin creation rejected by a Teams-enabled organization.
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			fmt.Fprint(w, `{"message":"Team assignments are required"}`)
+		case http.MethodGet:
+			lists++
+			// The duplicate-name check must not mask the original validation error.
+			fmt.Fprint(w, `[]`)
+		default:
+			t.Errorf("unexpected method: %s", r.Method)
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	}))
+	defer s.Close()
+	t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+	t.Setenv("BUILDKITE_GRAPHQL_ENDPOINT", s.URL+"/graphql")
+	var c CreateCmd
+	var stdout bytes.Buffer
+	parser, err := kong.New(&c, kong.Writers(&stdout, &stdout), kong.Vars{"output_default_format": "json"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	kongCtx, err := parser.Parse([]string{"new", "--org", "org", "--repository", "git@example.com:repo.git", "--cluster-uuid", "cluster"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = c.Run(kongCtx, cli.Globals{NoInput: true, Quiet: true})
+	var apiErr *buildkite.ErrorResponse
+	if !errors.As(err, &apiErr) || apiErr.Response.StatusCode != http.StatusUnprocessableEntity || apiErr.Message != "Team assignments are required" {
+		t.Fatalf("expected original missing-teams 422, got %v", err)
+	}
+	if posts != 1 || lists != 1 || stdout.Len() != 0 {
+		t.Fatalf("posts=%d lists=%d output=%q", posts, lists, stdout.String())
+	}
+}
+
+func TestCopySourceWithoutTeams(t *testing.T) {
+	for _, dryRun := range []bool{true, false} {
+		t.Run(fmt.Sprintf("dry-run=%t", dryRun), func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("BUILDKITE_API_TOKEN", "test-token")
+			lookups, posts := 0, 0
+			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				switch {
+				case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/org/pipelines/source":
+					fmt.Fprint(w, `{"name":"Source","slug":"source","repository":"git@example.com:repo.git","configuration":"steps: []","cluster_id":"cluster"}`)
+				case r.Method == http.MethodPost && r.URL.Path == "/graphql":
+					lookups++
+					fmt.Fprint(w, `{"data":{"pipeline":{"teams":{"edges":[],"pageInfo":{"hasNextPage":false}}}}}`)
+				case r.Method == http.MethodPost && r.URL.Path == "/v2/organizations/org/pipelines":
+					posts++
+					var body map[string]json.RawMessage
+					if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+						t.Error(err)
+					}
+					if _, present := body["teams"]; present {
+						t.Error("copy of a source without teams must omit teams")
+					}
+					if string(body["name"]) != `"copy"` || string(body["cluster_id"]) != `"cluster"` {
+						t.Errorf("unexpected copy payload: %v", body)
+					}
+					// Model an authorized caller that may create without team assignments.
+					w.WriteHeader(http.StatusCreated)
+					fmt.Fprint(w, `{"name":"copy","cluster_id":"cluster"}`)
+				default:
+					t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			defer s.Close()
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+			t.Setenv("BUILDKITE_GRAPHQL_ENDPOINT", s.URL+"/graphql")
+			var c CopyCmd
+			var stdout bytes.Buffer
+			parser, err := kong.New(&c, kong.Writers(&stdout, &stdout), kong.Vars{"output_default_format": "json"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			args := []string{"org/source", "--org", "org", "--target", "org/copy"}
+			if dryRun {
+				args = append(args, "--dry-run")
+			}
+			kongCtx, err := parser.Parse(args)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := c.Run(kongCtx, cli.Globals{NoInput: true, Quiet: true}); err != nil {
+				t.Fatal(err)
+			}
+			var result map[string]json.RawMessage
+			if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+				t.Fatal(err)
+			}
+			if _, present := result["teams"]; present {
+				t.Error("output should not invent team assignments")
+			}
+			if string(result["name"]) != `"copy"` || string(result["cluster_id"]) != `"cluster"` {
+				t.Fatalf("unexpected output: %s", stdout.String())
+			}
+			wantPosts := 1
+			if dryRun {
+				wantPosts = 0
+			}
+			if lookups != 1 || posts != wantPosts {
+				t.Fatalf("lookups=%d posts=%d, want 1 and %d", lookups, posts, wantPosts)
+			}
+		})
 	}
 }
