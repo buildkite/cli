@@ -29,7 +29,7 @@ type CreateCmd struct {
 	ClusterShorthand string            `short:"c" hidden:"" name:"c" help:""`
 	CreateWebhook    bool              `help:"Create an SCM webhook for the pipeline (GitHub and GitHub Enterprise only)" short:"W"`
 	DryRun           bool              `help:"Simulate pipeline creation without actually creating it"`
-	Teams            map[string]string `name:"team" help:"Team assignment as UUID=ACCESS_LEVEL (repeatable); access: read_only, build_and_read, manage_build_and_read"`
+	Teams            map[string]string `name:"team" help:"Team assignment as NAME=ACCESS_LEVEL (repeatable); access: read_only, build_and_read, manage_build_and_read"`
 	output.OutputFlags
 }
 
@@ -59,10 +59,10 @@ actually creating it. This outputs a JSON representation of the pipeline to be c
 Use --cluster-uuid to assign a pipeline to a cluster by UUID, or --cluster-name to
 assign by name (the name will be resolved to the corresponding UUID).
 
-Use --team UUID=ACCESS_LEVEL for each team assignment. Access levels are read_only,
-build_and_read, and manage_build_and_read. Team UUIDs are available from bk team list
---output json or the team's Settings page. Non-admin users in organizations with
-Teams enabled must assign a team when creating a pipeline.
+Use --team "Team Name=ACCESS_LEVEL" for each team assignment. Names must match
+exactly in the destination organization and require read_teams API access to resolve.
+Access levels are read_only, build_and_read, and manage_build_and_read. Non-admin
+users in organizations with Teams enabled must assign a team when creating a pipeline.
 
 Examples:
   # Create a new pipeline
@@ -72,7 +72,7 @@ Examples:
   $ bk pipeline create "My Pipeline" --description "My pipeline description" --repository "git@github.com:org/repo.git" --output json
 
   # Create a pipeline with team access
-  $ bk pipeline create "My Pipeline" -r "git@github.com:org/repo.git" --team "14e9501c-69fe-4cda-ae07-daea9ca3afd3=build_and_read"
+  $ bk pipeline create "My Pipeline" -r "git@github.com:org/repo.git" --team "Platform Engineering=build_and_read"
 
   # Create a pipeline with a cluster (by UUID)
   $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" --cluster-uuid "cluster-uuid-123"
@@ -157,6 +157,10 @@ func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) (*bu
 	if err != nil {
 		return nil, err
 	}
+	teams, err := resolveTeamNames(ctx, f.RestAPIClient, c.orgSlug(f.Config), c.Teams)
+	if err != nil {
+		return nil, err
+	}
 
 	repoURL := getRepositoryURL(f, c.Repository)
 
@@ -169,7 +173,7 @@ func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) (*bu
 			Repository:    repoURL,
 			Description:   c.Description,
 			ClusterID:     clusterID,
-			Teams:         c.Teams,
+			Teams:         teams,
 			Configuration: "steps:\n  - label: \":pipeline:\"\n    command: buildkite-agent pipeline upload",
 		}
 
@@ -270,6 +274,10 @@ func (c *CreateCmd) createPipelineDryRun(ctx context.Context, f *factory.Factory
 	}
 
 	orgSlug := c.orgSlug(f.Config)
+	teams, err := resolveTeamNames(ctx, f.RestAPIClient, orgSlug, c.Teams)
+	if err != nil {
+		return nil, err
+	}
 	pipeline := initialisePipelineDryRun()
 
 	pipeline.ID = "00000000-0000-0000-0000-000000000000"
@@ -278,7 +286,7 @@ func (c *CreateCmd) createPipelineDryRun(ctx context.Context, f *factory.Factory
 	pipeline.WebURL = fmt.Sprintf("https://buildkite.com/%s/%s", orgSlug, pipelineSlug)
 	pipeline.Name = c.Name
 	pipeline.Description = c.Description
-	pipeline.Teams = c.Teams
+	pipeline.Teams = teams
 	pipeline.Slug = pipelineSlug
 	pipeline.Repository = c.Repository
 	clusterUUID, _ := c.resolveClusterUUID(ctx, f)

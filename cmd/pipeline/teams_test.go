@@ -31,10 +31,10 @@ func TestTeamFlags(t *testing.T) {
 			args    []string
 			wantErr bool
 		}{
-			{"multiple assignments", []string{"--team", readerTeam + "=read_only", "--team", ownerTeam + "=manage_build_and_read"}, false},
-			{"invalid UUID", []string{"--team", "my-team=read_only"}, true},
-			{"invalid access", []string{"--team", readerTeam + "=admin"}, true},
-			{"missing access", []string{"--team", readerTeam}, true},
+			{"multiple assignments", []string{"--team", "Readers=read_only", "--team", "Platform Engineering=manage_build_and_read"}, false},
+			{"empty name", []string{"--team", " =read_only"}, true},
+			{"invalid access", []string{"--team", "Readers=admin"}, true},
+			{"missing access", []string{"--team", "Readers"}, true},
 		} {
 			t.Run(command+"/"+tc.name, func(t *testing.T) {
 				var cli struct {
@@ -56,7 +56,7 @@ func TestTeamFlags(t *testing.T) {
 				if command == "cp" {
 					teams = cli.Cp.Teams
 				}
-				if !maps.Equal(teams, map[string]string{readerTeam: "read_only", ownerTeam: "manage_build_and_read"}) {
+				if !maps.Equal(teams, map[string]string{"Readers": "read_only", "Platform Engineering": "manage_build_and_read"}) {
 					t.Fatalf("unexpected assignments: %v", teams)
 				}
 			})
@@ -120,7 +120,7 @@ func TestCopyTeamsPaginationAndCreation(t *testing.T) {
 	f := &factory.Factory{Config: &config.Config{}, RestAPIClient: client, GraphQLClient: graphql.NewClient(s.URL+"/graphql", s.Client())}
 	c := CopyCmd{OutputFlags: output.OutputFlags{Output: "json"}}
 	request := c.buildCreatePipeline(&buildkite.Pipeline{Repository: "git@example.com:repo.git", Configuration: "steps: []"}, "copy", false, "cluster")
-	request.Teams, err = c.resolveTeams(context.Background(), f, "source-org", "source", false)
+	request.Teams, err = c.resolveTeams(context.Background(), f, "source-org", "source", "source-org")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,16 +154,30 @@ func TestCopyTeamsPaginationAndCreation(t *testing.T) {
 }
 
 func TestCopyTeamOverridesAndCrossOrg(t *testing.T) {
-	for _, crossOrg := range []bool{false, true} {
-		c := CopyCmd{Teams: map[string]string{readerTeam: "build_and_read"}}
+	for _, targetOrg := range []string{"org", "destination"} {
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet || r.URL.Path != "/v2/organizations/"+targetOrg+"/teams" {
+				t.Errorf("wrong lookup: %s %s", r.Method, r.URL.Path)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w, `[{"id":%q,"name":"Platform Engineering"}]`, ownerTeam)
+		}))
+		t.Cleanup(s.Close)
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+		t.Setenv("BUILDKITE_API_TOKEN", "test-token")
+		client, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+		if err != nil {
+			t.Fatal(err)
+		}
+		c := CopyCmd{Teams: map[string]string{"Platform Engineering": "build_and_read"}}
 		// No GraphQL client: explicit teams must bypass source lookups.
-		teams, err := c.resolveTeams(context.Background(), &factory.Factory{}, "org", "pipeline", crossOrg)
-		if err != nil || !maps.Equal(teams, c.Teams) {
+		teams, err := c.resolveTeams(context.Background(), &factory.Factory{RestAPIClient: client, Config: &config.Config{}}, "org", "pipeline", targetOrg)
+		if err != nil || !maps.Equal(teams, map[string]string{ownerTeam: "build_and_read"}) {
 			t.Fatalf("teams=%v err=%v", teams, err)
 		}
 	}
 	c := CopyCmd{}
-	teams, err := c.resolveTeams(context.Background(), &factory.Factory{}, "org", "pipeline", true)
+	teams, err := c.resolveTeams(context.Background(), &factory.Factory{}, "org", "pipeline", "destination")
 	if err != nil || len(teams) != 0 {
 		t.Fatalf("cross-org copy inherited teams: %v, %v", teams, err)
 	}
@@ -182,7 +196,7 @@ func TestCopyTeamLookupFailures(t *testing.T) {
 			}))
 			defer s.Close()
 			c := CopyCmd{}
-			teams, err := c.resolveTeams(context.Background(), &factory.Factory{GraphQLClient: graphql.NewClient(s.URL, s.Client())}, "org", "pipeline", false)
+			teams, err := c.resolveTeams(context.Background(), &factory.Factory{GraphQLClient: graphql.NewClient(s.URL, s.Client())}, "org", "pipeline", "org")
 			if err == nil || !strings.Contains(err.Error(), "--team") || teams != nil {
 				t.Fatalf("teams=%v err=%v", teams, err)
 			}
@@ -195,6 +209,10 @@ func TestCreateTeamsRequestAndDryRun(t *testing.T) {
 	posts := 0
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/org/teams" {
+			fmt.Fprintf(w, `[{"id":%q,"name":"Readers"}]`, readerTeam)
+			return
+		}
 		if r.Method == http.MethodGet {
 			w.WriteHeader(http.StatusNotFound)
 			fmt.Fprint(w, `{}`)
@@ -218,7 +236,7 @@ func TestCreateTeamsRequestAndDryRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := &factory.Factory{RestAPIClient: client}
-	c := CreateCmd{Name: "new", Org: "org", Repository: "git@example.com:repo.git", Teams: want}
+	c := CreateCmd{Name: "new", Org: "org", Repository: "git@example.com:repo.git", Teams: map[string]string{"Readers": "build_and_read"}}
 	preview, err := c.createPipelineDryRun(context.Background(), f)
 	if err != nil {
 		t.Fatal(err)
@@ -231,5 +249,63 @@ func TestCreateTeamsRequestAndDryRun(t *testing.T) {
 	}
 	if posts != 1 {
 		t.Fatalf("creation writes=%d", posts)
+	}
+}
+
+func TestResolveTeamNames(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		names      map[string]string
+		secondName string
+		status     int
+		wantErr    string
+	}{
+		{"paginated names", map[string]string{"Readers": "read_only", "Platform Engineering": "manage_build_and_read"}, "Platform Engineering", 200, ""},
+		{"ambiguous name on next page", map[string]string{"Readers": "read_only"}, "Readers", 200, "ambiguous"},
+		{"case mismatch", map[string]string{"readers": "read_only"}, "Platform Engineering", 200, "not found"},
+		{"no team read permission", map[string]string{"Readers": "read_only"}, "", 403, "could not resolve"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				if r.Method != http.MethodGet || r.URL.Path != "/v2/organizations/destination/teams" {
+					t.Errorf("unexpected lookup: %s %s", r.Method, r.URL.Path)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				if tc.status != 200 {
+					w.WriteHeader(tc.status)
+					fmt.Fprint(w, `{"message":"Forbidden"}`)
+					return
+				}
+				if calls == 1 {
+					w.Header().Set("Link", fmt.Sprintf(`<http://%s/v2/organizations/destination/teams?page=2>; rel="next"`, r.Host))
+					fmt.Fprintf(w, `[{"id":%q,"name":"Readers"}]`, readerTeam)
+				} else {
+					if r.URL.Query().Get("page") != "2" {
+						t.Error("missing page 2")
+					}
+					fmt.Fprintf(w, `[{"id":%q,"name":%q}]`, ownerTeam, tc.secondName)
+				}
+			}))
+			defer s.Close()
+			client, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+			if err != nil {
+				t.Fatal(err)
+			}
+			teams, err := resolveTeamNames(context.Background(), client, "destination", tc.names)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) || teams != nil {
+					t.Fatalf("teams=%v err=%v", teams, err)
+				}
+				return
+			}
+			if err != nil || !maps.Equal(teams, map[string]string{readerTeam: "read_only", ownerTeam: "manage_build_and_read"}) || calls != 2 {
+				t.Fatalf("teams=%v calls=%d err=%v", teams, calls, err)
+			}
+		})
+	}
+	if teams, err := resolveTeamNames(context.Background(), nil, "org", nil); err != nil || teams != nil {
+		t.Fatalf("empty assignment should not perform a lookup: %v, %v", teams, err)
 	}
 }

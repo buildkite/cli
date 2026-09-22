@@ -25,7 +25,7 @@ type CopyCmd struct {
 	ClusterName      string            `help:"Cluster name for the new pipeline (resolved to UUID)" name:"cluster-name"`
 	ClusterShorthand string            `short:"c" hidden:"" name:"c" help:""`
 	DryRun           bool              `help:"Show what would be copied without creating the pipeline"`
-	Teams            map[string]string `name:"team" help:"Replace source team assignments with UUID=ACCESS_LEVEL (repeatable); access: read_only, build_and_read, manage_build_and_read"`
+	Teams            map[string]string `name:"team" help:"Replace source team assignments with NAME=ACCESS_LEVEL (repeatable); access: read_only, build_and_read, manage_build_and_read"`
 	output.OutputFlags
 }
 
@@ -66,14 +66,16 @@ This command copies all configuration from a source pipeline including:
 - Tags and visibility
 - Team assignments and their access levels (within the same organization)
 
-Use --team UUID=ACCESS_LEVEL to replace the source team assignments. Repeat the flag
-to assign multiple teams. Access levels are read_only, build_and_read, and
+Use --team "Team Name=ACCESS_LEVEL" to replace the source team assignments. Repeat
+the flag to assign multiple teams. Names must match exactly in the destination
+organization and require read_teams API access to resolve.
+Access levels are read_only, build_and_read, and
 manage_build_and_read. Automatic team copying requires a token with GraphQL access;
 explicit --team assignments avoid that lookup.
 
 When copying to a different organization, cluster and team assignments are not
 copied because they are organization-specific. Use --team with destination team
-UUIDs; non-admin users in organizations with Teams enabled must assign a team.
+names; non-admin users in organizations with Teams enabled must assign a team.
 
 Examples:
   # Copy the current pipeline to a new pipeline
@@ -83,7 +85,7 @@ Examples:
   $ bk pipeline cp my-existing-pipeline --target "my-new-pipeline"
 
   # Copy with explicit team access instead of the source assignments
-  $ bk pipeline cp my-pipeline --target "my-copy" --team "14e9501c-69fe-4cda-ae07-daea9ca3afd3=build_and_read"
+  $ bk pipeline cp my-pipeline --target "my-copy" --team "Platform Engineering=build_and_read"
 
   # Copy a pipeline from another org (if you have access)
   $ bk pipeline cp other-org/their-pipeline --target "my-copy"
@@ -150,7 +152,7 @@ func (c *CopyCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	createReq := c.buildCreatePipeline(source, target.Name, isCrossOrg, clusterID)
-	createReq.Teams, err = c.resolveTeams(ctx, f, sourcePipeline.Org, sourcePipeline.Name, isCrossOrg)
+	createReq.Teams, err = c.resolveTeams(ctx, f, sourcePipeline.Org, sourcePipeline.Name, target.Org)
 	if err != nil {
 		return err
 	}
