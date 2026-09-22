@@ -31,10 +31,10 @@ func TestTeamFlags(t *testing.T) {
 			args    []string
 			wantErr bool
 		}{
-			{"multiple assignments", []string{"--team", "Readers=read_only", "--team", "Platform Engineering=manage_build_and_read"}, false},
-			{"empty name", []string{"--team", " =read_only"}, true},
-			{"invalid access", []string{"--team", "Readers=admin"}, true},
-			{"missing access", []string{"--team", "Readers"}, true},
+			{"multiple assignments", []string{"--team", "readers=read_only", "--team", "platform-engineering=manage_build_and_read"}, false},
+			{"empty slug", []string{"--team", " =read_only"}, true},
+			{"invalid access", []string{"--team", "readers=admin"}, true},
+			{"missing access", []string{"--team", "readers"}, true},
 		} {
 			t.Run(command+"/"+tc.name, func(t *testing.T) {
 				var cli struct {
@@ -56,7 +56,7 @@ func TestTeamFlags(t *testing.T) {
 				if command == "cp" {
 					teams = cli.Cp.Teams
 				}
-				if !maps.Equal(teams, map[string]string{"Readers": "read_only", "Platform Engineering": "manage_build_and_read"}) {
+				if !maps.Equal(teams, map[string]string{"readers": "read_only", "platform-engineering": "manage_build_and_read"}) {
 					t.Fatalf("unexpected assignments: %v", teams)
 				}
 			})
@@ -160,7 +160,7 @@ func TestCopyTeamOverridesAndCrossOrg(t *testing.T) {
 				t.Errorf("wrong lookup: %s %s", r.Method, r.URL.Path)
 			}
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprintf(w, `[{"id":%q,"name":"Platform Engineering"}]`, ownerTeam)
+			fmt.Fprintf(w, `[{"id":%q,"name":"Platform Engineering","slug":"platform-engineering"}]`, ownerTeam)
 		}))
 		t.Cleanup(s.Close)
 		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
@@ -169,7 +169,7 @@ func TestCopyTeamOverridesAndCrossOrg(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		c := CopyCmd{Teams: map[string]string{"Platform Engineering": "build_and_read"}}
+		c := CopyCmd{Teams: map[string]string{"platform-engineering": "build_and_read"}}
 		// No GraphQL client: explicit teams must bypass source lookups.
 		teams, err := c.resolveTeams(context.Background(), &factory.Factory{RestAPIClient: client, Config: &config.Config{}}, "org", "pipeline", targetOrg)
 		if err != nil || !maps.Equal(teams, map[string]string{ownerTeam: "build_and_read"}) {
@@ -210,7 +210,7 @@ func TestCreateTeamsRequestAndDryRun(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/org/teams" {
-			fmt.Fprintf(w, `[{"id":%q,"name":"Readers"}]`, readerTeam)
+			fmt.Fprintf(w, `[{"id":%q,"name":"Readers","slug":"readers"}]`, readerTeam)
 			return
 		}
 		if r.Method == http.MethodGet {
@@ -236,7 +236,7 @@ func TestCreateTeamsRequestAndDryRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := &factory.Factory{RestAPIClient: client}
-	c := CreateCmd{Name: "new", Org: "org", Repository: "git@example.com:repo.git", Teams: map[string]string{"Readers": "build_and_read"}}
+	c := CreateCmd{Name: "new", Org: "org", Repository: "git@example.com:repo.git", Teams: map[string]string{"readers": "build_and_read"}}
 	preview, err := c.createPipelineDryRun(context.Background(), f)
 	if err != nil {
 		t.Fatal(err)
@@ -252,18 +252,19 @@ func TestCreateTeamsRequestAndDryRun(t *testing.T) {
 	}
 }
 
-func TestResolveTeamNames(t *testing.T) {
+func TestResolveTeamSlugs(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
-		names      map[string]string
+		slugs      map[string]string
 		secondName string
 		status     int
 		wantErr    string
 	}{
-		{"paginated names", map[string]string{"Readers": "read_only", "Platform Engineering": "manage_build_and_read"}, "Platform Engineering", 200, ""},
-		{"ambiguous name on next page", map[string]string{"Readers": "read_only"}, "Readers", 200, "ambiguous"},
-		{"case mismatch", map[string]string{"readers": "read_only"}, "Platform Engineering", 200, "not found"},
-		{"no team read permission", map[string]string{"Readers": "read_only"}, "", 403, "could not resolve"},
+		{"paginated slugs", map[string]string{"readers": "read_only", "platform-engineering": "manage_build_and_read"}, "Platform Engineering", 200, ""},
+		{"same names with distinct slugs", map[string]string{"readers": "read_only", "platform-engineering": "manage_build_and_read"}, "Readers", 200, ""},
+		{"display name is not a slug", map[string]string{"Readers": "read_only"}, "Platform Engineering", 200, "not found"},
+		{"UUID is not a slug", map[string]string{readerTeam: "read_only"}, "Platform Engineering", 200, "not found"},
+		{"no team read permission", map[string]string{"readers": "read_only"}, "", 403, "could not resolve"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			calls := 0
@@ -280,12 +281,12 @@ func TestResolveTeamNames(t *testing.T) {
 				}
 				if calls == 1 {
 					w.Header().Set("Link", fmt.Sprintf(`<http://%s/v2/organizations/destination/teams?page=2>; rel="next"`, r.Host))
-					fmt.Fprintf(w, `[{"id":%q,"name":"Readers"}]`, readerTeam)
+					fmt.Fprintf(w, `[{"id":%q,"name":"Readers","slug":"readers"}]`, readerTeam)
 				} else {
 					if r.URL.Query().Get("page") != "2" {
 						t.Error("missing page 2")
 					}
-					fmt.Fprintf(w, `[{"id":%q,"name":%q}]`, ownerTeam, tc.secondName)
+					fmt.Fprintf(w, `[{"id":%q,"name":%q,"slug":"platform-engineering"}]`, ownerTeam, tc.secondName)
 				}
 			}))
 			defer s.Close()
@@ -293,7 +294,7 @@ func TestResolveTeamNames(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			teams, err := resolveTeamNames(context.Background(), client, "destination", tc.names)
+			teams, err := resolveTeamSlugs(context.Background(), client, "destination", tc.slugs)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) || teams != nil {
 					t.Fatalf("teams=%v err=%v", teams, err)
@@ -305,7 +306,7 @@ func TestResolveTeamNames(t *testing.T) {
 			}
 		})
 	}
-	if teams, err := resolveTeamNames(context.Background(), nil, "org", nil); err != nil || teams != nil {
+	if teams, err := resolveTeamSlugs(context.Background(), nil, "org", nil); err != nil || teams != nil {
 		t.Fatalf("empty assignment should not perform a lookup: %v, %v", teams, err)
 	}
 }
