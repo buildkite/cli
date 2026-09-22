@@ -1,0 +1,18 @@
+query PipelineTeams($slug: ID!, $after: String) {
+  pipeline(slug: $slug) {
+    teams(first: 100, after: $after) {
+      edges {
+        node {
+          accessLevel
+          team {
+            uuid
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+}

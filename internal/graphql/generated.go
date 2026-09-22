@@ -3727,6 +3727,24 @@ func (v *ListJobsByStateResponse) GetOrganization() *ListJobsByStateOrganization
 	return v.Organization
 }
 
+// The access levels that can be assigned to a pipeline
+type PipelineAccessLevels string
+
+const (
+	// Allows builds and read only
+	PipelineAccessLevelsBuildAndRead PipelineAccessLevels = "BUILD_AND_READ"
+	// Allows edits, builds and reads
+	PipelineAccessLevelsManageBuildAndRead PipelineAccessLevels = "MANAGE_BUILD_AND_READ"
+	// Read only - no builds or edits
+	PipelineAccessLevelsReadOnly PipelineAccessLevels = "READ_ONLY"
+)
+
+var AllPipelineAccessLevels = []PipelineAccessLevels{
+	PipelineAccessLevelsBuildAndRead,
+	PipelineAccessLevelsManageBuildAndRead,
+	PipelineAccessLevelsReadOnly,
+}
+
 // PipelineCreateWebhookPipelineCreateWebhookPipelineCreateWebhookPayload includes the requested fields of the GraphQL type PipelineCreateWebhookPayload.
 // The GraphQL type's documentation follows.
 //
@@ -3764,6 +3782,119 @@ type PipelineCreateWebhookResponse struct {
 func (v *PipelineCreateWebhookResponse) GetPipelineCreateWebhook() *PipelineCreateWebhookPipelineCreateWebhookPipelineCreateWebhookPayload {
 	return v.PipelineCreateWebhook
 }
+
+// PipelineTeamsPipeline includes the requested fields of the GraphQL type Pipeline.
+// The GraphQL type's documentation follows.
+//
+// A pipeline
+type PipelineTeamsPipeline struct {
+	// Teams associated with this pipeline
+	Teams *PipelineTeamsPipelineTeamsTeamPipelineConnection `json:"teams"`
+}
+
+// GetTeams returns PipelineTeamsPipeline.Teams, and is useful for accessing the field via an interface.
+func (v *PipelineTeamsPipeline) GetTeams() *PipelineTeamsPipelineTeamsTeamPipelineConnection {
+	return v.Teams
+}
+
+// PipelineTeamsPipelineTeamsTeamPipelineConnection includes the requested fields of the GraphQL type TeamPipelineConnection.
+// The GraphQL type's documentation follows.
+//
+// The connection type for TeamPipeline.
+type PipelineTeamsPipelineTeamsTeamPipelineConnection struct {
+	// A list of edges.
+	Edges    []*PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdge `json:"edges"`
+	PageInfo *PipelineTeamsPipelineTeamsTeamPipelineConnectionPageInfo                `json:"pageInfo"`
+}
+
+// GetEdges returns PipelineTeamsPipelineTeamsTeamPipelineConnection.Edges, and is useful for accessing the field via an interface.
+func (v *PipelineTeamsPipelineTeamsTeamPipelineConnection) GetEdges() []*PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdge {
+	return v.Edges
+}
+
+// GetPageInfo returns PipelineTeamsPipelineTeamsTeamPipelineConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *PipelineTeamsPipelineTeamsTeamPipelineConnection) GetPageInfo() *PipelineTeamsPipelineTeamsTeamPipelineConnectionPageInfo {
+	return v.PageInfo
+}
+
+// PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdge includes the requested fields of the GraphQL type TeamPipelineEdge.
+// The GraphQL type's documentation follows.
+//
+// An edge in a connection.
+type PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdge struct {
+	// The item at the end of the edge.
+	Node *PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdgeNodeTeamPipeline `json:"node"`
+}
+
+// GetNode returns PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdge.Node, and is useful for accessing the field via an interface.
+func (v *PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdge) GetNode() *PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdgeNodeTeamPipeline {
+	return v.Node
+}
+
+// PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdgeNodeTeamPipeline includes the requested fields of the GraphQL type TeamPipeline.
+// The GraphQL type's documentation follows.
+//
+// An pipeline that's been assigned to a team
+type PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdgeNodeTeamPipeline struct {
+	// The access level users have to this pipeline
+	AccessLevel PipelineAccessLevels `json:"accessLevel"`
+	// The team associated with this team member
+	Team *PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdgeNodeTeamPipelineTeam `json:"team"`
+}
+
+// GetAccessLevel returns PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdgeNodeTeamPipeline.AccessLevel, and is useful for accessing the field via an interface.
+func (v *PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdgeNodeTeamPipeline) GetAccessLevel() PipelineAccessLevels {
+	return v.AccessLevel
+}
+
+// GetTeam returns PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdgeNodeTeamPipeline.Team, and is useful for accessing the field via an interface.
+func (v *PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdgeNodeTeamPipeline) GetTeam() *PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdgeNodeTeamPipelineTeam {
+	return v.Team
+}
+
+// PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdgeNodeTeamPipelineTeam includes the requested fields of the GraphQL type Team.
+// The GraphQL type's documentation follows.
+//
+// An organization team
+type PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdgeNodeTeamPipelineTeam struct {
+	// The public UUID for this team
+	Uuid string `json:"uuid"`
+}
+
+// GetUuid returns PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdgeNodeTeamPipelineTeam.Uuid, and is useful for accessing the field via an interface.
+func (v *PipelineTeamsPipelineTeamsTeamPipelineConnectionEdgesTeamPipelineEdgeNodeTeamPipelineTeam) GetUuid() string {
+	return v.Uuid
+}
+
+// PipelineTeamsPipelineTeamsTeamPipelineConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+// The GraphQL type's documentation follows.
+//
+// Information about pagination in a connection.
+type PipelineTeamsPipelineTeamsTeamPipelineConnectionPageInfo struct {
+	// When paginating forwards, are there more items?
+	HasNextPage bool `json:"hasNextPage"`
+	// When paginating forwards, the cursor to continue.
+	EndCursor *string `json:"endCursor"`
+}
+
+// GetHasNextPage returns PipelineTeamsPipelineTeamsTeamPipelineConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *PipelineTeamsPipelineTeamsTeamPipelineConnectionPageInfo) GetHasNextPage() bool {
+	return v.HasNextPage
+}
+
+// GetEndCursor returns PipelineTeamsPipelineTeamsTeamPipelineConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *PipelineTeamsPipelineTeamsTeamPipelineConnectionPageInfo) GetEndCursor() *string {
+	return v.EndCursor
+}
+
+// PipelineTeamsResponse is returned by PipelineTeams on success.
+type PipelineTeamsResponse struct {
+	// Find a pipeline
+	Pipeline *PipelineTeamsPipeline `json:"pipeline"`
+}
+
+// GetPipeline returns PipelineTeamsResponse.Pipeline, and is useful for accessing the field via an interface.
+func (v *PipelineTeamsResponse) GetPipeline() *PipelineTeamsPipeline { return v.Pipeline }
 
 // UnblockJobJobTypeBlockUnblockJobTypeBlockUnblockPayload includes the requested fields of the GraphQL type JobTypeBlockUnblockPayload.
 // The GraphQL type's documentation follows.
@@ -4000,6 +4131,18 @@ type __PipelineCreateWebhookInput struct {
 
 // GetId returns __PipelineCreateWebhookInput.Id, and is useful for accessing the field via an interface.
 func (v *__PipelineCreateWebhookInput) GetId() string { return v.Id }
+
+// __PipelineTeamsInput is used internally by genqlient
+type __PipelineTeamsInput struct {
+	Slug  string  `json:"slug"`
+	After *string `json:"after"`
+}
+
+// GetSlug returns __PipelineTeamsInput.Slug, and is useful for accessing the field via an interface.
+func (v *__PipelineTeamsInput) GetSlug() string { return v.Slug }
+
+// GetAfter returns __PipelineTeamsInput.After, and is useful for accessing the field via an interface.
+func (v *__PipelineTeamsInput) GetAfter() *string { return v.After }
 
 // __UnblockJobInput is used internally by genqlient
 type __UnblockJobInput struct {
@@ -4612,6 +4755,55 @@ func PipelineCreateWebhook(
 	}
 
 	data_ = &PipelineCreateWebhookResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by PipelineTeams.
+const PipelineTeams_Operation = `
+query PipelineTeams ($slug: ID!, $after: String) {
+	pipeline(slug: $slug) {
+		teams(first: 100, after: $after) {
+			edges {
+				node {
+					accessLevel
+					team {
+						uuid
+					}
+				}
+			}
+			pageInfo {
+				hasNextPage
+				endCursor
+			}
+		}
+	}
+}
+`
+
+func PipelineTeams(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	slug string,
+	after *string,
+) (data_ *PipelineTeamsResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "PipelineTeams",
+		Query:  PipelineTeams_Operation,
+		Variables: &__PipelineTeamsInput{
+			Slug:  slug,
+			After: after,
+		},
+	}
+
+	data_ = &PipelineTeamsResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

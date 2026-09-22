@@ -20,15 +20,16 @@ import (
 )
 
 type CreateCmd struct {
-	Name             string `arg:"" help:"Name of the pipeline" required:""`
-	Org              string `help:"Organization slug." name:"org"`
-	Description      string `help:"Description of the pipeline" short:"d"`
-	Repository       string `help:"Repository URL" short:"r"`
-	ClusterUUID      string `help:"Cluster UUID to assign the pipeline to" name:"cluster-uuid"`
-	ClusterName      string `help:"Cluster name to assign the pipeline to (resolved to UUID)" name:"cluster-name"`
-	ClusterShorthand string `short:"c" hidden:"" name:"c" help:""`
-	CreateWebhook    bool   `help:"Create an SCM webhook for the pipeline (GitHub and GitHub Enterprise only)" short:"W"`
-	DryRun           bool   `help:"Simulate pipeline creation without actually creating it"`
+	Name             string            `arg:"" help:"Name of the pipeline" required:""`
+	Org              string            `help:"Organization slug." name:"org"`
+	Description      string            `help:"Description of the pipeline" short:"d"`
+	Repository       string            `help:"Repository URL" short:"r"`
+	ClusterUUID      string            `help:"Cluster UUID to assign the pipeline to" name:"cluster-uuid"`
+	ClusterName      string            `help:"Cluster name to assign the pipeline to (resolved to UUID)" name:"cluster-name"`
+	ClusterShorthand string            `short:"c" hidden:"" name:"c" help:""`
+	CreateWebhook    bool              `help:"Create an SCM webhook for the pipeline (GitHub and GitHub Enterprise only)" short:"W"`
+	DryRun           bool              `help:"Simulate pipeline creation without actually creating it"`
+	Teams            map[string]string `name:"team" help:"Team assignment as UUID=ACCESS_LEVEL (repeatable); access: read_only, build_and_read, manage_build_and_read"`
 	output.OutputFlags
 }
 
@@ -46,7 +47,7 @@ func (c *CreateCmd) Validate() error {
 	if c.ClusterUUID != "" && c.ClusterName != "" {
 		return fmt.Errorf("only one of --cluster-uuid or --cluster-name can be specified")
 	}
-	return nil
+	return validateTeams(c.Teams)
 }
 
 func (c *CreateCmd) Help() string {
@@ -58,12 +59,20 @@ actually creating it. This outputs a JSON representation of the pipeline to be c
 Use --cluster-uuid to assign a pipeline to a cluster by UUID, or --cluster-name to
 assign by name (the name will be resolved to the corresponding UUID).
 
+Use --team UUID=ACCESS_LEVEL for each team assignment. Access levels are read_only,
+build_and_read, and manage_build_and_read. Team UUIDs are available from bk team list
+--output json or the team's Settings page. Non-admin users in organizations with
+Teams enabled must assign a team when creating a pipeline.
+
 Examples:
   # Create a new pipeline
   $ bk pipeline create "My Pipeline" --description "My pipeline description" --repository "git@github.com:org/repo.git"
 
   # Create a new pipeline and view the created pipeline in JSON format
   $ bk pipeline create "My Pipeline" --description "My pipeline description" --repository "git@github.com:org/repo.git" --output json
+
+  # Create a pipeline with team access
+  $ bk pipeline create "My Pipeline" -r "git@github.com:org/repo.git" --team "14e9501c-69fe-4cda-ae07-daea9ca3afd3=build_and_read"
 
   # Create a pipeline with a cluster (by UUID)
   $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" --cluster-uuid "cluster-uuid-123"
@@ -160,6 +169,7 @@ func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) (*bu
 			Repository:    repoURL,
 			Description:   c.Description,
 			ClusterID:     clusterID,
+			Teams:         c.Teams,
 			Configuration: "steps:\n  - label: \":pipeline:\"\n    command: buildkite-agent pipeline upload",
 		}
 
@@ -236,6 +246,7 @@ type PipelineDryRun struct {
 	Emoji                           *string              `json:"emoji"`
 	Color                           *string              `json:"color"`
 	CreatedBy                       *buildkite.User      `json:"created_by"`
+	Teams                           map[string]string    `json:"teams,omitempty"`
 }
 
 func initialisePipelineDryRun() PipelineDryRun {
@@ -267,6 +278,7 @@ func (c *CreateCmd) createPipelineDryRun(ctx context.Context, f *factory.Factory
 	pipeline.WebURL = fmt.Sprintf("https://buildkite.com/%s/%s", orgSlug, pipelineSlug)
 	pipeline.Name = c.Name
 	pipeline.Description = c.Description
+	pipeline.Teams = c.Teams
 	pipeline.Slug = pipelineSlug
 	pipeline.Repository = c.Repository
 	clusterUUID, _ := c.resolveClusterUUID(ctx, f)
