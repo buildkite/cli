@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -13,9 +14,64 @@ import (
 
 	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/internal/config"
+	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	"github.com/buildkite/cli/v3/pkg/keyring"
 	"github.com/spf13/afero"
 )
+
+func TestCommandTelemetry(t *testing.T) {
+	for _, tt := range []struct {
+		name, command, outcome string
+		args                   []string
+		runErr                 error
+	}{
+		{"positional", "build view", "success", []string{"build", "view", "private-pipeline/123"}, nil},
+		{"flags and alias", "build list", "success", []string{"build", "ls", "--pipeline=private-pipeline", "--branch=secret"}, nil},
+		{"single command", "version", "success", []string{"version"}, nil},
+		{"runtime failure", "build view", "error", []string{"build", "view", "private-pipeline/123"}, errors.New("secret error details")},
+		{"unknown root", "", "unknown_command", []string{"private-unknown-command"}, nil},
+		{"unknown nested", "build", "unknown_command", []string{"build", "private-unknown-command"}, nil},
+		{"suggestion", "", "unknown_command", []string{"buil"}, nil},
+		{"unknown flag", "build view", "error", []string{"build", "view", "--private-flag=secret"}, nil},
+		{"missing positional", "job ssh", "error", []string{"job", "ssh"}, nil},
+		{"extra positional", "version", "error", []string{"version", "secret"}, nil},
+		{"missing subcommand", "build", "error", []string{"build"}, nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			parser, err := newKongParser(&CLI{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, err := parser.Parse(tt.args)
+			if tt.runErr != nil {
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = tt.runErr
+			}
+			command, outcome := commandTelemetry(ctx, err)
+			if command != tt.command || outcome != tt.outcome {
+				t.Fatalf("got (%q, %q), want (%q, %q); error: %v", command, outcome, tt.command, tt.outcome, err)
+			}
+		})
+	}
+}
+
+func TestHandleErrorPreservesExitCode(t *testing.T) {
+	for _, tt := range []struct {
+		err  error
+		code int
+	}{
+		{errors.New("generic failure"), 1},
+		{bkErrors.ErrAuthentication, 7},
+		{bkErrors.ErrPreflightCompletedFailure, 9},
+		{bkErrors.ErrUserAborted, 130},
+	} {
+		if got := handleError(tt.err); got != tt.code {
+			t.Errorf("handleError(%v) = %d, want %d", tt.err, got, tt.code)
+		}
+	}
+}
 
 func TestListAssociatedOrganization(t *testing.T) {
 	for _, command := range []struct {
