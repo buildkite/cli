@@ -12,12 +12,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Khan/genqlient/graphql"
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
-	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
@@ -66,92 +64,72 @@ func TestTeamFlags(t *testing.T) {
 	}
 }
 
-func TestCopyTeamsPaginationAndCreation(t *testing.T) {
+func TestCopyExplicitTeamsAndCreation(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("BUILDKITE_API_TOKEN", "test-token")
 	want := map[string]string{readerTeam: "read_only", ownerTeam: "manage_build_and_read"}
-	pages, posts := 0, 0
+	lookups, posts := 0, 0
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if r.URL.Path == "/graphql" {
-			var req struct {
-				Variables struct {
-					Slug  string
-					After *string
-				}
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/source-org/pipelines/source":
+			fmt.Fprint(w, `{"name":"Source","slug":"source","repository":"git@example.com:repo.git","configuration":"steps: []","cluster_id":"cluster"}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/source-org/teams":
+			lookups++
+			fmt.Fprintf(w, `[{"id":%q,"slug":"readers"},{"id":%q,"slug":"owners"}]`, readerTeam, ownerTeam)
+		case r.Method == http.MethodPost && r.URL.Path == "/v2/organizations/source-org/pipelines":
+			posts++
+			var body struct {
+				Teams map[string]string `json:"teams"`
 			}
-			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				t.Error(err)
 			}
-			if req.Variables.Slug != "source-org/source" {
-				t.Errorf("wrong source: %s", req.Variables.Slug)
+			if !maps.Equal(body.Teams, want) {
+				t.Errorf("creation must include explicitly selected teams: %v", body.Teams)
 			}
-			pages++
-			if pages == 1 {
-				if req.Variables.After != nil {
-					t.Error("first page should not have a cursor")
-				}
-				fmt.Fprintf(w, `{"data":{"pipeline":{"teams":{"edges":[{"node":{"accessLevel":"READ_ONLY","team":{"uuid":%q}}}],"pageInfo":{"hasNextPage":true,"endCursor":"next"}}}}}`, readerTeam)
-			} else {
-				if req.Variables.After == nil || *req.Variables.After != "next" {
-					t.Error("missing next-page cursor")
-				}
-				fmt.Fprintf(w, `{"data":{"pipeline":{"teams":{"edges":[{"node":{"accessLevel":"MANAGE_BUILD_AND_READ","team":{"uuid":%q}}}],"pageInfo":{"hasNextPage":false}}}}}`, ownerTeam)
-			}
-			return
-		}
-		if r.Method != http.MethodPost || r.URL.Path != "/v2/organizations/source-org/pipelines" {
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprint(w, `{"name":"copy"}`)
+		default:
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
 		}
-		posts++
-		var body struct {
-			Teams map[string]string `json:"teams"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Error(err)
-		}
-		if !maps.Equal(body.Teams, want) {
-			t.Errorf("creation must include all teams with original access: %v", body.Teams)
-			w.WriteHeader(http.StatusUnprocessableEntity)
-		}
-		fmt.Fprint(w, `{"name":"copy"}`)
 	}))
 	defer s.Close()
-	client, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
-	if err != nil {
-		t.Fatal(err)
+	t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+	for _, dryRun := range []bool{true, false} {
+		var c CopyCmd
+		var stdout bytes.Buffer
+		parser, err := kong.New(&c, kong.Writers(&stdout, &stdout), kong.Vars{"output_default_format": "json"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		args := []string{"source-org/source", "--org", "source-org", "--target", "source-org/copy", "--team", "readers=read_only", "--team", "owners=manage_build_and_read"}
+		if dryRun {
+			args = append(args, "--dry-run")
+		}
+		kongCtx, err := parser.Parse(args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := c.Run(kongCtx, cli.Globals{NoInput: true, Quiet: true}); err != nil {
+			t.Fatal(err)
+		}
+		if dryRun {
+			var preview struct {
+				Teams map[string]string `json:"teams"`
+			}
+			if err := json.Unmarshal(stdout.Bytes(), &preview); err != nil {
+				t.Fatal(err)
+			}
+			if !maps.Equal(preview.Teams, want) || posts != 0 {
+				t.Fatalf("dry-run teams=%v writes=%d", preview.Teams, posts)
+			}
+		}
 	}
-	f := &factory.Factory{Config: &config.Config{}, RestAPIClient: client, GraphQLClient: graphql.NewClient(s.URL+"/graphql", s.Client())}
-	c := CopyCmd{OutputFlags: output.OutputFlags{Output: "json"}}
-	request := c.buildCreatePipeline(&buildkite.Pipeline{Repository: "git@example.com:repo.git", Configuration: "steps: []"}, "copy", false, "cluster")
-	request.Teams, err = c.resolveTeams(context.Background(), f, "source-org", "source", "source-org")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var preview bytes.Buffer
-	parser, err := kong.New(&c, kong.Writers(&preview, &preview), kong.Vars{"output_default_format": "json"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	kongCtx, err := parser.Parse(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := c.runDryRun(kongCtx, f, request); err != nil {
-		t.Fatal(err)
-	}
-	var dry struct {
-		Teams map[string]string `json:"teams"`
-	}
-	if err := json.Unmarshal(preview.Bytes(), &dry); err != nil {
-		t.Fatal(err)
-	}
-	if !maps.Equal(dry.Teams, want) || posts != 0 {
-		t.Fatalf("dry-run teams %v, writes %d", dry.Teams, posts)
-	}
-	if err := c.runCopy(kongCtx, f, &copyTarget{Org: "source-org", Name: "copy"}, false, request); err != nil {
-		t.Fatal(err)
-	}
-	if pages != 2 || posts != 1 {
-		t.Fatalf("pages=%d posts=%d", pages, posts)
+	if lookups != 2 || posts != 1 {
+		t.Fatalf("lookups=%d posts=%d", lookups, posts)
 	}
 }
 
@@ -173,36 +151,15 @@ func TestCopyTeamOverridesAndCrossOrg(t *testing.T) {
 		}
 		c := CopyCmd{Teams: map[string]string{"platform-engineering": "build_and_read"}}
 		// No GraphQL client: explicit teams must bypass source lookups.
-		teams, err := c.resolveTeams(context.Background(), &factory.Factory{RestAPIClient: client, Config: &config.Config{}}, "org", "pipeline", targetOrg)
+		teams, err := c.resolveTeams(context.Background(), &factory.Factory{RestAPIClient: client, Config: &config.Config{}}, "org", targetOrg)
 		if err != nil || !maps.Equal(teams, map[string]string{ownerTeam: "build_and_read"}) {
 			t.Fatalf("teams=%v err=%v", teams, err)
 		}
 	}
 	c := CopyCmd{}
-	teams, err := c.resolveTeams(context.Background(), &factory.Factory{}, "org", "pipeline", "destination")
+	teams, err := c.resolveTeams(context.Background(), &factory.Factory{}, "org", "destination")
 	if err != nil || len(teams) != 0 {
 		t.Fatalf("cross-org copy inherited teams: %v, %v", teams, err)
-	}
-}
-
-func TestCopyTeamLookupFailures(t *testing.T) {
-	for _, response := range []string{
-		`{"errors":[{"message":"Forbidden"}]}`,
-		`{"data":{"pipeline":null}}`,
-		`{"data":{"pipeline":{"teams":{"edges":[{"node":{"team":null}}]}}}}`,
-	} {
-		t.Run(response, func(t *testing.T) {
-			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Set("Content-Type", "application/json")
-				fmt.Fprint(w, response)
-			}))
-			defer s.Close()
-			c := CopyCmd{}
-			teams, err := c.resolveTeams(context.Background(), &factory.Factory{GraphQLClient: graphql.NewClient(s.URL, s.Client())}, "org", "pipeline", "org")
-			if err == nil || !strings.Contains(err.Error(), "--team") || teams != nil {
-				t.Fatalf("teams=%v err=%v", teams, err)
-			}
-		})
 	}
 }
 
@@ -370,21 +327,18 @@ func TestCreateWithoutTeamsReturnsValidationError(t *testing.T) {
 	}
 }
 
-func TestCopySourceWithoutTeams(t *testing.T) {
+func TestCopyWithoutTeamFlagsOmitsTeams(t *testing.T) {
 	for _, dryRun := range []bool{true, false} {
 		t.Run(fmt.Sprintf("dry-run=%t", dryRun), func(t *testing.T) {
 			t.Chdir(t.TempDir())
 			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 			t.Setenv("BUILDKITE_API_TOKEN", "test-token")
-			lookups, posts := 0, 0
+			posts := 0
 			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				switch {
 				case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/org/pipelines/source":
 					fmt.Fprint(w, `{"name":"Source","slug":"source","repository":"git@example.com:repo.git","configuration":"steps: []","cluster_id":"cluster"}`)
-				case r.Method == http.MethodPost && r.URL.Path == "/graphql":
-					lookups++
-					fmt.Fprint(w, `{"data":{"pipeline":{"teams":{"edges":[],"pageInfo":{"hasNextPage":false}}}}}`)
 				case r.Method == http.MethodPost && r.URL.Path == "/v2/organizations/org/pipelines":
 					posts++
 					var body map[string]json.RawMessage
@@ -392,7 +346,7 @@ func TestCopySourceWithoutTeams(t *testing.T) {
 						t.Error(err)
 					}
 					if _, present := body["teams"]; present {
-						t.Error("copy of a source without teams must omit teams")
+						t.Error("copy without --team must omit teams even if the source has teams")
 					}
 					if string(body["name"]) != `"copy"` || string(body["cluster_id"]) != `"cluster"` {
 						t.Errorf("unexpected copy payload: %v", body)
@@ -401,6 +355,7 @@ func TestCopySourceWithoutTeams(t *testing.T) {
 					w.WriteHeader(http.StatusCreated)
 					fmt.Fprint(w, `{"name":"copy","cluster_id":"cluster"}`)
 				default:
+					// Source assignments (possibly including invisible teams) must never be queried.
 					t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 					w.WriteHeader(http.StatusNotFound)
 				}
@@ -439,8 +394,8 @@ func TestCopySourceWithoutTeams(t *testing.T) {
 			if dryRun {
 				wantPosts = 0
 			}
-			if lookups != 1 || posts != wantPosts {
-				t.Fatalf("lookups=%d posts=%d, want 1 and %d", lookups, posts, wantPosts)
+			if posts != wantPosts {
+				t.Fatalf("posts=%d, want %d", posts, wantPosts)
 			}
 		})
 	}

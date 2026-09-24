@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/buildkite/cli/v3/internal/graphql"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v5"
 )
@@ -57,48 +56,17 @@ func resolveTeamSlugs(ctx context.Context, client *buildkite.Client, org string,
 	return assignments, nil
 }
 
-func (c *CopyCmd) resolveTeams(ctx context.Context, f *factory.Factory, org, slug, targetOrg string) (map[string]string, error) {
-	if len(c.Teams) > 0 {
-		client := f.RestAPIClient
-		if targetOrg != org {
-			var err error
-			client, err = c.getClientForOrg(f, targetOrg)
-			if err != nil {
-				return nil, err
-			}
-		}
-		return resolveTeamSlugs(ctx, client, targetOrg, c.Teams)
-	}
-	if targetOrg != org {
+func (c *CopyCmd) resolveTeams(ctx context.Context, f *factory.Factory, sourceOrg, targetOrg string) (map[string]string, error) {
+	if len(c.Teams) == 0 {
 		return nil, nil
 	}
-
-	teams := make(map[string]string)
-	var cursor *string
-	for {
-		result, err := graphql.PipelineTeams(ctx, f.GraphQLClient, org+"/"+slug, cursor)
+	client := f.RestAPIClient
+	if targetOrg != sourceOrg {
+		var err error
+		client, err = c.getClientForOrg(f, targetOrg)
 		if err != nil {
-			return nil, fmt.Errorf("could not read source team assignments (use --team SLUG=ACCESS_LEVEL to set them explicitly): %w", err)
+			return nil, err
 		}
-		if result.Pipeline == nil {
-			return nil, fmt.Errorf("could not read team assignments for pipeline %s/%s; use --team SLUG=ACCESS_LEVEL to set them explicitly", org, slug)
-		}
-		connection := result.Pipeline.Teams
-		if connection == nil {
-			return teams, nil
-		}
-		for _, edge := range connection.Edges {
-			if edge == nil || edge.Node == nil || edge.Node.Team == nil {
-				return nil, fmt.Errorf("source team assignment is not accessible; use --team SLUG=ACCESS_LEVEL to set teams explicitly")
-			}
-			teams[edge.Node.Team.Uuid] = strings.ToLower(string(edge.Node.AccessLevel))
-		}
-		if connection.PageInfo == nil || !connection.PageInfo.HasNextPage {
-			return teams, nil
-		}
-		if connection.PageInfo.EndCursor == nil || (cursor != nil && *cursor == *connection.PageInfo.EndCursor) {
-			return nil, fmt.Errorf("could not paginate source team assignments; use --team SLUG=ACCESS_LEVEL to set teams explicitly")
-		}
-		cursor = connection.PageInfo.EndCursor
 	}
+	return resolveTeamSlugs(ctx, client, targetOrg, c.Teams)
 }

@@ -61,8 +61,9 @@ assign by name (the name will be resolved to the corresponding UUID).
 
 Use --team SLUG=ACCESS_LEVEL for each team assignment. Slugs must match
 exactly in the destination organization and require read_teams API access to resolve.
-Access levels are read_only, build_and_read, and manage_build_and_read. Non-admin
-users in organizations with Teams enabled must assign a team when creating a pipeline.
+Access levels are read_only, build_and_read, and manage_build_and_read. Without
+--team, no team assignments are sent or inferred. Non-admin users in organizations
+with Teams enabled must assign a team when creating a pipeline.
 
 Examples:
   # Create a new pipeline
