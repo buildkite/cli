@@ -195,8 +195,40 @@ func (c PreflightCmd) Help() string {
 	return preflight.HelpText()
 }
 
-func handleError(err error) {
-	bkErrors.NewHandler().Handle(err)
+func handleError(err error) (exitCode int) {
+	bkErrors.NewHandler().WithExitFunc(func(code int) { exitCode = code }).Handle(err)
+	return exitCode
+}
+
+// commandTelemetry uses Kong's schema names, never argument values or error text.
+func commandTelemetry(ctx *kong.Context, err error) (command, outcome string) {
+	outcome = "success"
+	if err != nil {
+		outcome = "error"
+		var parseErr *kong.ParseError
+		if errors.As(err, &parseErr) {
+			ctx = parseErr.Context
+			// Kong does not expose a typed unknown-command error. An unexpected
+			// argument at a command branch means no subcommand matched; invalid
+			// flags, missing arguments and extra leaf arguments remain errors.
+			if ctx != nil && strings.HasPrefix(err.Error(), "unexpected argument ") {
+				node := ctx.Selected()
+				if node == nil {
+					node = ctx.Model.Node
+				}
+				for _, child := range node.Children {
+					if child.Type == kong.CommandNode {
+						outcome = "unknown_command"
+						break
+					}
+				}
+			}
+		}
+	}
+	if ctx != nil {
+		command = analytics.ParseSubcommand(ctx.Command())
+	}
+	return command, outcome
 }
 
 func newKongParser(cli *CLI, options ...kong.Option) (*kong.Kong, error) {
@@ -323,7 +355,7 @@ func run() int {
 	// before factory.New() does.
 	factory.ApplyCredentialStoreFromConfig(conf)
 
-	tracker := analytics.Init("dev", conf.TelemetryEnabled())
+	tracker := analytics.Init(versionPkg.Version, conf.TelemetryEnabled())
 	defer tracker.Close()
 	tracker.SetOrg(conf.OrganizationSlug())
 
@@ -335,7 +367,7 @@ func run() int {
 	applyExperiments(parser, conf)
 	ctx, err := parser.Parse(args)
 	if err != nil {
-		tracker.TrackCommand("unknown command", args, nil)
+		tracker.TrackCommand(commandTelemetry(ctx, err))
 
 		var parseErr *kong.ParseError
 		if errors.As(err, &parseErr) && !strings.Contains(err.Error(), "did you mean") {
@@ -347,8 +379,6 @@ func run() int {
 		return 1
 	}
 
-	tracker.TrackCommand(analytics.ParseSubcommand(ctx.Command()), args, nil)
-
 	globals := cli.Globals{
 		Yes:     cliInstance.Yes,
 		NoInput: cliInstance.NoInput,
@@ -359,9 +389,10 @@ func run() int {
 
 	ctx.BindTo(cli.GlobalFlags(globals), (*cli.GlobalFlags)(nil))
 
-	if err := ctx.Run(cliInstance); err != nil {
-		handleError(err)
-		return 1
+	err = ctx.Run(cliInstance)
+	tracker.TrackCommand(commandTelemetry(ctx, err))
+	if err != nil {
+		return handleError(err)
 	}
 	return 0
 }
