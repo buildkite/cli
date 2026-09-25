@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -23,7 +24,7 @@ type ApiCmd struct {
 	Endpoint  string   `arg:"" optional:"" help:"API endpoint to call"`
 	Method    string   `help:"HTTP method to use" short:"X"`
 	Headers   []string `help:"Headers to include in the request" short:"H"`
-	Data      string   `help:"Data to send in the request body" short:"d"`
+	Data      string   `help:"Data to send in the request body; use - to read from stdin" short:"d"`
 	Analytics bool     `help:"Use the Test Analytics endpoint"`
 	File      string   `help:"File containing GraphQL query" short:"f"`
 	Verbose   bool     `help:"Enable verbose output (currently only provides information about rate limit exceeded retries)"`
@@ -45,6 +46,9 @@ Examples:
     "configuration": "steps:\n - command: env"
   }
   '
+
+  # To create a pipeline with a body from stdin
+  $ cat pipeline.json | bk api /pipelines --data -
 
   # To update a cluster
   $ bk api --method PUT /clusters/CLUSTER_UUID --data '
@@ -147,10 +151,18 @@ func (c *ApiCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	var requestData any
 	if c.Data != "" {
+		data := c.Data
+		if data == "-" {
+			body, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				return fmt.Errorf("error reading request body from stdin: %w", err)
+			}
+			data = string(body)
+		}
 		// Try to parse as JSON first
-		if err := json.Unmarshal([]byte(c.Data), &requestData); err != nil {
+		if err := json.Unmarshal([]byte(data), &requestData); err != nil {
 			// If not JSON, use raw string
-			requestData = c.Data
+			requestData = data
 		}
 	}
 
