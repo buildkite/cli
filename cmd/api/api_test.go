@@ -3,11 +3,15 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
+	"github.com/alecthomas/kong"
+	"github.com/buildkite/cli/v3/internal/cli"
 	httpClient "github.com/buildkite/cli/v3/internal/http"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/keyring"
@@ -142,5 +146,117 @@ func TestNewRESTClient_UsesFactoryRefreshAwareHTTPClient(t *testing.T) {
 	}
 	if got := f.Config.RefreshTokenForOrg("test-org"); got != "new-refresh-token" {
 		t.Fatalf("expected rotated refresh token in keyring, got %q", got)
+	}
+}
+
+func TestApiDataRequestBody(t *testing.T) {
+	largeJSON := `{"grants":[{"name":"` + strings.Repeat("grant-value", 4000) + `"}]}`
+	if len(largeJSON) <= 32*1024 {
+		t.Fatal("fixture must exceed 32 KiB")
+	}
+
+	for _, tc := range []struct {
+		name, data, stdin, wantBody string
+	}{
+		{"stdin JSON", "-", largeJSON, largeJSON},
+		{"inline JSON", largeJSON, "", largeJSON},
+		{"inline non-JSON", "plain text", "", `"plain text"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "test-org")
+			t.Setenv("BUILDKITE_API_TOKEN", "test-token")
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodPost || r.URL.Path != "/v2/organizations/test-org/test" {
+					t.Errorf("request = %s %s, want POST /v2/organizations/test-org/test", r.Method, r.URL.Path)
+				}
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Errorf("read request body: %v", err)
+				}
+				if string(body) != tc.wantBody {
+					t.Errorf("request body length = %d, want %d; body matches: %v", len(body), len(tc.wantBody), string(body) == tc.wantBody)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"ok":true}`))
+			}))
+			defer server.Close()
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+
+			stdin, writer, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer stdin.Close()
+			writeResult := make(chan error, 1)
+			go func() {
+				_, err := io.WriteString(writer, tc.stdin)
+				if closeErr := writer.Close(); err == nil {
+					err = closeErr
+				}
+				writeResult <- err
+			}()
+			oldStdin := os.Stdin
+			os.Stdin = stdin
+			defer func() { os.Stdin = oldStdin }()
+
+			var command struct {
+				Api ApiCmd `cmd:""`
+			}
+			parser, err := kong.New(&command)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, err := parser.Parse([]string{"api", "/test", "--data", tc.data})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := command.Api.Run(ctx, cli.Globals{}); err != nil {
+				t.Fatal(err)
+			}
+			if err := <-writeResult; err != nil {
+				t.Fatalf("writing stdin: %v", err)
+			}
+		})
+	}
+}
+
+func TestApiDataStdinReadError(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "test-org")
+	t.Setenv("BUILDKITE_API_TOKEN", "test-token")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("request sent after stdin read error")
+	}))
+	defer server.Close()
+	t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+
+	stdin, err := os.CreateTemp(t.TempDir(), "stdin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stdin.Close(); err != nil {
+		t.Fatal(err)
+	}
+	oldStdin := os.Stdin
+	os.Stdin = stdin
+	defer func() { os.Stdin = oldStdin }()
+
+	var command struct {
+		Api ApiCmd `cmd:""`
+	}
+	parser, err := kong.New(&command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, err := parser.Parse([]string{"api", "/test", "--data", "-"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := command.Api.Run(ctx, cli.Globals{}); err == nil || !strings.Contains(err.Error(), "reading request body from stdin") {
+		t.Fatalf("Run() error = %v, want stdin read error", err)
 	}
 }
