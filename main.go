@@ -175,11 +175,15 @@ type (
 		Resume queue.ResumeCmd `cmd:"" help:"Resume dispatch for a cluster queue."`
 	}
 	SecretCmd struct {
-		List   secret.ListCmd   `cmd:"" help:"List secrets for a cluster." aliases:"ls"`
-		Get    secret.GetCmd    `cmd:"" help:"View a cluster secret."`
-		Create secret.CreateCmd `cmd:"" help:"Create a new cluster secret."`
-		Update secret.UpdateCmd `cmd:"" help:"Update a cluster secret."`
-		Delete secret.DeleteCmd `cmd:"" help:"Delete a cluster secret." aliases:"rm"`
+		List    secret.ListCmd   `cmd:"" help:"List secrets for a cluster." aliases:"ls"`
+		Get     secret.GetCmd    `cmd:"" help:"View a cluster secret."`
+		Create  secret.CreateCmd `cmd:"" help:"Create a new cluster secret."`
+		Update  secret.UpdateCmd `cmd:"" help:"Update a cluster secret."`
+		Delete  secret.DeleteCmd `cmd:"" help:"Delete a cluster secret." aliases:"rm"`
+		Migrate SecretMigrateCmd `cmd:"" help:"Migrate secrets from another provider."`
+	}
+	SecretMigrateCmd struct {
+		GitHubActions secret.MigrateGitHubActionsCmd `cmd:"" name:"github-actions" help:"Migrate GitHub Actions repository secrets."`
 	}
 	SkillCmd struct {
 		Add    skill.AddCmd    `cmd:"" help:"Install a Buildkite skill."`

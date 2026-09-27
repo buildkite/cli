@@ -57,6 +57,24 @@ func TestCommandTelemetry(t *testing.T) {
 	}
 }
 
+func TestGitHubActionsSecretMigrationCommandRegistration(t *testing.T) {
+	parser, err := newKongParser(&CLI{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, err := parser.Parse([]string{
+		"secret", "migrate", "github-actions", "prepare",
+		"--secret", "API_KEY", "--match", "DEPLOY_*",
+		"--output", ".github/workflows/migrate.yml",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := ctx.Command(); got != "secret migrate github-actions prepare" {
+		t.Fatalf("command = %q", got)
+	}
+}
+
 func TestHandleErrorPreservesExitCode(t *testing.T) {
 	for _, tt := range []struct {
 		err  error
