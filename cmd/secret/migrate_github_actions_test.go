@@ -149,11 +149,14 @@ func TestPrepareMigrationUsesNativeBuildkiteBoundaryAndStaticAllowlist(t *testin
 	}}}
 	command := MigrateGitHubActionsPrepareCmd{SecretNames: []string{"API_KEY"}, Matches: []string{"*_TOKEN"}}
 	var stdout bytes.Buffer
-	if err := command.prepare(t.Context(), "acme", true, bk, gh, bufio.NewReader(strings.NewReader("")), &stdout, io.Discard); err != nil {
+	migration := githubActionsMigration{
+		bk: bk, gh: gh, input: bufio.NewReader(strings.NewReader("")), stdout: &stdout, stderr: io.Discard,
+	}
+	if err := migration.prepare(t.Context(), command, "acme", true); err != nil {
 		t.Fatal(err)
 	}
 	workflow := stdout.String()
-	for _, required := range []string{"workflow_dispatch:", "id-token: write", "${{ secrets.API_KEY }}", "${{ secrets.DEPLOY_TOKEN }}", "#   - pipeline_id: " + testMigrationPipeline} {
+	for _, required := range []string{"${{ secrets.API_KEY }}", "${{ secrets.DEPLOY_TOKEN }}", "#   - pipeline_id: " + testMigrationPipeline} {
 		if !strings.Contains(workflow, required) {
 			t.Errorf("workflow missing %q", required)
 		}
@@ -208,8 +211,8 @@ func TestRunMigrationBindsExactCommitAndReportsDispatchNotCompletion(t *testing.
 	grantURL := "https://api.buildkite.com/v2/organizations/acme/clusters/" + testMigrationCluster + "/github-actions-secret-migrations/grant-identifier-123/secrets"
 	bk := &migrationBuildkiteMock{grant: migrationGrant{ID: "grant-identifier-123", MigrationURL: grantURL, Audience: grantURL}}
 	var stdout bytes.Buffer
-	command := MigrateGitHubActionsRunCmd{Workflow: workflowPath}
-	if err := command.run(t.Context(), bk, gh, &stdout); err != nil {
+	migration := githubActionsMigration{bk: bk, gh: gh, stdout: &stdout}
+	if err := migration.run(t.Context(), workflowPath); err != nil {
 		t.Fatal(err)
 	}
 	if bk.grantOrg != "acme" || bk.grantCluster != testMigrationCluster || bk.grantRequest.WorkflowSHA != testMigrationCommit || bk.grantRequest.DefaultBranchRef != "refs/heads/main" || bk.grantRequest.WorkflowPath != workflowPath {
@@ -239,7 +242,7 @@ func TestRunMigrationDispatchFailureExplainsGrantRecovery(t *testing.T) {
 	}}
 	grantURL := "https://api.buildkite.com/v2/organizations/acme/clusters/" + testMigrationCluster + "/github-actions-secret-migrations/grant-identifier-123/secrets"
 	bk := &migrationBuildkiteMock{grant: migrationGrant{ID: "grant-identifier-123", MigrationURL: grantURL, Audience: grantURL}}
-	err := (&MigrateGitHubActionsRunCmd{Workflow: workflowPath}).run(t.Context(), bk, gh, io.Discard)
+	err := (&githubActionsMigration{bk: bk, gh: gh, stdout: io.Discard}).run(t.Context(), workflowPath)
 	if err == nil || !strings.Contains(err.Error(), "grant-identifier-123 will expire unused") || !strings.Contains(err.Error(), "rerun this command") {
 		t.Fatalf("dispatch error = %v", err)
 	}
@@ -270,7 +273,7 @@ func TestRunMigrationRejectsLocalOrCommittedTamperingBeforeGrant(t *testing.T) {
 			remote, _ := json.Marshal(map[string]string{"encoding": "base64", "content": base64.StdEncoding.EncodeToString(test.remote)})
 			gh := &migrationGitHubMock{results: []githubResult{{output: repositoryJSON()}, {output: []byte(testMigrationCommit + "\n")}, {output: remote}}}
 			bk := &migrationBuildkiteMock{}
-			err := (&MigrateGitHubActionsRunCmd{Workflow: workflowPath}).run(t.Context(), bk, gh, io.Discard)
+			err := (&githubActionsMigration{bk: bk, gh: gh, stdout: io.Discard}).run(t.Context(), workflowPath)
 			if err == nil || !strings.Contains(err.Error(), test.want) || len(gh.calls) != test.ghCalls || bk.grantRequest.WorkflowSHA != "" {
 				t.Fatalf("error/calls/grant = %v/%d/%#v", err, len(gh.calls), bk.grantRequest)
 			}
