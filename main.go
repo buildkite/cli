@@ -15,6 +15,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/auth"
 	"github.com/buildkite/cli/v3/cmd/browse"
 	"github.com/buildkite/cli/v3/cmd/build"
+	"github.com/buildkite/cli/v3/cmd/cache/registry"
 	"github.com/buildkite/cli/v3/cmd/cluster"
 	bkConfig "github.com/buildkite/cli/v3/cmd/config"
 	"github.com/buildkite/cli/v3/cmd/configure"
@@ -55,6 +56,7 @@ type CLI struct {
 	Auth         AuthCmd             `cmd:"" help:"Authenticate with Buildkite"`
 	Browse       BrowseCmd           `cmd:"" help:"Open Buildkite resources in a web browser"`
 	Build        BuildCmd            `cmd:"" help:"Manage pipeline builds"`
+	Cache        CacheCmd            `cmd:"" help:"Manage Buildkite cache resources"`
 	Cluster      ClusterCmd          `cmd:"" help:"Manage organization clusters"`
 	Maintainer   MaintainerCmd       `cmd:"" help:"Manage cluster maintainers"`
 	Queue        QueueCmd            `cmd:"" help:"Manage cluster queues"`
@@ -114,6 +116,16 @@ type (
 		Download build.DownloadCmd `cmd:"" help:"Download resources for a build."`
 		Rebuild  build.RebuildCmd  `cmd:"" help:"Rebuild a build."`
 		Watch    build.WatchCmd    `cmd:"" help:"Watch a build's progress in real-time."`
+	}
+	CacheCmd struct {
+		Registry CacheRegistryCmd `cmd:"" help:"Manage cluster cache registries"`
+	}
+	CacheRegistryCmd struct {
+		List   registry.ListCmd   `cmd:"" help:"List cluster cache registries." aliases:"ls"`
+		View   registry.ViewCmd   `cmd:"" help:"View a cluster cache registry."`
+		Create registry.CreateCmd `cmd:"" help:"Create a new cluster cache registry."`
+		Update registry.UpdateCmd `cmd:"" help:"Update a cluster cache registry."`
+		Delete registry.DeleteCmd `cmd:"" help:"Delete a cluster cache registry." aliases:"rm"`
 	}
 	ClusterCmd struct {
 		List   cluster.ListCmd   `cmd:"" help:"List clusters." aliases:"ls"`

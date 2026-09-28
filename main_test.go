@@ -75,6 +75,95 @@ func TestGitHubActionsSecretMigrationCommandRegistration(t *testing.T) {
 	}
 }
 
+func TestCacheRegistryCommandRegistration(t *testing.T) {
+	for _, tt := range []struct {
+		name, command string
+		args          []string
+		assert        func(*testing.T, *CLI)
+	}{
+		{
+			name:    "list",
+			command: "cache registry list",
+			args:    []string{"cache", "registry", "list", "cluster-uuid", "--per-page", "25", "--limit", "50"},
+			assert: func(t *testing.T, cli *CLI) {
+				if cli.Cache.Registry.List.ClusterUUID != "cluster-uuid" || cli.Cache.Registry.List.PerPage != 25 || cli.Cache.Registry.List.Limit != 50 {
+					t.Fatalf("parsed list command = %#v", cli.Cache.Registry.List)
+				}
+			},
+		},
+		{
+			name:    "list alias",
+			command: "cache registry list",
+			args:    []string{"cache", "registry", "ls", "cluster-uuid"},
+			assert: func(t *testing.T, cli *CLI) {
+				if cli.Cache.Registry.List.PerPage != 30 || cli.Cache.Registry.List.Limit != 100 {
+					t.Fatalf("list defaults = (%d, %d)", cli.Cache.Registry.List.PerPage, cli.Cache.Registry.List.Limit)
+				}
+			},
+		},
+		{
+			name:    "view",
+			command: "cache registry view",
+			args:    []string{"cache", "registry", "view", "cluster-uuid", "registry-uuid"},
+			assert: func(t *testing.T, cli *CLI) {
+				if cli.Cache.Registry.View.RegistryUUID != "registry-uuid" {
+					t.Fatalf("registry UUID = %q", cli.Cache.Registry.View.RegistryUUID)
+				}
+			},
+		},
+		{
+			name:    "create",
+			command: "cache registry create",
+			args:    []string{"cache", "registry", "create", "cluster-uuid", "--name", "Ruby gems", "--policy-file", "policy.yml"},
+			assert: func(t *testing.T, cli *CLI) {
+				if cli.Cache.Registry.Create.Name != "Ruby gems" || cli.Cache.Registry.Create.PolicyFile != "policy.yml" {
+					t.Fatalf("parsed create command = %#v", cli.Cache.Registry.Create)
+				}
+			},
+		},
+		{
+			name:    "update",
+			command: "cache registry update",
+			args:    []string{"cache", "registry", "update", "cluster-uuid", "registry-uuid", "--name", "Ruby packages", "--clear-policy"},
+			assert: func(t *testing.T, cli *CLI) {
+				if cli.Cache.Registry.Update.RegistryUUID != "registry-uuid" || cli.Cache.Registry.Update.Name == nil || *cli.Cache.Registry.Update.Name != "Ruby packages" || !cli.Cache.Registry.Update.ClearPolicy {
+					t.Fatalf("parsed update command = %#v", cli.Cache.Registry.Update)
+				}
+			},
+		},
+		{
+			name:    "delete alias",
+			command: "cache registry delete",
+			args:    []string{"cache", "registry", "rm", "cluster-uuid", "registry-uuid"},
+			assert: func(t *testing.T, cli *CLI) {
+				if cli.Cache.Registry.Delete.RegistryUUID != "registry-uuid" {
+					t.Fatalf("registry UUID = %q", cli.Cache.Registry.Delete.RegistryUUID)
+				}
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cli := &CLI{}
+			parser, err := newKongParser(cli)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, err := parser.Parse(tt.args)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := ctx.Command(); !strings.HasPrefix(got, tt.command) {
+				t.Fatalf("command = %q, want prefix %q", got, tt.command)
+			}
+			command, outcome := commandTelemetry(ctx, nil)
+			if command != tt.command || outcome != "success" {
+				t.Fatalf("telemetry = (%q, %q)", command, outcome)
+			}
+			tt.assert(t, cli)
+		})
+	}
+}
+
 func TestHandleErrorPreservesExitCode(t *testing.T) {
 	for _, tt := range []struct {
 		err  error
