@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/alecthomas/kong"
@@ -83,14 +84,18 @@ func (c *ListCmd) run(ctx context.Context, f *factory.Factory, org string, write
 			registry.Slug,
 			registry.Name,
 			optionalString(registry.Description),
-			registry.UUID,
 		})
 	}
-	_, err = fmt.Fprintf(writer, "Cache Registries (%d)\n\n%s\n", len(registries), output.Table(
-		[]string{"Slug", "Name", "Description", "UUID"},
+	var result strings.Builder
+	fmt.Fprintf(&result, "Cache Registries (%d)\n\n%s\nUUIDs:\n", len(registries), output.Table(
+		[]string{"Slug", "Name", "Description"},
 		rows,
 		map[string]string{"slug": "bold"},
 	))
+	for _, registry := range registries {
+		fmt.Fprintf(&result, "  %s: %s\n", output.ValueOrDash(registry.Slug), output.ValueOrDash(registry.UUID))
+	}
+	_, err = io.WriteString(writer, result.String())
 	return err
 }
 

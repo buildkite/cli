@@ -28,7 +28,7 @@ type UpdateCmd struct {
 	ClearDescription bool    `help:"Clear the cache registry description" name:"clear-description"`
 	ClearEmoji       bool    `help:"Clear the cache registry emoji" name:"clear-emoji"`
 	ClearColor       bool    `help:"Clear the cache registry color" name:"clear-color"`
-	ClearPolicy      bool    `help:"Clear the cache registry policy" name:"clear-policy"`
+	ClearPolicy      bool    `help:"Clear the policy, denying all cache saves and restores" name:"clear-policy"`
 	output.OutputFlags
 }
 
@@ -38,6 +38,9 @@ At least one setter or clear flag must be provided. A metadata setter cannot be
 combined with its corresponding clear flag. The policy file may contain YAML or
 JSON and must have an object at its root. Policies are normalized by the API, so
 YAML comments and formatting are not preserved.
+
+Clearing the policy sets it to null, which denies all cache saves and restores;
+it does not reset the registry to the unrestricted default policy.
 
 Changing the name regenerates the registry slug. Jobs that explicitly select
 the old slug must be updated to use the new one.

@@ -113,8 +113,9 @@ func TestCommandHelpCallsOutPolicyAndSlugRisks(t *testing.T) {
 	if help := (&CreateCmd{}).Help(); !strings.Contains(help, "default unrestricted") || !strings.Contains(help, "builds you trust") {
 		t.Fatalf("create help does not explain the default policy risk:\n%s", help)
 	}
-	if help := (&UpdateCmd{}).Help(); !strings.Contains(help, "regenerates the registry slug") || !strings.Contains(help, "old slug") {
-		t.Fatalf("update help does not explain the rename risk:\n%s", help)
+	if help := (&UpdateCmd{}).Help(); !strings.Contains(help, "regenerates the registry slug") || !strings.Contains(help, "old slug") ||
+		!strings.Contains(help, "denies all cache saves and restores") || !strings.Contains(help, "does not reset") {
+		t.Fatalf("update help does not explain the rename and clear-policy risks:\n%s", help)
 	}
 }
 
@@ -177,17 +178,20 @@ func TestListCmdRejectsRepeatedCursor(t *testing.T) {
 func TestListCmdTextOutput(t *testing.T) {
 	description := "Shared dependencies"
 	f, _ := testFactory(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		fmt.Fprint(w, `{"items":[{"uuid":"registry-1","slug":"ruby-gems","name":"Ruby gems","description":"Shared dependencies"}],"links":{}}`)
+		fmt.Fprintf(w, `{"items":[{"uuid":%q,"slug":"ruby-gems","name":"Ruby gems","description":"Shared dependencies"}],"links":{}}`, testRegistryUUID)
 	}))
 	cmd := ListCmd{ClusterUUID: testClusterUUID, PerPage: 30, Limit: 100}
 	var stdout bytes.Buffer
 	if err := cmd.run(context.Background(), f, testOrg, &stdout, output.FormatText); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"SLUG", "NAME", "DESCRIPTION", "UUID", "ruby-gems", description, "registry-1"} {
+	for _, want := range []string{"SLUG", "NAME", "DESCRIPTION", "UUIDs:", "ruby-gems", description, testRegistryUUID} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("text output missing %q:\n%s", want, stdout.String())
 		}
+	}
+	if strings.Contains(stdout.String(), testRegistryUUID[:28]+"...") {
+		t.Fatalf("UUID was truncated from text output:\n%s", stdout.String())
 	}
 }
 
