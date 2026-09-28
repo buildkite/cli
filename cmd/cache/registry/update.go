@@ -20,7 +20,7 @@ import (
 type UpdateCmd struct {
 	ClusterUUID      string  `arg:"" help:"Cluster UUID the cache registry belongs to" name:"cluster-uuid"`
 	RegistryUUID     string  `arg:"" help:"Cache registry UUID to update" name:"registry-uuid"`
-	Name             *string `help:"New name for the cache registry" optional:""`
+	Name             *string `help:"New name for the cache registry (regenerates its slug)" optional:""`
 	Description      *string `help:"New description for the cache registry" optional:""`
 	Emoji            *string `help:"New emoji for the cache registry" optional:""`
 	Color            *string `help:"New color for the cache registry" optional:""`
@@ -38,6 +38,9 @@ At least one setter or clear flag must be provided. A metadata setter cannot be
 combined with its corresponding clear flag. The policy file may contain YAML or
 JSON and must have an object at its root. Policies are normalized by the API, so
 YAML comments and formatting are not preserved.
+
+Changing the name regenerates the registry slug. Jobs that explicitly select
+the old slug must be updated to use the new one.
 
 Examples:
   $ bk cache registry update my-cluster-uuid my-registry-uuid --name "Ruby gems"

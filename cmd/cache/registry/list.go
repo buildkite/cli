@@ -25,8 +25,8 @@ type ListCmd struct {
 }
 
 func (c *ListCmd) Validate() error {
-	if c.PerPage < 1 {
-		return fmt.Errorf("invalid --per-page %d: must be greater than 0", c.PerPage)
+	if c.PerPage < 1 || c.PerPage > 100 {
+		return fmt.Errorf("invalid --per-page %d: must be between 1 and 100", c.PerPage)
 	}
 	if c.Limit < 0 {
 		return fmt.Errorf("invalid --limit %d: must be greater than or equal to 0", c.Limit)

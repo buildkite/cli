@@ -33,8 +33,14 @@ The policy file may contain YAML or JSON and must have an object at its root.
 Use --policy-file - to read from stdin. Policies are normalized by the API, so
 YAML comments and formatting are not preserved.
 
+Omitting --policy-file creates the registry with the default unrestricted
+policy. Only use an unrestricted registry with builds you trust.
+
 Examples:
+  # Create with the default unrestricted policy (trusted builds only)
   $ bk cache registry create my-cluster-uuid --name "Ruby gems"
+
+  # Create with an explicit policy
   $ bk cache registry create my-cluster-uuid --name "Ruby gems" --policy-file policy.yml
   $ cat policy.json | bk cache registry create my-cluster-uuid --name "Ruby gems" --policy-file -
 `

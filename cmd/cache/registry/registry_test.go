@@ -90,6 +90,34 @@ func TestReadPolicy(t *testing.T) {
 	}
 }
 
+func TestListCmdValidation(t *testing.T) {
+	for _, tt := range []struct {
+		perPage int
+		wantErr bool
+	}{
+		{perPage: 0, wantErr: true},
+		{perPage: 1},
+		{perPage: 100},
+		{perPage: 101, wantErr: true},
+	} {
+		t.Run(fmt.Sprintf("per-page %d", tt.perPage), func(t *testing.T) {
+			err := (&ListCmd{PerPage: tt.perPage, Limit: 100}).Validate()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Validate() error = %v, wantErr = %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestCommandHelpCallsOutPolicyAndSlugRisks(t *testing.T) {
+	if help := (&CreateCmd{}).Help(); !strings.Contains(help, "default unrestricted") || !strings.Contains(help, "builds you trust") {
+		t.Fatalf("create help does not explain the default policy risk:\n%s", help)
+	}
+	if help := (&UpdateCmd{}).Help(); !strings.Contains(help, "regenerates the registry slug") || !strings.Contains(help, "old slug") {
+		t.Fatalf("update help does not explain the rename risk:\n%s", help)
+	}
+}
+
 func TestListCmdPaginationAndOutput(t *testing.T) {
 	requests := 0
 	var server *httptest.Server
