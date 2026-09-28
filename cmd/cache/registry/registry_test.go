@@ -194,6 +194,21 @@ func TestViewCmdRequestAndYAMLOutput(t *testing.T) {
 	}
 }
 
+func TestRenderRegistryTextDoesNotTruncatePolicy(t *testing.T) {
+	longValue := strings.Repeat("scope-value-", 20) + "tail-marker"
+	text := renderRegistryText(buildkite.CacheRegistry{
+		Slug: "large-policy",
+		Policy: buildkite.CacheRegistryPolicy{
+			"restore": map[string]any{
+				"scopes": []any{map[string]any{"branch": longValue}},
+			},
+		},
+	})
+	if !strings.Contains(text, "Policy:\n\n{") || !strings.Contains(text, longValue) {
+		t.Fatalf("policy was truncated from text output:\n%s", text)
+	}
+}
+
 func TestCreateCmdRequestAndOutput(t *testing.T) {
 	f, _ := testFactory(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != registryPath("") {

@@ -38,10 +38,11 @@ func renderRegistryText(registry buildkite.CacheRegistry) string {
 	if registry.UpdatedAt != nil {
 		rows = append(rows, []string{"Updated At", registry.UpdatedAt.Format(time.RFC3339)})
 	}
+
+	var policy []byte
 	if registry.Policy != nil {
-		policy, err := json.MarshalIndent(registry.Policy, "", "  ")
-		if err == nil {
-			rows = append(rows, []string{"Policy", string(policy)})
+		if encoded, err := json.MarshalIndent(registry.Policy, "", "  "); err == nil {
+			policy = encoded
 		}
 	}
 
@@ -52,6 +53,9 @@ func renderRegistryText(registry buildkite.CacheRegistry) string {
 		rows,
 		map[string]string{"field": "dim", "value": "italic"},
 	))
+	if policy != nil {
+		fmt.Fprintf(&result, "\nPolicy:\n\n%s\n", policy)
+	}
 	return result.String()
 }
 
