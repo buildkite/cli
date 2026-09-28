@@ -123,12 +123,22 @@ func TestPersistOAuthLogin(t *testing.T) {
 
 	t.Run("requires an available credential store", func(t *testing.T) {
 		f := newFactory(t)
+		t.Setenv(keyring.CredentialStoreEnv, keyring.StoreSHM)
 		_, err := persistOAuthLogin(f, &stubOAuthTokenStore{}, "test-org", "access-token", "refresh-token")
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
-		if !strings.Contains(err.Error(), "requires an available credential store") {
-			t.Fatalf("expected credential store availability error, got %v", err)
+		for _, want := range []string{
+			"requires an available credential store",
+			`Configured credential store: "shm"`,
+			"macOS",
+			"bk config set credential_store auto",
+			"BUILDKITE_CREDENTIAL_STORE is set, unset it or change it",
+			"retry your login command without --credential-store",
+		} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("error = %q, want substring %q", err, want)
+			}
 		}
 	})
 
