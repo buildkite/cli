@@ -241,6 +241,13 @@ func TestRenderRegistryTextDoesNotTruncatePolicy(t *testing.T) {
 	}
 }
 
+func TestRenderRegistryTextShowsNullPolicy(t *testing.T) {
+	text := renderRegistryText(buildkite.CacheRegistry{Slug: "no-cache"})
+	if !strings.Contains(text, "Policy:\n\nnull\n") {
+		t.Fatalf("null policy is not visible in text output:\n%s", text)
+	}
+}
+
 func TestCreateCmdRequestAndOutput(t *testing.T) {
 	f, _ := testFactory(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != registryPath("") {
