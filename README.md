@@ -54,6 +54,12 @@ automation or a token with access to multiple organizations, supply
 stored credentials and is not replaced by stored OAuth credentials if a request
 fails authentication.
 
+### Migrate GitHub Actions secrets
+
+Use `bk secret migrate github-actions` to move repository Actions secrets into
+Buildkite without exposing their values to the local machine. See the
+[GitHub Actions secrets migration guide](docs/secret-migration-github-actions.md).
+
 ## Feedback
 
 We'd love to hear any feedback and questions you might have. Please [file an issue on GitHub](https://github.com/buildkite/cli/issues) and let us know!
