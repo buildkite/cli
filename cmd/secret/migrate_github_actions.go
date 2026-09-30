@@ -26,11 +26,11 @@ type MigrateGitHubActionsPrepareCmd struct {
 	PolicyFile   string   `help:"Buildkite secret access policy YAML file." type:"path"`
 	SecretNames  []string `help:"Exact GitHub Actions secret name to migrate (repeatable)." name:"secret"`
 	Matches      []string `help:"Glob matching GitHub Actions secret names (repeatable)." name:"match"`
-	Output       string   `help:"Write the workflow without replacing an existing file." type:"path"`
+	Output       string   `help:"Write the workflow without replacing an existing file."`
 }
 
 type MigrateGitHubActionsRunCmd struct {
-	Workflow string `help:"Prepared workflow committed to the repository default branch." required:"" type:"path"`
+	Workflow string `help:"Prepared workflow committed to the repository default branch." required:""`
 }
 
 func (c *MigrateGitHubActionsPrepareCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
