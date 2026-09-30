@@ -58,20 +58,46 @@ func TestCommandTelemetry(t *testing.T) {
 }
 
 func TestGitHubActionsSecretMigrationCommandRegistration(t *testing.T) {
-	parser, err := newKongParser(&CLI{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, err := parser.Parse([]string{
-		"secret", "migrate", "github-actions", "prepare",
-		"--secret", "API_KEY", "--match", "DEPLOY_*",
-		"--output", ".github/workflows/migrate.yml",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := ctx.Command(); got != "secret migrate github-actions prepare" {
-		t.Fatalf("command = %q", got)
+	const workflow = ".github/workflows/migrate.yml"
+	for _, tt := range []struct {
+		name, command string
+		args          []string
+		workflowPath  func(*CLI) string
+	}{
+		{
+			name:    "prepare",
+			command: "secret migrate github-actions prepare",
+			args: []string{
+				"secret", "migrate", "github-actions", "prepare",
+				"--secret", "API_KEY", "--match", "DEPLOY_*",
+				"--output", workflow,
+			},
+			workflowPath: func(cli *CLI) string { return cli.Secret.Migrate.GitHubActions.Prepare.Output },
+		},
+		{
+			name:         "run",
+			command:      "secret migrate github-actions run",
+			args:         []string{"secret", "migrate", "github-actions", "run", "--workflow", workflow},
+			workflowPath: func(cli *CLI) string { return cli.Secret.Migrate.GitHubActions.Run.Workflow },
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cli := &CLI{}
+			parser, err := newKongParser(cli)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, err := parser.Parse(tt.args)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := ctx.Command(); got != tt.command {
+				t.Fatalf("command = %q", got)
+			}
+			if got := tt.workflowPath(cli); got != workflow {
+				t.Fatalf("workflow path = %q, want repository-relative %q", got, workflow)
+			}
+		})
 	}
 }
 
