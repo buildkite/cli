@@ -37,6 +37,6 @@ steps:
       - "rpm"
     command: '.buildkite/upload-packages.sh "{{matrix}}"'
     plugins:
-      - artifacts#v1.9.4:
+      - artifacts#v1.10.0:
           download:
             - dist/*
