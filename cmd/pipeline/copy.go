@@ -18,13 +18,14 @@ import (
 )
 
 type CopyCmd struct {
-	Pipeline         string `arg:"" help:"Source pipeline to copy (slug or org/slug). Uses current pipeline if not specified." optional:""`
-	Org              string `help:"Organization slug" name:"org"`
-	Target           string `help:"Name for the new pipeline, or org/name to copy to a different organization" short:"t"`
-	ClusterUUID      string `help:"Cluster UUID for the new pipeline" name:"cluster-uuid"`
-	ClusterName      string `help:"Cluster name for the new pipeline (resolved to UUID)" name:"cluster-name"`
-	ClusterShorthand string `short:"c" hidden:"" name:"c" help:""`
-	DryRun           bool   `help:"Show what would be copied without creating the pipeline"`
+	Pipeline         string            `arg:"" help:"Source pipeline to copy (slug or org/slug). Uses current pipeline if not specified." optional:""`
+	Org              string            `help:"Organization slug" name:"org"`
+	Target           string            `help:"Name for the new pipeline, or org/name to copy to a different organization" short:"t"`
+	ClusterUUID      string            `help:"Cluster UUID for the new pipeline" name:"cluster-uuid"`
+	ClusterName      string            `help:"Cluster name for the new pipeline (resolved to UUID)" name:"cluster-name"`
+	ClusterShorthand string            `short:"c" hidden:"" name:"c" help:""`
+	DryRun           bool              `help:"Show what would be copied without creating the pipeline"`
+	Teams            map[string]string `name:"team" help:"Assign a destination team as SLUG=ACCESS_LEVEL (repeatable); access: read_only, build_and_read, manage_build_and_read"`
 	output.OutputFlags
 }
 
@@ -49,13 +50,13 @@ func (c *CopyCmd) Validate() error {
 	if c.ClusterUUID != "" && c.ClusterName != "" {
 		return fmt.Errorf("only one of --cluster-uuid or --cluster-name can be specified")
 	}
-	return nil
+	return validateTeams(c.Teams)
 }
 
 func (c *CopyCmd) Help() string {
 	return `Copy an existing pipeline's configuration to create a new pipeline.
 
-This command copies all configuration from a source pipeline including:
+This command copies configuration from a source pipeline including:
 - Pipeline steps (YAML configuration)
 - Repository settings
 - Branch configuration
@@ -64,8 +65,16 @@ This command copies all configuration from a source pipeline including:
 - Environment variables
 - Tags and visibility
 
-When copying to a different organization, cluster configuration is skipped
-(clusters are organization-specific).
+Team assignments are not copied automatically. Use --team SLUG=ACCESS_LEVEL
+to assign destination teams explicitly; repeat the flag for multiple teams.
+Slugs must match exactly in the destination organization and require read_teams
+API access to resolve. Access levels are read_only, build_and_read, and
+manage_build_and_read. Without --team, no team assignments are sent, even when
+the source has teams. Non-admin users in Teams-enabled organizations may receive
+a 422 from the API if they do not assign a team.
+
+When copying to a different organization, the cluster is not copied because it
+is organization-specific. Use --team with destination team slugs.
 
 Examples:
   # Copy the current pipeline to a new pipeline
@@ -73,6 +82,9 @@ Examples:
 
   # Copy a specific pipeline
   $ bk pipeline cp my-existing-pipeline --target "my-new-pipeline"
+
+  # Copy with explicit team access
+  $ bk pipeline cp my-pipeline --target "my-copy" --team platform-engineering=build_and_read
 
   # Copy a pipeline from another org (if you have access)
   $ bk pipeline cp other-org/their-pipeline --target "my-copy"
@@ -138,11 +150,17 @@ func (c *CopyCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
-	if c.DryRun {
-		return c.runDryRun(kongCtx, f, source, target, isCrossOrg, clusterID)
+	createReq := c.buildCreatePipeline(source, target.Name, isCrossOrg, clusterID)
+	createReq.Teams, err = c.resolveTeams(ctx, f, sourcePipeline.Org, target.Org)
+	if err != nil {
+		return err
 	}
 
-	return c.runCopy(kongCtx, f, source, target, isCrossOrg, clusterID)
+	if c.DryRun {
+		return c.runDryRun(kongCtx, f, createReq)
+	}
+
+	return c.runCopy(kongCtx, f, target, isCrossOrg, createReq)
 }
 
 func (c *CopyCmd) resolveSourcePipeline(ctx context.Context, f *factory.Factory) (*pipeline.Pipeline, error) {
@@ -240,10 +258,8 @@ func (c *CopyCmd) fetchSourcePipeline(ctx context.Context, f *factory.Factory, o
 }
 
 // runDryRun allows a user to validate what their changes will do, based on the current `--dry-run` flag in Create
-func (c *CopyCmd) runDryRun(kongCtx *kong.Context, f *factory.Factory, source *buildkite.Pipeline, target *copyTarget, isCrossOrg bool, clusterID string) error {
+func (c *CopyCmd) runDryRun(kongCtx *kong.Context, f *factory.Factory, createReq buildkite.CreatePipeline) error {
 	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
-
-	createReq := c.buildCreatePipeline(source, target.Name, isCrossOrg, clusterID)
 
 	// For dry-run, default to JSON if text format requested
 	if format == output.FormatText {
@@ -253,7 +269,7 @@ func (c *CopyCmd) runDryRun(kongCtx *kong.Context, f *factory.Factory, source *b
 	return output.Write(kongCtx.Stdout, createReq, format)
 }
 
-func (c *CopyCmd) runCopy(kongCtx *kong.Context, f *factory.Factory, source *buildkite.Pipeline, target *copyTarget, isCrossOrg bool, clusterID string) error {
+func (c *CopyCmd) runCopy(kongCtx *kong.Context, f *factory.Factory, target *copyTarget, isCrossOrg bool, createReq buildkite.CreatePipeline) error {
 	ctx := context.Background()
 	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
 
@@ -266,8 +282,6 @@ func (c *CopyCmd) runCopy(kongCtx *kong.Context, f *factory.Factory, source *bui
 			return err
 		}
 	}
-
-	createReq := c.buildCreatePipeline(source, target.Name, isCrossOrg, clusterID)
 
 	var newPipeline buildkite.Pipeline
 	var resp *buildkite.Response
