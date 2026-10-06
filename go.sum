@@ -188,8 +188,8 @@ github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWD
 github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUmoNlxoYthg=
 github.com/suessflorian/gqlfetch v0.7.0 h1:lh33oml4koA2xzIqeW8hxBCPCHC5c25K1VEP4LD5gGg=
 github.com/suessflorian/gqlfetch v0.7.0/go.mod h1:Q6tGWULnU3Lj5yBWVZSoabHAmIftaGrw1BuboWqrnf8=
-github.com/vektah/gqlparser/v2 v2.5.59 h1:7BfPIupBJ2yIKxD91/zv30d6chKQkerS4ylKmVy8r4g=
-github.com/vektah/gqlparser/v2 v2.5.59/go.mod h1:JNK+plRwKdXLsF/qPFPe5tE0z4s1WeroD9S5LR8um/Q=
+github.com/vektah/gqlparser/v2 v2.5.60 h1:2ML8Zwt/NFXzbW3kc+r7ecjfm9GdnwAjj2cFlKRcHJY=
+github.com/vektah/gqlparser/v2 v2.5.60/go.mod h1:JNK+plRwKdXLsF/qPFPe5tE0z4s1WeroD9S5LR8um/Q=
 github.com/xanzy/ssh-agent v0.3.3 h1:+/15pJfg/RsTxqYcX6fHqOXZwwMP+2VyYWJeWM2qQFM=
 github.com/xanzy/ssh-agent v0.3.3/go.mod h1:6dzNDKs0J9rVPHPhaGCukekBHKqfl+L3KghI1Bc68Uw=
 github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f h1:J9EGpcZtP0E/raorCMxlFGSTBrsSlaDGf3jU/qvAE2c=
