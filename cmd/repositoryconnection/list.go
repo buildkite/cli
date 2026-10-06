@@ -75,7 +75,7 @@ func (c *ListCmd) run(ctx context.Context, f *factory.Factory, org string, write
 	}
 
 	if format != output.FormatText {
-		return output.Write(writer, connections, format)
+		return output.Write(writer, jsonKeyed{connections}, format)
 	}
 	if len(connections) == 0 {
 		_, err := fmt.Fprintln(writer, "No repository connections found")

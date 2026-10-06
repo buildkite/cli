@@ -1,6 +1,7 @@
 package repositoryconnection
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -19,6 +20,29 @@ func commandWriter(f *factory.Factory, format output.Format) (io.Writer, func() 
 		return os.Stdout, func() error { return nil }
 	}
 	return bkIO.Pager(f.NoPager, f.Config.Pager())
+}
+
+// jsonKeyed writes YAML with the same keys as JSON. The SDK models only have
+// JSON tags, so encoding them directly as YAML would use lowercased Go field
+// names such as displayname and emit omitted fields as null.
+type jsonKeyed struct {
+	value any
+}
+
+func (j jsonKeyed) MarshalJSON() ([]byte, error) {
+	return json.Marshal(j.value)
+}
+
+func (j jsonKeyed) MarshalYAML() (any, error) {
+	encoded, err := json.Marshal(j.value)
+	if err != nil {
+		return nil, err
+	}
+	var decoded any
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		return nil, err
+	}
+	return decoded, nil
 }
 
 func renderConnectionText(connection buildkite.RepositoryConnection) string {

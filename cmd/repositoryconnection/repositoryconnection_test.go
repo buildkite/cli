@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -85,6 +87,22 @@ func TestListCmd(t *testing.T) {
 	}
 	if len(connections) != 2 || connections[1].ID != "gitlab-uuid" || connections[1].Type != "gitlab_self_managed" {
 		t.Fatalf("connections = %#v", connections)
+	}
+
+	stdout.Reset()
+	if err := (&ListCmd{}).run(context.Background(), f, testOrg, &stdout, output.FormatYAML); err != nil {
+		t.Fatal(err)
+	}
+	var yamlConnections []map[string]any
+	if err := yaml.Unmarshal(stdout.Bytes(), &yamlConnections); err != nil {
+		t.Fatal(err)
+	}
+	wantKeys := []string{"display_name", "id", "type", "url"}
+	if len(yamlConnections) != 2 || !slices.Equal(slices.Sorted(maps.Keys(yamlConnections[0])), wantKeys) {
+		t.Fatalf("YAML output must use the same keys as JSON (%v):\n%s", wantKeys, stdout.String())
+	}
+	if yamlConnections[0]["display_name"] != "GitHub (acme)" {
+		t.Fatalf("YAML output = %#v", yamlConnections)
 	}
 
 	stdout.Reset()
