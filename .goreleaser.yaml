@@ -3,10 +3,9 @@ version: 2
 
 release:
   name_template: Buildkite CLI {{.Version}}
-  draft: true
-  replace_existing_draft: true
+  draft: false
   prerelease: auto
-  make_latest: false
+  make_latest: true
   mode: replace
 
 changelog:
