@@ -496,8 +496,17 @@ func TestGlobalOrganization(t *testing.T) {
 }
 
 func TestGlobalOrganizationRepositoryDiscovery(t *testing.T) {
-	for _, override := range []string{"", "saved-org", "other-org"} {
-		t.Run("override="+override, func(t *testing.T) {
+	for _, tt := range []struct {
+		name, override string
+		noMatch        bool
+	}{
+		{name: "saved default"},
+		{name: "matching override", override: "saved-org"},
+		{name: "different override", override: "other-org"},
+		{name: "no matching pipeline", override: "other-org", noMatch: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			override := tt.override
 			t.Chdir(t.TempDir())
 			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
@@ -531,6 +540,10 @@ func TestGlobalOrganizationRepositoryDiscovery(t *testing.T) {
 					if r.URL.Query().Get("repository") != repository {
 						t.Errorf("repository query = %q", r.URL.RawQuery)
 					}
+					if tt.noMatch {
+						fmt.Fprint(w, `[]`)
+						return
+					}
 					fmt.Fprintf(w, `[{"slug":"discovered","repository":%q}]`, repository)
 				case "/v2/organizations/" + org + "/pipelines/discovered/builds/42":
 					fmt.Fprint(w, `{"number":42,"state":"passed"}`)
@@ -546,7 +559,11 @@ func TestGlobalOrganizationRepositoryDiscovery(t *testing.T) {
 				args = append(args, "--org", override)
 			}
 			code, stdout, stderr := runCLI(t, args...)
-			if code != 0 || requests != 2 || !strings.Contains(stdout, `"pipeline": "discovered"`) {
+			if tt.noMatch {
+				if code != 1 || requests != 1 || !strings.Contains(stderr, `could not resolve a pipeline in "other-org"; use --pipeline`) || strings.Contains(stderr, "unable to parse") {
+					t.Fatalf("exit=%d, requests=%d, stdout=%s, stderr=%s", code, requests, stdout, stderr)
+				}
+			} else if code != 0 || requests != 2 || !strings.Contains(stdout, `"pipeline": "discovered"`) {
 				t.Fatalf("exit=%d, requests=%d, stdout=%s, stderr=%s", code, requests, stdout, stderr)
 			}
 			after, err := os.ReadFile(".bk.yaml")
