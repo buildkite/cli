@@ -5,7 +5,7 @@ release:
   name_template: Buildkite CLI {{.Version}}
   draft: false
   prerelease: auto
-  make_latest: false
+  make_latest: true
   mode: replace
 
 changelog:
