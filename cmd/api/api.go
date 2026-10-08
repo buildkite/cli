@@ -24,7 +24,7 @@ import (
 type ApiCmd struct {
 	Endpoint  string   `arg:"" optional:"" help:"API endpoint to call"`
 	Method    string   `help:"HTTP method to use" short:"X"`
-	Headers   []string `help:"Headers to include in the request" short:"H"`
+	Headers   []string `help:"Headers to include in the request" short:"H" sep:"none"`
 	Data      string   `help:"Data to send in the request body; use - to read from stdin" short:"d"`
 	Analytics bool     `help:"Use the Test Analytics endpoint"`
 	File      string   `help:"File containing GraphQL query" short:"f"`

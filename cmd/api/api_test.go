@@ -283,7 +283,7 @@ func TestApiHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, err := parser.Parse([]string{"api", "/test", "--headers", "X-Custom: one", "-H", "x-custom:two", "-H", "Accept: text/plain"})
+	ctx, err := parser.Parse([]string{"api", "/test", "--headers", "X-Custom: one", "-H", "x-custom:two", "-H", "Accept: text/plain, application/json"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,8 +294,8 @@ func TestApiHeaders(t *testing.T) {
 	if values := got.Values("X-Custom"); strings.Join(values, ",") != "one,two" {
 		t.Errorf("X-Custom = %q, want [one two]", values)
 	}
-	if accept := got.Get("Accept"); accept != "text/plain" {
-		t.Errorf("Accept = %q, want text/plain", accept)
+	if accept := got.Get("Accept"); accept != "text/plain, application/json" {
+		t.Errorf("Accept = %q, want %q", accept, "text/plain, application/json")
 	}
 }
 
