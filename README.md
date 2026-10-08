@@ -54,6 +54,24 @@ automation or a token with access to multiple organizations, supply
 stored credentials and is not replaced by stored OAuth credentials if a request
 fails authentication.
 
+### Inspect flaky test failures
+
+List failed tests that Test Engine currently labels flaky for a failed job:
+
+```sh
+bk job flaky-tests <job-uuid> --text
+bk job flaky-tests <job-uuid> --json
+```
+
+The command fetches all pages and includes the job UUID, build UUID, test details,
+and execution metrics in structured output (JSON or YAML). It requires
+`read_builds` and `read_suites` token scopes and Test Engine executions tagged
+with the matching `build.job_id`. Missing or overridden collector job metadata
+can prevent matches.
+
+Current flaky labels do not prove that flakiness caused the job failure. An empty
+result does **not** mean “not flaky”: Test Engine data may be missing or incomplete.
+
 ### Migrate GitHub Actions secrets
 
 Use `bk secret migrate github-actions` to move repository Actions secrets into
