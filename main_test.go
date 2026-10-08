@@ -375,10 +375,12 @@ func TestGlobalOrganization(t *testing.T) {
 		name, path, response, envToken   string
 		args                             []string
 		latest, missingToken, noDefaults bool
+		conflict                         bool
 	}{
 		{name: "list organization", args: []string{"build", "list", "--org", "ExampleOrg", "--summary", "--json"}, path: "/builds"},
 		{name: "list pipeline and leading flag", args: []string{"--org=ExampleOrg", "build", "list", "--pipeline", "widgets", "--summary", "--json"}, path: "/pipelines/widgets/builds"},
-		{name: "qualified list takes precedence", args: []string{"build", "list", "--org=different", "--pipeline=ExampleOrg/widgets", "--summary", "--json"}, path: "/pipelines/widgets/builds"},
+		{name: "conflicting list target", args: []string{"build", "list", "--org=different", "--pipeline=ExampleOrg/widgets", "--summary", "--json"}, conflict: true},
+		{name: "matching qualified list", args: []string{"build", "list", "--org=ExampleOrg", "--pipeline=ExampleOrg/widgets", "--summary", "--json"}, path: "/pipelines/widgets/builds"},
 		{name: "no default organization", args: []string{"build", "list", "--org=ExampleOrg", "--summary", "--json"}, path: "/builds", noDefaults: true},
 		{name: "view number", args: []string{"build", "--org", "ExampleOrg", "view", "42", "--pipeline", "widgets", "--summary", "--json"}, path: "/pipelines/widgets/builds/42", response: `{"number":42,"state":"passed"}`},
 		{name: "view preferred pipeline", args: []string{"build", "view", "42", "--org=ExampleOrg", "--summary", "--json"}, path: "/pipelines/widgets/builds/42", response: `{"number":42,"state":"passed"}`},
@@ -387,7 +389,8 @@ func TestGlobalOrganization(t *testing.T) {
 		{name: "agent list", args: []string{"agent", "list", "--org=ExampleOrg", "--json"}, path: "/agents"},
 		{name: "api", args: []string{"api", "/pipelines", "--org=ExampleOrg"}, path: "/pipelines"},
 		{name: "pipeline list", args: []string{"pipeline", "list", "--org=ExampleOrg", "--json"}, path: "/pipelines"},
-		{name: "pipeline override", args: []string{"--org=ExampleOrg", "pipeline", "view", "different/widgets", "--json"}, path: "/pipelines/widgets", response: `{"slug":"widgets"}`},
+		{name: "conflicting pipeline target", args: []string{"--org=ExampleOrg", "pipeline", "view", "different/widgets", "--json"}, conflict: true},
+		{name: "matching qualified pipeline", args: []string{"--org=ExampleOrg", "pipeline", "view", "ExampleOrg/widgets", "--json"}, path: "/pipelines/widgets", response: `{"slug":"widgets"}`},
 		{name: "environment token", args: []string{"build", "list", "--org=ExampleOrg", "--summary", "--json"}, path: "/builds", envToken: "env-token"},
 		{name: "missing credential", args: []string{"build", "list", "--org=ExampleOrg", "--summary", "--json"}, missingToken: true},
 	} {
@@ -412,6 +415,9 @@ func TestGlobalOrganization(t *testing.T) {
 			files := map[string]string{
 				filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "bk.yaml"): "selected_org: user-org\n",
 				".bk.yaml": "selected_org: local-org\npipelines: [widgets]\n",
+			}
+			if tt.name == "view preferred pipeline" {
+				files[".bk.yaml"] = "selected_org: ExampleOrg\npipelines: [widgets]\n"
 			}
 			if tt.noDefaults {
 				unsetEnv(t, "BUILDKITE_ORGANIZATION_SLUG")
@@ -464,6 +470,12 @@ func TestGlobalOrganization(t *testing.T) {
 					t.Fatalf("missing actionable credential error: %s", stderr)
 				}
 			}
+			if tt.conflict {
+				wantCode, wantRequests = 1, 0
+				if !strings.Contains(stderr, "conflicts with organization") {
+					t.Fatalf("missing organization conflict error: %s", stderr)
+				}
+			}
 			if code != wantCode || requests != wantRequests {
 				t.Fatalf("exit=%d, requests=%d; want %d, %d; stderr=%s", code, requests, wantCode, wantRequests, stderr)
 			}
@@ -499,7 +511,10 @@ func TestGlobalOrganizationRepositoryDiscovery(t *testing.T) {
 			if _, err := repo.CreateRemote(&gitconfig.RemoteConfig{Name: "origin", URLs: []string{repository}}); err != nil {
 				t.Fatal(err)
 			}
-			const before = "selected_org: saved-org\n"
+			before := "selected_org: saved-org\n"
+			if override == "other-org" {
+				before += "pipelines: [deploy]\n"
+			}
 			if err := os.WriteFile(".bk.yaml", []byte(before), 0o600); err != nil {
 				t.Fatal(err)
 			}
@@ -546,6 +561,45 @@ func TestGlobalOrganizationRepositoryDiscovery(t *testing.T) {
 				t.Fatalf("default organization did not cache discovered pipeline: %s", after)
 			}
 		})
+	}
+}
+
+func TestGlobalOrganizationQualifiedTargets(t *testing.T) {
+	t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "ambient-org")
+	for _, args := range [][]string{
+		{"build", "list", "--pipeline=SourceOrg/widgets"},
+		{"job", "list", "--pipeline=https://buildkite.com/SourceOrg/widgets"},
+		{"pipeline", "view", "SourceOrg/widgets"},
+		{"pipeline", "view", "--pipeline=SourceOrg/widgets"},
+		{"pipeline", "copy", "https://buildkite.com/SourceOrg/widgets", "--target=destination/copy"},
+		{"build", "create", "--pipeline=SourceOrg/widgets"},
+		{"build", "view", "SourceOrg/widgets/42"},
+		{"build", "cancel", "https://buildkite.com/SourceOrg/widgets/builds/42"},
+		{"artifacts", "list", "SourceOrg/widgets/42"},
+		{"artifacts", "download", "--build=SourceOrg/widgets/42"},
+		{"browse", "SourceOrg/widgets/42"},
+		{"preflight", "--pipeline=SourceOrg/widgets"},
+	} {
+		for _, org := range []string{"", "SourceOrg", "other-org"} {
+			t.Run(strings.Join(args, " ")+"/"+org, func(t *testing.T) {
+				parser, err := newKongParser(&CLI{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				input := append([]string{}, args...)
+				if org != "" {
+					input = append([]string{"--org=" + org}, input...)
+				}
+				_, err = parser.Parse(input)
+				if org == "other-org" {
+					if err == nil || !strings.Contains(err.Error(), "conflicts with organization") {
+						t.Fatalf("expected target conflict, got %v", err)
+					}
+				} else if err != nil {
+					t.Fatal(err)
+				}
+			})
+		}
 	}
 }
 

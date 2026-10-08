@@ -56,15 +56,21 @@ cache registry, repository connection, package, and API commands. Authentication
 and configuration commands retain their existing credential/selection changes.
 Pipeline selections discovered from the repository are not cached when using
 `--org` or `BUILDKITE_ORGANIZATION_SLUG`, so a temporary organization cannot
-overwrite the saved pipeline defaults.
+overwrite the saved pipeline defaults. Existing cached pipeline names are only
+used when the effective organization matches the saved organization; otherwise
+provide `--pipeline` or let repository discovery find a pipeline in the target org.
 
-For `build list` and `job list`, an organization in a qualified pipeline or URL
-takes precedence over `--org`:
+A qualified pipeline or build target (including a URL) must agree with an explicit
+`--org`; conflicting organizations produce an error before execution. Omit
+`--org` when the target already specifies the desired organization:
 
 ```sh
 bk build list --pipeline other-org/my-pipeline
 bk job list --pipeline https://buildkite.com/other-org/my-pipeline --build 123
 ```
+
+For `pipeline copy`, `--org` selects the source organization; `--target org/name`
+can still specify a different destination organization.
 
 The CLI does not fall back to another organization's stored credentials. For
 automation or a token with access to multiple organizations, supply

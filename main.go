@@ -39,6 +39,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/internal/config"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
+	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/analytics"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
@@ -97,6 +98,9 @@ func (c *CLI) AfterApply(ctx *kong.Context) error {
 	if ctx.Command() == "auth logout" && orgProvided && allProvided {
 		return errors.New("--org and --all cannot be used together")
 	}
+	if err := c.validateOrganizationTargets(ctx); err != nil {
+		return err
+	}
 
 	c.Auth.Login.Org = c.Org
 	c.Auth.Logout.Org = c.Org
@@ -107,6 +111,36 @@ func (c *CLI) AfterApply(ctx *kong.Context) error {
 	c.Configure.Org = c.Org
 	if !orgProvided {
 		c.Configure.Org = os.Getenv("BUILDKITE_ORGANIZATION_SLUG")
+	}
+	return nil
+}
+
+func (c *CLI) validateOrganizationTargets(ctx *kong.Context) error {
+	if c.Org == "" {
+		return nil
+	}
+	// Only job list uses pipeline/build targets; the corresponding flags on
+	// other job commands are deprecated and ignored.
+	if strings.HasPrefix(ctx.Command(), "job ") && !strings.HasPrefix(ctx.Command(), "job list") {
+		return nil
+	}
+	for _, trace := range ctx.Path {
+		var value *kong.Value
+		if trace.Flag != nil {
+			value = trace.Flag.Value
+		} else {
+			value = trace.Positional
+		}
+		if value == nil || (value.Name != "pipeline" && value.Name != "build" && value.Name != "build-number") {
+			continue
+		}
+		target, ok := value.Target.Interface().(string)
+		if !ok {
+			continue
+		}
+		if org := pipelineResolver.QualifiedOrganization(target); org != "" && org != c.Org {
+			return fmt.Errorf("--org %q conflicts with organization %q in %s %q; use matching organizations or omit --org", c.Org, org, value.Name, target)
+		}
 	}
 	return nil
 }
