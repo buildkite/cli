@@ -21,7 +21,7 @@ import (
 
 type CreateCmd struct {
 	Name             string `arg:"" help:"Name of the pipeline" required:""`
-	Org              string `help:"Organization slug." name:"org"`
+	Org              string `kong:"-"` // Supplied by the global --org flag.
 	Description      string `help:"Description of the pipeline" short:"d"`
 	Repository       string `help:"Repository URL" short:"r"`
 	ClusterUUID      string `help:"Cluster UUID to assign the pipeline to" name:"cluster-uuid"`

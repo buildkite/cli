@@ -21,7 +21,7 @@ import (
 
 type LoginCmd struct {
 	Scopes          string `help:"OAuth scopes to request" default:""`
-	Org             string `help:"Organization slug or UUID to request access for" optional:""`
+	Org             string `kong:"-"` // Supplied by the global --org flag; also accepts an OAuth organization UUID.
 	Token           string `help:"API token to store (non-OAuth login, requires --org)" optional:""`
 	Device          bool   `help:"Authenticate using OAuth device authorization instead of opening a browser callback" optional:""`
 	CredentialStore string `help:"Credential store for tokens: auto, keyring, or shm" enum:"auto,keyring,shm" default:"auto"`

@@ -115,6 +115,14 @@ func New(fs afero.Fs, repo *git.Repository) *Config {
 func (conf *Config) OrganizationSlug() string {
 	return firstNonEmpty(
 		os.Getenv("BUILDKITE_ORGANIZATION_SLUG"),
+		conf.SavedOrganizationSlug(),
+	)
+}
+
+// SavedOrganizationSlug returns the selected organization in configuration files,
+// ignoring invocation-only overrides from --org or the environment.
+func (conf *Config) SavedOrganizationSlug() string {
+	return firstNonEmpty(
 		conf.local.SelectedOrg,
 		conf.user.SelectedOrg,
 	)

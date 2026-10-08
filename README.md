@@ -40,8 +40,26 @@ bk auth login --org other-org
 
 Logging in also selects that organization in your user-wide configuration.
 Repository configuration and `BUILDKITE_ORGANIZATION_SLUG` still take precedence.
-To target an organization without changing your selection, use a qualified pipeline
-or URL with `build list` or `job list`:
+Use the global `--org` flag to select an organization for one invocation without
+changing either configuration file. It overrides `BUILDKITE_ORGANIZATION_SLUG`
+and repository/user defaults, and selects that organization's stored credentials:
+
+```sh
+bk build list --org other-org
+bk build view 123 --pipeline my-pipeline --org other-org
+bk --org other-org job list
+bk agent list --org other-org
+```
+
+The flag is available to all commands, including cluster, queue, secret, team,
+cache registry, repository connection, package, and API commands. Authentication
+and configuration commands retain their existing credential/selection changes.
+Pipeline selections discovered from the repository are not cached when using
+`--org` or `BUILDKITE_ORGANIZATION_SLUG`, so a temporary organization cannot
+overwrite the saved pipeline defaults.
+
+For `build list` and `job list`, an organization in a qualified pipeline or URL
+takes precedence over `--org`:
 
 ```sh
 bk build list --pipeline other-org/my-pipeline

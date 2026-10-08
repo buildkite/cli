@@ -21,7 +21,7 @@ const (
 )
 
 type ListCmd struct {
-	Org        string `help:"Organization slug." name:"org"`
+	Org        string `kong:"-"` // Supplied by the global --org flag.
 	Name       string `help:"Filter pipelines by name (supports partial matches, case insensitive)" short:"n"`
 	Repository string `help:"Filter pipelines by repository URL (supports partial matches, case insensitive)" short:"r"`
 	Limit      int    `help:"Maximum number of pipelines to return (max: 3000)" short:"l" default:"100"`
