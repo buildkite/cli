@@ -260,3 +260,63 @@ func TestApiDataStdinReadError(t *testing.T) {
 		t.Fatalf("Run() error = %v, want stdin read error", err)
 	}
 }
+
+func TestApiHeaders(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "test-org")
+	t.Setenv("BUILDKITE_API_TOKEN", "test-token")
+
+	var got http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Clone()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+	t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+
+	var command struct {
+		Api ApiCmd `cmd:""`
+	}
+	parser, err := kong.New(&command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, err := parser.Parse([]string{"api", "/test", "--headers", "X-Custom: one", "-H", "x-custom:two", "-H", "Accept: text/plain, application/json"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := command.Api.Run(ctx, cli.Globals{}); err != nil {
+		t.Fatal(err)
+	}
+
+	if values := got.Values("X-Custom"); strings.Join(values, ",") != "one,two" {
+		t.Errorf("X-Custom = %q, want [one two]", values)
+	}
+	if accept := got.Get("Accept"); accept != "text/plain, application/json" {
+		t.Errorf("Accept = %q, want %q", accept, "text/plain, application/json")
+	}
+}
+
+func TestApiInvalidHeader(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "test-org")
+	t.Setenv("BUILDKITE_API_TOKEN", "test-token")
+
+	var command struct {
+		Api ApiCmd `cmd:""`
+	}
+	parser, err := kong.New(&command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, err := parser.Parse([]string{"api", "/test", "-H", "no-colon"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := command.Api.Run(ctx, cli.Globals{}); err == nil || !strings.Contains(err.Error(), "invalid header") {
+		t.Fatalf("Run() error = %v, want invalid header error", err)
+	}
+}
