@@ -390,6 +390,9 @@ func TestPreflightCmd_Run(t *testing.T) {
 		if gotReq.Env["PREFLIGHT_SOURCE_COMMIT"] != expectedSourceCommit {
 			t.Errorf("expected PREFLIGHT_SOURCE_COMMIT=%q, got %#v", expectedSourceCommit, gotReq.Env)
 		}
+		if !gotReq.IgnorePipelineBranchFilters {
+			t.Error("expected preflight build to ignore pipeline branch filters")
+		}
 		if !strings.Contains(gotUserAgent, buildkite.DefaultUserAgent) {
 			t.Errorf("expected User-Agent to contain %q, got %q", buildkite.DefaultUserAgent, gotUserAgent)
 		}
