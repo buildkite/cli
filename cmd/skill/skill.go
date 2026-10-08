@@ -116,7 +116,7 @@ func (c *UpdateCmd) Run() error {
 			return err
 		}
 		for _, entry := range entries {
-			if entry.IsDir() {
+			if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".bk-skill-") {
 				plan[entry.Name()] = append(plan[entry.Name()], target)
 			}
 		}

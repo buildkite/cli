@@ -161,6 +161,8 @@ func TestInstallSkillsToTargets(t *testing.T) {
 	createZip(t, archive, map[string]string{
 		"skills-main/skills/buildkite-api/SKILL.md":    "# Buildkite API",
 		"skills-main/skills/buildkite-api/docs/ref.md": "reference",
+		"skills-main/skills/.bk-skill/SKILL.md":        "# Buildkite API",
+		"skills-main/skills/.bk-skill/docs/ref.md":     "reference",
 	})
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, archive)
@@ -181,12 +183,14 @@ func TestInstallSkillsToTargets(t *testing.T) {
 		force       bool
 		missing     bool
 		crossDevice bool
+		update      bool
 	}{
 		{name: "add"},
 		{name: "force", force: true},
 		{name: "missing preserves installed skill", force: true, missing: true},
 		{name: "cross-device add", crossDevice: true},
 		{name: "cross-device force", force: true, crossDevice: true},
+		{name: "update ignores abandoned staging", force: true, update: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			root := t.TempDir()
@@ -208,6 +212,10 @@ func TestInstallSkillsToTargets(t *testing.T) {
 			name := "buildkite-api"
 			if tc.missing {
 				name = "missing"
+			} else if tc.update {
+				// A dot-prefixed skill is valid; only staging directories
+				// with the full .bk-skill- prefix should be ignored.
+				name = ".bk-skill"
 			}
 			targets := []target{
 				{agent: "claude", root: filepath.Join(root, ".claude")},
@@ -223,8 +231,23 @@ func TestInstallSkillsToTargets(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
+				if tc.update {
+					if err := os.Mkdir(filepath.Join(target.SkillsDir(), ".bk-skill-abandoned"), 0o700); err != nil {
+						t.Fatal(err)
+					}
+				}
 			}
-			err := installSkillToTargets(name, targets, tc.force, "buildkite/skills", "main")
+			var err error
+			if tc.update {
+				for _, target := range targets {
+					cmd := UpdateCmd{Path: target.SkillsDir(), Repo: "buildkite/skills", Branch: "main"}
+					if err = cmd.Run(); err != nil {
+						break
+					}
+				}
+			} else {
+				err = installSkillToTargets(name, targets, tc.force, "buildkite/skills", "main")
+			}
 			if tc.missing {
 				if err == nil || !strings.Contains(err.Error(), `skill "missing" not found`) {
 					t.Fatalf("expected missing skill error, got %v", err)
@@ -250,8 +273,15 @@ func TestInstallSkillsToTargets(t *testing.T) {
 					}
 				}
 				entries, err := os.ReadDir(target.SkillsDir())
-				if err != nil || len(entries) != 1 || entries[0].Name() != name {
+				wantEntries := 1
+				if tc.update {
+					wantEntries = 2
+				}
+				if err != nil || len(entries) != wantEntries || entries[0].Name() != name {
 					t.Fatalf("unexpected skills directory contents: %v, error = %v", entries, err)
+				}
+				if tc.update && entries[1].Name() != ".bk-skill-abandoned" {
+					t.Fatalf("abandoned staging directory changed: %v", entries)
 				}
 			}
 		})
