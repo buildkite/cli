@@ -72,6 +72,42 @@ can prevent matches.
 Current flaky labels do not prove that flakiness caused the job failure. An empty
 result does **not** mean “not flaky”: Test Engine data may be missing or incomplete.
 
+### Find failures across triggered builds
+
+```sh
+bk build view acme/my-pipeline/123 --recursive --json
+```
+
+`--recursive` returns current hard-failed (`failed`) and timed-out (`timed_out`)
+command jobs from the selected build and its descendants. It follows every
+available child reference, including passed, asynchronous, and soft-failed
+triggers, without filtering by build state. Superseded retry attempts and the
+children of superseded trigger attempts are excluded. Soft-failed command jobs,
+canceled/expired jobs, configuration-excluded (`broken`) jobs, and jobs stopped
+by failed dependencies are not reported as command failures. Running jobs that
+have promised failure are not terminal failures and are also excluded.
+
+JSON/YAML output contains `root_build`, `complete`, `failures`, and `issues`.
+Each failure includes its qualified `build` (`org/pipeline/number`), job `id`,
+`name`, `state`, `web_url`, `log_url`, `raw_log_url`, and `trigger_path`. The path
+lists ancestor trigger jobs as `org/pipeline/number#job-id`, from the root;
+root-build failures have an empty path. `--text` provides the same information
+in a readable form.
+
+This is one CLI invocation, not one API request: the CLI fetches each reachable
+build once using the existing REST API. It does not download logs, artifacts,
+or annotations. Build access requires `read_builds` and permission to read each
+pipeline; following log pointers separately requires `read_build_logs`.
+
+Inaccessible children, invalid child references, missing/not-yet-created child
+builds (except skipped or configuration-excluded triggers), and request failures
+produce partial output with `complete: false`, explanatory `issues`, and a
+nonzero exit status. Failures from accessible siblings are still returned.
+`complete` describes traversal of the observed current attempts, not an atomic
+snapshot or a guarantee that running builds have finished. Builds created by
+scripts/API calls without a trigger-job link cannot be discovered this way.
+`--recursive` cannot be combined with `--summary`, `--web`, or `--job-states`.
+
 ### Migrate GitHub Actions secrets
 
 Use `bk secret migrate github-actions` to move repository Actions secrets into

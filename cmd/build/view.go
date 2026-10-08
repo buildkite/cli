@@ -29,12 +29,26 @@ type ViewCmd struct {
 	JobStates   []string `help:"Filter jobs by state. Valid states: running, scheduled, passed, failed, canceled, skipped, not_run, broken." short:"s" sep:","`
 	Web         bool     `help:"Open the build in a web browser." short:"w" xor:"viewmode"`
 	Summary     bool     `help:"Return metadata only for fast state checks, polling, scripts, and LLM agents." xor:"viewmode"`
+	Recursive   bool     `help:"Return current hard-failed and timed-out command jobs across the trigger tree, with log pointers." xor:"viewmode"`
 	output.OutputFlags
+}
+
+func (c *ViewCmd) Validate() error {
+	if c.Recursive && len(c.JobStates) > 0 {
+		return fmt.Errorf("--recursive cannot be combined with --job-states")
+	}
+	return nil
 }
 
 func (c *ViewCmd) Help() string {
 	return `You can pass an optional build number to view. If omitted, the most recent build on the current branch will be resolved.
 Builds from all creators are included by default. Use --mine or --user to filter by creator.
+
+--recursive follows all current trigger attempts, including passed/asynchronous triggers,
+and returns hard-failed or timed-out script jobs from the root and descendant builds.
+Superseded retries, soft failures, canceled/expired jobs, and jobs that never ran
+are excluded. Logs are linked, not downloaded. Missing children or request errors
+produce partial output with complete=false and a nonzero exit status.
 
 Examples:
   # By default, the most recent build for the current branch is shown
@@ -63,6 +77,9 @@ Examples:
 
   # Filter to only show failed and broken jobs
   $ bk build view -s failed,broken
+
+  # Find current command failures throughout a trigger tree in one CLI invocation
+  $ bk build view acme/monolith/429 --recursive --json
 
   # You can combine most of these flags
   # To view most recent build by greg on the deploy-pipeline
@@ -154,6 +171,23 @@ func (c *ViewCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			opts.Organization, opts.Pipeline, opts.BuildNumber)
 		fmt.Printf("Opening %s in your browser\n", buildURL)
 		return browser.OpenURL(buildURL)
+	}
+
+	if c.Recursive {
+		var failures recursiveFailures
+		if err := bkIO.SpinWhile(f, "Loading recursive failures", func() error {
+			failures = fetchRecursiveFailures(ctx, f.RestAPIClient, opts)
+			return nil
+		}); err != nil {
+			return err
+		}
+		if err := output.Write(os.Stdout, failures, format); err != nil {
+			return err
+		}
+		if !failures.Complete {
+			return fmt.Errorf("recursive failure view is incomplete: %d traversal issues (see output)", len(failures.Issues))
+		}
+		return nil
 	}
 
 	var build buildkite.Build
