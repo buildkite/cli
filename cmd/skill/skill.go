@@ -304,16 +304,21 @@ func installSkillsToTargets(plan map[string][]target, force bool, repo, branch s
 		return err
 	}
 
-	counter := 0
 	for name, targets := range plan {
 		for _, target := range targets {
 			dest := filepath.Join(target.SkillsDir(), name)
-			extracted := filepath.Join(tmpDir, fmt.Sprintf("%s-%d", name, counter))
-			counter++
-			if err := extractSkill(archive, name, extracted); err != nil {
+			if err := os.MkdirAll(target.SkillsDir(), 0o755); err != nil {
 				return err
 			}
-			if err := os.MkdirAll(target.SkillsDir(), 0o755); err != nil {
+			// Stage on the destination filesystem so the final rename works
+			// even when the system temporary directory is on another device.
+			staging, err := os.MkdirTemp(target.SkillsDir(), ".bk-skill-*")
+			if err != nil {
+				return err
+			}
+			defer os.RemoveAll(staging)
+			extracted := filepath.Join(staging, name)
+			if err := extractSkill(archive, name, extracted); err != nil {
 				return err
 			}
 			if err := os.RemoveAll(dest); err != nil {
