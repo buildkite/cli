@@ -55,8 +55,8 @@ func useRun(org *string, conf *config.Config, inGitRepo bool, noInput bool) erro
 		selected = *org
 	}
 
-	// if already selected, do nothing
-	if conf.OrganizationSlug() == selected {
+	// Only a saved selection makes this persistence operation a no-op.
+	if conf.SavedOrganizationSlug() == selected {
 		fmt.Printf("Using configuration for `%s`\n", selected)
 		return nil
 	}

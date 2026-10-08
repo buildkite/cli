@@ -39,6 +39,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/internal/config"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
+	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/analytics"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
@@ -46,6 +47,7 @@ import (
 // Kong CLI structure, with base commands defined as additional commands are defined in their respective files
 type CLI struct {
 	// Global flags
+	Org                  string                  `help:"Organization slug for this invocation (overrides environment and configuration)"`
 	Yes                  bool                    `help:"Skip all confirmation prompts" short:"y"`
 	NoInput              bool                    `help:"Disable all interactive prompts" name:"no-input"`
 	Quiet                bool                    `help:"Suppress progress output" short:"q"`
@@ -78,6 +80,69 @@ type CLI struct {
 	Update               updatePkg.UpdateCmd     `cmd:"" help:"Update the installed bk CLI or print update instructions"`
 	Version              VersionCmd              `cmd:"" help:"Print the version of the CLI being used"`
 	Whoami               whoami.WhoAmICmd        `cmd:"" help:"Print the current user and organization" hidden:""`
+}
+
+// AfterApply forwards the shared flag to commands whose organization argument
+// has semantics beyond selecting the default organization (such as OAuth login
+// or overriding a qualified pipeline).
+func (c *CLI) AfterApply(ctx *kong.Context) error {
+	var orgProvided, allProvided bool
+	for _, trace := range ctx.Path {
+		if trace.Flag != nil {
+			orgProvided = orgProvided || trace.Flag.Name == "org"
+			allProvided = allProvided || trace.Flag.Name == "all"
+		}
+	}
+	// Kong's xor groups do not span root and subcommand flags. Preserve the
+	// logout conflict by flag presence, including --org="" and --all=false.
+	if ctx.Command() == "auth logout" && orgProvided && allProvided {
+		return errors.New("--org and --all cannot be used together")
+	}
+	if err := c.validateOrganizationTargets(ctx); err != nil {
+		return err
+	}
+
+	c.Auth.Login.Org = c.Org
+	c.Auth.Logout.Org = c.Org
+	c.Pipeline.List.Org = c.Org
+	c.Pipeline.View.Org = c.Org
+	c.Pipeline.Create.Org = c.Org
+	c.Pipeline.Copy.Org = c.Org
+	c.Configure.Org = c.Org
+	if !orgProvided {
+		c.Configure.Org = os.Getenv("BUILDKITE_ORGANIZATION_SLUG")
+	}
+	return nil
+}
+
+func (c *CLI) validateOrganizationTargets(ctx *kong.Context) error {
+	if c.Org == "" {
+		return nil
+	}
+	// Only job list uses pipeline/build targets; the corresponding flags on
+	// other job commands are deprecated and ignored.
+	if strings.HasPrefix(ctx.Command(), "job ") && !strings.HasPrefix(ctx.Command(), "job list") {
+		return nil
+	}
+	for _, trace := range ctx.Path {
+		var value *kong.Value
+		if trace.Flag != nil {
+			value = trace.Flag.Value
+		} else {
+			value = trace.Positional
+		}
+		if value == nil || (value.Name != "pipeline" && value.Name != "build" && value.Name != "build-number") {
+			continue
+		}
+		target, ok := value.Target.Interface().(string)
+		if !ok {
+			continue
+		}
+		if org := pipelineResolver.QualifiedOrganization(target); org != "" && org != c.Org {
+			return fmt.Errorf("--org %q conflicts with organization %q in %s %q; use matching organizations or omit --org", c.Org, org, value.Name, target)
+		}
+	}
+	return nil
 }
 
 type (
@@ -400,6 +465,24 @@ func run() int {
 
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
+	}
+
+	// All factories read organization selection through config's environment
+	// layer. Scope the flag to this invocation without writing either config
+	// file, and restore the environment when run returns (including on errors).
+	if cliInstance.Org != "" {
+		previous, existed := os.LookupEnv("BUILDKITE_ORGANIZATION_SLUG")
+		if err := os.Setenv("BUILDKITE_ORGANIZATION_SLUG", cliInstance.Org); err != nil {
+			return handleError(err)
+		}
+		defer func() {
+			if existed {
+				_ = os.Setenv("BUILDKITE_ORGANIZATION_SLUG", previous)
+			} else {
+				_ = os.Unsetenv("BUILDKITE_ORGANIZATION_SLUG")
+			}
+		}()
+		tracker.SetOrg(cliInstance.Org)
 	}
 
 	globals := cli.Globals{

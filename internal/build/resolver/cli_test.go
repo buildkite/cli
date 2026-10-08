@@ -2,6 +2,8 @@ package resolver_test
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/buildkite/cli/v3/internal/build/resolver"
@@ -81,4 +83,41 @@ func TestParseBuildArg(t *testing.T) {
 			t.Error("no build should be returned")
 		}
 	})
+}
+
+func TestBuildPipelineResolutionErrors(t *testing.T) {
+	t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "other-org")
+	upstreamErr := errors.New("pipeline API unavailable")
+	for _, tt := range []struct {
+		name, arg, want string
+		pipelineErr     error
+	}{
+		{"no pipeline", "42", "no pipeline found", nil},
+		{"upstream error", "42", "pipeline API unavailable", upstreamErr},
+		{"invalid input", "not-a-number", "unable to parse the input build argument", nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			called := false
+			resolvePipeline := func(context.Context) (*pipeline.Pipeline, error) {
+				called = true
+				return nil, tt.pipelineErr
+			}
+			conf := config.New(afero.NewMemMapFs(), nil)
+			resolve := resolver.ResolveFromPositionalArgument([]string{tt.arg}, 0, resolvePipeline, conf)
+			build, err := resolve(context.Background())
+			if build != nil || err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("build=%v, err=%v; want %q", build, err, tt.want)
+			}
+			if tt.arg == "42" {
+				if !called || !strings.Contains(err.Error(), `in "other-org"; use --pipeline`) {
+					t.Fatalf("missing pipeline resolution context: called=%t, err=%v", called, err)
+				}
+			} else if called {
+				t.Fatal("invalid build input invoked pipeline resolver")
+			}
+			if tt.pipelineErr != nil && !errors.Is(err, tt.pipelineErr) {
+				t.Fatalf("lost underlying pipeline error: %v", err)
+			}
+		})
+	}
 }

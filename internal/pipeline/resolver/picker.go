@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"os"
 	"slices"
 
 	"github.com/buildkite/cli/v3/internal/config"
@@ -58,6 +59,13 @@ func PickOneWithFactory(f *factory.Factory) PipelinePicker {
 // CachedPicker returns a PipelinePicker that saves the given pipelines to local config as well as running the provider
 // picker.
 func CachedPicker(conf *config.Config, picker PipelinePicker) PipelinePicker {
+	// --org uses the environment selection layer for this invocation. Pipeline
+	// names are cached without an organization, so do not persist discoveries
+	// from a temporary selection for later use with the saved organization.
+	if os.Getenv("BUILDKITE_ORGANIZATION_SLUG") != "" {
+		return picker
+	}
+
 	return func(pipelines []pipeline.Pipeline) *pipeline.Pipeline {
 		// run the picker first because we want to put the chosen on at the top of the saved list
 		chosen := picker(pipelines)

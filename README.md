@@ -40,13 +40,37 @@ bk auth login --org other-org
 
 Logging in also selects that organization in your user-wide configuration.
 Repository configuration and `BUILDKITE_ORGANIZATION_SLUG` still take precedence.
-To target an organization without changing your selection, use a qualified pipeline
-or URL with `build list` or `job list`:
+Use the global `--org` flag to select an organization for one invocation without
+changing either configuration file. It overrides `BUILDKITE_ORGANIZATION_SLUG`
+and repository/user defaults, and selects that organization's stored credentials:
+
+```sh
+bk build list --org other-org
+bk build view 123 --pipeline my-pipeline --org other-org
+bk --org other-org job list
+bk agent list --org other-org
+```
+
+The flag is available to all commands, including cluster, queue, secret, team,
+cache registry, repository connection, package, and API commands. Authentication
+and configuration commands retain their existing credential/selection changes.
+Pipeline selections discovered from the repository are not cached when using
+`--org` or `BUILDKITE_ORGANIZATION_SLUG`, so a temporary organization cannot
+overwrite the saved pipeline defaults. Existing cached pipeline names are only
+used when the effective organization matches the saved organization; otherwise
+provide `--pipeline` or let repository discovery find a pipeline in the target org.
+
+A qualified pipeline or build target (including a URL) must agree with an explicit
+`--org`; conflicting organizations produce an error before execution. Omit
+`--org` when the target already specifies the desired organization:
 
 ```sh
 bk build list --pipeline other-org/my-pipeline
 bk job list --pipeline https://buildkite.com/other-org/my-pipeline --build 123
 ```
+
+For `pipeline copy`, `--org` selects the source organization; `--target org/name`
+can still specify a different destination organization.
 
 The CLI does not fall back to another organization's stored credentials. For
 automation or a token with access to multiple organizations, supply

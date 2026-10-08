@@ -371,6 +371,7 @@ func TestLoginCmdRunWithTokenUsesCredentialStoreEnvWhenFlagOmitted(t *testing.T)
 	t.Cleanup(keyring.ResetForTesting)
 
 	var cli struct {
+		Org   string
 		Login LoginCmd `cmd:""`
 	}
 	parser, err := kong.New(&cli)
@@ -388,6 +389,7 @@ func TestLoginCmdRunWithTokenUsesCredentialStoreEnvWhenFlagOmitted(t *testing.T)
 		t.Fatal("credentialStoreFlagProvided() = true, want false")
 	}
 
+	cli.Login.Org = cli.Org // The application forwards the global flag.
 	if err := cli.Login.Run(ctx, authStubGlobals{}); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -418,6 +420,7 @@ func TestLoginCmdRunWithTokenCredentialStoreFlagOverridesEnv(t *testing.T) {
 	t.Cleanup(keyring.ResetForTesting)
 
 	var cli struct {
+		Org   string
 		Login LoginCmd `cmd:""`
 	}
 	parser, err := kong.New(&cli)
@@ -432,6 +435,7 @@ func TestLoginCmdRunWithTokenCredentialStoreFlagOverridesEnv(t *testing.T) {
 		t.Fatal("credentialStoreFlagProvided() = false, want true")
 	}
 
+	cli.Login.Org = cli.Org // The application forwards the global flag.
 	if err := cli.Login.Run(ctx, authStubGlobals{}); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}

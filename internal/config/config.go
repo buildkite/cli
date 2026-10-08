@@ -115,6 +115,14 @@ func New(fs afero.Fs, repo *git.Repository) *Config {
 func (conf *Config) OrganizationSlug() string {
 	return firstNonEmpty(
 		os.Getenv("BUILDKITE_ORGANIZATION_SLUG"),
+		conf.SavedOrganizationSlug(),
+	)
+}
+
+// SavedOrganizationSlug returns the selected organization in configuration files,
+// ignoring invocation-only overrides from --org or the environment.
+func (conf *Config) SavedOrganizationSlug() string {
+	return firstNonEmpty(
 		conf.local.SelectedOrg,
 		conf.user.SelectedOrg,
 	)
@@ -468,6 +476,11 @@ func (conf *Config) HasConfiguredOrganization(slug string) bool {
 
 // PreferredPipelines will retrieve the list of pipelines from local configuration
 func (conf *Config) PreferredPipelines() []pipeline.Pipeline {
+	// Cached names have no organization qualifier. They belong to the saved
+	// selection and must not be reinterpreted under a temporary organization.
+	if conf.OrganizationSlug() != conf.SavedOrganizationSlug() {
+		return nil
+	}
 	names := conf.local.Pipelines
 
 	if len(names) == 0 {

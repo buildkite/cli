@@ -23,7 +23,7 @@ type ViewCmd struct {
 	// Pipeline is the positional arg; PipelineFlag (--pipeline/-p) takes priority when both are provided.
 	Pipeline     string `arg:"" help:"The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." optional:""`
 	PipelineFlag string `help:"The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p" name:"pipeline"`
-	Org          string `help:"Organization slug." name:"org"`
+	Org          string `kong:"-"` // Supplied by the global --org flag.
 	Web          bool   `help:"Open the pipeline in a web browser." short:"w"`
 	output.OutputFlags
 }
