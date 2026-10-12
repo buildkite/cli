@@ -21,7 +21,8 @@ type CancelCmd struct {
 func (c *CancelCmd) Help() string {
 	return `
 Other jobs in the build keep running; to cancel the whole build, use
-bk build cancel. A running job stays canceling until its agent stops it.
+bk build cancel. A running job is canceling until its agent stops it. If
+the agent stops responding, Buildkite finishes the cancellation without it.
 
 Examples:
   # Cancel a job (with confirmation prompt)
@@ -71,7 +72,8 @@ func (c *CancelCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
-	// Running jobs stay "canceling" until their agent stops them.
+	// Running jobs stay "canceling" until their agent stops them, or until
+	// Buildkite finishes the cancellation (lost agent, force cancel, or expiry).
 	if job.State == "canceling" {
 		fmt.Fprintf(kongCtx.Stdout, "Job canceling: %s\n", job.WebURL)
 	} else {
