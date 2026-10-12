@@ -65,7 +65,7 @@ func (c *CancelCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	var job buildkite.Job
 	if err := bkIO.SpinWhile(f, fmt.Sprintf("Cancelling job %s", c.JobID), func() error {
 		var apiErr error
-		job, apiErr = cancelJob(context.Background(), f.RestAPIClient, organization, c.JobID)
+		job, _, apiErr = f.RestAPIClient.Jobs.CancelJobByOrg(context.Background(), organization, c.JobID)
 		return apiErr
 	}); err != nil {
 		return err
