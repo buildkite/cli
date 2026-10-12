@@ -10,7 +10,7 @@ require (
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
-	github.com/charmbracelet/x/ansi v0.11.8
+	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/go-git/go-git/v5 v5.19.3
 	github.com/goccy/go-yaml v1.19.2
 	github.com/google/uuid v1.6.0
@@ -19,7 +19,7 @@ require (
 	github.com/mcncl/terminal-to-llm v0.1.1
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/posthog/posthog-go v1.33.0
-	github.com/vektah/gqlparser/v2 v2.5.60
+	github.com/vektah/gqlparser/v2 v2.5.62
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/sync v0.24.0
@@ -51,7 +51,7 @@ require (
 	github.com/jxskiss/base62 v1.1.0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/kyokomi/emoji/v2 v2.2.13 // indirect
-	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
+	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
@@ -84,7 +84,7 @@ require (
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.24
-	github.com/mattn/go-runewidth v0.0.30
+	github.com/mattn/go-runewidth v0.0.31
 	github.com/pjbgf/sha1cd v0.7.0 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
