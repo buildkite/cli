@@ -18,7 +18,7 @@ require (
 	github.com/jpillora/chisel v1.12.1
 	github.com/mcncl/terminal-to-llm v0.1.1
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
-	github.com/posthog/posthog-go v1.33.0
+	github.com/posthog/posthog-go v1.34.0
 	github.com/vektah/gqlparser/v2 v2.5.62
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/zalando/go-keyring v0.2.8
@@ -91,12 +91,12 @@ require (
 	github.com/spf13/afero v1.15.0
 	github.com/suessflorian/gqlfetch v0.7.0
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
-	golang.org/x/crypto v0.57.0
+	golang.org/x/crypto v0.58.0
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.60.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/term v0.46.0
-	golang.org/x/text v0.42.0 // indirect
-	golang.org/x/tools v0.49.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/term v0.47.0
+	golang.org/x/text v0.43.0 // indirect
+	golang.org/x/tools v0.51.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
