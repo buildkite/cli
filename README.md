@@ -78,6 +78,51 @@ automation or a token with access to multiple organizations, supply
 stored credentials and is not replaced by stored OAuth credentials if a request
 fails authentication.
 
+### Create a pipeline
+
+From a Git checkout, `bk pipeline create` infers the repository URL and default
+name from `origin` (or uses the checkout directory name if no origin exists).
+An explicit name and `--repository` override those defaults. When used
+interactively without a name or repository argument, it offers a recommended
+local starter and alternatives if no pipeline file exists:
+
+Guided creation defaults to `Pipeline created: <URL>` on stdout, while file
+status and starter prompts go to stderr. Format flags and explicitly configured
+output preferences take precedence; named and scripted output defaults are
+unchanged.
+
+```sh
+bk pipeline create
+bk pipeline create "My Pipeline" --repository git@github.com:org/repo.git
+bk pipeline create --no-input --template go
+bk pipeline create --dry-run --json
+```
+
+Named invocations, redirected input and `--no-input` do not add prompts or local
+files unless `--template` is supplied. Dry-run resolves the same name and URL
+but never writes local files or creates a pipeline/webhook; it still performs
+API reads and requires the existing authentication configuration.
+
+`bk init` uses the same starter selection without creating a remote pipeline.
+Without interactive input it uses the project recommendation; `--template`
+selects `go`, `node`, `pipenv`, `ruby` or `empty` explicitly. Both commands search
+the checkout root, including from subdirectories and linked worktrees, and leave
+existing pipeline files unchanged.
+
+Starters are bundled adaptations of Buildkite's
+[Go](https://github.com/buildkite/golang-example),
+[Node](https://github.com/buildkite/nodejs-example),
+[Pipenv](https://github.com/buildkite/python-pipenv-example) and
+[Ruby](https://github.com/buildkite/ruby-rbenv-example) examples. Go runs test/vet;
+Node requires a real test script and adapts installation to npm, pnpm, Yarn or
+Bun lockfiles. Pipenv/pytest and Bundler/RSpec recommendations require dependency
+evidence and lockfiles. Agents must have the matching runtime and package manager
+installed; these starters do not provision agents, Docker, hooks or caches. The
+empty starter contains `steps: []` and needs editing.
+
+Review generated files, then **commit and push them before building**. Remote
+builds cannot see local starters; creating a pipeline does not publish them.
+
 ### Inspect flaky test failures
 
 List failed tests that Test Engine currently labels flaky for a failed job:
