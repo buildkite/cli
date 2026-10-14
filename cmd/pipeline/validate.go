@@ -10,6 +10,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/pkg/output"
 	"github.com/goccy/go-yaml"
 	"github.com/xeipuuv/gojsonschema"
 )
@@ -139,12 +140,13 @@ func validatePipeline(w io.Writer, filePath string) error {
 	if err != nil {
 		return fmt.Errorf("error reading pipeline file: %w", err)
 	}
-	return validatePipelineData(w, filePath, pipelineData)
+	return validatePipelineData(w, filePath, pipelineData, false)
 }
 
 // validatePipelineData also lets creation validate without changing directories
 // or rewriting files, while displaying a repository-relative path.
-func validatePipelineData(w io.Writer, filePath string, pipelineData []byte) error {
+func validatePipelineData(w io.Writer, filePath string, pipelineData []byte, guided bool) error {
+	guide := output.NewGuidance(w, guided)
 	// Trim whitespace to handle empty files more gracefully
 	if len(strings.TrimSpace(string(pipelineData))) == 0 {
 		fmt.Fprintf(w, "❌ Pipeline file is invalid: %s\n\n", filePath)
@@ -169,7 +171,7 @@ func validatePipelineData(w io.Writer, filePath string, pipelineData []byte) err
 	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
 	if err != nil {
 		// If online schema access fails, try the fallback schema
-		fmt.Fprintf(w, "⚠️  Warning: Could not access online pipeline schema: %s\n", err.Error())
+		fmt.Fprintf(w, "⚠️  %s\n", guide.Warning(fmt.Sprintf("Warning: Could not access online pipeline schema: %s", err.Error())))
 		fmt.Fprintf(w, "   Using simplified fallback schema for basic validation only; this does not validate all Buildkite step semantics or agent runtimes.\n\n")
 
 		// Create a schema loader using the fallback schema
@@ -183,7 +185,7 @@ func validatePipelineData(w io.Writer, filePath string, pipelineData []byte) err
 	}
 
 	if result.Valid() {
-		fmt.Fprintf(w, "✅ Pipeline file is valid: %s\n", filePath)
+		fmt.Fprintf(w, "✅ %s\n", guide.Success(fmt.Sprintf("Pipeline file is valid: %s", filePath)))
 		return nil
 	}
 

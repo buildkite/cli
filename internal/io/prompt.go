@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
 )
 
@@ -87,7 +88,7 @@ func wrappedLineCount(s string, width int) int {
 		return 1
 	}
 
-	lineWidth := runewidth.StringWidth(s)
+	lineWidth := runewidth.StringWidth(ansi.Strip(s))
 	if lineWidth == 0 {
 		return 1
 	}

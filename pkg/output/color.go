@@ -1,6 +1,7 @@
 package output
 
 import (
+	"io"
 	"os"
 	"sync"
 
@@ -16,20 +17,17 @@ var (
 // See https://no-color.org for the convention
 func ColorEnabled() bool {
 	colorOnce.Do(func() {
-		if _, disabled := os.LookupEnv("NO_COLOR"); disabled {
-			colorEnabled = false
-			return
-		}
-
-		if term := os.Getenv("TERM"); term == "dumb" {
-			colorEnabled = false
-			return
-		}
-
-		if !isatty.IsTerminal(os.Stdout.Fd()) && !isatty.IsCygwinTerminal(os.Stdout.Fd()) {
-			colorEnabled = false
-			return
-		}
+		colorEnabled = ColorEnabledFor(os.Stdout)
 	})
 	return colorEnabled
+}
+
+// ColorEnabledFor checks the actual destination, independently of stdout.
+// Non-file writers and redirected streams always receive plain text.
+func ColorEnabledFor(w io.Writer) bool {
+	if _, disabled := os.LookupEnv("NO_COLOR"); disabled || os.Getenv("TERM") == "dumb" {
+		return false
+	}
+	file, ok := w.(*os.File)
+	return ok && (isatty.IsTerminal(file.Fd()) || isatty.IsCygwinTerminal(file.Fd()))
 }

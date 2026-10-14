@@ -14,6 +14,7 @@ import (
 	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/pipeline/setup"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/buildkite/cli/v3/pkg/output"
 	buildkite "github.com/buildkite/go-buildkite/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 )
@@ -53,16 +54,18 @@ func verifyOrganization(ctx context.Context, f *factory.Factory, slug string) (b
 // invocation-scoped; even an explicit --org is never replaced without a choice.
 func (c *CreateCmd) confirmDestination(ctx context.Context, f *factory.Factory, globals cli.GlobalFlags, interactive bool, out io.Writer) (*factory.Factory, error) {
 	c.Org = c.orgSlug(f.Config)
+	guide := output.NewGuidance(out, interactive && !c.DryRun)
 	for {
 		org, verifyErr := verifyOrganization(ctx, f, c.Org)
 		if !interactive || c.DryRun {
 			return f, verifyErr
 		}
 		options := []string{"Continue", "Choose another already-authenticated organization", "Log in to another organization", "Cancel"}
+		fmt.Fprintln(out, guide.Heading("Confirm the destination organization"))
 		if verifyErr == nil {
 			fmt.Fprintf(out, "Destination organization: %s (%s)\n", org.Name, org.Slug)
 		} else {
-			fmt.Fprintln(out, verifyErr)
+			fmt.Fprintln(out, guide.Warning(verifyErr.Error()))
 			options[0] = "Log in to the target organization and resume"
 		}
 		choice, err := bkIO.PromptForOneTo(out, "destination", options, false)
@@ -71,6 +74,7 @@ func (c *CreateCmd) confirmDestination(ctx context.Context, f *factory.Factory, 
 		}
 		switch choice {
 		case "Continue":
+			fmt.Fprintln(out, guide.Success(fmt.Sprintf("Selected organization: %s (%s)", org.Name, org.Slug)))
 			return f, nil
 		case "Cancel":
 			return nil, fmt.Errorf("pipeline creation cancelled; no pipeline files or remote pipeline were created")
@@ -89,16 +93,17 @@ func (c *CreateCmd) confirmDestination(ctx context.Context, f *factory.Factory, 
 				}
 				org, err := verifyOrganization(ctx, candidate, slug)
 				if err != nil {
-					fmt.Fprintf(out, "Not offering %s: %v\n", slug, err)
+					fmt.Fprintln(out, guide.Warning(fmt.Sprintf("Not offering %s: %v", slug, err)))
 					continue
 				}
 				slugs = append(slugs, slug)
 				labels = append(labels, fmt.Sprintf("%s (%s)", org.Name, slug))
 			}
 			if len(slugs) == 0 {
-				fmt.Fprintln(out, "No other organizations with verified credentials; choose login instead.")
+				fmt.Fprintln(out, guide.Warning("No other organizations with verified credentials; choose login instead."))
 				continue
 			}
+			fmt.Fprintln(out, guide.Heading("Choose a destination organization"))
 			selected, err := bkIO.PromptForOneTo(out, "organization", labels, false)
 			if err != nil {
 				return nil, err
@@ -110,6 +115,7 @@ func (c *CreateCmd) confirmDestination(ctx context.Context, f *factory.Factory, 
 			}
 		default:
 			slug := c.Org
+			fmt.Fprintln(out, guide.Heading("Log in to the destination organization"))
 			if choice == "Log in to another organization" || slug == "" {
 				slug, err = bkIO.PromptForInputTo(out, "Organization slug to log in to", "", false)
 				if err != nil {
@@ -131,6 +137,7 @@ func (c *CreateCmd) confirmDestination(ctx context.Context, f *factory.Factory, 
 }
 
 func (c *CreateCmd) resolveQueue(ctx context.Context, f *factory.Factory, interactive bool, out io.Writer) error {
+	guide := output.NewGuidance(out, interactive)
 	var clusters []buildkite.Cluster
 	for page := 1; page != 0; {
 		batch, resp, err := f.RestAPIClient.Clusters.List(ctx, c.Org, &buildkite.ClustersListOptions{ListOptions: buildkite.ListOptions{Page: page, PerPage: 100}})
@@ -150,9 +157,9 @@ func (c *CreateCmd) resolveQueue(ctx context.Context, f *factory.Factory, intera
 	}
 	if interactive {
 		if len(clusters) > 1 {
-			fmt.Fprintln(out, "Choose a cluster for this pipeline")
+			fmt.Fprintln(out, guide.Heading("Choose a cluster for this pipeline"))
 		} else {
-			fmt.Fprintln(out, "Cluster for this pipeline (only matching cluster)")
+			fmt.Fprintln(out, guide.Heading("Cluster for this pipeline (only matching cluster)"))
 		}
 		fmt.Fprintln(out, "A cluster groups agents and queues and determines where this pipeline's jobs may run.")
 	}
@@ -199,7 +206,7 @@ func (c *CreateCmd) resolveQueue(ctx context.Context, f *factory.Factory, intera
 	// A previously supplied name has now been resolved for this target.
 	c.ClusterName = ""
 	if interactive {
-		fmt.Fprintf(out, "Selected cluster: %s\n", labels[clusterIndex])
+		fmt.Fprintln(out, guide.Success(fmt.Sprintf("Selected cluster: %s", labels[clusterIndex])))
 	}
 	var queues []buildkite.ClusterQueue
 	for page := 1; page != 0; {
@@ -220,9 +227,9 @@ func (c *CreateCmd) resolveQueue(ctx context.Context, f *factory.Factory, intera
 	sort.Slice(queues, func(i, j int) bool { return queues[i].Key < queues[j].Key })
 	if interactive {
 		if len(queues) > 1 {
-			fmt.Fprintf(out, "Choose a queue in %s\n", labels[clusterIndex])
+			fmt.Fprintln(out, guide.Heading(fmt.Sprintf("Choose a queue in %s", labels[clusterIndex])))
 		} else {
-			fmt.Fprintf(out, "Queue in %s (only matching queue)\n", labels[clusterIndex])
+			fmt.Fprintln(out, guide.Heading(fmt.Sprintf("Queue in %s (only matching queue)", labels[clusterIndex])))
 		}
 		fmt.Fprintln(out, "A queue routes jobs to a pool of agents within the chosen cluster.")
 	}
@@ -254,7 +261,7 @@ func (c *CreateCmd) resolveQueue(ctx context.Context, f *factory.Factory, intera
 	}
 	c.Queue = selected.Key
 	if interactive {
-		fmt.Fprintf(out, "Selected queue: %s\n", c.Queue)
+		fmt.Fprintln(out, guide.Success(fmt.Sprintf("Selected queue: %s", c.Queue)))
 	} else {
 		fmt.Fprintf(out, "Target cluster: %s (%s); queue: %s\n", name, c.ClusterUUID, c.Queue)
 	}
@@ -262,7 +269,7 @@ func (c *CreateCmd) resolveQueue(ctx context.Context, f *factory.Factory, intera
 	for page := 1; page != 0; {
 		agents, resp, err := f.RestAPIClient.Agents.List(ctx, c.Org, &buildkite.AgentListOptions{ClusterQueueID: selected.ID, ListOptions: buildkite.ListOptions{Page: page, PerPage: 100}})
 		if err != nil {
-			fmt.Fprintf(out, "Warning: agent availability is unknown (requires read_agents): %v. Check agents for queue %s in cluster %s.\n", err, c.Queue, name)
+			fmt.Fprintln(out, guide.Warning(fmt.Sprintf("Warning: agent availability is unknown (requires read_agents): %v. Check agents for queue %s in cluster %s.", err, c.Queue, name)))
 			break
 		}
 		for _, a := range agents {
@@ -277,9 +284,9 @@ func (c *CreateCmd) resolveQueue(ctx context.Context, f *factory.Factory, intera
 		if page == 0 {
 			switch {
 			case connected == 0:
-				fmt.Fprintf(out, "Warning: no connected agents observed for queue %s. Connect agents to this cluster/queue or check hosted/autoscaling capacity before building; this observation does not prove the queue cannot run.\n", c.Queue)
+				fmt.Fprintln(out, guide.Warning(fmt.Sprintf("Warning: no connected agents observed for queue %s. Connect agents to this cluster/queue or check hosted/autoscaling capacity before building; this observation does not prove the queue cannot run.", c.Queue)))
 			case unpaused == 0:
-				fmt.Fprintf(out, "Warning: all %d connected agents are paused; resume agents or provide capacity for queue %s before building.\n", connected, c.Queue)
+				fmt.Fprintln(out, guide.Warning(fmt.Sprintf("Warning: all %d connected agents are paused; resume agents or provide capacity for queue %s before building.", connected, c.Queue)))
 			default:
 				fmt.Fprintf(out, "Observed %d connected agents for queue %s; busy agents may run work later. Agent presence does not verify template runtimes.\n", connected, c.Queue)
 			}
@@ -288,7 +295,8 @@ func (c *CreateCmd) resolveQueue(ctx context.Context, f *factory.Factory, intera
 	return nil
 }
 
-func (c *CreateCmd) checkLocalPipeline(f *factory.Factory, root string, out io.Writer) error {
+func (c *CreateCmd) checkLocalPipeline(f *factory.Factory, root string, out io.Writer, guided bool) error {
+	guide := output.NewGuidance(out, guided)
 	path, err := setup.Find(root)
 	if err != nil || path == "" {
 		return err
@@ -302,16 +310,22 @@ func (c *CreateCmd) checkLocalPipeline(f *factory.Factory, root string, out io.W
 	if err != nil {
 		return err
 	}
-	if err := validatePipelineData(out, rel, data); err != nil {
+	if guided {
+		fmt.Fprintln(out, guide.Heading("Validate the pipeline file"))
+	}
+	if err := validatePipelineData(out, rel, data, guided); err != nil {
 		return err
 	}
 	fmt.Fprintf(out, "Bootstrap upload targets queue %s. Existing file routing is unchanged; review its agents/queue selectors. Agent presence does not verify the runtimes or dependencies required by these steps.\n", c.Queue)
+	if guided {
+		fmt.Fprintln(out, guide.Heading("Make the pipeline file available to builds"))
+	}
 	if f.GitRepository == nil {
-		fmt.Fprintf(out, "Local file %s is outside Git; place it in the pipeline repository, then commit and push it before building.\n", rel)
+		fmt.Fprintln(out, guide.Warning(fmt.Sprintf("Local file %s is outside Git; place it in the pipeline repository, then commit and push it before building.", rel)))
 		return nil
 	}
 	if c.Repository != getRepositoryURL(f, "") {
-		fmt.Fprintln(out, "The destination repository differs from origin; local Git checks cannot confirm this file exists there. Put the file in the destination repository and commit/push it before building.")
+		fmt.Fprintln(out, guide.Warning("The destination repository differs from origin; local Git checks cannot confirm this file exists there. Put the file in the destination repository and commit/push it before building."))
 	}
 	wt, err := f.GitRepository.Worktree()
 	if err != nil {
@@ -322,12 +336,12 @@ func (c *CreateCmd) checkLocalPipeline(f *factory.Factory, root string, out io.W
 		return err
 	}
 	if s, ok := status[rel]; ok && (s.Staging != ' ' || s.Worktree != ' ') {
-		fmt.Fprintf(out, "Pipeline file %s has uncommitted changes. From the repository root: git add -- %s; git commit; git push. Review the file before committing.\n", rel, rel)
+		fmt.Fprintln(out, guide.Warning(fmt.Sprintf("Pipeline file %s has uncommitted changes. From the repository root: git add -- %s; git commit; git push. Review the file before committing.", rel, rel)))
 		return nil
 	}
 	head, err := f.GitRepository.Head()
 	if err != nil || !head.Name().IsBranch() {
-		fmt.Fprintln(out, "Cannot determine a tracking branch; ensure this pipeline file is committed and pushed to the repository before building.")
+		fmt.Fprintln(out, guide.Warning("Cannot determine a tracking branch; ensure this pipeline file is committed and pushed to the repository before building."))
 		return nil
 	}
 	cfg, err := f.GitRepository.Config()
@@ -336,7 +350,7 @@ func (c *CreateCmd) checkLocalPipeline(f *factory.Factory, root string, out io.W
 	}
 	branch := cfg.Branches[head.Name().Short()]
 	if branch == nil || branch.Remote == "" || branch.Merge == "" {
-		fmt.Fprintf(out, "No upstream configured for %s. Push this branch to the pipeline repository and set its upstream (git push -u <remote> %s).\n", head.Name().Short(), head.Name().Short())
+		fmt.Fprintln(out, guide.Warning(fmt.Sprintf("No upstream configured for %s. Push this branch to the pipeline repository and set its upstream (git push -u <remote> %s).", head.Name().Short(), head.Name().Short())))
 		return nil
 	}
 	ref, err := f.GitRepository.Reference(plumbing.NewRemoteReferenceName(branch.Remote, branch.Merge.Short()), true)
@@ -347,13 +361,13 @@ func (c *CreateCmd) checkLocalPipeline(f *factory.Factory, root string, out io.W
 			if fileErr == nil {
 				contents, contentErr := file.Contents()
 				if contentErr == nil && contents == string(data) {
-					fmt.Fprintln(out, "Pipeline file matches the local upstream tracking ref; run git fetch to verify current remote state. No fetch or push was performed.")
+					fmt.Fprintln(out, guide.Success("Pipeline file matches the local upstream tracking ref; run git fetch to verify current remote state. No fetch or push was performed."))
 					return nil
 				}
 			}
 		}
 	}
-	fmt.Fprintf(out, "Pipeline file is not confirmed in the local upstream tracking ref. Run git fetch %s, review, then git push %s %s before building.\n", branch.Remote, branch.Remote, head.Name().Short())
+	fmt.Fprintln(out, guide.Warning(fmt.Sprintf("Pipeline file is not confirmed in the local upstream tracking ref. Run git fetch %s, review, then git push %s %s before building.", branch.Remote, branch.Remote, head.Name().Short())))
 	return nil
 }
 
@@ -361,7 +375,11 @@ func (c *CreateCmd) offerWebhook(out io.Writer) error {
 	if c.CreateWebhook || !isGitHubURL(c.Repository) {
 		return nil
 	}
+	guide := output.NewGuidance(out, true)
+	fmt.Fprintln(out, guide.Heading("Set up automatic builds (optional)"))
+	fmt.Fprintln(out, "A GitHub webhook lets repository events trigger builds using the pipeline's settings.")
 	fmt.Fprintln(out, "GitHub webhook setup is optional and requires permission to manage the repository webhook. It does not commit or push local files.")
+	fmt.Fprintln(out, "This command does not start a build. Enter skips webhook setup.")
 	fmt.Fprintln(out, "  1. Skip webhook setup\n  2. Set up a GitHub webhook")
 	choice, err := bkIO.PromptForInputTo(out, "Webhook setup (1-2)", "1", false)
 	if err != nil {
@@ -371,5 +389,10 @@ func (c *CreateCmd) offerWebhook(out io.Writer) error {
 		return fmt.Errorf("invalid webhook selection; enter 1 to skip or 2 to set up")
 	}
 	c.CreateWebhook = choice == "2"
+	if c.CreateWebhook {
+		fmt.Fprintln(out, guide.Success("Selected: set up a GitHub webhook after pipeline creation."))
+	} else {
+		fmt.Fprintln(out, guide.Success("Selected: skip webhook setup."))
+	}
 	return nil
 }

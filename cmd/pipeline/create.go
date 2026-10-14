@@ -117,6 +117,7 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	// or repository preference flags explicitly request readiness resolution.
 	onboarding := c.Name == "" && c.Repository == ""
 	guided := onboarding && !f.NoInput && !f.Quiet && !bkIO.HasDataAvailable(os.Stdin)
+	guide := output.NewGuidance(kongCtx.Stderr, guided && !c.DryRun)
 	readiness := onboarding || c.Queue != "" || c.RememberOrg
 	ctx := context.Background()
 	if readiness {
@@ -139,7 +140,7 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 	if c.DryRun {
 		if readiness {
-			if err := c.checkLocalPipeline(f, root, kongCtx.Stderr); err != nil {
+			if err := c.checkLocalPipeline(f, root, kongCtx.Stderr, false); err != nil {
 				return err
 			}
 			fmt.Fprintln(kongCtx.Stderr, "Dry-run: no login, organization preferences, starters or webhooks will be saved; a missing local file cannot be validated.")
@@ -147,8 +148,15 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return c.runPipelineCreateDryRun(kongCtx, f)
 	}
 	if guided || c.Template != "" {
+		if guided {
+			fmt.Fprintln(kongCtx.Stderr, guide.Heading("Choose the pipeline file or starter"))
+			fmt.Fprintln(kongCtx.Stderr, "Existing files are preserved. A starter is a local file to review and adapt before building.")
+		}
 		if err := setup.Ensure(root, c.Template, c.Queue, guided, kongCtx.Stderr); err != nil {
 			return err
+		}
+		if guided {
+			fmt.Fprintln(kongCtx.Stderr, guide.Success("Pipeline file selected."))
 		}
 	}
 	if readiness {
@@ -159,7 +167,7 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		if path == "" {
 			return fmt.Errorf("no local pipeline file; run bk init --no-input or supply --template before retrying; review, commit and push the file before building")
 		}
-		if err := c.checkLocalPipeline(f, root, kongCtx.Stderr); err != nil {
+		if err := c.checkLocalPipeline(f, root, kongCtx.Stderr, guided); err != nil {
 			return err
 		}
 		if c.RememberOrg {
@@ -169,7 +177,7 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			if err := f.Config.SelectOrganization(c.Org, true); err != nil {
 				return err
 			}
-			fmt.Fprintf(kongCtx.Stderr, "Remembered organization %s in repository-local .bk.yaml; review that local change. Global selection is unchanged.\n", c.Org)
+			fmt.Fprintln(kongCtx.Stderr, guide.Success(fmt.Sprintf("Remembered organization %s in repository-local .bk.yaml; review that local change. Global selection is unchanged.", c.Org)))
 		}
 		if guided {
 			if err := c.offerWebhook(kongCtx.Stderr); err != nil {
