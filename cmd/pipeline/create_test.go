@@ -12,10 +12,13 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
+	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v5"
 	git "github.com/go-git/go-git/v5"
 	gitconfig "github.com/go-git/go-git/v5/config"
+	"github.com/spf13/afero"
+	"gopkg.in/yaml.v3"
 )
 
 func TestIsGitHubURL(t *testing.T) {
@@ -225,9 +228,15 @@ func TestCreateResolvedInputsAndDryRunSafety(t *testing.T) {
 				if dry {
 					cmd.Create.Template = "go"
 					cmd.Create.CreateWebhook = true
+				} else {
+					os.WriteFile(filepath.Join(root, "buildkite.yml"), []byte("steps: []\n"), 0o600)
+					cmd.Create.Template = "empty"
 				}
 				if err := cmd.Create.Run(ctx, cli.Globals{NoInput: true, Quiet: true}); err != nil {
 					t.Fatal(err)
+				}
+				if !dry && stderr.String() != "Pipeline file found at buildkite.yml; leaving it unchanged.\n" {
+					t.Fatalf("unexpected file status on stderr: %q", stderr.String())
 				}
 				var result buildkite.Pipeline
 				if err := json.Unmarshal(out.Bytes(), &result); err != nil {
@@ -245,6 +254,109 @@ func TestCreateResolvedInputsAndDryRunSafety(t *testing.T) {
 			}
 			if mutations != 1 || !strings.Contains(created.Configuration, "buildkite-agent pipeline upload") {
 				t.Fatalf("expected one bootstrap pipeline creation, got %d / %q", mutations, created.Configuration)
+			}
+		})
+	}
+}
+
+func TestCreateOutputPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		name                     string
+		flags                    []string
+		guided, dry              bool
+		user, local, env, format string
+	}{
+		{name: "guided default", guided: true, format: "text"},
+		{name: "guided JSON", guided: true, flags: []string{"--json"}, format: "json"},
+		{name: "guided YAML", guided: true, flags: []string{"--yaml"}, format: "yaml"},
+		{name: "guided text", guided: true, flags: []string{"--text"}, format: "text"},
+		{name: "guided output flag", guided: true, flags: []string{"--output", "json"}, format: "json"},
+		{name: "configured JSON", guided: true, user: "json", format: "json"},
+		{name: "local preference", guided: true, user: "json", local: "yaml", format: "yaml"},
+		{name: "env JSON", guided: true, env: "json", format: "json"},
+		{name: "env preference", guided: true, local: "json", env: "text", format: "text"},
+		{name: "flag overrides preferences", guided: true, user: "json", local: "yaml", env: "text", flags: []string{"--json"}, format: "json"},
+		{name: "named or scripted default", format: "json"},
+		{name: "named or scripted text compatibility", flags: []string{"--text"}, format: "text"},
+		{name: "dry default", guided: true, dry: true, format: "json"},
+		{name: "dry text stays structured", guided: true, dry: true, flags: []string{"--text"}, format: "json"},
+		{name: "dry YAML", guided: true, dry: true, flags: []string{"--yaml"}, format: "yaml"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("BUILDKITE_OUTPUT_FORMAT", tc.env)
+			conf := config.New(afero.NewMemMapFs(), nil)
+			if tc.user != "" {
+				if err := conf.SetOutputFormat(tc.user, false); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.local != "" {
+				if err := conf.SetOutputFormat(tc.local, true); err != nil {
+					t.Fatal(err)
+				}
+			}
+			const webURL = "https://buildkite.com/test-org/widgets"
+			mutations := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if r.Method == http.MethodGet {
+					w.WriteHeader(http.StatusNotFound)
+					w.Write([]byte(`{"message":"not found"}`))
+					return
+				}
+				mutations++
+				json.NewEncoder(w).Encode(buildkite.Pipeline{Name: "widgets", WebURL: webURL})
+			}))
+			defer server.Close()
+			client, err := buildkite.NewOpts(buildkite.WithBaseURL(server.URL))
+			if err != nil {
+				t.Fatal(err)
+			}
+			f := &factory.Factory{Config: conf, RestAPIClient: client, Quiet: true}
+			var cmd struct {
+				Create CreateCmd `cmd:""`
+			}
+			var out, stderr bytes.Buffer
+			parser, err := kong.New(&cmd, kong.Writers(&out, &stderr), kong.Vars{"output_default_format": ""})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, err := parser.Parse(append([]string{"create"}, tc.flags...))
+			if err != nil {
+				t.Fatal(err)
+			}
+			cmd.Create.Name, cmd.Create.Org = "widgets", "test-org"
+			if tc.dry {
+				err = cmd.Create.runPipelineCreateDryRun(ctx, f)
+			} else {
+				err = cmd.Create.runPipelineCreate(ctx, f, tc.guided)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.dry && mutations != 0 || !tc.dry && mutations != 1 {
+				t.Fatalf("unexpected mutations: %d (dry=%t)", mutations, tc.dry)
+			}
+			if tc.format == "text" {
+				want := webURL + "\n"
+				if tc.guided {
+					want = "Pipeline created: " + want
+				}
+				if out.String() != want {
+					t.Fatalf("stdout = %q, want %q", out.String(), want)
+				}
+			} else {
+				var result struct {
+					WebURL string `json:"web_url" yaml:"weburl"`
+				}
+				if tc.format == "json" {
+					err = json.Unmarshal(out.Bytes(), &result)
+				} else {
+					err = yaml.Unmarshal(out.Bytes(), &result)
+				}
+				if err != nil || result.WebURL != webURL {
+					t.Fatalf("invalid structured stdout: %s (%v)", out.String(), err)
+				}
 			}
 		})
 	}

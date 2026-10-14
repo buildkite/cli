@@ -1,6 +1,7 @@
 package setup_test
 
 import (
+	"bytes"
 	"io"
 	"os"
 	"path/filepath"
@@ -25,8 +26,12 @@ func TestEnsurePreservesUploadLocations(t *testing.T) {
 			os.MkdirAll(filepath.Dir(file), 0o755)
 			os.WriteFile(file, []byte("existing pipeline"), 0o600)
 			// Interactive=true must not prompt when a pipeline already exists.
-			if err := setup.Ensure(root, "", true, io.Discard); err != nil {
+			var status bytes.Buffer
+			if err := setup.Ensure(root, "", true, &status); err != nil {
 				t.Fatal(err)
+			}
+			if want := "Pipeline file found at " + path + "; leaving it unchanged.\n"; status.String() != want {
+				t.Fatalf("file status = %q, want %q", status.String(), want)
 			}
 			data, err := os.ReadFile(file)
 			if err != nil || string(data) != "existing pipeline" {

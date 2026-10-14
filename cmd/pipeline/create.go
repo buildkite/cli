@@ -63,6 +63,10 @@ interactive use offers a project-aware local starter if no pipeline file exists.
 Named invocations and --no-input never add prompts or local files unless --template
 is supplied. Local files must be reviewed, committed and pushed before building.
 
+Guided creation defaults to concise text on stdout, with file status and starter
+prompts on stderr. Explicit format flags and configured preferences take priority;
+named and scripted invocations retain their output defaults.
+
 You can specify a --dry-run flag to see the pipeline that would be created without
 actually creating it or writing local files. This outputs a JSON representation
 of the pipeline to be created by default.
@@ -118,7 +122,7 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			return err
 		}
 	}
-	return c.runPipelineCreate(kongCtx, f)
+	return c.runPipelineCreate(kongCtx, f, guided)
 }
 
 func (c *CreateCmd) resolveInputs(f *factory.Factory) (string, error) {
@@ -157,9 +161,13 @@ func (c *CreateCmd) runPipelineCreateDryRun(kongCtx *kong.Context, f *factory.Fa
 	return output.Write(kongCtx.Stdout, pipeline, format)
 }
 
-func (c *CreateCmd) runPipelineCreate(kongCtx *kong.Context, f *factory.Factory) error {
+func (c *CreateCmd) runPipelineCreate(kongCtx *kong.Context, f *factory.Factory, guided bool) error {
 	ctx := context.Background()
-	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
+	preference := f.Config.ConfiguredOutputFormat()
+	format := output.ResolveFormat(c.Output, preference)
+	if guided && c.Output == "" && preference == "" {
+		format = output.FormatText
+	}
 
 	pipeline, err := c.createPipeline(ctx, f)
 	if err != nil {
@@ -179,11 +187,11 @@ func (c *CreateCmd) runPipelineCreate(kongCtx *kong.Context, f *factory.Factory)
 		}
 	}
 
-	if format != output.FormatText {
-		return output.Write(kongCtx.Stdout, pipeline, format)
+	text := pipeline.WebURL
+	if guided {
+		text = "Pipeline created: " + text
 	}
-	fmt.Printf("%s\n", pipeline.WebURL)
-	return nil
+	return output.WriteTextOrStructured(kongCtx.Stdout, format, pipeline, text)
 }
 
 func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) (*buildkite.Pipeline, error) {

@@ -305,11 +305,16 @@ func (conf *Config) SetNoPager(v bool, saveLocal bool) error {
 // OutputFormat returns the configured output format (json, yaml, text).
 // Precedence: env > local > user > default (json)
 func (conf *Config) OutputFormat() string {
+	return firstNonEmpty(conf.ConfiguredOutputFormat(), "json")
+}
+
+// ConfiguredOutputFormat returns an explicit preference, without the built-in default.
+// Precedence: env > local > user.
+func (conf *Config) ConfiguredOutputFormat() string {
 	return firstNonEmpty(
 		os.Getenv("BUILDKITE_OUTPUT_FORMAT"),
 		conf.local.OutputFormat,
 		conf.user.OutputFormat,
-		"json",
 	)
 }
 

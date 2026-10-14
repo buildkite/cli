@@ -86,6 +86,11 @@ An explicit name and `--repository` override those defaults. When used
 interactively without a name or repository argument, it offers a recommended
 local starter and alternatives if no pipeline file exists:
 
+Guided creation defaults to `Pipeline created: <URL>` on stdout, while file
+status and starter prompts go to stderr. Format flags and explicitly configured
+output preferences take precedence; named and scripted output defaults are
+unchanged.
+
 ```sh
 bk pipeline create
 bk pipeline create "My Pipeline" --repository git@github.com:org/repo.git

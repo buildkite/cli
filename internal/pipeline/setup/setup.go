@@ -158,7 +158,11 @@ func Ensure(root, template string, interactive bool, out io.Writer) error {
 		return err
 	}
 	if path != "" {
-		fmt.Fprintf(out, "Pipeline file found at %s; leaving it unchanged.\n", path)
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "Pipeline file found at %s; leaving it unchanged.\n", filepath.ToSlash(relative))
 		return nil
 	}
 	if template == "" {
@@ -183,7 +187,7 @@ func Ensure(root, template string, interactive bool, out io.Writer) error {
 				}
 				options = append(options, label)
 			}
-			choice, err := bkIO.PromptForOne("starter", options, false)
+			choice, err := bkIO.PromptForOneTo(out, "starter", options, false)
 			if err != nil {
 				return err
 			}
@@ -235,6 +239,6 @@ func Ensure(root, template string, interactive bool, out io.Writer) error {
 	if closeErr != nil {
 		return closeErr
 	}
-	fmt.Fprintf(out, "Pipeline file created at %s. Review it, then commit and push it before building; remote builds cannot see local files.\n", path)
+	fmt.Fprintln(out, "Pipeline file created at .buildkite/pipeline.yaml. Review it, then commit and push it before building; remote builds cannot see local files.")
 	return nil
 }

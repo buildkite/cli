@@ -2,6 +2,7 @@ package io
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -21,6 +22,11 @@ const (
 //
 // For global flag support requirements, see the Confirm() function documentation.
 func PromptForOne(resource string, options []string, noInput bool) (string, error) {
+	return PromptForOneTo(os.Stdout, resource, options, noInput)
+}
+
+// PromptForOneTo sends the selection prompt to out, keeping structured output separate.
+func PromptForOneTo(out io.Writer, resource string, options []string, noInput bool) (string, error) {
 	if noInput {
 		return "", fmt.Errorf("interactive input required but --no-input flag is set")
 	}
@@ -44,12 +50,12 @@ func PromptForOne(resource string, options []string, noInput bool) (string, erro
 		return "", fmt.Errorf("no options available")
 	}
 
-	fmt.Printf("%s:\n", message)
+	fmt.Fprintf(out, "%s:\n", message)
 	for i, option := range options {
-		fmt.Printf("  %d. %s\n", i+1, option)
+		fmt.Fprintf(out, "  %d. %s\n", i+1, option)
 	}
 	prompt := fmt.Sprintf("Enter number (1-%d): ", len(options))
-	fmt.Print(prompt)
+	fmt.Fprint(out, prompt)
 
 	response, err := ReadLine()
 	if err != nil {
@@ -60,7 +66,9 @@ func PromptForOne(resource string, options []string, noInput bool) (string, erro
 		return "", fmt.Errorf("invalid selection")
 	}
 
-	clearPreviousLines(os.Stdout, renderedLineCount(message, options, prompt+response, terminalWidth(os.Stdout)))
+	if file, ok := out.(*os.File); ok {
+		clearPreviousLines(file, renderedLineCount(message, options, prompt+response, terminalWidth(file)))
+	}
 
 	return options[num-1], nil
 }
