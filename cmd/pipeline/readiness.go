@@ -148,14 +148,40 @@ func (c *CreateCmd) resolveQueue(ctx context.Context, f *factory.Factory, intera
 	if len(clusters) == 0 {
 		return fmt.Errorf("no matching cluster in %s; check --cluster-uuid/--cluster-name or ask an administrator to configure a cluster", c.Org)
 	}
-	cluster := clusters[0]
+	if interactive {
+		if len(clusters) > 1 {
+			fmt.Fprintln(out, "Choose a cluster for this pipeline")
+		} else {
+			fmt.Fprintln(out, "Cluster for this pipeline (only matching cluster)")
+		}
+		fmt.Fprintln(out, "A cluster groups agents and queues and determines where this pipeline's jobs may run.")
+	}
+	names := make(map[string]int)
+	for _, cluster := range clusters {
+		names[cluster.Name]++
+	}
+	var labels []string
+	uniqueLabels := make(map[string]struct{})
+	for _, cluster := range clusters {
+		label := cluster.Name
+		if label == "" {
+			label = cluster.ID
+		} else if names[label] > 1 {
+			label = fmt.Sprintf("%s (%s)", label, cluster.ID)
+		}
+		labels = append(labels, label)
+		uniqueLabels[label] = struct{}{}
+	}
+	// A literal name can match another cluster's generated name (UUID) label.
+	if len(uniqueLabels) != len(labels) {
+		for i, cluster := range clusters {
+			labels[i] = fmt.Sprintf("%s (%s)", cluster.Name, cluster.ID)
+		}
+	}
+	clusterIndex := 0
 	if len(clusters) > 1 {
 		if !interactive {
 			return fmt.Errorf("multiple clusters in %s; supply --cluster-uuid or --cluster-name", c.Org)
-		}
-		var labels []string
-		for _, cluster := range clusters {
-			labels = append(labels, fmt.Sprintf("%s (%s)", cluster.Name, cluster.ID))
 		}
 		label, err := bkIO.PromptForOneTo(out, "cluster", labels, false)
 		if err != nil {
@@ -163,14 +189,18 @@ func (c *CreateCmd) resolveQueue(ctx context.Context, f *factory.Factory, intera
 		}
 		for i, candidate := range labels {
 			if label == candidate {
-				cluster = clusters[i]
+				clusterIndex = i
 			}
 		}
 	}
+	cluster := clusters[clusterIndex]
 	name := cluster.Name
 	c.ClusterUUID = cluster.ID
 	// A previously supplied name has now been resolved for this target.
 	c.ClusterName = ""
+	if interactive {
+		fmt.Fprintf(out, "Selected cluster: %s\n", labels[clusterIndex])
+	}
 	var queues []buildkite.ClusterQueue
 	for page := 1; page != 0; {
 		batch, resp, err := f.RestAPIClient.ClusterQueues.List(ctx, c.Org, c.ClusterUUID, &buildkite.ClusterQueuesListOptions{ListOptions: buildkite.ListOptions{Page: page, PerPage: 100}})
@@ -188,6 +218,14 @@ func (c *CreateCmd) resolveQueue(ctx context.Context, f *factory.Factory, intera
 		return fmt.Errorf("no matching queue in cluster %s; check --queue or ask an administrator to configure a queue", name)
 	}
 	sort.Slice(queues, func(i, j int) bool { return queues[i].Key < queues[j].Key })
+	if interactive {
+		if len(queues) > 1 {
+			fmt.Fprintf(out, "Choose a queue in %s\n", labels[clusterIndex])
+		} else {
+			fmt.Fprintf(out, "Queue in %s (only matching queue)\n", labels[clusterIndex])
+		}
+		fmt.Fprintln(out, "A queue routes jobs to a pool of agents within the chosen cluster.")
+	}
 	selected := queues[0]
 	if len(queues) > 1 {
 		if !interactive {
@@ -215,7 +253,11 @@ func (c *CreateCmd) resolveQueue(ctx context.Context, f *factory.Factory, intera
 		return fmt.Errorf("queue %q in cluster %s is paused (%s); resume dispatch in Buildkite or choose another --queue before creating the pipeline", selected.Key, name, selected.DispatchPausedNote)
 	}
 	c.Queue = selected.Key
-	fmt.Fprintf(out, "Target cluster: %s (%s); queue: %s\n", name, c.ClusterUUID, c.Queue)
+	if interactive {
+		fmt.Fprintf(out, "Selected queue: %s\n", c.Queue)
+	} else {
+		fmt.Fprintf(out, "Target cluster: %s (%s); queue: %s\n", name, c.ClusterUUID, c.Queue)
+	}
 	connected, unpaused := 0, 0
 	for page := 1; page != 0; {
 		agents, resp, err := f.RestAPIClient.Agents.List(ctx, c.Org, &buildkite.AgentListOptions{ClusterQueueID: selected.ID, ListOptions: buildkite.ListOptions{Page: page, PerPage: 100}})
