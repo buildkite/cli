@@ -1,9 +1,21 @@
 package pipeline
 
 import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/alecthomas/kong"
+	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	buildkite "github.com/buildkite/go-buildkite/v5"
+	git "github.com/go-git/go-git/v5"
+	gitconfig "github.com/go-git/go-git/v5/config"
 )
 
 func TestIsGitHubURL(t *testing.T) {
@@ -135,6 +147,104 @@ func TestExtractRepoPath(t *testing.T) {
 			got := extractRepoPath(tt.input)
 			if got != tt.expected {
 				t.Errorf("extractRepoPath(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCreateResolvedInputsAndDryRunSafety(t *testing.T) {
+	for _, tc := range []struct {
+		name, origin, explicitName, explicitRepo, wantName, wantRepo string
+	}{
+		{"SSH origin", "git@github.com:acme/widgets.git", "", "", "widgets", "git@github.com:acme/widgets.git"},
+		{"HTTPS origin", "https://github.com/acme/widgets.git/", "", "", "widgets", "https://github.com/acme/widgets.git/"},
+		{"SSH URL origin", "ssh://git@example.com:2222/acme/widgets.git", "", "", "widgets", "ssh://git@example.com:2222/acme/widgets.git"},
+		{"overrides", "git@github.com:acme/widgets.git", "Custom Pipeline", "https://example.com/another.git", "Custom Pipeline", "https://example.com/another.git"},
+		{"no origin", "", "", "https://example.com/explicit.git", "checkout", "https://example.com/explicit.git"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := filepath.Join(t.TempDir(), "checkout")
+			repo, err := git.PlainInit(root, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.origin != "" {
+				if _, err := repo.CreateRemote(&gitconfig.RemoteConfig{Name: "origin", URLs: []string{tc.origin}}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			sub := filepath.Join(root, "src")
+			os.Mkdir(sub, 0o755)
+			t.Chdir(sub)
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("BUILDKITE_API_TOKEN", "test-token")
+			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "test-org")
+			t.Setenv("BUILDKITE_CREDENTIAL_STORE", "shm")
+			t.Setenv("BUILDKITE_CREDENTIAL_STORE_PATH", filepath.Join(t.TempDir(), "credentials"))
+			mutations := 0
+			var created buildkite.CreatePipeline
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if r.Method == http.MethodGet {
+					if strings.Contains(r.URL.Path, "/pipelines/") {
+						w.WriteHeader(http.StatusNotFound)
+						fmtBody := `{"message":"not found"}`
+						w.Write([]byte(fmtBody))
+						return
+					}
+					w.Write([]byte(`{"name":"Test User"}`))
+					return
+				}
+				mutations++
+				if err := json.NewDecoder(r.Body).Decode(&created); err != nil {
+					t.Error(err)
+				}
+				json.NewEncoder(w).Encode(buildkite.Pipeline{Name: created.Name, Repository: created.Repository, Configuration: created.Configuration})
+			}))
+			defer server.Close()
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+			for _, dry := range []bool{true, false} {
+				var cmd struct {
+					Create CreateCmd `cmd:""`
+				}
+				var out, stderr bytes.Buffer
+				parser, err := kong.New(&cmd, kong.Writers(&out, &stderr), kong.Vars{"output_default_format": ""})
+				if err != nil {
+					t.Fatal(err)
+				}
+				args := []string{"create", "--json"}
+				if tc.explicitName != "" {
+					args = append(args, tc.explicitName)
+				}
+				ctx, err := parser.Parse(args)
+				if err != nil {
+					t.Fatal(err)
+				}
+				cmd.Create.Repository = tc.explicitRepo
+				cmd.Create.DryRun = dry
+				if dry {
+					cmd.Create.Template = "go"
+					cmd.Create.CreateWebhook = true
+				}
+				if err := cmd.Create.Run(ctx, cli.Globals{NoInput: true, Quiet: true}); err != nil {
+					t.Fatal(err)
+				}
+				var result buildkite.Pipeline
+				if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+					t.Fatal(err)
+				}
+				if result.Name != tc.wantName || result.Repository != tc.wantRepo {
+					t.Fatalf("dry=%t: got %q / %q, want %q / %q", dry, result.Name, result.Repository, tc.wantName, tc.wantRepo)
+				}
+				if dry && mutations != 0 {
+					t.Fatal("dry-run mutated remote state")
+				}
+				if _, err := os.Stat(filepath.Join(root, ".buildkite")); !os.IsNotExist(err) {
+					t.Fatalf("dry-run/noninteractive create wrote local files: %v", err)
+				}
+			}
+			if mutations != 1 || !strings.Contains(created.Configuration, "buildkite-agent pipeline upload") {
+				t.Fatalf("expected one bootstrap pipeline creation, got %d / %q", mutations, created.Configuration)
 			}
 		})
 	}
