@@ -26,5 +26,5 @@ func (c *InitCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 	conf := config.New(nil, repo)
 	interactive := !globals.DisableInput() && !conf.NoInput() && !bkIO.HasDataAvailable(os.Stdin)
-	return setup.Ensure(root, c.Template, interactive, kongCtx.Stdout)
+	return setup.Ensure(root, c.Template, "", interactive, kongCtx.Stdout)
 }

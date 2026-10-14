@@ -43,6 +43,7 @@ type factoryConfig struct {
 	orgOverride     string
 	transport       http.RoundTripper
 	userAgentSuffix string
+	readOnlyAuth    bool
 }
 
 // WithDebug enables debug output for REST API calls
@@ -59,6 +60,11 @@ func WithOrgOverride(org string) FactoryOpt {
 	return func(c *factoryConfig) {
 		c.orgOverride = org
 	}
+}
+
+// WithReadOnlyAuth prevents OAuth refresh and credential writes during dry-run.
+func WithReadOnlyAuth(readOnly bool) FactoryOpt {
+	return func(c *factoryConfig) { c.readOnlyAuth = readOnly }
 }
 
 // WithTransport sets a custom http.RoundTripper for the REST API client.
@@ -288,7 +294,7 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 	// Only stored credentials may be refreshed. An explicit environment token
 	// must never be replaced by a different stored identity after a 401.
 	kr := keyring.New()
-	if refreshToken, err := kr.GetRefreshToken(org); os.Getenv("BUILDKITE_API_TOKEN") == "" && token != "" && err == nil && refreshToken != "" {
+	if refreshToken, err := kr.GetRefreshToken(org); !cfg.readOnlyAuth && os.Getenv("BUILDKITE_API_TOKEN") == "" && token != "" && err == nil && refreshToken != "" {
 		transport = &bkhttp.RefreshTransport{
 			Base:        transport,
 			Org:         org,

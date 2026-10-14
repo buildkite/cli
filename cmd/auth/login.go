@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -131,7 +132,7 @@ type oauthTokenStore interface {
 	SetRefreshToken(org, token string) error
 }
 
-func persistOAuthLogin(f *factory.Factory, store oauthTokenStore, org, accessToken, refreshToken string) (bool, error) {
+func persistOAuthLogin(f *factory.Factory, store oauthTokenStore, org, accessToken, refreshToken string, selectOrg bool) (bool, error) {
 	if org == "" {
 		return false, errors.New("organization cannot be empty")
 	}
@@ -158,9 +159,11 @@ func persistOAuthLogin(f *factory.Factory, store oauthTokenStore, org, accessTok
 		return false, fmt.Errorf("failed to register organization in config: %w", err)
 	}
 	// Persist the selected org in user config (not the repo-local .bk.yaml); see
-	// loginWithToken for the rationale.
-	if err := f.Config.SelectOrganization(org, false); err != nil {
-		return false, fmt.Errorf("failed to select organization: %w", err)
+	// loginWithToken for the rationale. Guided callers keep selection scoped.
+	if selectOrg {
+		if err := f.Config.SelectOrganization(org, false); err != nil {
+			return false, fmt.Errorf("failed to select organization: %w", err)
+		}
 	}
 	return refreshToken != "", nil
 }
@@ -251,7 +254,7 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return fmt.Errorf("token exchange failed: %w", err)
 	}
 
-	org, autoRefreshConfigured, err := completeOAuthLogin(ctx, f, tokenResp, credentialStore)
+	org, autoRefreshConfigured, err := completeOAuthLogin(ctx, f, tokenResp, credentialStore, c.Org, true, os.Stdout)
 	if err != nil {
 		return err
 	}
@@ -314,6 +317,24 @@ func (c *LoginCmd) credentialStoreFlagProvided(kongCtx *kong.Context) bool {
 }
 
 func (c *LoginCmd) runDeviceLogin(ctx context.Context, f *factory.Factory, resolvedScopes string, credentialStore oauthTokenStore) error {
+	_, err := c.deviceLogin(ctx, f, resolvedScopes, credentialStore, os.Stdout, true)
+	return err
+}
+
+// LoginForOrganization reuses device login without changing the global default.
+// Tokens and the authenticated organization are still registered for later use.
+func LoginForOrganization(ctx context.Context, f *factory.Factory, org string, out io.Writer) (string, error) {
+	if org == "" {
+		return "", errors.New("an organization slug is required for guided login")
+	}
+	if os.Getenv("BUILDKITE_API_TOKEN") != "" {
+		return "", errors.New("BUILDKITE_API_TOKEN overrides stored login credentials; unset it or supply a token authorized for the target organization, then retry")
+	}
+	c := LoginCmd{Org: org}
+	return c.deviceLogin(ctx, f, "", keyring.New(), out, false)
+}
+
+func (c *LoginCmd) deviceLogin(ctx context.Context, f *factory.Factory, resolvedScopes string, credentialStore oauthTokenStore, out io.Writer, selectOrg bool) (string, error) {
 	orgSlug, orgUUID := organizationIdentifier(c.Org)
 	cfg := &oauth.Config{
 		ClientID: oauth.DefaultClientID,
@@ -324,7 +345,7 @@ func (c *LoginCmd) runDeviceLogin(ctx context.Context, f *factory.Factory, resol
 
 	deviceAuth, err := oauth.RequestDeviceAuthorization(ctx, cfg)
 	if err != nil {
-		return fmt.Errorf("failed to start device authorization: %w", err)
+		return "", fmt.Errorf("failed to start device authorization: %w", err)
 	}
 
 	verificationURL := deviceAuth.VerificationURIComplete
@@ -332,11 +353,11 @@ func (c *LoginCmd) runDeviceLogin(ctx context.Context, f *factory.Factory, resol
 		verificationURL = deviceAuth.VerificationURI
 	}
 
-	fmt.Println("Visit this URL to authorize this device:")
-	fmt.Printf("  %s\n\n", verificationURL)
-	fmt.Println("Code:")
-	fmt.Printf("  %s\n\n", deviceAuth.UserCode)
-	fmt.Println("Waiting for authorization...")
+	fmt.Fprintln(out, "Visit this URL to authorize this device:")
+	fmt.Fprintf(out, "  %s\n\n", verificationURL)
+	fmt.Fprintln(out, "Code:")
+	fmt.Fprintf(out, "  %s\n\n", deviceAuth.UserCode)
+	fmt.Fprintln(out, "Waiting for authorization...")
 
 	timeout := time.Duration(deviceAuth.ExpiresIn) * time.Second
 	if timeout <= 0 {
@@ -347,20 +368,23 @@ func (c *LoginCmd) runDeviceLogin(ctx context.Context, f *factory.Factory, resol
 
 	tokenResp, err := oauth.PollDeviceAccessToken(pollCtx, cfg, deviceAuth)
 	if err != nil {
-		return fmt.Errorf("device authorization failed: %w", err)
+		return "", fmt.Errorf("device authorization failed: %w", err)
 	}
 
-	org, autoRefreshConfigured, err := completeOAuthLogin(ctx, f, tokenResp, credentialStore)
+	org, autoRefreshConfigured, err := completeOAuthLogin(ctx, f, tokenResp, credentialStore, c.Org, selectOrg, out)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	printOAuthLoginSuccess(org, tokenResp, autoRefreshConfigured)
-
-	return nil
+	if selectOrg {
+		printOAuthLoginSuccess(org, tokenResp, autoRefreshConfigured)
+	} else {
+		fmt.Fprintf(out, "Authenticated with %q for this invocation; global organization selection is unchanged.\n", org)
+	}
+	return org, nil
 }
 
-func completeOAuthLogin(ctx context.Context, f *factory.Factory, tokenResp *oauth.TokenResponse, credentialStore oauthTokenStore) (string, bool, error) {
+func completeOAuthLogin(ctx context.Context, f *factory.Factory, tokenResp *oauth.TokenResponse, credentialStore oauthTokenStore, expectedOrg string, selectOrg bool, out io.Writer) (string, bool, error) {
 	// Resolve org from the API using the new token
 	client, err := buildkite.NewOpts(
 		buildkite.WithTokenAuth(tokenResp.AccessToken),
@@ -370,21 +394,41 @@ func completeOAuthLogin(ctx context.Context, f *factory.Factory, tokenResp *oaut
 		return "", false, fmt.Errorf("failed to create API client: %w", err)
 	}
 
-	orgs, _, err := client.Organizations.List(ctx, nil)
+	var org buildkite.Organization
+	slug, orgUUID := organizationIdentifier(expectedOrg)
+	if slug != "" {
+		org, _, err = client.Organizations.Get(ctx, slug)
+	} else {
+		var orgs []buildkite.Organization
+		for page := 1; page != 0; {
+			var response *buildkite.Response
+			var batch []buildkite.Organization
+			batch, response, err = client.Organizations.List(ctx, &buildkite.OrganizationListOptions{ListOptions: buildkite.ListOptions{Page: page, PerPage: 100}})
+			if err != nil {
+				break
+			}
+			orgs = append(orgs, batch...)
+			page = response.NextPage
+		}
+		for _, candidate := range orgs {
+			if expectedOrg == "" || strings.EqualFold(candidate.ID, orgUUID) {
+				org = candidate
+				break
+			}
+		}
+	}
 	if err != nil {
-		return "", false, fmt.Errorf("failed to list organizations: %w", err)
+		return "", false, fmt.Errorf("failed to verify login organization %q: %w", expectedOrg, err)
 	}
-	if len(orgs) == 0 {
-		return "", false, fmt.Errorf("no organizations found for this token")
+	if org.Slug == "" || (slug != "" && org.Slug != slug) {
+		return "", false, fmt.Errorf("login did not grant access to organization %q; no credentials were saved", expectedOrg)
 	}
 
-	org := orgs[0]
-
-	autoRefreshConfigured, err := persistOAuthLogin(f, credentialStore, org.Slug, tokenResp.AccessToken, tokenResp.RefreshToken)
+	autoRefreshConfigured, err := persistOAuthLogin(f, credentialStore, org.Slug, tokenResp.AccessToken, tokenResp.RefreshToken, selectOrg)
 	if err != nil {
 		return "", false, err
 	}
-	fmt.Printf("Tokens stored in %s.\n", credentialStoreDescription(credentialStore))
+	fmt.Fprintf(out, "Tokens stored in %s.\n", credentialStoreDescription(credentialStore))
 
 	return org.Slug, autoRefreshConfigured, nil
 }

@@ -135,6 +135,10 @@ func (conf *Config) SelectOrganization(org string, inGitRepo bool) error {
 		return conf.writeUser()
 	}
 
+	// Cached pipeline names belong to the saved organization, not its replacement.
+	if conf.SavedOrganizationSlug() != org {
+		conf.local.Pipelines = nil
+	}
 	conf.local.SelectedOrg = org
 	return conf.writeLocal()
 }
@@ -150,10 +154,8 @@ func (conf *Config) APIToken() string {
 // decide whether a BUILDKITE_API_TOKEN env var is shadowing a real credential.
 func (conf *Config) hasStoredToken(org string) bool {
 	kr := keyring.New()
-	if kr.IsAvailable() {
-		if t, err := kr.Get(org); err == nil && t != "" {
-			return true
-		}
+	if t, err := kr.Get(org); err == nil && t != "" {
+		return true
 	}
 	return firstNonEmpty(conf.user.getToken(org), conf.local.getToken(org)) != ""
 }
@@ -176,10 +178,8 @@ func (conf *Config) APITokenForOrg(org string) string {
 	}
 
 	kr := keyring.New()
-	if kr.IsAvailable() {
-		if token, err := kr.Get(org); err == nil && token != "" {
-			return token
-		}
+	if token, err := kr.Get(org); err == nil && token != "" {
+		return token
 	}
 
 	// Legacy fallback: read tokens from config files (read-only)
@@ -202,10 +202,8 @@ func (conf *Config) RefreshTokenForOrg(org string) string {
 		return ""
 	}
 	kr := keyring.New()
-	if kr.IsAvailable() {
-		if token, err := kr.GetRefreshToken(org); err == nil && token != "" {
-			return token
-		}
+	if token, err := kr.GetRefreshToken(org); err == nil && token != "" {
+		return token
 	}
 	return ""
 }
@@ -223,10 +221,8 @@ func (conf *Config) HasStoredTokenForOrg(org string) bool {
 	}
 
 	kr := keyring.New()
-	if kr.IsAvailable() {
-		if token, err := kr.Get(org); err == nil && token != "" {
-			return true
-		}
+	if token, err := kr.Get(org); err == nil && token != "" {
+		return true
 	}
 
 	// Legacy fallback: check config files (read-only)
@@ -536,32 +532,15 @@ func configFile() string {
 	} else if b := os.Getenv(appData); runtime.GOOS == "windows" && b != "" {
 		path = filepath.Join(b, "Buildkite CLI", configFilePath)
 	} else {
-		c, err := createIfNotExistsConfigDir()
+		home, err := os.UserHomeDir()
 		if err != nil {
 			return ""
 		}
-		path = filepath.Join(c, configFilePath)
+		// Reading configuration must not create directories (notably in dry-run).
+		// writeFileConfig creates the parent directory when saving is requested.
+		path = filepath.Join(home, ".config", configFilePath)
 	}
 	return path
-}
-
-func createIfNotExistsConfigDir() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-
-	configDir := filepath.Join(homeDir, ".config")
-	if _, err := os.Stat(configDir); errors.Is(err, os.ErrNotExist) {
-		err := os.Mkdir(configDir, 0o755)
-		if err != nil {
-			return "", err
-		}
-	} else if err != nil {
-		// Other error occurred in checking the dir
-		return "", err
-	}
-	return configDir, nil
 }
 
 func loadFileConfig(fs afero.Fs, path string) (fileConfig, error) {

@@ -22,24 +22,7 @@ var fallbackSchema = []byte(`{
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"type": "object",
 	"properties": {
-		"steps": {
-			"type": "array",
-			"items": {
-				"type": "object",
-				"properties": {
-					"label": { "type": "string" },
-					"command": { "type": "string" },
-					"plugins": { "type": "object" },
-					"agents": { "type": "object" },
-					"env": { "type": "object" },
-					"branches": { "type": ["string", "object"] },
-					"if": { "type": "string" },
-					"depends_on": { "type": ["string", "array"] }
-				}
-			}
-		},
-		"env": { "type": "object" },
-		"agents": { "type": "object" }
+		"steps": { "type": "array" }
 	},
 	"required": ["steps"]
 }`)
@@ -156,7 +139,12 @@ func validatePipeline(w io.Writer, filePath string) error {
 	if err != nil {
 		return fmt.Errorf("error reading pipeline file: %w", err)
 	}
+	return validatePipelineData(w, filePath, pipelineData)
+}
 
+// validatePipelineData also lets creation validate without changing directories
+// or rewriting files, while displaying a repository-relative path.
+func validatePipelineData(w io.Writer, filePath string, pipelineData []byte) error {
 	// Trim whitespace to handle empty files more gracefully
 	if len(strings.TrimSpace(string(pipelineData))) == 0 {
 		fmt.Fprintf(w, "❌ Pipeline file is invalid: %s\n\n", filePath)
@@ -182,7 +170,7 @@ func validatePipeline(w io.Writer, filePath string) error {
 	if err != nil {
 		// If online schema access fails, try the fallback schema
 		fmt.Fprintf(w, "⚠️  Warning: Could not access online pipeline schema: %s\n", err.Error())
-		fmt.Fprintf(w, "   Using simplified fallback schema for basic validation.\n\n")
+		fmt.Fprintf(w, "   Using simplified fallback schema for basic validation only; this does not validate all Buildkite step semantics or agent runtimes.\n\n")
 
 		// Create a schema loader using the fallback schema
 		fallbackLoader := gojsonschema.NewBytesLoader(fallbackSchema)

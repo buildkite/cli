@@ -670,3 +670,45 @@ func TestNewUserAgent(t *testing.T) {
 		}
 	})
 }
+
+func TestReadOnlyAuthDoesNotRefresh(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("BUILDKITE_API_TOKEN", "")
+	t.Setenv(keyring.CredentialStoreEnv, keyring.StoreKeyring)
+	keyring.MockForTesting()
+	t.Cleanup(keyring.ResetForTesting)
+	kr := keyring.New()
+	if err := kr.Set("target", "expired-access"); err != nil {
+		t.Fatal(err)
+	}
+	if err := kr.SetRefreshToken("target", "original-refresh"); err != nil {
+		t.Fatal(err)
+	}
+	mutations := 0
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			mutations++
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		io.WriteString(w, `{"message":"expired"}`)
+	}))
+	defer server.Close()
+	previous := http.DefaultTransport
+	http.DefaultTransport = server.Client().Transport
+	t.Cleanup(func() { http.DefaultTransport = previous })
+	t.Setenv("BUILDKITE_HOST", strings.TrimPrefix(server.URL, "https://"))
+	t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+	f, err := New(WithOrgOverride("target"), WithReadOnlyAuth(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, resp, err := f.RestAPIClient.Organizations.Get(context.Background(), "target")
+	if err == nil || resp == nil || resp.StatusCode != http.StatusUnauthorized || mutations != 0 {
+		t.Fatalf("read-only auth attempted refresh: response=%v, error=%v, writes=%d", resp, err, mutations)
+	}
+	if token, _ := kr.Get("target"); token != "expired-access" {
+		t.Fatal("read-only auth changed credentials")
+	}
+}

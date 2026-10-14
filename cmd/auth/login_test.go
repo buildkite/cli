@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -124,7 +126,7 @@ func TestPersistOAuthLogin(t *testing.T) {
 	t.Run("requires an available credential store", func(t *testing.T) {
 		f := newFactory(t)
 		t.Setenv(keyring.CredentialStoreEnv, keyring.StoreSHM)
-		_, err := persistOAuthLogin(f, &stubOAuthTokenStore{}, "test-org", "access-token", "refresh-token")
+		_, err := persistOAuthLogin(f, &stubOAuthTokenStore{}, "test-org", "access-token", "refresh-token", true)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -146,7 +148,7 @@ func TestPersistOAuthLogin(t *testing.T) {
 		f := newFactory(t)
 		store := &stubOAuthTokenStore{available: true, refreshErr: errors.New("boom")}
 
-		_, err := persistOAuthLogin(f, store, "test-org", "access-token", "refresh-token")
+		_, err := persistOAuthLogin(f, store, "test-org", "access-token", "refresh-token", true)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -162,7 +164,7 @@ func TestPersistOAuthLogin(t *testing.T) {
 		f := newFactory(t)
 		store := &stubOAuthTokenStore{available: true}
 
-		autoRefresh, err := persistOAuthLogin(f, store, "test-org", "access-token", "refresh-token")
+		autoRefresh, err := persistOAuthLogin(f, store, "test-org", "access-token", "refresh-token", true)
 		if err != nil {
 			t.Fatalf("persistOAuthLogin() error = %v", err)
 		}
@@ -231,7 +233,7 @@ func TestLoginSelectsOrgInUserConfigInsideGitRepo(t *testing.T) {
 		f, repoDir := newGitRepoFactory(t)
 		store := &stubOAuthTokenStore{available: true}
 
-		if _, err := persistOAuthLogin(f, store, "test-org", "access-token", "refresh-token"); err != nil {
+		if _, err := persistOAuthLogin(f, store, "test-org", "access-token", "refresh-token", true); err != nil {
 			t.Fatalf("persistOAuthLogin() error = %v", err)
 		}
 
@@ -547,12 +549,12 @@ func TestLoginCmdRunDeviceFlow(t *testing.T) {
 				RefreshToken: "refresh-token",
 				ExpiresIn:    3600,
 			})
-		case "/v2/organizations":
+		case "/v2/organizations/test-org":
 			sawOrganizationsList = true
 			if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
 				t.Errorf("Authorization = %q, want Bearer access-token", got)
 			}
-			_ = json.NewEncoder(w).Encode([]buildkite.Organization{{Slug: "test-org"}})
+			_ = json.NewEncoder(w).Encode(buildkite.Organization{Slug: "test-org"})
 		default:
 			http.NotFound(w, r)
 		}
@@ -608,5 +610,85 @@ func TestLoginCmdRunDeviceFlow(t *testing.T) {
 	}
 	if !strings.Contains(config, "test-org:") {
 		t.Fatalf("config did not register test-org:\n%s", config)
+	}
+}
+
+func TestGuidedLoginKeepsDestinationScoped(t *testing.T) {
+	for _, granted := range []bool{true, false} {
+		name := "verified login"
+		if !granted {
+			name = "different organization must not be saved"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("BUILDKITE_API_TOKEN", "")
+			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
+			t.Setenv(keyring.CredentialStoreEnv, keyring.StoreKeyring)
+			keyring.MockForTesting()
+			t.Cleanup(keyring.ResetForTesting)
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/oauth/device_authorization":
+					r.ParseForm()
+					if r.FormValue("organization") != "target" {
+						t.Error("device login requested the wrong organization")
+					}
+					json.NewEncoder(w).Encode(oauth.DeviceAuthorizationResponse{DeviceCode: "fixture-device", UserCode: "ABCD", VerificationURI: "https://example.com/device", ExpiresIn: 10, Interval: 1})
+				case "/oauth/token":
+					json.NewEncoder(w).Encode(oauth.TokenResponse{AccessToken: "fixture-access", RefreshToken: "fixture-refresh"})
+				case "/v2/organizations/target":
+					if r.Header.Get("Authorization") != "Bearer fixture-access" {
+						t.Error("login did not verify the new token")
+					}
+					slug := "target"
+					if !granted {
+						slug = "different"
+					}
+					json.NewEncoder(w).Encode(buildkite.Organization{Slug: slug})
+				default:
+					t.Errorf("unexpected request %s", r.URL.Path)
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+			previous := http.DefaultTransport
+			http.DefaultTransport = server.Client().Transport
+			t.Cleanup(func() { http.DefaultTransport = previous })
+			t.Setenv("BUILDKITE_HOST", strings.TrimPrefix(server.URL, "https://"))
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+			f, err := factory.New()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.Config.SelectOrganization("original", false); err != nil {
+				t.Fatal(err)
+			}
+			var stderr bytes.Buffer
+			org, err := LoginForOrganization(context.Background(), f, "target", &stderr)
+			if granted {
+				if err != nil || org != "target" {
+					t.Fatalf("guided login failed: %q, %v", org, err)
+				}
+				if token, err := keyring.New().Get("target"); err != nil || token != "fixture-access" {
+					t.Fatalf("verified credentials not saved: %v", err)
+				}
+			} else {
+				if err == nil || !strings.Contains(err.Error(), "no credentials were saved") {
+					t.Fatalf("wrong target accepted: %v", err)
+				}
+				if token, _ := keyring.New().Get("target"); token != "" {
+					t.Fatal("saved credentials for the wrong target")
+				}
+			}
+			if f.Config.SavedOrganizationSlug() != "original" {
+				t.Fatal("guided login changed global selection")
+			}
+			after, err := factory.New()
+			if err != nil || after.Config.SavedOrganizationSlug() != "original" {
+				t.Fatalf("persisted global selection changed: %v", err)
+			}
+		})
 	}
 }

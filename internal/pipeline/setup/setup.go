@@ -152,7 +152,8 @@ func nodeCommands(root string) (string, error) {
 
 // Ensure preserves existing files and otherwise writes a reviewed starter.
 // An empty template selects the recommendation, optionally offering alternatives.
-func Ensure(root, template string, interactive bool, out io.Writer) error {
+// Queue applies only to newly generated files, never existing user configuration.
+func Ensure(root, template, queue string, interactive bool, out io.Writer) error {
 	path, err := Find(root)
 	if err != nil {
 		return err
@@ -214,6 +215,7 @@ func Ensure(root, template string, interactive bool, out io.Writer) error {
 				return err
 			}
 		}
+		fmt.Fprintf(out, "Starter requires: %s. Verify these on your agents; agent presence does not prove runtime availability.\n", s.requires)
 		if s.id == "pipenv" && exists(root, "Pipfile.lock") {
 			commands = strings.Replace(commands, "install --dev", "install --deploy --dev", 1)
 		}
@@ -221,6 +223,10 @@ func Ensure(root, template string, interactive bool, out io.Writer) error {
 	}
 	if content == "" {
 		return fmt.Errorf("unknown starter %q; choose go, node, pipenv, ruby or empty", template)
+	}
+	if queue != "" {
+		quoted, _ := json.Marshal(queue)
+		content += fmt.Sprintf("agents:\n  queue: %s\n", quoted)
 	}
 	path = filepath.Join(root, ".buildkite", "pipeline.yaml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
