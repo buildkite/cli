@@ -6,20 +6,24 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
-	"github.com/buildkite/cli/v3/internal/graphql"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
 	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
 type CancelCmd struct {
-	JobID string `arg:"" help:"Job ID to cancel" required:""`
+	JobID string `arg:"" help:"Job UUID to cancel" required:""`
 	Web   bool   `help:"Open the job in a web browser after it has been cancelled" short:"w"`
 }
 
 func (c *CancelCmd) Help() string {
 	return `
+Other jobs in the build keep running; to cancel the whole build, use
+bk build cancel. A running job is canceling until its agent stops it. If
+the agent stops responding, Buildkite finishes the cancellation without it.
+
 Examples:
   # Cancel a job (with confirmation prompt)
   $ bk job cancel 0190046e-e199-453b-a302-a21a4d649d31
@@ -42,12 +46,13 @@ func (c *CancelCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
 
+	organization, err := configuredOrganization(f.Config.OrganizationSlug())
+	if err != nil {
+		return err
+	}
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
 		return err
 	}
-
-	ctx := context.Background()
-	graphqlID := util.GenerateGraphQLID("JobTypeCommand---", c.JobID)
 
 	confirmed, err := bkIO.Confirm(f, fmt.Sprintf("Cancel job %s", c.JobID))
 	if err != nil {
@@ -58,21 +63,22 @@ func (c *CancelCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return nil
 	}
 
-	return c.cancelJob(ctx, c.JobID, graphqlID, f)
-}
-
-func (c *CancelCmd) cancelJob(ctx context.Context, displayID, apiID string, f *factory.Factory) error {
-	var result *graphql.CancelJobResponse
-	if err := bkIO.SpinWhile(f, fmt.Sprintf("Cancelling job %s", displayID), func() error {
+	var job buildkite.Job
+	if err := bkIO.SpinWhile(f, fmt.Sprintf("Cancelling job %s", c.JobID), func() error {
 		var apiErr error
-		result, apiErr = graphql.CancelJob(ctx, f.GraphQLClient, apiID)
+		job, _, apiErr = f.RestAPIClient.Jobs.CancelJobByOrg(context.Background(), organization, c.JobID)
 		return apiErr
 	}); err != nil {
 		return err
 	}
 
-	job := result.JobTypeCommandCancel.JobTypeCommand
-	fmt.Printf("Job canceled: %s\n", job.Url)
+	// Running jobs stay "canceling" until their agent stops them, or until
+	// Buildkite finishes the cancellation (lost agent, force cancel, or expiry).
+	if job.State == "canceling" {
+		fmt.Fprintf(kongCtx.Stdout, "Job canceling: %s\n", job.WebURL)
+	} else {
+		fmt.Fprintf(kongCtx.Stdout, "Job canceled: %s\n", job.WebURL)
+	}
 
-	return util.OpenInWebBrowser(c.Web, job.Url)
+	return util.OpenInWebBrowser(c.Web, job.WebURL)
 }

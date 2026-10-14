@@ -39,6 +39,7 @@ type Client struct {
 	baseURL   string
 	token     string
 	userAgent string
+	headers   http.Header
 	client    *http.Client
 }
 
@@ -56,6 +57,13 @@ func WithBaseURL(baseURL string) ClientOption {
 func WithUserAgent(userAgent string) ClientOption {
 	return func(c *Client) {
 		c.userAgent = userAgent
+	}
+}
+
+// WithHeaders sets extra headers for requests, overriding the defaults
+func WithHeaders(headers http.Header) ClientOption {
+	return func(c *Client) {
+		c.headers = headers
 	}
 }
 
@@ -194,6 +202,9 @@ func (c *Client) send(ctx context.Context, method, reqURL string, body []byte) (
 		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set("Accept", "application/json")
+	for key, values := range c.headers {
+		req.Header[key] = values
+	}
 
 	// Execute the request
 	resp, err := c.client.Do(req)

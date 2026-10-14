@@ -211,10 +211,6 @@ func TestPreflightCmd_Run(t *testing.T) {
 				json.NewEncoder(w).Encode(build)
 				return
 
-			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tests"):
-				json.NewEncoder(w).Encode([]buildkite.BuildTest{})
-				return
-
 			case r.Method == http.MethodGet && r.URL.Path == "/v2/analytics/organizations/test-org/builds/build-id-123/preflight/v1":
 				summaryRequests.Add(1)
 				if r.URL.Query().Get("include") == "latest_fail" {
@@ -393,6 +389,9 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 		if gotReq.Env["PREFLIGHT_SOURCE_COMMIT"] != expectedSourceCommit {
 			t.Errorf("expected PREFLIGHT_SOURCE_COMMIT=%q, got %#v", expectedSourceCommit, gotReq.Env)
+		}
+		if !gotReq.IgnorePipelineBranchFilters {
+			t.Error("expected preflight build to ignore pipeline branch filters")
 		}
 		if !strings.Contains(gotUserAgent, buildkite.DefaultUserAgent) {
 			t.Errorf("expected User-Agent to contain %q, got %q", buildkite.DefaultUserAgent, gotUserAgent)
@@ -614,10 +613,6 @@ func TestPreflightCmd_Run(t *testing.T) {
 				json.NewEncoder(w).Encode(build)
 				return
 
-			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tests"):
-				json.NewEncoder(w).Encode([]buildkite.BuildTest{})
-				return
-
 			case r.Method == http.MethodGet && r.URL.Path == "/v2/analytics/organizations/test-org/builds/build-id-123/preflight/v1":
 				summaryRequests.Add(1)
 				w.WriteHeader(http.StatusNotFound)
@@ -740,9 +735,6 @@ func TestPreflightCmd_Run(t *testing.T) {
 				})
 				return
 
-			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tests"):
-				json.NewEncoder(w).Encode([]buildkite.BuildTest{})
-				return
 			}
 
 			http.NotFound(w, r)
@@ -849,9 +841,6 @@ func TestPreflightCmd_Run(t *testing.T) {
 				json.NewEncoder(w).Encode(build)
 				return
 
-			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tests"):
-				json.NewEncoder(w).Encode([]buildkite.BuildTest{})
-				return
 			}
 
 			http.NotFound(w, r)
@@ -969,10 +958,6 @@ func TestPreflightCmd_Run(t *testing.T) {
 						State: "failed",
 					}},
 				})
-				return
-
-			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tests"):
-				json.NewEncoder(w).Encode([]buildkite.BuildTest{})
 				return
 
 			case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/test-org/builds":
@@ -1105,10 +1090,6 @@ func TestPreflightCmd_Run(t *testing.T) {
 				_, _ = w.Write([]byte(`{"message":"temporary failure"}`))
 				return
 
-			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tests"):
-				json.NewEncoder(w).Encode([]buildkite.BuildTest{})
-				return
-
 			case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/test-org/builds":
 				json.NewEncoder(w).Encode([]buildkite.Build{{
 					ID:     "build-id-123",
@@ -1200,10 +1181,6 @@ func TestPreflightCmd_Run(t *testing.T) {
 						State: "failed",
 					}},
 				})
-				return
-
-			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tests"):
-				json.NewEncoder(w).Encode([]buildkite.BuildTest{})
 				return
 
 			case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/test-org/builds":
@@ -1352,10 +1329,6 @@ func TestPreflightCmd_Run(t *testing.T) {
 				})
 				return
 
-			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tests"):
-				json.NewEncoder(w).Encode([]buildkite.BuildTest{})
-				return
-
 			case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/test-org/builds":
 				json.NewEncoder(w).Encode([]buildkite.Build{{
 					ID:     "build-id-123",
@@ -1452,10 +1425,6 @@ func TestPreflightCmd_Run(t *testing.T) {
 						State: "failed",
 					}},
 				})
-				return
-
-			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tests"):
-				json.NewEncoder(w).Encode([]buildkite.BuildTest{})
 				return
 
 			case r.Method == http.MethodGet && r.URL.Path == "/v2/organizations/test-org/builds":

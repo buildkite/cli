@@ -35,10 +35,15 @@ func TestParsePipelineArg(t *testing.T) {
 			org:      "testing",
 			pipeline: "shared-gem",
 		},
-		"uppercase_normalized_to_lowercase": {
+		"mixed_case_preserved_when_normalizing_underscores": {
 			url:      "My_Org/Shared_Gem",
-			org:      "my-org",
-			pipeline: "shared-gem",
+			org:      "My-Org",
+			pipeline: "Shared-Gem",
+		},
+		"mixed_case_url_slugs_preserved": {
+			url:      "https://buildkite.com/ExampleOrg/Example-Pipeline",
+			org:      "ExampleOrg",
+			pipeline: "Example-Pipeline",
 		},
 	}
 

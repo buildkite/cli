@@ -123,12 +123,22 @@ func TestPersistOAuthLogin(t *testing.T) {
 
 	t.Run("requires an available credential store", func(t *testing.T) {
 		f := newFactory(t)
+		t.Setenv(keyring.CredentialStoreEnv, keyring.StoreSHM)
 		_, err := persistOAuthLogin(f, &stubOAuthTokenStore{}, "test-org", "access-token", "refresh-token")
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
-		if !strings.Contains(err.Error(), "requires an available credential store") {
-			t.Fatalf("expected credential store availability error, got %v", err)
+		for _, want := range []string{
+			"requires an available credential store",
+			`Configured credential store: "shm"`,
+			"macOS",
+			"bk config set credential_store auto",
+			"BUILDKITE_CREDENTIAL_STORE is set, unset it or change it",
+			"retry your login command without --credential-store",
+		} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("error = %q, want substring %q", err, want)
+			}
 		}
 	})
 
@@ -256,9 +266,8 @@ func TestLoginCmdValidateDeviceIncompatibleFlags(t *testing.T) {
 			wantErr: "--device cannot be used with --token",
 		},
 		{
-			name:    "device with org",
-			cmd:     LoginCmd{Device: true, Org: "buildkite"},
-			wantErr: "--org is not supported with --device; choose an organization on the authorization page",
+			name: "device with org",
+			cmd:  LoginCmd{Device: true, Org: "buildkite"},
 		},
 		{
 			name: "device only",
@@ -362,6 +371,7 @@ func TestLoginCmdRunWithTokenUsesCredentialStoreEnvWhenFlagOmitted(t *testing.T)
 	t.Cleanup(keyring.ResetForTesting)
 
 	var cli struct {
+		Org   string
 		Login LoginCmd `cmd:""`
 	}
 	parser, err := kong.New(&cli)
@@ -379,6 +389,7 @@ func TestLoginCmdRunWithTokenUsesCredentialStoreEnvWhenFlagOmitted(t *testing.T)
 		t.Fatal("credentialStoreFlagProvided() = true, want false")
 	}
 
+	cli.Login.Org = cli.Org // The application forwards the global flag.
 	if err := cli.Login.Run(ctx, authStubGlobals{}); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -409,6 +420,7 @@ func TestLoginCmdRunWithTokenCredentialStoreFlagOverridesEnv(t *testing.T) {
 	t.Cleanup(keyring.ResetForTesting)
 
 	var cli struct {
+		Org   string
 		Login LoginCmd `cmd:""`
 	}
 	parser, err := kong.New(&cli)
@@ -423,6 +435,7 @@ func TestLoginCmdRunWithTokenCredentialStoreFlagOverridesEnv(t *testing.T) {
 		t.Fatal("credentialStoreFlagProvided() = false, want true")
 	}
 
+	cli.Login.Org = cli.Org // The application forwards the global flag.
 	if err := cli.Login.Run(ctx, authStubGlobals{}); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -499,6 +512,12 @@ func TestLoginCmdRunDeviceFlow(t *testing.T) {
 			if got := r.FormValue("scope"); got != "read_user read_organizations" {
 				t.Errorf("scope = %q, want requested scopes", got)
 			}
+			if got := r.FormValue("organization"); got != "test-org" {
+				t.Errorf("organization = %q, want test-org", got)
+			}
+			if got := r.FormValue("organization_uuid"); got != "" {
+				t.Errorf("organization_uuid = %q, want empty", got)
+			}
 			_ = json.NewEncoder(w).Encode(oauth.DeviceAuthorizationResponse{
 				DeviceCode:              "device-code",
 				UserCode:                "ABCD-EFGH",
@@ -547,7 +566,7 @@ func TestLoginCmdRunDeviceFlow(t *testing.T) {
 	t.Setenv("BUILDKITE_HOST", strings.TrimPrefix(server.URL, "https://"))
 	t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
 
-	cmd := &LoginCmd{Device: true, Scopes: "read_user read_organizations"}
+	cmd := &LoginCmd{Device: true, Org: "test-org", Scopes: "read_user read_organizations"}
 	if err := cmd.Run(nil, authStubGlobals{}); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}

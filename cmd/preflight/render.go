@@ -110,15 +110,6 @@ func (r *plainRenderer) Render(e Event) error {
 			return err
 		}
 
-	case EventTestFailure:
-		if e.TestFailures != nil {
-			presenter := testPresenter{}
-			for _, t := range e.TestFailures {
-				if _, err := fmt.Fprintf(r.stdout, "%s\n", formatTimestampedBlock(presenter.Line(t), e.Time)); err != nil {
-					return err
-				}
-			}
-		}
 	}
 	return nil
 }

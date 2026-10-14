@@ -22,7 +22,10 @@ func ResolveFromPositionalArgument(args []string, index int, pipeline pipelineRe
 			return nil, nil
 		}
 
-		build := parseBuildArg(ctx, args[index], pipeline)
+		build, err := parseBuildArg(ctx, args[index], pipeline)
+		if err != nil {
+			return nil, fmt.Errorf("could not resolve a pipeline in %q; use --pipeline to specify one: %w", conf.OrganizationSlug(), err)
+		}
 		// if we get here, we should be able to parse the value and return an error if not
 		// this is because a user has explicitly given an input value for us to use - we shouldnt ignore it on error
 		if build == nil {
@@ -33,39 +36,42 @@ func ResolveFromPositionalArgument(args []string, index int, pipeline pipelineRe
 	}
 }
 
-func parseBuildArg(ctx context.Context, arg string, pipeline pipelineResolver.PipelineResolverFn) *build.Build {
+func parseBuildArg(ctx context.Context, arg string, pipeline pipelineResolver.PipelineResolverFn) (*build.Build, error) {
 	buildIsURL := strings.Contains(arg, ":")
 	buildIsSlug := !buildIsURL && strings.Contains(arg, "/")
 
 	if buildIsURL {
-		return splitBuildURL(arg)
+		return splitBuildURL(arg), nil
 	} else if buildIsSlug {
 		part := strings.Split(arg, "/")
 		if len(part) < 3 {
-			return nil
+			return nil, nil
 		}
 		num, err := strconv.Atoi(part[2])
 		if err != nil {
-			return nil
+			return nil, nil
 		}
 		return &build.Build{
 			Organization: part[0],
 			Pipeline:     part[1],
 			BuildNumber:  num,
-		}
+		}, nil
 	}
 
 	num, err := strconv.Atoi(arg)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 	p, err := pipeline(ctx)
-	if err != nil || p == nil {
-		return nil
+	if err != nil {
+		return nil, err
+	}
+	if p == nil {
+		return nil, fmt.Errorf("no pipeline found")
 	}
 	return &build.Build{
 		Organization: p.Org,
 		Pipeline:     p.Name,
 		BuildNumber:  num,
-	}
+	}, nil
 }

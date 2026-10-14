@@ -61,6 +61,7 @@ query ListJobsByQueue($org: ID!, $clusterQueue: [ID!], $state: [JobStates!], $fi
             }
             agent {
               id
+              uuid
               name
               hostname
               metaData
@@ -134,6 +135,7 @@ query ListJobsByAgentQueryRules($org: ID!, $agentQueryRules: [String!], $state: 
             createdAt 
             agent {
               id
+              uuid
               name
               hostname
               metaData

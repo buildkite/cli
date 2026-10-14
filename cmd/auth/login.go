@@ -21,7 +21,7 @@ import (
 
 type LoginCmd struct {
 	Scopes          string `help:"OAuth scopes to request" default:""`
-	Org             string `help:"Organization slug or UUID to request access for" optional:""`
+	Org             string `kong:"-"` // Supplied by the global --org flag; also accepts an OAuth organization UUID.
 	Token           string `help:"API token to store (non-OAuth login, requires --org)" optional:""`
 	Device          bool   `help:"Authenticate using OAuth device authorization instead of opening a browser callback" optional:""`
 	CredentialStore string `help:"Credential store for tokens: auto, keyring, or shm" enum:"auto,keyring,shm" default:"auto"`
@@ -59,8 +59,8 @@ Examples:
   # Login non-interactively with an API token
   $ bk auth login --org my-org --token my-token
 
-  # Login on a headless machine or remote shell
-  $ bk auth login --device
+  # Login to a specific organization on a headless machine or remote shell
+  $ bk auth login --device --org my-org
 
   # Login on a headless Linux host using an in-memory /dev/shm credential store
   $ bk auth login --device --credential-store shm
@@ -139,7 +139,12 @@ func persistOAuthLogin(f *factory.Factory, store oauthTokenStore, org, accessTok
 		return false, errors.New("access token cannot be empty")
 	}
 	if !store.IsAvailable() {
-		return false, errors.New("OAuth login requires an available credential store to persist your access token and refresh token")
+		return false, fmt.Errorf("OAuth login requires an available credential store to persist your access token and refresh token.\n"+
+			"Configured credential store: %q.\n"+
+			"On macOS, use keyring or auto; shm uses /dev/shm and is intended for headless Linux hosts.\n"+
+			"Set the default with 'bk config set credential_store auto'. If BUILDKITE_CREDENTIAL_STORE is set, unset it or change it to auto or keyring; it overrides the saved setting.\n"+
+			"Then retry your login command without --credential-store",
+			f.Config.CredentialStore())
 	}
 	if refreshToken != "" {
 		if err := store.SetRefreshToken(org, refreshToken); err != nil {
@@ -293,9 +298,6 @@ func (c *LoginCmd) validate(kongCtx *kong.Context) error {
 	if c.Device && c.Token != "" {
 		return errors.New("--device cannot be used with --token")
 	}
-	if c.Device && c.Org != "" {
-		return errors.New("--org is not supported with --device; choose an organization on the authorization page")
-	}
 	return nil
 }
 
@@ -312,8 +314,11 @@ func (c *LoginCmd) credentialStoreFlagProvided(kongCtx *kong.Context) bool {
 }
 
 func (c *LoginCmd) runDeviceLogin(ctx context.Context, f *factory.Factory, resolvedScopes string, credentialStore oauthTokenStore) error {
+	orgSlug, orgUUID := organizationIdentifier(c.Org)
 	cfg := &oauth.Config{
 		ClientID: oauth.DefaultClientID,
+		OrgSlug:  orgSlug,
+		OrgUUID:  orgUUID,
 		Scopes:   resolvedScopes,
 	}
 

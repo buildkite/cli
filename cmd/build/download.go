@@ -180,7 +180,7 @@ func download(ctx context.Context, bld *build.Build, artifactsPath, artifactsSta
 
 	// Paginate the artifact list up front so every matching artifact gets
 	// downloaded, not just the first page.
-	artifacts, err := artifact.List(ctx, f.RestAPIClient, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), "", artifactsPath, artifactsState)
+	artifacts, err := artifact.List(ctx, f.RestAPIClient, bld.Organization, bld.Pipeline, fmt.Sprint(bld.BuildNumber), "", []string{artifactsPath}, artifactsState)
 	if err != nil {
 		return "", 0, err
 	}

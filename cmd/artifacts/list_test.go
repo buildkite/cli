@@ -2,6 +2,7 @@ package artifacts
 
 import (
 	"bytes"
+	"slices"
 	"strings"
 	"testing"
 
@@ -105,6 +106,7 @@ func TestListCmdFlagParsing(t *testing.T) {
 		"-p", "monolith",
 		"--job-uuid", "job-uuid-1",
 		"--path", "log/rspec*.json",
+		"--path", "log/a,b.json",
 		"--state", "Finished",
 	}); err != nil {
 		t.Fatalf("Parse() error = %v", err)
@@ -119,8 +121,8 @@ func TestListCmdFlagParsing(t *testing.T) {
 	if cmd.JobUUID != "job-uuid-1" {
 		t.Errorf("JobUUID = %q, want job-uuid-1", cmd.JobUUID)
 	}
-	if cmd.Path != "log/rspec*.json" {
-		t.Errorf("Path = %q, want log/rspec*.json", cmd.Path)
+	if want := []string{"log/rspec*.json", "log/a,b.json"}; !slices.Equal(cmd.Path, want) {
+		t.Errorf("Path = %q, want %q", cmd.Path, want)
 	}
 	if cmd.State != "Finished" {
 		t.Errorf("State = %q, want Finished (parser preserves casing)", cmd.State)

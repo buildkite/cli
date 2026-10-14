@@ -66,10 +66,18 @@ func parsePipelineArg(arg string, conf *config.Config) (org, pipeline string) {
 	return normalizeSlug(org), normalizeSlug(pipeline)
 }
 
-// normalizeSlug converts user input to a valid Buildkite slug. Slugs may only contain
-// lowercase letters, numbers and dashes, so this is a no-op on anything already valid.
-// It allows passing a name like "my_pipeline" (eg. from a repository directory name)
-// and matching the "my-pipeline" slug Buildkite derives from it.
+// QualifiedOrganization returns the explicit organization in a pipeline/build
+// slug or URL. Bare pipeline names and build numbers have no organization.
+func QualifiedOrganization(arg string) string {
+	if !strings.ContainsAny(arg, ":/") {
+		return ""
+	}
+	org, _ := parsePipelineArg(arg, nil)
+	return org
+}
+
+// normalizeSlug converts underscores in user input to dashes while preserving case,
+// because existing Buildkite slugs are case-sensitive.
 func normalizeSlug(s string) string {
-	return strings.ToLower(strings.ReplaceAll(s, "_", "-"))
+	return strings.ReplaceAll(s, "_", "-")
 }

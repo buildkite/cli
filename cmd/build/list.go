@@ -27,7 +27,7 @@ const (
 )
 
 type ListCmd struct {
-	Pipeline string            `help:"The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
+	Pipeline string            `help:"Pipeline slug (uses the selected organization), org/pipeline, or Buildkite pipeline URL." short:"p"`
 	Since    string            `help:"Filter builds created since this time (e.g. 1h, 30m)"`
 	Until    string            `help:"Filter builds created before this time (e.g. 1h, 30m)"`
 	Duration string            `help:"Filter by duration (e.g. >5m, <10m, 20m) - supports >, <, >=, <= operators"`
@@ -107,16 +107,31 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
+	ctx := context.Background()
+	org := f.Config.OrganizationSlug()
+	summaryPipeline := ""
+	if c.Pipeline != "" {
+		p, err := pipelineResolver.ResolveFromFlag(c.Pipeline, f.Config)(ctx)
+		if err != nil {
+			return err
+		}
+		org, summaryPipeline = p.Org, p.Name
+		if org != f.Config.OrganizationSlug() {
+			f, err = factory.New(factory.WithDebug(globals.EnableDebug()), factory.WithOrgOverride(org))
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	f.SkipConfirm = globals.SkipConfirmation()
 	f.NoInput = globals.DisableInput()
 	f.Quiet = globals.IsQuiet()
 	f.NoPager = f.NoPager || globals.DisablePager()
 
-	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
+	if err := validation.ValidateConfigurationForOrg(f.Config, kongCtx.Command(), org); err != nil {
 		return err
 	}
-
-	ctx := context.Background()
 
 	if !c.NoLimit {
 		if c.Limit > maxBuildLimit {
@@ -127,7 +142,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	if c.Creator != "" && isValidEmail(c.Creator) {
 		originalEmail := c.Creator
 		if err = bkIO.SpinWhile(f, "Looking up user", func() error {
-			c.Creator, err = resolveCreatorEmailToUserID(ctx, f, originalEmail)
+			c.Creator, err = resolveCreatorEmailToUserID(ctx, f, org, originalEmail)
 			return err
 		}); err != nil {
 			return fmt.Errorf("failed to resolve creator email: %w", err)
@@ -140,16 +155,6 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	listOpts, err := c.buildListOptions()
 	if err != nil {
 		return err
-	}
-
-	org := f.Config.OrganizationSlug()
-	summaryPipeline := ""
-	if c.Summary && c.Pipeline != "" {
-		pipeline, err := pipelineResolver.ResolveFromFlag(c.Pipeline, f.Config)(ctx)
-		if err != nil {
-			return err
-		}
-		summaryPipeline = pipeline.Name
 	}
 
 	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
@@ -168,7 +173,7 @@ func (c *ListCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 		target := org
 		if c.Pipeline != "" {
-			target = fmt.Sprintf("%s/%s", org, c.Pipeline)
+			target = fmt.Sprintf("%s/%s", org, summaryPipeline)
 		}
 
 		fmt.Fprintf(writer, "Showing builds for %s\n\n", target)
@@ -309,7 +314,7 @@ func (c *ListCmd) fetchBuilds(ctx context.Context, f *factory.Factory, org strin
 
 		if err = bkIO.SpinWhile(f, spinnerMsg, func() error {
 			if c.Pipeline != "" {
-				builds, err = c.getBuildsByPipeline(ctx, f, org, listOpts)
+				builds, err = c.getBuildsByPipeline(ctx, f, listOpts)
 			} else {
 				builds, _, err = f.RestAPIClient.Builds.ListByOrg(ctx, org, listOpts)
 			}
@@ -388,7 +393,7 @@ func (c *ListCmd) fetchBuilds(ctx context.Context, f *factory.Factory, org strin
 	return allBuilds, nil
 }
 
-func (c *ListCmd) getBuildsByPipeline(ctx context.Context, f *factory.Factory, org string, listOpts *buildkite.BuildsListOptions) ([]buildkite.Build, error) {
+func (c *ListCmd) getBuildsByPipeline(ctx context.Context, f *factory.Factory, listOpts *buildkite.BuildsListOptions) ([]buildkite.Build, error) {
 	pipelineRes := pipelineResolver.NewAggregateResolver(
 		pipelineResolver.ResolveFromFlag(c.Pipeline, f.Config),
 		pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOneWithFactory(f)),
@@ -399,7 +404,7 @@ func (c *ListCmd) getBuildsByPipeline(ctx context.Context, f *factory.Factory, o
 		return nil, err
 	}
 
-	builds, _, err := f.RestAPIClient.Builds.ListByPipeline(ctx, org, pipeline.Name, listOpts)
+	builds, _, err := f.RestAPIClient.Builds.ListByPipeline(ctx, pipeline.Org, pipeline.Name, listOpts)
 	return builds, err
 }
 
@@ -483,8 +488,7 @@ func isValidEmail(s string) bool {
 	return err == nil
 }
 
-func resolveCreatorEmailToUserID(ctx context.Context, f *factory.Factory, email string) (string, error) {
-	org := f.Config.OrganizationSlug()
+func resolveCreatorEmailToUserID(ctx context.Context, f *factory.Factory, org, email string) (string, error) {
 	resp, err := graphql.FindUserByEmail(ctx, f.GraphQLClient, org, email)
 	if err != nil {
 		return "", fmt.Errorf("failed to query user by email: %w", err)

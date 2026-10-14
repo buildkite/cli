@@ -610,6 +610,44 @@ func jobListGraphQLServer(t *testing.T, jobs string, calls *[]map[string]any) *h
 	return server
 }
 
+func TestQueueJobListOutputsPublicUUID(t *testing.T) {
+	const uuid = "0190046e-e199-453b-a302-a21a4d649d31"
+	const agentUUID = "0198d108-a532-4a62-9bd7-b2e744bf5c45"
+	for _, queue := range []string{"packages-on-origin", "unclustered-queue"} {
+		t.Run(queue, func(t *testing.T) {
+			var calls []map[string]any
+			page := `[{"node":{"__typename":"JobTypeCommand","id":"graphql-node-id","uuid":"` + uuid + `","state":"RUNNING","agent":{"id":"graphql-agent-id","uuid":"` + agentUUID + `","name":"test-agent"}}}]`
+			server := jobListGraphQLServer(t, page, &calls)
+			f := newJobListTestFactory(t, server.URL, nil)
+			f.GraphQLClient = graphql.NewClient(server.URL, server.Client())
+
+			jobs, err := fetchJobsWithQueueFilter(context.Background(), f, "test-org", jobListOptions{queue: queue, limit: 1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var buf bytes.Buffer
+			if err := displayJobs(jobs, output.FormatJSON, &buf); err != nil {
+				t.Fatal(err)
+			}
+			var result []struct {
+				ID    string `json:"id"`
+				Agent struct {
+					ID string `json:"id"`
+				} `json:"agent"`
+			}
+			if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+				t.Fatal(err)
+			}
+			if len(result) != 1 || result[0].ID != uuid {
+				t.Fatalf("JSON jobs = %s, want one job with public UUID %s", buf.String(), uuid)
+			}
+			if result[0].Agent.ID != agentUUID {
+				t.Fatalf("agent ID = %q, want public UUID %s", result[0].Agent.ID, agentUUID)
+			}
+		})
+	}
+}
+
 func TestQueueJobListSendsStateFilterToServer(t *testing.T) {
 	var calls []map[string]any
 	page := `[{"node":{"__typename":"JobTypeCommand","id":"job-1","uuid":"uuid-1","state":"RUNNING"}}]`
@@ -717,7 +755,7 @@ func TestQueueJobListKeepsClientFilterForPassed(t *testing.T) {
 	if fmt.Sprint(calls[0]["state"]) != "[FINISHED]" {
 		t.Fatalf("state = %v, want [FINISHED]", calls[0]["state"])
 	}
-	if len(jobs) != 1 || jobs[0].ID != "ok" {
+	if len(jobs) != 1 || jobs[0].ID != "uuid-ok" {
 		t.Fatalf("jobs = %#v, want only the passed job", jobs)
 	}
 }

@@ -96,7 +96,7 @@ func TestValidateConfigurationForOrg_TokenResolution(t *testing.T) {
 		}
 	})
 
-	t.Run("falls back to the selected org when the override has none", func(t *testing.T) {
+	t.Run("rejects missing override credentials despite selected org credentials", func(t *testing.T) {
 		t.Setenv("BUILDKITE_API_TOKEN", "")
 		t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "selected-org")
 		conf := newTestConfig(t)
@@ -104,10 +104,9 @@ func TestValidateConfigurationForOrg_TokenResolution(t *testing.T) {
 			t.Fatalf("failed to seed keyring: %v", err)
 		}
 
-		// The override org has no credential of its own; validation falls back
-		// to the selected org's token rather than failing as unauthenticated.
-		if err := ValidateConfigurationForOrg(conf, "pipeline view", "override-org"); err != nil {
-			t.Fatalf("expected fallback to the selected org's token, got %v", err)
+		err := ValidateConfigurationForOrg(conf, "pipeline view", "override-org")
+		if err == nil || !strings.Contains(err.Error(), "bk auth login --org override-org") || !strings.Contains(err.Error(), "BUILDKITE_API_TOKEN") {
+			t.Fatalf("expected actionable error for override-org, got %v", err)
 		}
 	})
 }

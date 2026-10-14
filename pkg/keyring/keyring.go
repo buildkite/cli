@@ -10,12 +10,14 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/google/uuid"
 	oskeyring "github.com/zalando/go-keyring"
 )
 
 const (
 	serviceName        = "buildkite-cli"
 	refreshServiceName = "buildkite-cli-refresh"
+	writeProbeService  = "buildkite-cli-write-probe"
 
 	// CredentialStoreEnv selects the credential store used by keyring.New.
 	// Supported values are "auto", "keyring", and "shm".
@@ -134,6 +136,34 @@ func (k *Keyring) GetRefreshToken(org string) (string, error) {
 // DeleteRefreshToken removes a refresh token for the given organization
 func (k *Keyring) DeleteRefreshToken(org string) error {
 	return k.delete(refreshServiceName, org)
+}
+
+// CheckWritable verifies that the configured credential store can persist and
+// remove a new credential without modifying any real credentials.
+func (k *Keyring) CheckWritable() error {
+	probeID, err := uuid.NewRandom()
+	if err != nil {
+		return fmt.Errorf("generate credential store probe ID: %w", err)
+	}
+	account := probeID.String()
+	const value = "write-probe"
+
+	if err := k.set(writeProbeService, account, value); err != nil {
+		return fmt.Errorf("write credential store probe: %w", err)
+	}
+	stored, err := k.get(writeProbeService, account)
+	if err != nil {
+		_ = k.delete(writeProbeService, account)
+		return fmt.Errorf("read credential store probe: %w", err)
+	}
+	if stored != value {
+		_ = k.delete(writeProbeService, account)
+		return errors.New("credential store probe did not persist the expected value")
+	}
+	if err := k.delete(writeProbeService, account); err != nil {
+		return fmt.Errorf("delete credential store probe: %w", err)
+	}
+	return nil
 }
 
 // IsAvailable returns true if the configured credential store is available.

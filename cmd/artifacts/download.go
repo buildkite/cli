@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/artifact"
@@ -22,12 +23,12 @@ import (
 )
 
 type DownloadCmd struct {
-	ArtifactID  string `arg:"" optional:"" help:"Artifact ID to download. If omitted, all matching artifacts are downloaded (see --path/--state). Use 'bk artifacts list' to find IDs."`
-	BuildNumber string `help:"Build number containing the artifact. If omitted, the most recent build on the current branch will be used." short:"b" name:"build"`
-	Pipeline    string `help:"The pipeline containing the artifact. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}. If omitted, it will be resolved using the current directory." short:"p"`
-	JobUUID     string `help:"The job UUID containing the artifact." short:"j" name:"job-uuid"`
-	Path        string `help:"Filter artifacts by path. Supports exact matches and glob patterns using * as a wildcard, e.g. --path \"log/rspec*.json\"."`
-	State       string `help:"Filter artifacts to download by state. Must be one of: new, finished, error, deleted, expired."`
+	ArtifactID  string   `arg:"" optional:"" help:"Artifact ID to download. If omitted, all matching artifacts are downloaded (see --path/--state). Use 'bk artifacts list' to find IDs."`
+	BuildNumber string   `help:"Build number containing the artifact. If omitted, the most recent build on the current branch will be used." short:"b" name:"build"`
+	Pipeline    string   `help:"The pipeline containing the artifact. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}. If omitted, it will be resolved using the current directory." short:"p"`
+	JobUUID     string   `help:"The job UUID containing the artifact." short:"j" name:"job-uuid"`
+	Path        []string `help:"Filter artifacts by path. Supports exact matches and * wildcards. Repeat to match any of multiple paths." sep:"none"`
+	State       string   `help:"Filter artifacts to download by state. Must be one of: new, finished, error, deleted, expired."`
 }
 
 func (c *DownloadCmd) Help() string {
@@ -56,6 +57,9 @@ Examples:
   # Filter artifacts to download by path or state
   $ bk artifacts download --build 429 --path "log/rspec*.json"
   $ bk artifacts download --build 429 --state finished
+
+  # Download artifacts matching either path (each artifact is downloaded once)
+  $ bk artifacts download --build 429 --path "log/rspec*.json" --path "log/minitest.log"
 `
 }
 
@@ -65,7 +69,7 @@ Examples:
 // and scanning. --path / --state have no meaning when targeting a single ID,
 // so reject those combinations up front.
 func (c *DownloadCmd) validate() error {
-	if c.ArtifactID != "" && (c.Path != "" || c.State != "") {
+	if c.ArtifactID != "" && (len(c.Path) > 0 || c.State != "") {
 		return bkErrors.NewValidationError(
 			nil,
 			"--path and --state cannot be used when downloading a specific artifact by ID",
@@ -193,7 +197,7 @@ func findArtifact(ctx context.Context, f *factory.Factory, org, pipeline, build,
 		return &a, nil
 	}
 
-	artifacts, err := artifact.List(ctx, f.RestAPIClient, org, pipeline, build, "", "", "")
+	artifacts, err := artifact.List(ctx, f.RestAPIClient, org, pipeline, build, "", nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +222,8 @@ func downloadArtifact(ctx context.Context, f *factory.Factory, a *buildkite.Arti
 // writeNoArtifactsMessage prints a "no artifacts" message tailored to the
 // active --path / --state filters, so users see what constraint returned
 // nothing.
-func writeNoArtifactsMessage(w io.Writer, path, state string) {
+func writeNoArtifactsMessage(w io.Writer, paths []string, state string) {
+	path := strings.Join(paths, "' or '")
 	switch {
 	case path != "" && state != "":
 		fmt.Fprintf(w, "No artifacts found matching path '%s' and state '%s'.\n", path, state)

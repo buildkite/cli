@@ -98,16 +98,6 @@ func (m ttyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				tea.Quit,
 			)
 
-		case EventTestFailure:
-			if len(msg.TestFailures) > 0 {
-				presenter := testPresenter{}
-				var cmds []tea.Cmd
-				for _, t := range msg.TestFailures {
-					line := formatTimestampedBlock(presenter.ColoredLine(t), msg.Time)
-					cmds = append(cmds, tea.Printf("%s", m.hardwrapLine(line)))
-				}
-				return m, tea.Batch(cmds...)
-			}
 		}
 
 	case tea.WindowSizeMsg:

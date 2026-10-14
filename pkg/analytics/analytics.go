@@ -26,6 +26,7 @@ type Client struct {
 	disabled bool
 	userID   string
 	org      string
+	version  string
 }
 
 func Init(version string, enabled bool) *Client {
@@ -66,6 +67,7 @@ func Init(version string, enabled bool) *Client {
 	return &Client{
 		posthog: client,
 		userID:  getUserID(),
+		version: version,
 	}
 }
 
@@ -76,27 +78,31 @@ func (c *Client) SetOrg(org string) {
 	c.org = org
 }
 
-func (c *Client) TrackCommand(subcommand string, fullArgs []string, properties map[string]interface{}) {
+// TrackCommand accepts only a parsed command path, never arguments or error text.
+func (c *Client) TrackCommand(command, outcome string) {
 	if c.disabled || c.posthog == nil {
 		return
 	}
 
 	props := posthog.NewProperties()
-	props.Set("command", strings.Join(fullArgs, " "))
+	if command != "" {
+		group, action, _ := strings.Cut(command, " ")
+		props.Set("command", command)
+		props.Set("command_group", group)
+		props.Set("command_action", action)
+	}
+	props.Set("outcome", outcome)
 	props.Set("channel", "cli")
+	props.Set("cli_version", c.version)
 	props.Set("os", runtime.GOOS)
 	props.Set("arch", runtime.GOARCH)
 	if c.org != "" {
-		props.Set("organization", c.org)
-	}
-
-	for k, v := range properties {
-		props.Set(k, v)
+		props.Set("organization_slug", c.org)
 	}
 
 	_ = c.posthog.Enqueue(posthog.Capture{
 		DistinctId: c.userID,
-		Event:      subcommand,
+		Event:      "platform:cli:command_executed",
 		Properties: props,
 	})
 }
