@@ -64,7 +64,7 @@ func resolveTeamAssignments(ctx context.Context, client *buildkite.Client, org s
 			matched[team.Slug] = true
 			assignments[team.ID] = access
 		}
-		if resp.NextPage == 0 {
+		if len(matched) == len(slugs) || resp.NextPage == 0 {
 			break
 		}
 		opts.Page = resp.NextPage

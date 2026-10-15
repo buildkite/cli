@@ -314,6 +314,28 @@ func TestResolveTeamAssignmentsUUIDPassthrough(t *testing.T) {
 	}
 }
 
+func TestResolveTeamAssignmentsStopsPaginatingOnceMatched(t *testing.T) {
+	// Pagination must short-circuit once every requested slug has been matched,
+	// so a later page failing or being rate-limited cannot block pipeline creation
+	// when all assignments were already resolved on an earlier page.
+	calls := 0
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Link", fmt.Sprintf(`<http://%s/v2/organizations/destination/teams?page=2>; rel="next"`, r.Host))
+		fmt.Fprintf(w, `[{"id":%q,"slug":"readers"}]`, readerTeam)
+	}))
+	defer s.Close()
+	client, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	teams, err := resolveTeamAssignments(context.Background(), client, "destination", map[string]string{"readers": "read_only"})
+	if err != nil || !maps.Equal(teams, map[string]string{readerTeam: "read_only"}) || calls != 1 {
+		t.Fatalf("teams=%v calls=%d err=%v", teams, calls, err)
+	}
+}
+
 func TestCreateWithoutTeamsReturnsValidationError(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
