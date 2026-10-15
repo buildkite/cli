@@ -186,8 +186,10 @@ type FindQueuesForClusterNode interface {
 
 func (v *FindQueuesForClusterNodeAPIAccessToken) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeAPIAccessTokenCode) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeAPIApplication) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
 func (v *FindQueuesForClusterNodeAgent) implementsGraphQLInterfaceFindQueuesForClusterNode()      {}
@@ -197,79 +199,117 @@ func (v *FindQueuesForClusterNodeArtifact) implementsGraphQLInterfaceFindQueuesF
 func (v *FindQueuesForClusterNodeAuditEvent) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
 func (v *FindQueuesForClusterNodeAuthorizationBitbucket) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeAuthorizationGitHub) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeAuthorizationGitHubApp) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeAuthorizationGitHubEnterprise) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeAuthorizationGoogle) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeAuthorizationSAML) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
-func (v *FindQueuesForClusterNodeBuild) implementsGraphQLInterfaceFindQueuesForClusterNode()        {}
-func (v *FindQueuesForClusterNodeCluster) implementsGraphQLInterfaceFindQueuesForClusterNode()      {}
+
+func (v *FindQueuesForClusterNodeBuild) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+
+func (v *FindQueuesForClusterNodeCluster) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+
 func (v *FindQueuesForClusterNodeClusterQueue) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+
 func (v *FindQueuesForClusterNodeClusterQueueToken) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeClusterToken) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+
 func (v *FindQueuesForClusterNodeCompositeRegistryUpstream) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
 func (v *FindQueuesForClusterNodeEmail) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
 func (v *FindQueuesForClusterNodeJobEventAssigned) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeJobEventBuildStepUploadCreated) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeJobEventCanceled) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeJobEventChanged) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeJobEventFinished) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeJobEventGeneric) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeJobEventPromisedExitStatus) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeJobEventReprioritized) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeJobEventRetried) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeJobEventRetryFailed) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeJobEventStackError) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeJobEventStackFinished) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeJobEventStackNotification) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeJobEventTimedOut) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeJobTypeBlock) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+
 func (v *FindQueuesForClusterNodeJobTypeCommand) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeJobTypeTrigger) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeJobTypeWait) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+
 func (v *FindQueuesForClusterNodeNotificationServiceSlack) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeOrganization) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+
 func (v *FindQueuesForClusterNodeOrganizationBanner) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeOrganizationInvitation) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeOrganizationMember) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeOrganizationRepositoryProviderCursorOrigin) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeOrganizationRepositoryProviderGitHub) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeOrganizationRepositoryProviderGitHubEnterpriseServer) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
 func (v *FindQueuesForClusterNodePipeline) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
 func (v *FindQueuesForClusterNodePipelineMetric) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodePipelineSchedule) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodePipelineTemplate) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
 func (v *FindQueuesForClusterNodeRegistry) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
@@ -278,19 +318,30 @@ func (v *FindQueuesForClusterNodeRegistryToken) implementsGraphQLInterfaceFindQu
 func (v *FindQueuesForClusterNodeRule) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
 func (v *FindQueuesForClusterNodeSSOProviderGitHubApp) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeSSOProviderGoogleGSuite) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
+
 func (v *FindQueuesForClusterNodeSSOProviderSAML) implementsGraphQLInterfaceFindQueuesForClusterNode() {
 }
-func (v *FindQueuesForClusterNodeSecret) implementsGraphQLInterfaceFindQueuesForClusterNode()       {}
-func (v *FindQueuesForClusterNodeSuite) implementsGraphQLInterfaceFindQueuesForClusterNode()        {}
-func (v *FindQueuesForClusterNodeTeam) implementsGraphQLInterfaceFindQueuesForClusterNode()         {}
-func (v *FindQueuesForClusterNodeTeamMember) implementsGraphQLInterfaceFindQueuesForClusterNode()   {}
+
+func (v *FindQueuesForClusterNodeSecret) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+
+func (v *FindQueuesForClusterNodeSuite) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+
+func (v *FindQueuesForClusterNodeTeam) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+
+func (v *FindQueuesForClusterNodeTeamMember) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+
 func (v *FindQueuesForClusterNodeTeamPipeline) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+
 func (v *FindQueuesForClusterNodeTeamRegistry) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
-func (v *FindQueuesForClusterNodeTeamSuite) implementsGraphQLInterfaceFindQueuesForClusterNode()    {}
-func (v *FindQueuesForClusterNodeUser) implementsGraphQLInterfaceFindQueuesForClusterNode()         {}
-func (v *FindQueuesForClusterNodeViewer) implementsGraphQLInterfaceFindQueuesForClusterNode()       {}
+
+func (v *FindQueuesForClusterNodeTeamSuite) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+
+func (v *FindQueuesForClusterNodeUser) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
+
+func (v *FindQueuesForClusterNodeViewer) implementsGraphQLInterfaceFindQueuesForClusterNode() {}
 
 func __unmarshalFindQueuesForClusterNode(b []byte, v *FindQueuesForClusterNode) error {
 	if string(b) == "null" {
@@ -514,7 +565,6 @@ func __unmarshalFindQueuesForClusterNode(b []byte, v *FindQueuesForClusterNode) 
 }
 
 func __marshalFindQueuesForClusterNode(v *FindQueuesForClusterNode) ([]byte, error) {
-
 	var typename string
 	switch v := (*v).(type) {
 	case *FindQueuesForClusterNodeAPIAccessToken:
@@ -1876,7 +1926,6 @@ type FindQueuesForClusterResponse struct {
 func (v *FindQueuesForClusterResponse) GetNode() *FindQueuesForClusterNode { return v.Node }
 
 func (v *FindQueuesForClusterResponse) UnmarshalJSON(b []byte) error {
-
 	if string(b) == "null" {
 		return nil
 	}
@@ -2399,7 +2448,6 @@ func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdge) Get
 }
 
 func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdge) UnmarshalJSON(b []byte) error {
-
 	if string(b) == "null" {
 		return nil
 	}
@@ -2482,10 +2530,13 @@ type ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob i
 
 func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeBlock) implementsGraphQLInterfaceListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob() {
 }
+
 func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand) implementsGraphQLInterfaceListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob() {
 }
+
 func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeTrigger) implementsGraphQLInterfaceListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob() {
 }
+
 func (v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeWait) implementsGraphQLInterfaceListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob() {
 }
 
@@ -2525,7 +2576,6 @@ func __unmarshalListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEd
 }
 
 func __marshalListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob(v *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJob) ([]byte, error) {
-
 	var typename string
 	switch v := (*v).(type) {
 	case *ListJobsByAgentQueryRulesOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeBlock:
@@ -2802,7 +2852,6 @@ func (v *ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdge) GetNode() *Li
 }
 
 func (v *ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdge) UnmarshalJSON(b []byte) error {
-
 	if string(b) == "null" {
 		return nil
 	}
@@ -2885,10 +2934,13 @@ type ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJob interface {
 
 func (v *ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeBlock) implementsGraphQLInterfaceListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJob() {
 }
+
 func (v *ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand) implementsGraphQLInterfaceListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJob() {
 }
+
 func (v *ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeTrigger) implementsGraphQLInterfaceListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJob() {
 }
+
 func (v *ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeWait) implementsGraphQLInterfaceListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJob() {
 }
 
@@ -2928,7 +2980,6 @@ func __unmarshalListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJob(
 }
 
 func __marshalListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJob(v *ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJob) ([]byte, error) {
-
 	var typename string
 	switch v := (*v).(type) {
 	case *ListJobsByQueueOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeBlock:
@@ -3252,7 +3303,6 @@ func (v *ListJobsByStateOrganizationJobsJobConnectionEdgesJobEdge) GetNode() *Li
 }
 
 func (v *ListJobsByStateOrganizationJobsJobConnectionEdgesJobEdge) UnmarshalJSON(b []byte) error {
-
 	if string(b) == "null" {
 		return nil
 	}
@@ -3335,10 +3385,13 @@ type ListJobsByStateOrganizationJobsJobConnectionEdgesJobEdgeNodeJob interface {
 
 func (v *ListJobsByStateOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeBlock) implementsGraphQLInterfaceListJobsByStateOrganizationJobsJobConnectionEdgesJobEdgeNodeJob() {
 }
+
 func (v *ListJobsByStateOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeCommand) implementsGraphQLInterfaceListJobsByStateOrganizationJobsJobConnectionEdgesJobEdgeNodeJob() {
 }
+
 func (v *ListJobsByStateOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeTrigger) implementsGraphQLInterfaceListJobsByStateOrganizationJobsJobConnectionEdgesJobEdgeNodeJob() {
 }
+
 func (v *ListJobsByStateOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeWait) implementsGraphQLInterfaceListJobsByStateOrganizationJobsJobConnectionEdgesJobEdgeNodeJob() {
 }
 
@@ -3378,7 +3431,6 @@ func __unmarshalListJobsByStateOrganizationJobsJobConnectionEdgesJobEdgeNodeJob(
 }
 
 func __marshalListJobsByStateOrganizationJobsJobConnectionEdgesJobEdgeNodeJob(v *ListJobsByStateOrganizationJobsJobConnectionEdgesJobEdgeNodeJob) ([]byte, error) {
-
 	var typename string
 	switch v := (*v).(type) {
 	case *ListJobsByStateOrganizationJobsJobConnectionEdgesJobEdgeNodeJobTypeBlock:
