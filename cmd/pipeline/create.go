@@ -170,14 +170,8 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		if err := c.checkLocalPipeline(f, root, kongCtx.Stderr, guided); err != nil {
 			return err
 		}
-		if c.RememberOrg {
-			if f.GitRepository == nil {
-				return fmt.Errorf("--remember-org requires a Git repository; no global default was changed")
-			}
-			if err := f.Config.SelectOrganization(c.Org, true); err != nil {
-				return err
-			}
-			fmt.Fprintln(kongCtx.Stderr, guide.Success(fmt.Sprintf("Remembered organization %s in repository-local .bk.yaml; review that local change. Global selection is unchanged.", c.Org)))
+		if c.RememberOrg && f.GitRepository == nil {
+			return fmt.Errorf("--remember-org requires a Git repository; no global default was changed")
 		}
 		if guided {
 			if err := c.offerWebhook(kongCtx.Stderr); err != nil {
@@ -244,6 +238,14 @@ func (c *CreateCmd) runPipelineCreate(kongCtx *kong.Context, f *factory.Factory,
 	pipeline, err := c.createPipeline(ctx, f)
 	if err != nil {
 		return err
+	}
+
+	if c.RememberOrg {
+		if err := f.Config.SelectOrganization(c.Org, true); err != nil {
+			return fmt.Errorf("pipeline created at %s but remembering the organization failed (do not recreate the pipeline): %w", pipeline.WebURL, err)
+		}
+		guide := output.NewGuidance(kongCtx.Stderr, guided)
+		fmt.Fprintln(kongCtx.Stderr, guide.Success(fmt.Sprintf("Remembered organization %s in repository-local .bk.yaml; review that local change. Global selection is unchanged.", c.Org)))
 	}
 
 	if c.CreateWebhook {

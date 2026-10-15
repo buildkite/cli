@@ -43,9 +43,11 @@ func TestCreateReadiness(t *testing.T) {
 		name, file, wantErr, savedOrg string
 		flags                         []string
 		orgStatus                     int
+		createStatus, wantMutations   int
 		clusters, queues              int
 		paused, busy                  bool
 		missingCredentials            bool
+		webhookFails                  bool
 	}{
 		{name: "preserve existing routing", file: "steps: []\nagents:\n  queue: old\n", clusters: 1, queues: 1},
 		{name: "route generated steps", flags: []string{"--template", "go"}, clusters: 1, queues: 1},
@@ -67,6 +69,8 @@ func TestCreateReadiness(t *testing.T) {
 		{name: "dry-run no writes", flags: []string{"--dry-run", "--template", "go", "--remember-org", "--create-webhook"}, clusters: 1, queues: 1},
 		{name: "remember only repository", flags: []string{"--remember-org", "--template", "empty"}, savedOrg: "original", clusters: 1, queues: 1},
 		{name: "remember same repository", flags: []string{"--remember-org", "--template", "empty"}, savedOrg: "target", clusters: 1, queues: 1},
+		{name: "failed create preserves repository preferences", file: "steps: []\n", flags: []string{"--remember-org"}, savedOrg: "original", clusters: 1, queues: 1, createStatus: 500, wantMutations: 1, wantErr: "create rejected"},
+		{name: "remember after create despite webhook failure", file: "steps: []\n", flags: []string{"--remember-org", "--create-webhook"}, savedOrg: "original", clusters: 1, queues: 1, webhookFails: true, wantMutations: 2, wantErr: "pipeline created at https://buildkite.com/target/fixture but webhook creation failed"},
 		{name: "named compatibility", flags: []string{"Named"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -98,6 +102,7 @@ func TestCreateReadiness(t *testing.T) {
 			if tc.savedOrg != "" {
 				os.WriteFile(filepath.Join(root, ".bk.yaml"), []byte("selected_org: "+tc.savedOrg+"\npipelines: [deploy]\noutput_format: yaml\nno_pager: true\n"), 0o600)
 			}
+			localBefore, _ := os.ReadFile(filepath.Join(root, ".bk.yaml"))
 			existing := filepath.Join(root, "buildkite.yml")
 			if tc.file != "" {
 				os.WriteFile(existing, []byte(tc.file), 0o600)
@@ -108,10 +113,23 @@ func TestCreateReadiness(t *testing.T) {
 				w.Header().Set("Content-Type", "application/json")
 				if r.Method != http.MethodGet {
 					mutations++
+					if tc.webhookFails && r.URL.Path == "/graphql" {
+						io.WriteString(w, `{"errors":[{"message":"webhook rejected"}]}`)
+						return
+					}
 					if r.Method != http.MethodPost || r.URL.Path != "/v2/organizations/target/pipelines" {
 						t.Errorf("unexpected mutation %s %s", r.Method, r.URL.Path)
 					}
+					local, _ := os.ReadFile(filepath.Join(root, ".bk.yaml"))
+					if !bytes.Equal(localBefore, local) {
+						t.Error("repository preferences changed before pipeline creation succeeded")
+					}
 					json.NewDecoder(r.Body).Decode(&created)
+					if tc.createStatus != 0 {
+						w.WriteHeader(tc.createStatus)
+						io.WriteString(w, `{"message":"create rejected"}`)
+						return
+					}
 					json.NewEncoder(w).Encode(buildkite.Pipeline{Name: created.Name, WebURL: "https://buildkite.com/target/fixture", Configuration: created.Configuration})
 					return
 				}
@@ -158,6 +176,7 @@ func TestCreateReadiness(t *testing.T) {
 			}))
 			defer server.Close()
 			t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+			t.Setenv("BUILDKITE_GRAPHQL_ENDPOINT", server.URL+"/graphql")
 			var app struct {
 				Create CreateCmd `cmd:""`
 			}
@@ -176,7 +195,7 @@ func TestCreateReadiness(t *testing.T) {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("error = %v, want %q", err, tc.wantErr)
 				}
-				if mutations != 0 || stdout.Len() != 0 {
+				if mutations != tc.wantMutations || stdout.Len() != 0 {
 					t.Fatalf("failure created remote state or stdout: writes=%d, stdout=%s", mutations, stdout.String())
 				}
 			} else {
@@ -230,7 +249,7 @@ func TestCreateReadiness(t *testing.T) {
 				t.Fatal("global configuration changed")
 			}
 			local, err := os.ReadFile(filepath.Join(root, ".bk.yaml"))
-			if app.Create.RememberOrg && !app.Create.DryRun && tc.wantErr == "" {
+			if app.Create.RememberOrg && !app.Create.DryRun && created.Name != "" && tc.createStatus == 0 {
 				if err != nil || !bytes.Contains(local, []byte("selected_org: target")) {
 					t.Fatalf("repository preference not saved: %s (%v)", local, err)
 				}
@@ -247,6 +266,10 @@ func TestCreateReadiness(t *testing.T) {
 					if saved.ConfiguredOutputFormat() != "yaml" || !saved.PagerDisabled() {
 						t.Fatal("remembering an organization changed unrelated local settings")
 					}
+				}
+			} else if tc.savedOrg != "" {
+				if err != nil || !bytes.Equal(localBefore, local) {
+					t.Fatal("failed create changed repository organization or cached pipelines")
 				}
 			} else if !os.IsNotExist(err) {
 				t.Fatal("repository preference saved without opt-in or during dry-run")
