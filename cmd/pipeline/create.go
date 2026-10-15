@@ -29,7 +29,7 @@ type CreateCmd struct {
 	ClusterShorthand string            `short:"c" hidden:"" name:"c" help:""`
 	CreateWebhook    bool              `help:"Create an SCM webhook for the pipeline (GitHub and GitHub Enterprise only)" short:"W"`
 	DryRun           bool              `help:"Simulate pipeline creation without actually creating it"`
-	Teams            map[string]string `name:"team" help:"Team assignment as SLUG=ACCESS_LEVEL (repeatable); access: read_only, build_and_read, manage_build_and_read"`
+	Teams            map[string]string `name:"team" help:"Team assignment as SLUG=ACCESS_LEVEL or UUID=ACCESS_LEVEL (repeatable); access: read_only, build_and_read, manage_build_and_read"`
 	output.OutputFlags
 }
 
@@ -59,11 +59,12 @@ actually creating it. This outputs a JSON representation of the pipeline to be c
 Use --cluster-uuid to assign a pipeline to a cluster by UUID, or --cluster-name to
 assign by name (the name will be resolved to the corresponding UUID).
 
-Use --team SLUG=ACCESS_LEVEL for each team assignment. Slugs must match
-exactly in the destination organization and require read_teams API access to resolve.
-Access levels are read_only, build_and_read, and manage_build_and_read. Without
---team, no team assignments are sent or inferred. Non-admin users in organizations
-with Teams enabled must assign a team when creating a pipeline.
+Use --team SLUG=ACCESS_LEVEL or --team UUID=ACCESS_LEVEL for each team
+assignment. Slugs must match exactly in the destination organization and
+require read_teams API access to resolve; UUIDs are passed through without a
+lookup. Access levels are read_only, build_and_read, and manage_build_and_read.
+Without --team, no team assignments are sent or inferred. Non-admin users in
+organizations with Teams enabled must assign a team when creating a pipeline.
 
 Examples:
   # Create a new pipeline
@@ -72,8 +73,11 @@ Examples:
   # Create a new pipeline and view the created pipeline in JSON format
   $ bk pipeline create "My Pipeline" --description "My pipeline description" --repository "git@github.com:org/repo.git" --output json
 
-  # Create a pipeline with team access
+  # Create a pipeline with team access (by slug)
   $ bk pipeline create "My Pipeline" -r "git@github.com:org/repo.git" --team platform-engineering=build_and_read
+
+  # Create a pipeline with team access (by UUID, skips the slug lookup)
+  $ bk pipeline create "My Pipeline" -r "git@github.com:org/repo.git" --team 14e9501c-69fe-4cda-ae07-daea9ca3afd3=build_and_read
 
   # Create a pipeline with a cluster (by UUID)
   $ bk pipeline create "My Pipeline" -d "Description" -r "git@github.com:org/repo.git" --cluster-uuid "cluster-uuid-123"
@@ -158,7 +162,7 @@ func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) (*bu
 	if err != nil {
 		return nil, err
 	}
-	teams, err := resolveTeamSlugs(ctx, f.RestAPIClient, c.orgSlug(f.Config), c.Teams)
+	teams, err := resolveTeamAssignments(ctx, f.RestAPIClient, c.orgSlug(f.Config), c.Teams)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +279,7 @@ func (c *CreateCmd) createPipelineDryRun(ctx context.Context, f *factory.Factory
 	}
 
 	orgSlug := c.orgSlug(f.Config)
-	teams, err := resolveTeamSlugs(ctx, f.RestAPIClient, orgSlug, c.Teams)
+	teams, err := resolveTeamAssignments(ctx, f.RestAPIClient, orgSlug, c.Teams)
 	if err != nil {
 		return nil, err
 	}

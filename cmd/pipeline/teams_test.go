@@ -211,7 +211,7 @@ func TestCreateTeamsRequestAndDryRun(t *testing.T) {
 	}
 }
 
-func TestResolveTeamSlugs(t *testing.T) {
+func TestResolveTeamAssignments(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		slugs      map[string]string
@@ -222,7 +222,6 @@ func TestResolveTeamSlugs(t *testing.T) {
 		{"paginated slugs", map[string]string{"readers": "read_only", "platform-engineering": "manage_build_and_read"}, "Platform Engineering", 200, ""},
 		{"same names with distinct slugs", map[string]string{"readers": "read_only", "platform-engineering": "manage_build_and_read"}, "Readers", 200, ""},
 		{"display name is not a slug", map[string]string{"Readers": "read_only"}, "Platform Engineering", 200, "not found"},
-		{"UUID is not a slug", map[string]string{readerTeam: "read_only"}, "Platform Engineering", 200, "not found"},
 		{"no team read permission", map[string]string{"readers": "read_only"}, "", 403, "could not resolve"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -253,7 +252,7 @@ func TestResolveTeamSlugs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			teams, err := resolveTeamSlugs(context.Background(), client, "destination", tc.slugs)
+			teams, err := resolveTeamAssignments(context.Background(), client, "destination", tc.slugs)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) || teams != nil {
 					t.Fatalf("teams=%v err=%v", teams, err)
@@ -265,8 +264,50 @@ func TestResolveTeamSlugs(t *testing.T) {
 			}
 		})
 	}
-	if teams, err := resolveTeamSlugs(context.Background(), nil, "org", nil); err != nil || teams != nil {
+	if teams, err := resolveTeamAssignments(context.Background(), nil, "org", nil); err != nil || teams != nil {
 		t.Fatalf("empty assignment should not perform a lookup: %v, %v", teams, err)
+	}
+}
+
+func TestResolveTeamAssignmentsUUIDPassthrough(t *testing.T) {
+	// A UUID-shaped key must be sent to the API unchanged, with no slug lookup.
+	// Mixed input resolves slugs via the Teams list and leaves UUIDs alone.
+	for _, tc := range []struct {
+		name      string
+		input     map[string]string
+		wantCalls int
+		want      map[string]string
+	}{
+		{
+			"only UUIDs - no lookup",
+			map[string]string{readerTeam: "read_only", ownerTeam: "build_and_read"},
+			0,
+			map[string]string{readerTeam: "read_only", ownerTeam: "build_and_read"},
+		},
+		{
+			"mixed UUID and slug - lookup only for the slug",
+			map[string]string{readerTeam: "read_only", "platform-engineering": "manage_build_and_read"},
+			1,
+			map[string]string{readerTeam: "read_only", ownerTeam: "manage_build_and_read"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprintf(w, `[{"id":%q,"name":"Platform Engineering","slug":"platform-engineering"}]`, ownerTeam)
+			}))
+			defer s.Close()
+			client, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
+			if err != nil {
+				t.Fatal(err)
+			}
+			teams, err := resolveTeamAssignments(context.Background(), client, "destination", tc.input)
+			if err != nil || !maps.Equal(teams, tc.want) || calls != tc.wantCalls {
+				t.Fatalf("teams=%v calls=%d err=%v", teams, calls, err)
+			}
+		})
 	}
 }
 

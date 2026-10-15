@@ -25,7 +25,7 @@ type CopyCmd struct {
 	ClusterName      string            `help:"Cluster name for the new pipeline (resolved to UUID)" name:"cluster-name"`
 	ClusterShorthand string            `short:"c" hidden:"" name:"c" help:""`
 	DryRun           bool              `help:"Show what would be copied without creating the pipeline"`
-	Teams            map[string]string `name:"team" help:"Assign a destination team as SLUG=ACCESS_LEVEL (repeatable); access: read_only, build_and_read, manage_build_and_read"`
+	Teams            map[string]string `name:"team" help:"Assign a destination team as SLUG=ACCESS_LEVEL or UUID=ACCESS_LEVEL (repeatable); access: read_only, build_and_read, manage_build_and_read"`
 	output.OutputFlags
 }
 
@@ -66,15 +66,16 @@ This command copies configuration from a source pipeline including:
 - Tags and visibility
 
 Team assignments are not copied automatically. Use --team SLUG=ACCESS_LEVEL
-to assign destination teams explicitly; repeat the flag for multiple teams.
-Slugs must match exactly in the destination organization and require read_teams
-API access to resolve. Access levels are read_only, build_and_read, and
+or --team UUID=ACCESS_LEVEL to assign destination teams explicitly; repeat the
+flag for multiple teams. Slugs must match exactly in the destination
+organization and require read_teams API access to resolve; UUIDs are passed
+through without a lookup. Access levels are read_only, build_and_read, and
 manage_build_and_read. Without --team, no team assignments are sent, even when
 the source has teams. Non-admin users in Teams-enabled organizations may receive
 a 422 from the API if they do not assign a team.
 
 When copying to a different organization, the cluster is not copied because it
-is organization-specific. Use --team with destination team slugs.
+is organization-specific. Use --team with destination team slugs or UUIDs.
 
 Examples:
   # Copy the current pipeline to a new pipeline
@@ -83,8 +84,11 @@ Examples:
   # Copy a specific pipeline
   $ bk pipeline cp my-existing-pipeline --target "my-new-pipeline"
 
-  # Copy with explicit team access
+  # Copy with explicit team access by slug
   $ bk pipeline cp my-pipeline --target "my-copy" --team platform-engineering=build_and_read
+
+  # Copy with explicit team access by UUID (skips the slug lookup)
+  $ bk pipeline cp my-pipeline --target "my-copy" --team 14e9501c-69fe-4cda-ae07-daea9ca3afd3=build_and_read
 
   # Copy a pipeline from another org (if you have access)
   $ bk pipeline cp other-org/their-pipeline --target "my-copy"
