@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -160,6 +161,22 @@ func TestWatchStatus(t *testing.T) {
 				t.Errorf("watchStatus() = %+v, want %+v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestWatchStoppedStatus(t *testing.T) {
+	expired, cancel := context.WithTimeout(context.Background(), 0)
+	defer cancel()
+	<-expired.Done()
+
+	// WatchBuild wraps the last poll error, which may itself be a request timeout.
+	pollTimeout := fmt.Errorf("fetching build status (10 consecutive errors): %w", context.DeadlineExceeded)
+
+	if got := watchStoppedStatus(context.Background(), pollTimeout); got.State != ansi.ProgramStateError || got.Message != pollTimeout.Error() {
+		t.Errorf("poll timeouts with a live watch = %+v, want error with message", got)
+	}
+	if got := watchStoppedStatus(expired, context.DeadlineExceeded); got.State != ansi.ProgramStateIdle {
+		t.Errorf("watch --timeout = %+v, want idle", got)
 	}
 }
 

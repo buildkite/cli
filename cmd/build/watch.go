@@ -114,11 +114,12 @@ func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	)
 
 	bld, err := buildRes.Resolve(ctx)
-	if err != nil {
-		return err
+	if err == nil && bld == nil {
+		err = fmt.Errorf("no running builds found")
 	}
-	if bld == nil {
-		return fmt.Errorf("no running builds found")
+	if err != nil {
+		programstatus.Report(watchStoppedStatus(ctx, err))
+		return err
 	}
 
 	fmt.Printf("Watching build %d on %s/%s\n", bld.BuildNumber, bld.Organization, bld.Pipeline)
@@ -137,18 +138,25 @@ func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		}
 		return nil
 	})
-	switch {
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		// Stopping the watch does not stop the build, so bk is idle, not failed.
-		programstatus.Report(ansi.ProgramStatus{State: ansi.ProgramStateIdle})
-	case err != nil:
-		programstatus.Report(ansi.ProgramStatus{State: ansi.ProgramStateError, Message: err.Error()})
+	if err != nil {
+		programstatus.Report(watchStoppedStatus(ctx, err))
 	}
 	if errors.Is(err, context.Canceled) {
 		return nil
 	}
 
 	return err
+}
+
+// watchStoppedStatus describes a watch that ended with err before the build
+// finished. If ctx is done the user stopped the watch, which does not stop the
+// build, so bk is idle. Check ctx rather than err: repeated poll request
+// timeouts also wrap context.DeadlineExceeded but mean the watch failed.
+func watchStoppedStatus(ctx context.Context, err error) ansi.ProgramStatus {
+	if ctx.Err() != nil {
+		return ansi.ProgramStatus{State: ansi.ProgramStateIdle}
+	}
+	return ansi.ProgramStatus{State: ansi.ProgramStateError, Message: err.Error()}
 }
 
 // watchStatus describes a watched build for the terminal: working with job
@@ -175,7 +183,7 @@ func watchStatus(pipeline string, b buildkite.Build) ansi.ProgramStatus {
 		}
 		total++
 		switch j.State {
-		case "passed", "failed", "timed_out", "canceled", "expired", "skipped", "broken":
+		case "passed", "failed", "timed_out", "canceled", "expired", "skipped":
 			finished++
 		}
 	}
