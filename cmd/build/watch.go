@@ -10,14 +10,17 @@ import (
 	"github.com/alecthomas/kong"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
 	"github.com/buildkite/cli/v3/internal/build/resolver/options"
+	buildstate "github.com/buildkite/cli/v3/internal/build/state"
 	"github.com/buildkite/cli/v3/internal/build/view/shared"
 	"github.com/buildkite/cli/v3/internal/build/watch"
 	"github.com/buildkite/cli/v3/internal/cli"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
+	"github.com/buildkite/cli/v3/internal/programstatus"
 	"github.com/buildkite/cli/v3/internal/validation"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	pkgValidation "github.com/buildkite/cli/v3/pkg/cmd/validation"
 	buildkite "github.com/buildkite/go-buildkite/v5"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-isatty"
 )
 
@@ -111,11 +114,12 @@ func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	)
 
 	bld, err := buildRes.Resolve(ctx)
-	if err != nil {
-		return err
+	if err == nil && bld == nil {
+		err = fmt.Errorf("no running builds found")
 	}
-	if bld == nil {
-		return fmt.Errorf("no running builds found")
+	if err != nil {
+		programstatus.Report(watchStoppedStatus(ctx, err))
+		return err
 	}
 
 	fmt.Printf("Watching build %d on %s/%s\n", bld.BuildNumber, bld.Organization, bld.Pipeline)
@@ -124,6 +128,7 @@ func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	_, err = watch.WatchBuild(ctx, f.RestAPIClient, bld.Organization, bld.Pipeline, bld.BuildNumber, interval, func(b buildkite.Build) error {
 		b.Jobs = watchJobs(b.Jobs)
+		programstatus.Report(watchStatus(bld.Pipeline, b))
 		summary := shared.BuildSummaryWithJobs(&b, bld.Organization, bld.Pipeline)
 		if tty {
 			fmt.Print("\033[H\033[2J")
@@ -133,11 +138,60 @@ func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		}
 		return nil
 	})
+	if err != nil {
+		programstatus.Report(watchStoppedStatus(ctx, err))
+	}
 	if errors.Is(err, context.Canceled) {
 		return nil
 	}
 
 	return err
+}
+
+// watchStoppedStatus describes a watch that ended with err before the build
+// finished. If ctx is done the user stopped the watch, which does not stop the
+// build, so bk is idle. Check ctx rather than err: repeated poll request
+// timeouts also wrap context.DeadlineExceeded but mean the watch failed.
+func watchStoppedStatus(ctx context.Context, err error) ansi.ProgramStatus {
+	if ctx.Err() != nil {
+		return ansi.ProgramStatus{State: ansi.ProgramStateIdle}
+	}
+	return ansi.ProgramStatus{State: ansi.ProgramStateError, Message: err.Error()}
+}
+
+// watchStatus describes a watched build for the terminal: working with job
+// progress until the build finishes, then done, or error if it failed or was
+// canceled.
+func watchStatus(pipeline string, b buildkite.Build) ansi.ProgramStatus {
+	s := ansi.ProgramStatus{
+		State:   ansi.ProgramStateWorking,
+		Message: fmt.Sprintf("%s #%d %s", pipeline, b.Number, b.State),
+	}
+
+	if b.FinishedAt != nil || buildstate.IsTerminal(buildstate.State(b.State)) {
+		s.State = ansi.ProgramStateDone
+		if b.State == string(buildstate.Failed) || b.State == string(buildstate.Canceled) {
+			s.State = ansi.ProgramStateError
+		}
+		return s
+	}
+
+	var total, finished int
+	for _, j := range b.Jobs {
+		if j.Type != "script" || j.Retried {
+			continue
+		}
+		total++
+		switch j.State {
+		case "passed", "failed", "timed_out", "canceled", "expired", "skipped":
+			finished++
+		}
+	}
+	if total > 0 {
+		s.Progress = finished * 100 / total
+		s.HasProgress = true
+	}
+	return s
 }
 
 func watchJobs(jobs []buildkite.Job) []buildkite.Job {
