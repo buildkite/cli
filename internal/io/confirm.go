@@ -5,7 +5,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/buildkite/cli/v3/internal/programstatus"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // Confirm prompts the user with a yes/no question.
@@ -36,7 +38,9 @@ func Confirm(f *factory.Factory, prompt string) (bool, error) {
 
 	fmt.Fprintf(os.Stderr, "%s [Y/N]: ", prompt)
 
+	unblock := programstatus.Block(ansi.ProgramStatusKindPermission, prompt)
 	response, err := ReadLine()
+	unblock()
 	if err != nil {
 		return false, err
 	}
