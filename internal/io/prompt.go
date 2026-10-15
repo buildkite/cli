@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
 )
 
@@ -87,7 +88,7 @@ func wrappedLineCount(s string, width int) int {
 		return 1
 	}
 
-	lineWidth := runewidth.StringWidth(s)
+	lineWidth := runewidth.StringWidth(ansi.Strip(s))
 	if lineWidth == 0 {
 		return 1
 	}
@@ -99,6 +100,11 @@ func wrappedLineCount(s string, width int) int {
 // If a default value is provided, it will be shown in brackets and used if the user presses enter.
 // If noInput is true, it will return the default value or an error if no default is provided.
 func PromptForInput(prompt, defaultVal string, noInput bool) (string, error) {
+	return PromptForInputTo(os.Stdout, prompt, defaultVal, noInput)
+}
+
+// PromptForInputTo keeps input prompts separate from structured command output.
+func PromptForInputTo(out io.Writer, prompt, defaultVal string, noInput bool) (string, error) {
 	if noInput {
 		if defaultVal != "" {
 			return defaultVal, nil
@@ -107,9 +113,9 @@ func PromptForInput(prompt, defaultVal string, noInput bool) (string, error) {
 	}
 
 	if defaultVal != "" {
-		fmt.Printf("%s [%s]: ", prompt, defaultVal)
+		fmt.Fprintf(out, "%s [%s]: ", prompt, defaultVal)
 	} else {
-		fmt.Printf("%s: ", prompt)
+		fmt.Fprintf(out, "%s: ", prompt)
 	}
 
 	response, err := ReadLine()

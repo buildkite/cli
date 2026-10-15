@@ -83,8 +83,20 @@ fails authentication.
 From a Git checkout, `bk pipeline create` infers the repository URL and default
 name from `origin` (or uses the checkout directory name if no origin exists).
 An explicit name and `--repository` override those defaults. When used
-interactively without a name or repository argument, it offers a recommended
-local starter and alternatives if no pipeline file exists:
+interactively without a name or repository argument, it first verifies credentials
+and asks you to confirm the destination organization by name and slug. You can
+choose another authenticated organization or log in and resume without changing
+your global default. `--org` sets the initial destination; `--remember-org` is
+an explicit opt-in to save the final choice in this repository's `.bk.yaml`.
+
+It then selects a cluster and queue, automatically only when there is a single
+choice. Use `--cluster-uuid` / `--cluster-name` and `--queue` to choose explicitly.
+A paused queue stops setup before starter files are written. Agent observations
+are advisory: busy agents may run work later, autoscaling capacity may not yet be
+connected, and connected agents do not prove the required runtimes are installed.
+The bootstrap upload and newly generated steps target the chosen queue; existing
+pipeline files and their routing remain unchanged. If no file exists, guided
+creation offers a recommended local starter and alternatives.
 
 Guided creation defaults to `Pipeline created: <URL>` on stdout, while file
 status and starter prompts go to stderr. Format flags and explicitly configured
@@ -94,14 +106,29 @@ unchanged.
 ```sh
 bk pipeline create
 bk pipeline create "My Pipeline" --repository git@github.com:org/repo.git
-bk pipeline create --no-input --template go
+bk pipeline create --org acme --no-input --template go --cluster-name default --queue linux
 bk pipeline create --dry-run --json
 ```
 
 Named invocations, redirected input and `--no-input` do not add prompts or local
-files unless `--template` is supplied. Dry-run resolves the same name and URL
-but never writes local files or creates a pipeline/webhook; it still performs
-API reads and requires the existing authentication configuration.
+files unless `--template` is supplied. Bare noninteractive creation requires valid
+target credentials, unambiguous or explicit routing, and an existing pipeline
+file or `--template`; missing prerequisites produce actionable errors. Named and
+explicit-repository invocations retain their existing behavior unless you opt in
+to routing with `--queue` or saving the organization with `--remember-org`.
+
+Creation validates the local pipeline using the same schema as `bk pipeline
+validate`; when the online schema is unavailable, it reports the limited basic
+fallback. Neither validator verifies runtime availability. Guided creation offers
+optional GitHub webhook setup, defaulting to Skip; `--create-webhook` remains an
+explicit opt-in. A webhook failure reports the already-created pipeline URL so
+you do not recreate it.
+
+Dry-run remains structured and prompt-free. It resolves the same inputs using
+API reads but never logs in, refreshes credentials, saves preferences, writes
+starters, creates pipelines or sets up webhooks. It needs valid existing target
+credentials and unambiguous or explicit routing; a missing local file cannot be
+validated.
 
 `bk init` uses the same starter selection without creating a remote pipeline.
 Without interactive input it uses the project recommendation; `--template`
@@ -122,6 +149,8 @@ empty starter contains `steps: []` and needs editing.
 
 Review generated files, then **commit and push them before building**. Remote
 builds cannot see local starters; creating a pipeline does not publish them.
+Creation reports local uncommitted or unconfirmed upstream pipeline files where
+possible, but does not fetch, commit or push your repository. No build is started.
 
 ### Inspect flaky test failures
 

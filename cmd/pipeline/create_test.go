@@ -156,6 +156,7 @@ func TestExtractRepoPath(t *testing.T) {
 }
 
 func TestCreateResolvedInputsAndDryRunSafety(t *testing.T) {
+	useOfflinePipelineSchema(t)
 	for _, tc := range []struct {
 		name, origin, explicitName, explicitRepo, wantName, wantRepo string
 	}{
@@ -189,6 +190,20 @@ func TestCreateResolvedInputsAndDryRunSafety(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				if r.Method == http.MethodGet {
+					switch r.URL.Path {
+					case "/v2/organizations/test-org":
+						w.Write([]byte(`{"name":"Test Org","slug":"test-org"}`))
+						return
+					case "/v2/organizations/test-org/clusters":
+						w.Write([]byte(`[{"id":"cluster-1","name":"Test cluster"}]`))
+						return
+					case "/v2/organizations/test-org/clusters/cluster-1/queues":
+						w.Write([]byte(`[{"id":"queue-1","key":"test"}]`))
+						return
+					case "/v2/organizations/test-org/agents":
+						w.Write([]byte(`[]`))
+						return
+					}
 					if strings.Contains(r.URL.Path, "/pipelines/") {
 						w.WriteHeader(http.StatusNotFound)
 						fmtBody := `{"message":"not found"}`
@@ -235,7 +250,7 @@ func TestCreateResolvedInputsAndDryRunSafety(t *testing.T) {
 				if err := cmd.Create.Run(ctx, cli.Globals{NoInput: true, Quiet: true}); err != nil {
 					t.Fatal(err)
 				}
-				if !dry && stderr.String() != "Pipeline file found at buildkite.yml; leaving it unchanged.\n" {
+				if !dry && !strings.Contains(stderr.String(), "Pipeline file found at buildkite.yml; leaving it unchanged.\n") {
 					t.Fatalf("unexpected file status on stderr: %q", stderr.String())
 				}
 				var result buildkite.Pipeline

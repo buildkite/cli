@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -32,6 +33,8 @@ type CreateCmd struct {
 	Template         string `help:"Create a local starter: go, node, pipenv, ruby or empty (never overwrites existing files)" enum:",go,node,pipenv,ruby,empty" default:""`
 	ClusterUUID      string `help:"Cluster UUID to assign the pipeline to" name:"cluster-uuid"`
 	ClusterName      string `help:"Cluster name to assign the pipeline to (resolved to UUID)" name:"cluster-name"`
+	Queue            string `help:"Queue key for bootstrap upload and newly generated steps"`
+	RememberOrg      bool   `help:"Remember the verified destination in this repository (never changes the global default)"`
 	ClusterShorthand string `short:"c" hidden:"" name:"c" help:""`
 	CreateWebhook    bool   `help:"Create an SCM webhook for the pipeline (GitHub and GitHub Enterprise only)" short:"W"`
 	DryRun           bool   `help:"Simulate pipeline creation without actually creating it"`
@@ -59,20 +62,29 @@ func (c *CreateCmd) Help() string {
 	return `Creates a new pipeline in the current org and outputs the URL to the pipeline.
 
 The repository URL and default name are inferred from Git origin. Without a name,
-interactive use offers a project-aware local starter if no pipeline file exists.
+interactive use verifies credentials and confirms the destination organization
+before selecting a cluster/queue or writing a project-aware starter. Login and
+organization switches do not change the global default; --remember-org explicitly
+saves the final choice in this repository. Explicit --org is never silently replaced.
 Named invocations and --no-input never add prompts or local files unless --template
 is supplied. Local files must be reviewed, committed and pushed before building.
+Bare noninteractive creation requires valid target credentials, unambiguous or
+explicit routing and an existing pipeline file or --template.
 
 Guided creation defaults to concise text on stdout, with file status and starter
 prompts on stderr. Explicit format flags and configured preferences take priority;
 named and scripted invocations retain their output defaults.
 
 You can specify a --dry-run flag to see the pipeline that would be created without
-actually creating it or writing local files. This outputs a JSON representation
-of the pipeline to be created by default.
+creating it, writing local files, logging in, refreshing credentials or saving
+preferences/webhooks. It performs API reads and outputs JSON by default.
 
 Use --cluster-uuid to assign a pipeline to a cluster by UUID, or --cluster-name to
-assign by name (the name will be resolved to the corresponding UUID).
+assign by name (the name will be resolved to the corresponding UUID). --queue
+routes bootstrap upload and newly generated steps; existing files stay unchanged.
+Paused queues stop guided setup. Agent observations do not verify step runtimes.
+Pipeline validation uses the online schema, with a limited fallback when offline.
+GitHub webhook setup is optional and no build is started.
 
 Examples:
   # Create a new pipeline
@@ -96,33 +108,87 @@ Examples:
 }
 
 func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	f, err := factory.New(factory.WithDebug(globals.EnableDebug()), factory.WithOrgOverride(c.Org))
+	f, err := c.newFactory(globals)
 	if err != nil {
 		return err
 	}
 
-	f.SkipConfirm = globals.SkipConfirmation()
-	f.NoInput = f.NoInput || globals.DisableInput()
-	f.Quiet = f.Quiet || globals.IsQuiet()
-
-	if err := validation.ValidateConfigurationForOrg(f.Config, kongCtx.Command(), c.Org); err != nil {
+	// Keep named/scripted invocations on their existing path unless new routing
+	// or repository preference flags explicitly request readiness resolution.
+	onboarding := c.Name == "" && c.Repository == ""
+	guided := onboarding && !f.NoInput && !f.Quiet && !bkIO.HasDataAvailable(os.Stdin)
+	guide := output.NewGuidance(kongCtx.Stderr, guided && !c.DryRun)
+	readiness := onboarding || c.Queue != "" || c.RememberOrg
+	ctx := context.Background()
+	if readiness {
+		f, err = c.confirmDestination(ctx, f, globals, guided, kongCtx.Stderr)
+		if err != nil {
+			return err
+		}
+		if err := c.resolveQueue(ctx, f, guided && !c.DryRun, kongCtx.Stderr); err != nil {
+			return err
+		}
+	} else if err := validation.ValidateConfigurationForOrg(f.Config, kongCtx.Command(), c.Org); err != nil {
 		return err
 	}
-
-	guided := c.Name == "" && c.Repository == "" && !f.NoInput && !f.Quiet && !bkIO.HasDataAvailable(os.Stdin)
 	root, err := c.resolveInputs(f)
 	if err != nil {
 		return err
 	}
+	if readiness && c.Repository == "" {
+		return fmt.Errorf("no repository URL; configure Git origin or supply --repository <url> before creating the pipeline")
+	}
 	if c.DryRun {
+		if readiness {
+			if err := c.checkLocalPipeline(f, root, kongCtx.Stderr, false); err != nil {
+				return err
+			}
+			fmt.Fprintln(kongCtx.Stderr, "Dry-run: no login, organization preferences, starters or webhooks will be saved; a missing local file cannot be validated.")
+		}
 		return c.runPipelineCreateDryRun(kongCtx, f)
 	}
 	if guided || c.Template != "" {
-		if err := setup.Ensure(root, c.Template, guided, kongCtx.Stderr); err != nil {
+		if guided {
+			fmt.Fprintln(kongCtx.Stderr, guide.Heading("Choose the pipeline file or starter"))
+			fmt.Fprintln(kongCtx.Stderr, "Existing files are preserved. A starter is a local file to review and adapt before building.")
+		}
+		if err := setup.Ensure(root, c.Template, c.Queue, guided, kongCtx.Stderr); err != nil {
 			return err
+		}
+		if guided {
+			fmt.Fprintln(kongCtx.Stderr, guide.Success("Pipeline file selected."))
+		}
+	}
+	if readiness {
+		path, err := setup.Find(root)
+		if err != nil {
+			return err
+		}
+		if path == "" {
+			return fmt.Errorf("no local pipeline file; run bk init --no-input or supply --template before retrying; review, commit and push the file before building")
+		}
+		if err := c.checkLocalPipeline(f, root, kongCtx.Stderr, guided); err != nil {
+			return err
+		}
+		if c.RememberOrg && f.GitRepository == nil {
+			return fmt.Errorf("--remember-org requires a Git repository; no global default was changed")
+		}
+		if guided {
+			if err := c.offerWebhook(kongCtx.Stderr); err != nil {
+				return err
+			}
 		}
 	}
 	return c.runPipelineCreate(kongCtx, f, guided)
+}
+
+func (c *CreateCmd) bootstrapConfiguration() string {
+	configuration := "steps:\n  - label: \":pipeline:\"\n    command: buildkite-agent pipeline upload"
+	if c.Queue != "" {
+		queue, _ := json.Marshal(c.Queue)
+		configuration += fmt.Sprintf("\n    agents:\n      queue: %s", queue)
+	}
+	return configuration
 }
 
 func (c *CreateCmd) resolveInputs(f *factory.Factory) (string, error) {
@@ -174,6 +240,14 @@ func (c *CreateCmd) runPipelineCreate(kongCtx *kong.Context, f *factory.Factory,
 		return err
 	}
 
+	if c.RememberOrg {
+		if err := f.Config.SelectOrganization(c.Org, true); err != nil {
+			return fmt.Errorf("pipeline created at %s but remembering the organization failed (do not recreate the pipeline): %w", pipeline.WebURL, err)
+		}
+		guide := output.NewGuidance(kongCtx.Stderr, guided)
+		fmt.Fprintln(kongCtx.Stderr, guide.Success(fmt.Sprintf("Remembered organization %s in repository-local .bk.yaml; review that local change. Global selection is unchanged.", c.Org)))
+	}
+
 	if c.CreateWebhook {
 		repoURL := getRepositoryURL(f, c.Repository)
 		if repoURL == "" {
@@ -182,7 +256,7 @@ func (c *CreateCmd) runPipelineCreate(kongCtx *kong.Context, f *factory.Factory,
 			fmt.Fprintln(kongCtx.Stderr, "Warning: webhook creation is only supported for GitHub repositories, skipping")
 		} else {
 			if err := createWebhook(ctx, f, pipeline.GraphQLID); err != nil {
-				return fmt.Errorf("pipeline created but webhook creation failed: %w", err)
+				return fmt.Errorf("pipeline created at %s but webhook creation failed (do not recreate the pipeline): %w", pipeline.WebURL, err)
 			}
 		}
 	}
@@ -211,7 +285,7 @@ func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) (*bu
 			Repository:    repoURL,
 			Description:   c.Description,
 			ClusterID:     clusterID,
-			Configuration: "steps:\n  - label: \":pipeline:\"\n    command: buildkite-agent pipeline upload",
+			Configuration: c.bootstrapConfiguration(),
 		}
 
 		pipeline, resp, err = f.RestAPIClient.Pipelines.Create(ctx, c.orgSlug(f.Config), createPipeline)
@@ -331,13 +405,16 @@ func (c *CreateCmd) createPipelineDryRun(ctx context.Context, f *factory.Factory
 	pipeline.BadgeURL = fmt.Sprintf("https://badge.buildkite.com/%s.svg", "00000000000000000000000000000000000000000000000000")
 	pipeline.CreatedAt = buildkite.NewTimestamp(time.Now())
 	pipeline.Visibility = "private"
-	pipeline.Configuration = "steps:\n  - label: \":pipeline:\"\n    command: buildkite-agent pipeline upload"
+	pipeline.Configuration = c.bootstrapConfiguration()
 	pipeline.Steps = []buildkite.Step{
 		{
 			Type:    ":pipeline:",
 			Name:    ":pipeline:",
 			Command: "buildkite-agent pipeline upload",
 		},
+	}
+	if c.Queue != "" {
+		pipeline.Steps[0].AgentQueryRules = []string{"queue=" + c.Queue}
 	}
 	pipeline.Provider = buildkite.Provider{
 		ID:         "github",

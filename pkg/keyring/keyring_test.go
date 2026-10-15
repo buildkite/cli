@@ -732,3 +732,31 @@ func TestAutoCredentialStoreUsesExistingSHMWhenDisabledByEnv(t *testing.T) {
 		t.Fatalf("forced shm GetRefreshToken() after auto DeleteRefreshToken() error = %v, want ErrNotFound", err)
 	}
 }
+
+func TestCredentialReadsDoNotWrite(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "missing", "credentials.json")
+	t.Setenv(CredentialStorePathEnv, path)
+	kr, err := NewWithCredentialStore(StoreSHM)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := kr.Get("target"); !errors.Is(err, oskeyring.ErrNotFound) {
+		t.Fatalf("missing credential: %v", err)
+	}
+	if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
+		t.Fatal("reading missing credentials created the directory")
+	}
+	if err := kr.Set("target", "fixture-token"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := kr.Get("target"); err == nil {
+		t.Fatal("insecure credentials should require explicit permission repair")
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.Mode().Perm() != 0o644 {
+		t.Fatal("credential read changed file permissions")
+	}
+}

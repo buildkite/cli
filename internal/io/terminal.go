@@ -23,7 +23,7 @@ func terminalWidth(f *os.File) int {
 }
 
 func clearPreviousLines(f *os.File, lines int) {
-	if lines <= 0 || !isTerminal(f) {
+	if lines <= 0 || !isTerminal(f) || os.Getenv("TERM") == "dumb" {
 		return
 	}
 

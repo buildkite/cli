@@ -323,10 +323,7 @@ func (k *Keyring) canUseSHMForRead() bool {
 	case StoreSHM:
 		return true
 	case StoreAuto:
-		if credentialStorageDisabledByEnv() {
-			return shmCredentialFileExists()
-		}
-		return shmStoreAvailable()
+		return shmCredentialFileExists()
 	default:
 		return false
 	}
@@ -509,11 +506,8 @@ func shmStoreAvailable() bool {
 
 func shmCredentialFileExists() bool {
 	path := shmCredentialPath()
-	info, err := os.Lstat(path)
-	if err != nil {
-		return false
-	}
-	return validateSHMFile(path, info) == nil
+	_, err := readSHMCredentialsFile(path)
+	return err == nil
 }
 
 type shmCredentialBackend struct{}
@@ -534,7 +528,10 @@ func (shmCredentialBackend) Set(service, org, token string) error {
 }
 
 func (shmCredentialBackend) Get(service, org string) (string, error) {
-	creds, err := loadSHMCredentials()
+	creds, err := readSHMCredentialsFile(shmCredentialPath())
+	if errors.Is(err, os.ErrNotExist) {
+		return "", oskeyring.ErrNotFound
+	}
 	if err != nil {
 		return "", err
 	}
@@ -564,13 +561,6 @@ func (shmCredentialBackend) Delete(service, org string) error {
 
 func (shmCredentialBackend) Preferred(service, org string) (bool, error) {
 	path := shmCredentialPath()
-	info, err := os.Lstat(path)
-	if err != nil {
-		return false, err
-	}
-	if err := validateSHMFile(path, info); err != nil {
-		return false, err
-	}
 	creds, err := readSHMCredentialsFile(path)
 	if err != nil {
 		return false, err
@@ -635,6 +625,26 @@ func loadSHMCredentials() (shmCredentials, error) {
 }
 
 func readSHMCredentialsFile(path string) (shmCredentials, error) {
+	// Reads must not create directories or repair permissions. Writable paths
+	// use ensureSHMStoreDir/validateSHMFile before saving instead.
+	for _, entry := range []string{filepath.Dir(path), path} {
+		info, err := os.Lstat(entry)
+		if err != nil {
+			return shmCredentials{}, err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return shmCredentials{}, fmt.Errorf("credential store path %s cannot be a symlink", entry)
+		}
+		if err := validateCurrentUserOwner(entry, info); err != nil {
+			return shmCredentials{}, err
+		}
+		if info.Mode().Perm()&0o077 != 0 {
+			return shmCredentials{}, fmt.Errorf("credential store path %s must not be accessible by group or others; repair permissions before reading", entry)
+		}
+		if entry == path && !info.Mode().IsRegular() {
+			return shmCredentials{}, fmt.Errorf("credential store file %s is not a regular file", path)
+		}
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return shmCredentials{}, err

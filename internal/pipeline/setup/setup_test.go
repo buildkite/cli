@@ -27,7 +27,7 @@ func TestEnsurePreservesUploadLocations(t *testing.T) {
 			os.WriteFile(file, []byte("existing pipeline"), 0o600)
 			// Interactive=true must not prompt when a pipeline already exists.
 			var status bytes.Buffer
-			if err := setup.Ensure(root, "", true, &status); err != nil {
+			if err := setup.Ensure(root, "", "new-queue", true, &status); err != nil {
 				t.Fatal(err)
 			}
 			if want := "Pipeline file found at " + path + "; leaving it unchanged.\n"; status.String() != want {
@@ -81,7 +81,7 @@ func TestProjectStarters(t *testing.T) {
 			if got := setup.Recommended(root); got != tc.want {
 				t.Fatalf("recommendation = %s, want %s", got, tc.want)
 			}
-			if err := setup.Ensure(root, "", false, io.Discard); err != nil {
+			if err := setup.Ensure(root, "", "", false, io.Discard); err != nil {
 				t.Fatal(err)
 			}
 			data, err := os.ReadFile(filepath.Join(root, ".buildkite", "pipeline.yaml"))
