@@ -46,7 +46,7 @@ func TestListHitsBuildEndpoint(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	got, err := List(context.Background(), newTestClient(t, server.URL), "acme", "monolith", "429", "", "", "")
+	got, err := List(context.Background(), newTestClient(t, server.URL), "acme", "monolith", "429", "", nil, "")
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
@@ -68,7 +68,7 @@ func TestListHitsJobEndpoint(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	if _, err := List(context.Background(), newTestClient(t, server.URL), "acme", "monolith", "429", jobUUID, "", ""); err != nil {
+	if _, err := List(context.Background(), newTestClient(t, server.URL), "acme", "monolith", "429", jobUUID, nil, ""); err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
 }
@@ -91,7 +91,7 @@ func TestListPassesFilters(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	if _, err := List(context.Background(), newTestClient(t, server.URL), "acme", "monolith", "429", "", "coverage/**", "finished"); err != nil {
+	if _, err := List(context.Background(), newTestClient(t, server.URL), "acme", "monolith", "429", "", []string{"coverage/**"}, "finished"); err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
 }
@@ -107,7 +107,7 @@ func TestListLowercasesState(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	if _, err := List(context.Background(), newTestClient(t, server.URL), "acme", "monolith", "429", "", "", "Finished"); err != nil {
+	if _, err := List(context.Background(), newTestClient(t, server.URL), "acme", "monolith", "429", "", nil, "Finished"); err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
 }
@@ -132,7 +132,7 @@ func TestListPassesFiltersOnJobEndpoint(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	if _, err := List(context.Background(), newTestClient(t, server.URL), "acme", "monolith", "429", jobUUID, "log/rspec*.json", "finished"); err != nil {
+	if _, err := List(context.Background(), newTestClient(t, server.URL), "acme", "monolith", "429", jobUUID, []string{"log/rspec*.json"}, "finished"); err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
 }
@@ -160,7 +160,7 @@ func TestListPaginates(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	got, err := List(context.Background(), newTestClient(t, server.URL), "acme", "monolith", "429", "", "", "")
+	got, err := List(context.Background(), newTestClient(t, server.URL), "acme", "monolith", "429", "", nil, "")
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
@@ -255,7 +255,7 @@ func TestListRejectsInvalidStateWithoutHittingNetwork(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	_, err := List(context.Background(), newTestClient(t, server.URL), "acme", "monolith", "429", "", "", "finshed")
+	_, err := List(context.Background(), newTestClient(t, server.URL), "acme", "monolith", "429", "", nil, "finshed")
 	if err == nil {
 		t.Fatal("List() with invalid state = nil, want validation error")
 	}
@@ -272,7 +272,77 @@ func TestListPropagatesError(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	if _, err := List(context.Background(), newTestClient(t, server.URL), "acme", "monolith", "429", "", "", ""); err == nil {
+	if _, err := List(context.Background(), newTestClient(t, server.URL), "acme", "monolith", "429", "", nil, ""); err == nil {
 		t.Fatal("List() expected error, got nil")
+	}
+}
+
+func TestListMultiplePathsDiscardsPartialResultsOnError(t *testing.T) {
+	t.Parallel()
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") == "2" {
+			http.Error(w, `{"message":"boom"}`, http.StatusInternalServerError)
+			return
+		}
+		next := ""
+		if r.URL.Query().Get("path") == "second/*" {
+			next = server.URL + r.URL.Path + "?page=2"
+		}
+		writeArtifactsPage(t, w, []buildkite.Artifact{{ID: r.URL.Query().Get("path")}}, next)
+	}))
+	t.Cleanup(server.Close)
+	got, err := List(context.Background(), newTestClient(t, server.URL), "acme", "monolith", "429", "", []string{"first/*", "second/*"}, "")
+	if err == nil || got != nil {
+		t.Fatalf("List() = %v, %v; want nil results and an error", got, err)
+	}
+}
+
+func TestListMultiplePaths(t *testing.T) {
+	t.Parallel()
+	for _, job := range []string{"", "job-1"} {
+		t.Run("job="+job, func(t *testing.T) {
+			t.Parallel()
+			var server *httptest.Server
+			calls := 0
+			server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				endpoint := "/v2/organizations/acme/pipelines/monolith/builds/429"
+				if job != "" {
+					endpoint += "/jobs/" + job
+				}
+				if r.URL.Path != endpoint+"/artifacts" || r.URL.Query().Get("state") != "finished" {
+					t.Errorf("unexpected request: %s", r.URL)
+				}
+				q := r.URL.Query()
+				switch q.Get("path") + ":" + q.Get("page") {
+				case "log/*.json:":
+					writeArtifactsPage(t, w, []buildkite.Artifact{{ID: "a1", Path: "log/shared.json"}}, server.URL+r.URL.Path+"?page=2")
+				case "log/*.json:2":
+					writeArtifactsPage(t, w, []buildkite.Artifact{{ID: "a2", Path: "log/second.json"}}, "")
+				case "log/*:":
+					// Distinct IDs with the same path must not be collapsed.
+					writeArtifactsPage(t, w, []buildkite.Artifact{{ID: "a1", Path: "log/shared.json"}, {ID: "a3", Path: "log/shared.json"}}, server.URL+r.URL.Path+"?page=2")
+				case "log/*:2":
+					writeArtifactsPage(t, w, []buildkite.Artifact{{ID: "a4", Path: "log/minitest.log"}}, "")
+				default:
+					t.Errorf("unexpected query: %s", r.URL.RawQuery)
+					writeArtifactsPage(t, w, nil, "")
+				}
+			}))
+			t.Cleanup(server.Close)
+			got, err := List(context.Background(), newTestClient(t, server.URL), "acme", "monolith", "429", job, []string{"log/*.json", "log/*"}, "Finished")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != 4 || calls != 4 {
+				t.Fatalf("got %v in %d calls, want 4 artifacts in 4 calls", got, calls)
+			}
+			for i, id := range []string{"a1", "a2", "a3", "a4"} {
+				if got[i].ID != id {
+					t.Errorf("artifact %d = %s, want %s", i, got[i].ID, id)
+				}
+			}
+		})
 	}
 }

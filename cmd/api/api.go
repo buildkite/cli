@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -22,8 +24,8 @@ import (
 type ApiCmd struct {
 	Endpoint  string   `arg:"" optional:"" help:"API endpoint to call"`
 	Method    string   `help:"HTTP method to use" short:"X"`
-	Headers   []string `help:"Headers to include in the request" short:"H"`
-	Data      string   `help:"Data to send in the request body" short:"d"`
+	Headers   []string `help:"Headers to include in the request" short:"H" sep:"none"`
+	Data      string   `help:"Data to send in the request body; use - to read from stdin" short:"d"`
 	Analytics bool     `help:"Use the Test Analytics endpoint"`
 	File      string   `help:"File containing GraphQL query" short:"f"`
 	Verbose   bool     `help:"Enable verbose output (currently only provides information about rate limit exceeded retries)"`
@@ -45,6 +47,9 @@ Examples:
     "configuration": "steps:\n - command: env"
   }
   '
+
+  # To create a pipeline with a body from stdin
+  $ cat pipeline.json | bk api /pipelines --data -
 
   # To update a cluster
   $ bk api --method PUT /clusters/CLUSTER_UUID --data '
@@ -86,12 +91,14 @@ func buildFullEndpoint(endpoint, orgSlug string, isAnalytics bool) string {
 	return endpointPrefix + endpoint
 }
 
-func newRESTClient(f *factory.Factory) *httpClient.Client {
+func newRESTClient(f *factory.Factory, opts ...httpClient.ClientOption) *httpClient.Client {
 	return httpClient.NewClient(
 		f.Config.APIToken(),
-		httpClient.WithBaseURL(f.RestAPIClient.BaseURL.String()),
-		httpClient.WithUserAgent(f.RestAPIClient.UserAgent),
-		httpClient.WithHTTPClient(f.HTTPClient),
+		append([]httpClient.ClientOption{
+			httpClient.WithBaseURL(f.RestAPIClient.BaseURL.String()),
+			httpClient.WithUserAgent(f.RestAPIClient.UserAgent),
+			httpClient.WithHTTPClient(f.HTTPClient),
+		}, opts...)...,
 	)
 }
 
@@ -134,23 +141,31 @@ func (c *ApiCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	fullEndpoint := buildFullEndpoint(c.Endpoint, f.Config.OrganizationSlug(), c.Analytics)
 
-	client := newRESTClient(f)
-
-	// Process custom headers
-	customHeaders := make(map[string]string)
+	customHeaders := make(http.Header)
 	for _, header := range c.Headers {
-		parts := strings.SplitN(header, ":", 2)
-		if len(parts) == 2 {
-			customHeaders[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+		key, value, ok := strings.Cut(header, ":")
+		if !ok || strings.TrimSpace(key) == "" {
+			return fmt.Errorf("invalid header %q: expected format \"Key: Value\"", header)
 		}
+		customHeaders.Add(strings.TrimSpace(key), strings.TrimSpace(value))
 	}
+
+	client := newRESTClient(f, httpClient.WithHeaders(customHeaders))
 
 	var requestData any
 	if c.Data != "" {
+		data := c.Data
+		if data == "-" {
+			body, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				return fmt.Errorf("error reading request body from stdin: %w", err)
+			}
+			data = string(body)
+		}
 		// Try to parse as JSON first
-		if err := json.Unmarshal([]byte(c.Data), &requestData); err != nil {
+		if err := json.Unmarshal([]byte(data), &requestData); err != nil {
 			// If not JSON, use raw string
-			requestData = c.Data
+			requestData = data
 		}
 	}
 

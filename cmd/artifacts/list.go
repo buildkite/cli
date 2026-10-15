@@ -20,11 +20,11 @@ import (
 )
 
 type ListCmd struct {
-	BuildNumber string `arg:"" optional:"" help:"Build number to list artifacts for"`
-	Pipeline    string `help:"The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}. If omitted, it will be resolved using the current directory." short:"p"`
-	JobUUID     string `help:"List artifacts for a specific job on the given build." short:"j" name:"job-uuid"`
-	Path        string `help:"Filter artifacts by path. Supports exact matches and glob patterns using * as a wildcard, e.g. --path \"log/rspec*.json\"."`
-	State       string `help:"Filter artifacts by state. Must be one of: new, finished, error, deleted, expired."`
+	BuildNumber string   `arg:"" optional:"" help:"Build number to list artifacts for"`
+	Pipeline    string   `help:"The pipeline to view. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}. If omitted, it will be resolved using the current directory." short:"p"`
+	JobUUID     string   `help:"List artifacts for a specific job on the given build." short:"j" name:"job-uuid"`
+	Path        []string `help:"Filter artifacts by path. Supports exact matches and * wildcards. Repeat to match any of multiple paths." sep:"none"`
+	State       string   `help:"Filter artifacts by state. Must be one of: new, finished, error, deleted, expired."`
 	output.OutputFlags
 }
 
@@ -50,6 +50,9 @@ Examples:
   # Filter artifacts by path or state
   $ bk artifacts list 429 --path "log/rspec*.json"
   $ bk artifacts list 429 --state finished
+
+  # List artifacts matching either path (each artifact is listed once)
+  $ bk artifacts list 429 --path "log/rspec*.json" --path "log/minitest.log"
 `
 }
 

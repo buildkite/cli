@@ -6,11 +6,13 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
+
 	buildkite "github.com/buildkite/go-buildkite/v5"
 )
 
@@ -95,5 +97,27 @@ func TestWatchTimeout(t *testing.T) {
 				t.Fatalf("watch took %s; should not wait for the polling interval or request timeout", elapsed)
 			}
 		})
+	}
+}
+
+func TestWatchFilterBroken(t *testing.T) {
+	got := watchJobs([]buildkite.Job{
+		{State: "passed"},
+		{State: "broken"},
+		{State: "skipped"},
+		{State: "failed"},
+		{State: "waiting_failed"},
+	})
+	want := []buildkite.Job{
+		{State: "passed"},
+		{State: "skipped"},
+		{State: "failed"},
+		{State: "waiting_failed"},
+	}
+
+	if !slices.EqualFunc(got, want, func(a, b buildkite.Job) bool {
+		return a.State == b.State
+	}) {
+		t.Fatalf("got %+v, want %+v", got, want)
 	}
 }

@@ -1,63 +1,30 @@
 package init
 
 import (
-	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/alecthomas/kong"
+	"github.com/buildkite/cli/v3/internal/cli"
+	"github.com/buildkite/cli/v3/internal/config"
+	bkIO "github.com/buildkite/cli/v3/internal/io"
+	"github.com/buildkite/cli/v3/internal/pipeline/setup"
+	git "github.com/go-git/go-git/v5"
 )
 
-const (
-	defaultPipelineYAML = `steps:
-  - label: "Hello, world! 👋"
-    command: echo "Hello, world!"`
-)
-
-type InitCmd struct{}
-
-func (c *InitCmd) Run(kongCtx *kong.Context) error {
-	if found, path := findExistingPipelineFile(""); found {
-		fmt.Printf("✨ File found at %s. You're good to go!\n", path)
-		return nil
-	}
-
-	pipelineFile := filepath.Join(".buildkite", "pipeline.yaml")
-	err := os.MkdirAll(filepath.Dir(pipelineFile), 0o755)
-	if err != nil {
-		return err
-	}
-
-	err = os.WriteFile(pipelineFile, []byte(defaultPipelineYAML), 0o660)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("✨ File created at %s. You're good to go!\n", pipelineFile)
-
-	return nil
+type InitCmd struct {
+	Template string `help:"Starter template: go, node, pipenv, ruby or empty (defaults to project recommendation)" enum:",go,node,pipenv,ruby,empty" default:""`
 }
 
-func findExistingPipelineFile(base string) (bool, string) {
-	// the order in which buildkite-agent checks for files
-	paths := []string{
-		"buildkite.yml",
-		"buildkite.yaml",
-		"buildkite.json",
-		filepath.FromSlash(".buildkite/pipeline.yml"),
-		filepath.FromSlash(".buildkite/pipeline.yaml"),
-		filepath.FromSlash(".buildkite/pipeline.json"),
-		filepath.FromSlash("buildkite/pipeline.yml"),
-		filepath.FromSlash("buildkite/pipeline.yaml"),
-		filepath.FromSlash("buildkite/pipeline.json"),
+func (c *InitCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	repo, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{DetectDotGit: true, EnableDotGitCommonDir: true})
+	if err != nil && err != git.ErrRepositoryNotExists {
+		return err
 	}
-
-	for _, path := range paths {
-		path = filepath.Join(base, path)
-		if _, err := os.Stat(path); err == nil {
-			return true, path
-		}
+	root, err := setup.Root(repo)
+	if err != nil {
+		return err
 	}
-
-	return false, ""
+	conf := config.New(nil, repo)
+	interactive := !globals.DisableInput() && !conf.NoInput() && !bkIO.HasDataAvailable(os.Stdin)
+	return setup.Ensure(root, c.Template, interactive, kongCtx.Stdout)
 }

@@ -16,7 +16,7 @@ import (
 )
 
 type ConfigureCmd struct {
-	Org     string              `help:"Organization slug" optional:"" env:"BUILDKITE_ORGANIZATION_SLUG"`
+	Org     string              `kong:"-"` // Supplied by the global --org flag, falling back to BUILDKITE_ORGANIZATION_SLUG.
 	Token   string              `help:"API token" optional:""`
 	Force   bool                `help:"Force setting a new token" optional:""`
 	Default ConfigureDefaultCmd `cmd:"" optional:"" help:"Configure Buildkite API token" hidden:"" default:"1"`

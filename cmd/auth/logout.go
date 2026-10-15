@@ -10,8 +10,8 @@ import (
 )
 
 type LogoutCmd struct {
-	All bool   `help:"Log out of all organizations" xor:"target"`
-	Org string `help:"Organization slug (defaults to currently selected organization)" optional:"" xor:"target"`
+	All bool   `help:"Log out of all organizations"`
+	Org string `kong:"-"` // Supplied by the global --org flag.
 }
 
 func (c *LogoutCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -44,14 +45,15 @@ func TestWriteNoArtifactsMessage(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		path  string
+		path  []string
 		state string
 		want  string
 	}{
-		{"no filters", "", "", "No artifacts found.\n"},
-		{"path only", "coverage/**", "", "No artifacts found matching path 'coverage/**'.\n"},
-		{"state only", "", "finished", "No artifacts found matching state 'finished'.\n"},
-		{"both", "coverage/**", "finished", "No artifacts found matching path 'coverage/**' and state 'finished'.\n"},
+		{"no filters", nil, "", "No artifacts found.\n"},
+		{"path only", []string{"coverage/**"}, "", "No artifacts found matching path 'coverage/**'.\n"},
+		{"state only", nil, "finished", "No artifacts found matching state 'finished'.\n"},
+		{"both", []string{"coverage/**"}, "finished", "No artifacts found matching path 'coverage/**' and state 'finished'.\n"},
+		{"multiple paths", []string{"log/*.json", "log/minitest.log"}, "finished", "No artifacts found matching path 'log/*.json' or 'log/minitest.log' and state 'finished'.\n"},
 	}
 
 	for _, tt := range tests {
@@ -180,12 +182,12 @@ func TestDownloadCmdValidate(t *testing.T) {
 		wantErr bool
 	}{
 		{"no artifact ID, no filters", DownloadCmd{}, false},
-		{"filters without artifact ID", DownloadCmd{Path: "coverage/**", State: "finished"}, false},
+		{"filters without artifact ID", DownloadCmd{Path: []string{"coverage/**", "log/*"}, State: "finished"}, false},
 		{"artifact ID alone", DownloadCmd{ArtifactID: "art-1"}, false},
 		{"artifact ID with job UUID (fast path)", DownloadCmd{ArtifactID: "art-1", JobUUID: "job-1"}, false},
-		{"artifact ID with path rejected", DownloadCmd{ArtifactID: "art-1", Path: "coverage/**"}, true},
+		{"artifact ID with path rejected", DownloadCmd{ArtifactID: "art-1", Path: []string{"coverage/**"}}, true},
 		{"artifact ID with state rejected", DownloadCmd{ArtifactID: "art-1", State: "finished"}, true},
-		{"artifact ID with both rejected", DownloadCmd{ArtifactID: "art-1", Path: "coverage/**", State: "finished"}, true},
+		{"artifact ID with both rejected", DownloadCmd{ArtifactID: "art-1", Path: []string{"coverage/**", "log/*"}, State: "finished"}, true},
 	}
 
 	for _, tt := range tests {
@@ -242,6 +244,7 @@ func TestDownloadCmdFlagParsing(t *testing.T) {
 		"-p", "monolith",
 		"--job-uuid", "job-uuid-1",
 		"--path", "coverage/**",
+		"--path", "log/a,b.json",
 		"--state", "Finished",
 	}); err != nil {
 		t.Fatalf("Parse() error = %v", err)
@@ -259,8 +262,8 @@ func TestDownloadCmdFlagParsing(t *testing.T) {
 	if cmd.JobUUID != "job-uuid-1" {
 		t.Errorf("JobUUID = %q, want job-uuid-1", cmd.JobUUID)
 	}
-	if cmd.Path != "coverage/**" {
-		t.Errorf("Path = %q, want coverage/**", cmd.Path)
+	if want := []string{"coverage/**", "log/a,b.json"}; !slices.Equal(cmd.Path, want) {
+		t.Errorf("Path = %q, want %q", cmd.Path, want)
 	}
 	if cmd.State != "Finished" {
 		t.Errorf("State = %q, want Finished (parser preserves casing)", cmd.State)
@@ -275,6 +278,51 @@ func TestDownloadCmdHelpMentionsFilters(t *testing.T) {
 	for _, want := range []string{"--path", "--state", "log/rspec*.json", "bk artifacts list"} {
 		if !strings.Contains(help, want) {
 			t.Errorf("Help() missing %q", want)
+		}
+	}
+}
+
+func TestDownloadAllMultiplePaths(t *testing.T) {
+	t.Chdir(t.TempDir())
+	var server *httptest.Server
+	downloads := make(map[string]int)
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/files/") {
+			downloads[r.URL.Path]++
+			fmt.Fprint(w, r.URL.Path)
+			return
+		}
+		a := buildkite.Artifact{ID: "rspec", Path: "log/rspec1.json", DownloadURL: server.URL + "/files/rspec"}
+		b := buildkite.Artifact{ID: "minitest", Path: "log/minitest.log", DownloadURL: server.URL + "/files/minitest"}
+		switch r.URL.Query().Get("path") {
+		case "log/rspec*.json":
+			writeArtifactsPage(t, w, []buildkite.Artifact{a}, "")
+		case "log/*":
+			writeArtifactsPage(t, w, []buildkite.Artifact{a, b}, "")
+		default:
+			t.Errorf("unexpected path filter: %s", r.URL)
+			writeArtifactsPage(t, w, nil, "")
+		}
+	}))
+	t.Cleanup(server.Close)
+	var cmd DownloadCmd
+	parser, err := kong.New(&cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := parser.Parse([]string{"--path", "log/rspec*.json", "--path", "log/*"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.downloadAll(context.Background(), newArtifactsTestFactory(t, server.URL), "acme", "monolith", "429"); err != nil {
+		t.Fatal(err)
+	}
+	for path, body := range map[string]string{"log/rspec1.json": "/files/rspec", "log/minitest.log": "/files/minitest"} {
+		got, err := os.ReadFile(filepath.Join("artifacts-build-429", path))
+		if err != nil || string(got) != body {
+			t.Errorf("download %s = %q, %v; want %q", path, got, err, body)
+		}
+		if downloads[body] != 1 {
+			t.Errorf("downloads of %s = %d, want 1", body, downloads[body])
 		}
 	}
 }

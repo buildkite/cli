@@ -66,6 +66,16 @@ func parsePipelineArg(arg string, conf *config.Config) (org, pipeline string) {
 	return normalizeSlug(org), normalizeSlug(pipeline)
 }
 
+// QualifiedOrganization returns the explicit organization in a pipeline/build
+// slug or URL. Bare pipeline names and build numbers have no organization.
+func QualifiedOrganization(arg string) string {
+	if !strings.ContainsAny(arg, ":/") {
+		return ""
+	}
+	org, _ := parsePipelineArg(arg, nil)
+	return org
+}
+
 // normalizeSlug converts underscores in user input to dashes while preserving case,
 // because existing Buildkite slugs are case-sensitive.
 func normalizeSlug(s string) string {

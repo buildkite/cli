@@ -105,7 +105,7 @@ func TestCopyExplicitTeamsAndCreation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		args := []string{"source-org/source", "--org", "source-org", "--target", "source-org/copy", "--team", "readers=read_only", "--team", "owners=manage_build_and_read"}
+		args := []string{"source-org/source", "--target", "source-org/copy", "--team", "readers=read_only", "--team", "owners=manage_build_and_read"}
 		if dryRun {
 			args = append(args, "--dry-run")
 		}
@@ -113,6 +113,9 @@ func TestCopyExplicitTeamsAndCreation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// The root CLI's AfterApply propagates the global --org flag onto the subcommand;
+		// a subcommand-only parser bypasses that wiring, so set Org here.
+		c.Org = "source-org"
 		if err := c.Run(kongCtx, cli.Globals{NoInput: true, Quiet: true}); err != nil {
 			t.Fatal(err)
 		}
@@ -354,10 +357,13 @@ func TestCreateWithoutTeamsReturnsValidationError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	kongCtx, err := parser.Parse([]string{"new", "--org", "org", "--repository", "git@example.com:repo.git", "--cluster-uuid", "cluster"})
+	kongCtx, err := parser.Parse([]string{"new", "--repository", "git@example.com:repo.git", "--cluster-uuid", "cluster"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The root CLI's AfterApply propagates the global --org flag onto the subcommand;
+	// a subcommand-only parser bypasses that wiring, so set Org here.
+	c.Org = "org"
 	err = c.Run(kongCtx, cli.Globals{NoInput: true, Quiet: true})
 	var apiErr *buildkite.ErrorResponse
 	if !errors.As(err, &apiErr) || apiErr.Response.StatusCode != http.StatusUnprocessableEntity || apiErr.Message != "Team assignments are required" {
@@ -410,7 +416,7 @@ func TestCopyWithoutTeamFlagsOmitsTeams(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			args := []string{"org/source", "--org", "org", "--target", "org/copy"}
+			args := []string{"org/source", "--target", "org/copy"}
 			if dryRun {
 				args = append(args, "--dry-run")
 			}
@@ -418,6 +424,9 @@ func TestCopyWithoutTeamFlagsOmitsTeams(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// The root CLI's AfterApply propagates the global --org flag onto the subcommand;
+			// a subcommand-only parser bypasses that wiring, so set Org here.
+			c.Org = "org"
 			if err := c.Run(kongCtx, cli.Globals{NoInput: true, Quiet: true}); err != nil {
 				t.Fatal(err)
 			}

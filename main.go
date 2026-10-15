@@ -15,6 +15,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/auth"
 	"github.com/buildkite/cli/v3/cmd/browse"
 	"github.com/buildkite/cli/v3/cmd/build"
+	"github.com/buildkite/cli/v3/cmd/cache/registry"
 	"github.com/buildkite/cli/v3/cmd/cluster"
 	bkConfig "github.com/buildkite/cli/v3/cmd/config"
 	"github.com/buildkite/cli/v3/cmd/configure"
@@ -26,6 +27,7 @@ import (
 	"github.com/buildkite/cli/v3/cmd/pkg"
 	"github.com/buildkite/cli/v3/cmd/preflight"
 	"github.com/buildkite/cli/v3/cmd/queue"
+	"github.com/buildkite/cli/v3/cmd/repositoryconnection"
 	"github.com/buildkite/cli/v3/cmd/secret"
 	"github.com/buildkite/cli/v3/cmd/skill"
 	"github.com/buildkite/cli/v3/cmd/team"
@@ -37,6 +39,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/cli"
 	"github.com/buildkite/cli/v3/internal/config"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
+	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/pkg/analytics"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
@@ -44,36 +47,102 @@ import (
 // Kong CLI structure, with base commands defined as additional commands are defined in their respective files
 type CLI struct {
 	// Global flags
-	Yes          bool                `help:"Skip all confirmation prompts" short:"y"`
-	NoInput      bool                `help:"Disable all interactive prompts" name:"no-input"`
-	Quiet        bool                `help:"Suppress progress output" short:"q"`
-	NoPager      bool                `help:"Disable pager for text output" name:"no-pager"`
-	Debug        bool                `help:"Enable debug output for REST API calls"`
-	Agent        AgentCmd            `cmd:"" help:"Manage agents"`
-	Api          ApiCmd              `cmd:"" help:"Interact with the Buildkite API"`
-	Artifacts    ArtifactsCmd        `cmd:"" help:"Manage pipeline build artifacts"`
-	Auth         AuthCmd             `cmd:"" help:"Authenticate with Buildkite"`
-	Browse       BrowseCmd           `cmd:"" help:"Open Buildkite resources in a web browser"`
-	Build        BuildCmd            `cmd:"" help:"Manage pipeline builds"`
-	Cluster      ClusterCmd          `cmd:"" help:"Manage organization clusters"`
-	Maintainer   MaintainerCmd       `cmd:"" help:"Manage cluster maintainers"`
-	Queue        QueueCmd            `cmd:"" help:"Manage cluster queues"`
-	Secret       SecretCmd           `cmd:"" help:"Manage cluster secrets"`
-	Skill        SkillCmd            `cmd:"" help:"Manage Buildkite skills for AI coding agents"`
-	Team         TeamCmd             `cmd:"" help:"Manage organization teams"`
-	Config       bkConfig.ConfigCmd  `cmd:"" help:"Manage CLI configuration"`
-	Configure    ConfigureCmd        `cmd:"" help:"Configure Buildkite API token" hidden:""`
-	Init         bkInit.InitCmd      `cmd:"" help:"Initialize a pipeline.yaml file"`
-	Job          JobCmd              `cmd:"" help:"Manage jobs within a build"`
-	Organization OrganizationCmd     `cmd:"" help:"Manage organizations" aliases:"org"`
-	Pipeline     PipelineCmd         `cmd:"" help:"Manage pipelines"`
-	Package      PackageCmd          `cmd:"" help:"Manage packages"`
-	Preflight    PreflightCmd        `cmd:"" help:"Run a build against a snapshot of the local working tree (experimental)"`
-	Use          use.UseCmd          `cmd:"" help:"Select an organization" hidden:""`
-	User         UserCmd             `cmd:"" help:"Invite users to the organization"`
-	Update       updatePkg.UpdateCmd `cmd:"" help:"Update the installed bk CLI or print update instructions"`
-	Version      VersionCmd          `cmd:"" help:"Print the version of the CLI being used"`
-	Whoami       whoami.WhoAmICmd    `cmd:"" help:"Print the current user and organization" hidden:""`
+	Org                  string                  `help:"Organization slug for this invocation (overrides environment and configuration)"`
+	Yes                  bool                    `help:"Skip all confirmation prompts" short:"y"`
+	NoInput              bool                    `help:"Disable all interactive prompts" name:"no-input"`
+	Quiet                bool                    `help:"Suppress progress output" short:"q"`
+	NoPager              bool                    `help:"Disable pager for text output" name:"no-pager"`
+	Debug                bool                    `help:"Enable debug output for REST API calls"`
+	Agent                AgentCmd                `cmd:"" help:"Manage agents"`
+	Api                  ApiCmd                  `cmd:"" help:"Interact with the Buildkite API"`
+	Artifacts            ArtifactsCmd            `cmd:"" help:"Manage pipeline build artifacts"`
+	Auth                 AuthCmd                 `cmd:"" help:"Authenticate with Buildkite"`
+	Browse               BrowseCmd               `cmd:"" help:"Open Buildkite resources in a web browser"`
+	Build                BuildCmd                `cmd:"" help:"Manage pipeline builds"`
+	Cache                CacheCmd                `cmd:"" help:"Manage Buildkite cache resources"`
+	Cluster              ClusterCmd              `cmd:"" help:"Manage organization clusters"`
+	Maintainer           MaintainerCmd           `cmd:"" help:"Manage cluster maintainers"`
+	Queue                QueueCmd                `cmd:"" help:"Manage cluster queues"`
+	Secret               SecretCmd               `cmd:"" help:"Manage cluster secrets"`
+	Skill                SkillCmd                `cmd:"" help:"Manage Buildkite skills for AI coding agents"`
+	Team                 TeamCmd                 `cmd:"" help:"Manage organization teams"`
+	Config               bkConfig.ConfigCmd      `cmd:"" help:"Manage CLI configuration"`
+	Configure            ConfigureCmd            `cmd:"" help:"Configure Buildkite API token" hidden:""`
+	Init                 bkInit.InitCmd          `cmd:"" help:"Initialize a pipeline.yaml file"`
+	Job                  JobCmd                  `cmd:"" help:"Manage jobs within a build"`
+	Organization         OrganizationCmd         `cmd:"" help:"Manage organizations" aliases:"org"`
+	Pipeline             PipelineCmd             `cmd:"" help:"Manage pipelines"`
+	RepositoryConnection RepositoryConnectionCmd `cmd:"" help:"View organization repository connections and their GitHub API rate limits" aliases:"repo-connection"`
+	Package              PackageCmd              `cmd:"" help:"Manage packages"`
+	Preflight            PreflightCmd            `cmd:"" help:"Run a build against a snapshot of the local working tree (experimental)"`
+	Use                  use.UseCmd              `cmd:"" help:"Select an organization" hidden:""`
+	User                 UserCmd                 `cmd:"" help:"Invite users to the organization"`
+	Update               updatePkg.UpdateCmd     `cmd:"" help:"Update the installed bk CLI or print update instructions"`
+	Version              VersionCmd              `cmd:"" help:"Print the version of the CLI being used"`
+	Whoami               whoami.WhoAmICmd        `cmd:"" help:"Print the current user and organization" hidden:""`
+}
+
+// AfterApply forwards the shared flag to commands whose organization argument
+// has semantics beyond selecting the default organization (such as OAuth login
+// or overriding a qualified pipeline).
+func (c *CLI) AfterApply(ctx *kong.Context) error {
+	var orgProvided, allProvided bool
+	for _, trace := range ctx.Path {
+		if trace.Flag != nil {
+			orgProvided = orgProvided || trace.Flag.Name == "org"
+			allProvided = allProvided || trace.Flag.Name == "all"
+		}
+	}
+	// Kong's xor groups do not span root and subcommand flags. Preserve the
+	// logout conflict by flag presence, including --org="" and --all=false.
+	if ctx.Command() == "auth logout" && orgProvided && allProvided {
+		return errors.New("--org and --all cannot be used together")
+	}
+	if err := c.validateOrganizationTargets(ctx); err != nil {
+		return err
+	}
+
+	c.Auth.Login.Org = c.Org
+	c.Auth.Logout.Org = c.Org
+	c.Pipeline.List.Org = c.Org
+	c.Pipeline.View.Org = c.Org
+	c.Pipeline.Create.Org = c.Org
+	c.Pipeline.Copy.Org = c.Org
+	c.Configure.Org = c.Org
+	if !orgProvided {
+		c.Configure.Org = os.Getenv("BUILDKITE_ORGANIZATION_SLUG")
+	}
+	return nil
+}
+
+func (c *CLI) validateOrganizationTargets(ctx *kong.Context) error {
+	if c.Org == "" {
+		return nil
+	}
+	// Only job list uses pipeline/build targets; the corresponding flags on
+	// other job commands are deprecated and ignored.
+	if strings.HasPrefix(ctx.Command(), "job ") && !strings.HasPrefix(ctx.Command(), "job list") {
+		return nil
+	}
+	for _, trace := range ctx.Path {
+		var value *kong.Value
+		if trace.Flag != nil {
+			value = trace.Flag.Value
+		} else {
+			value = trace.Positional
+		}
+		if value == nil || (value.Name != "pipeline" && value.Name != "build" && value.Name != "build-number") {
+			continue
+		}
+		target, ok := value.Target.Interface().(string)
+		if !ok {
+			continue
+		}
+		if org := pipelineResolver.QualifiedOrganization(target); org != "" && org != c.Org {
+			return fmt.Errorf("--org %q conflicts with organization %q in %s %q; use matching organizations or omit --org", c.Org, org, value.Name, target)
+		}
+	}
+	return nil
 }
 
 type (
@@ -115,6 +184,16 @@ type (
 		Rebuild  build.RebuildCmd  `cmd:"" help:"Rebuild a build."`
 		Watch    build.WatchCmd    `cmd:"" help:"Watch a build's progress in real-time."`
 	}
+	CacheCmd struct {
+		Registry CacheRegistryCmd `cmd:"" help:"Manage cluster cache registries"`
+	}
+	CacheRegistryCmd struct {
+		List   registry.ListCmd   `cmd:"" help:"List cluster cache registries." aliases:"ls"`
+		View   registry.ViewCmd   `cmd:"" help:"View a cluster cache registry."`
+		Create registry.CreateCmd `cmd:"" help:"Create a new cluster cache registry."`
+		Update registry.UpdateCmd `cmd:"" help:"Update a cluster cache registry."`
+		Delete registry.DeleteCmd `cmd:"" help:"Delete a cluster cache registry." aliases:"rm"`
+	}
 	ClusterCmd struct {
 		List   cluster.ListCmd   `cmd:"" help:"List clusters." aliases:"ls"`
 		View   cluster.ViewCmd   `cmd:"" help:"View cluster information."`
@@ -127,6 +206,7 @@ type (
 	}
 	JobCmd struct {
 		Cancel       job.CancelCmd       `cmd:"" help:"Cancel a job."`
+		FlakyTests   job.FlakyTestsCmd   `cmd:"" help:"List failed tests currently labeled flaky by Test Engine for a failed job."`
 		List         job.ListCmd         `cmd:"" help:"List jobs." aliases:"ls"`
 		Log          job.LogCmd          `cmd:"" help:"Get logs for a job."`
 		Reprioritize job.ReprioritizeCmd `cmd:"" help:"Reprioritize a job." aliases:"priority"`
@@ -154,6 +234,10 @@ type (
 		Validate pipeline.ValidateCmd `cmd:"" help:"Validate a pipeline YAML file."`
 		View     pipeline.ViewCmd     `cmd:"" help:"View a pipeline."`
 	}
+	RepositoryConnectionCmd struct {
+		List repositoryconnection.ListCmd `cmd:"" help:"List repository connections." aliases:"ls"`
+		View repositoryconnection.ViewCmd `cmd:"" help:"View a repository connection and its GitHub API rate limit."`
+	}
 	TeamCmd struct {
 		List   team.ListCmd   `cmd:"" help:"List teams." aliases:"ls"`
 		View   team.ViewCmd   `cmd:"" help:"View team information."`
@@ -175,11 +259,15 @@ type (
 		Resume queue.ResumeCmd `cmd:"" help:"Resume dispatch for a cluster queue."`
 	}
 	SecretCmd struct {
-		List   secret.ListCmd   `cmd:"" help:"List secrets for a cluster." aliases:"ls"`
-		Get    secret.GetCmd    `cmd:"" help:"View a cluster secret."`
-		Create secret.CreateCmd `cmd:"" help:"Create a new cluster secret."`
-		Update secret.UpdateCmd `cmd:"" help:"Update a cluster secret."`
-		Delete secret.DeleteCmd `cmd:"" help:"Delete a cluster secret." aliases:"rm"`
+		List    secret.ListCmd   `cmd:"" help:"List secrets for a cluster." aliases:"ls"`
+		Get     secret.GetCmd    `cmd:"" help:"View a cluster secret."`
+		Create  secret.CreateCmd `cmd:"" help:"Create a new cluster secret."`
+		Update  secret.UpdateCmd `cmd:"" help:"Update a cluster secret."`
+		Delete  secret.DeleteCmd `cmd:"" help:"Delete a cluster secret." aliases:"rm"`
+		Migrate SecretMigrateCmd `cmd:"" help:"Migrate secrets from another provider."`
+	}
+	SecretMigrateCmd struct {
+		GitHubActions secret.MigrateGitHubActionsCmd `cmd:"" name:"github-actions" help:"Migrate GitHub Actions repository secrets."`
 	}
 	SkillCmd struct {
 		Add    skill.AddCmd    `cmd:"" help:"Install a Buildkite skill."`
@@ -377,6 +465,24 @@ func run() int {
 
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
+	}
+
+	// All factories read organization selection through config's environment
+	// layer. Scope the flag to this invocation without writing either config
+	// file, and restore the environment when run returns (including on errors).
+	if cliInstance.Org != "" {
+		previous, existed := os.LookupEnv("BUILDKITE_ORGANIZATION_SLUG")
+		if err := os.Setenv("BUILDKITE_ORGANIZATION_SLUG", cliInstance.Org); err != nil {
+			return handleError(err)
+		}
+		defer func() {
+			if existed {
+				_ = os.Setenv("BUILDKITE_ORGANIZATION_SLUG", previous)
+			} else {
+				_ = os.Unsetenv("BUILDKITE_ORGANIZATION_SLUG")
+			}
+		}()
+		tracker.SetOrg(cliInstance.Org)
 	}
 
 	globals := cli.Globals{

@@ -1,8 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    ":disableDependencyDashboard",
     "config:recommended",
+    ":disableDependencyDashboard",
     ":semanticCommits",
     "schedule:weekdays",
     "group:allNonMajor"

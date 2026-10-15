@@ -65,6 +65,36 @@ func prepareTestDirectory(fs afero.Fs, fixturePath, configPath string) error {
 	return nil
 }
 
+func TestPreferredPipelinesOrganizationBoundary(t *testing.T) {
+	for _, tt := range []struct {
+		name, local, user, override string
+		want                        int
+	}{
+		{"saved local selection", "local-org", "user-org", "", 1},
+		{"matching local override", "local-org", "user-org", "local-org", 1},
+		{"different local override", "local-org", "user-org", "other-org", 0},
+		{"local selection beats matching user override", "local-org", "user-org", "user-org", 0},
+		{"matching user override", "", "user-org", "user-org", 1},
+		{"different user override", "", "user-org", "other-org", 0},
+		{"no saved organization", "", "", "other-org", 0},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", tt.override)
+			conf := &Config{
+				local: fileConfig{SelectedOrg: tt.local, Pipelines: []string{"deploy"}},
+				user:  fileConfig{SelectedOrg: tt.user},
+			}
+			got := conf.PreferredPipelines()
+			if len(got) != tt.want {
+				t.Fatalf("PreferredPipelines() = %#v, want %d entries", got, tt.want)
+			}
+			if tt.want == 1 && (got[0].Name != "deploy" || got[0].Org != conf.SavedOrganizationSlug()) {
+				t.Fatalf("cached pipeline identity changed: %#v", got)
+			}
+		})
+	}
+}
+
 func TestConfig(t *testing.T) {
 	t.Parallel()
 

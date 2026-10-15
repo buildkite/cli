@@ -4,6 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
+	"os"
+	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -13,6 +17,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/internal/graphql"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
+	"github.com/buildkite/cli/v3/internal/pipeline/setup"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
@@ -20,10 +25,11 @@ import (
 )
 
 type CreateCmd struct {
-	Name             string            `arg:"" help:"Name of the pipeline" required:""`
-	Org              string            `help:"Organization slug." name:"org"`
+	Name             string            `arg:"" help:"Name of the pipeline (defaults to Git origin or directory name)" optional:""`
+	Org              string            `kong:"-"` // Supplied by the global --org flag.
 	Description      string            `help:"Description of the pipeline" short:"d"`
 	Repository       string            `help:"Repository URL" short:"r"`
+	Template         string            `help:"Create a local starter: go, node, pipenv, ruby or empty (never overwrites existing files)" enum:",go,node,pipenv,ruby,empty" default:""`
 	ClusterUUID      string            `help:"Cluster UUID to assign the pipeline to" name:"cluster-uuid"`
 	ClusterName      string            `help:"Cluster name to assign the pipeline to (resolved to UUID)" name:"cluster-name"`
 	ClusterShorthand string            `short:"c" hidden:"" name:"c" help:""`
@@ -53,8 +59,18 @@ func (c *CreateCmd) Validate() error {
 func (c *CreateCmd) Help() string {
 	return `Creates a new pipeline in the current org and outputs the URL to the pipeline.
 
+The repository URL and default name are inferred from Git origin. Without a name,
+interactive use offers a project-aware local starter if no pipeline file exists.
+Named invocations and --no-input never add prompts or local files unless --template
+is supplied. Local files must be reviewed, committed and pushed before building.
+
+Guided creation defaults to concise text on stdout, with file status and starter
+prompts on stderr. Explicit format flags and configured preferences take priority;
+named and scripted invocations retain their output defaults.
+
 You can specify a --dry-run flag to see the pipeline that would be created without
-actually creating it. This outputs a JSON representation of the pipeline to be created by default.
+actually creating it or writing local files. This outputs a JSON representation
+of the pipeline to be created by default.
 
 Use --cluster-uuid to assign a pipeline to a cluster by UUID, or --cluster-name to
 assign by name (the name will be resolved to the corresponding UUID).
@@ -100,17 +116,48 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	f.SkipConfirm = globals.SkipConfirmation()
-	f.NoInput = globals.DisableInput()
-	f.Quiet = globals.IsQuiet()
+	f.NoInput = f.NoInput || globals.DisableInput()
+	f.Quiet = f.Quiet || globals.IsQuiet()
 
 	if err := validation.ValidateConfigurationForOrg(f.Config, kongCtx.Command(), c.Org); err != nil {
 		return err
 	}
 
+	guided := c.Name == "" && c.Repository == "" && !f.NoInput && !f.Quiet && !bkIO.HasDataAvailable(os.Stdin)
+	root, err := c.resolveInputs(f)
+	if err != nil {
+		return err
+	}
 	if c.DryRun {
 		return c.runPipelineCreateDryRun(kongCtx, f)
 	}
-	return c.runPipelineCreate(kongCtx, f)
+	if guided || c.Template != "" {
+		if err := setup.Ensure(root, c.Template, guided, kongCtx.Stderr); err != nil {
+			return err
+		}
+	}
+	return c.runPipelineCreate(kongCtx, f, guided)
+}
+
+func (c *CreateCmd) resolveInputs(f *factory.Factory) (string, error) {
+	root, err := setup.Root(f.GitRepository)
+	if err != nil {
+		return "", err
+	}
+	if c.Name == "" {
+		origin := strings.TrimRight(getRepositoryURL(f, ""), "/")
+		if u, err := url.Parse(origin); err == nil && u.Scheme != "" && u.Host != "" {
+			origin = u.Path
+		} else if _, repoPath, ok := strings.Cut(origin, ":"); ok {
+			origin = repoPath
+		}
+		c.Name = strings.TrimSuffix(path.Base(origin), ".git")
+		if origin == "" || c.Name == "" || c.Name == "." || c.Name == "/" {
+			c.Name = filepath.Base(root)
+		}
+	}
+	c.Repository = getRepositoryURL(f, c.Repository)
+	return root, nil
 }
 
 func (c *CreateCmd) runPipelineCreateDryRun(kongCtx *kong.Context, f *factory.Factory) error {
@@ -128,9 +175,13 @@ func (c *CreateCmd) runPipelineCreateDryRun(kongCtx *kong.Context, f *factory.Fa
 	return output.Write(kongCtx.Stdout, pipeline, format)
 }
 
-func (c *CreateCmd) runPipelineCreate(kongCtx *kong.Context, f *factory.Factory) error {
+func (c *CreateCmd) runPipelineCreate(kongCtx *kong.Context, f *factory.Factory, guided bool) error {
 	ctx := context.Background()
-	format := output.ResolveFormat(c.Output, f.Config.OutputFormat())
+	preference := f.Config.ConfiguredOutputFormat()
+	format := output.ResolveFormat(c.Output, preference)
+	if guided && c.Output == "" && preference == "" {
+		format = output.FormatText
+	}
 
 	pipeline, err := c.createPipeline(ctx, f)
 	if err != nil {
@@ -150,11 +201,11 @@ func (c *CreateCmd) runPipelineCreate(kongCtx *kong.Context, f *factory.Factory)
 		}
 	}
 
-	if format != output.FormatText {
-		return output.Write(kongCtx.Stdout, pipeline, format)
+	text := pipeline.WebURL
+	if guided {
+		text = "Pipeline created: " + text
 	}
-	fmt.Printf("%s\n", pipeline.WebURL)
-	return nil
+	return output.WriteTextOrStructured(kongCtx.Stdout, format, pipeline, text)
 }
 
 func (c *CreateCmd) createPipeline(ctx context.Context, f *factory.Factory) (*buildkite.Pipeline, error) {
@@ -294,7 +345,10 @@ func (c *CreateCmd) createPipelineDryRun(ctx context.Context, f *factory.Factory
 	pipeline.Teams = teams
 	pipeline.Slug = pipelineSlug
 	pipeline.Repository = c.Repository
-	clusterUUID, _ := c.resolveClusterUUID(ctx, f)
+	clusterUUID, err := c.resolveClusterUUID(ctx, f)
+	if err != nil {
+		return nil, err
+	}
 	pipeline.ClusterID = clusterUUID
 	pipeline.ClusterURL = getClusterUrl(orgSlug, clusterUUID)
 	pipeline.DefaultBranch = "main"

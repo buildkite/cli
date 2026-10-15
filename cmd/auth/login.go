@@ -21,7 +21,7 @@ import (
 
 type LoginCmd struct {
 	Scopes          string `help:"OAuth scopes to request" default:""`
-	Org             string `help:"Organization slug or UUID to request access for" optional:""`
+	Org             string `kong:"-"` // Supplied by the global --org flag; also accepts an OAuth organization UUID.
 	Token           string `help:"API token to store (non-OAuth login, requires --org)" optional:""`
 	Device          bool   `help:"Authenticate using OAuth device authorization instead of opening a browser callback" optional:""`
 	CredentialStore string `help:"Credential store for tokens: auto, keyring, or shm" enum:"auto,keyring,shm" default:"auto"`
@@ -139,7 +139,12 @@ func persistOAuthLogin(f *factory.Factory, store oauthTokenStore, org, accessTok
 		return false, errors.New("access token cannot be empty")
 	}
 	if !store.IsAvailable() {
-		return false, errors.New("OAuth login requires an available credential store to persist your access token and refresh token")
+		return false, fmt.Errorf("OAuth login requires an available credential store to persist your access token and refresh token.\n"+
+			"Configured credential store: %q.\n"+
+			"On macOS, use keyring or auto; shm uses /dev/shm and is intended for headless Linux hosts.\n"+
+			"Set the default with 'bk config set credential_store auto'. If BUILDKITE_CREDENTIAL_STORE is set, unset it or change it to auto or keyring; it overrides the saved setting.\n"+
+			"Then retry your login command without --credential-store",
+			f.Config.CredentialStore())
 	}
 	if refreshToken != "" {
 		if err := store.SetRefreshToken(org, refreshToken); err != nil {

@@ -40,14 +40,34 @@ func ValidateState(state string) error {
 // List fetches all artifacts for a build, or for a specific job when jobUUID
 // is non-empty, paginating through all results.
 //
-// path and state are optional server-side filters. state is validated via
-// ValidateState and lower-cased before being sent, so callers can pass user
-// input verbatim.
-func List(ctx context.Context, client *buildkite.Client, org, pipeline, build, jobUUID, path, state string) ([]buildkite.Artifact, error) {
+// paths and state are optional server-side filters. Paths are queried separately
+// and results are deduplicated by artifact ID, preserving first-seen order.
+// Wildcard matching is left to the API. state is validated and lower-cased.
+func List(ctx context.Context, client *buildkite.Client, org, pipeline, build, jobUUID string, paths []string, state string) ([]buildkite.Artifact, error) {
 	if err := ValidateState(state); err != nil {
 		return nil, err
 	}
+	if len(paths) == 0 {
+		return listPath(ctx, client, org, pipeline, build, jobUUID, "", state)
+	}
+	var all []buildkite.Artifact
+	seen := make(map[string]bool)
+	for _, path := range paths {
+		artifacts, err := listPath(ctx, client, org, pipeline, build, jobUUID, path, state)
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range artifacts {
+			if !seen[a.ID] {
+				all = append(all, a)
+				seen[a.ID] = true
+			}
+		}
+	}
+	return all, nil
+}
 
+func listPath(ctx context.Context, client *buildkite.Client, org, pipeline, build, jobUUID, path, state string) ([]buildkite.Artifact, error) {
 	var all []buildkite.Artifact
 	opts := &buildkite.ArtifactListOptions{
 		Path:        path,

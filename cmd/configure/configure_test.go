@@ -35,6 +35,7 @@ func TestConfigureOrganizationEnvironment(t *testing.T) {
 				})
 
 				var app struct {
+					Org       string       `env:"BUILDKITE_ORGANIZATION_SLUG"`
 					Configure ConfigureCmd `cmd:""`
 				}
 				parser, err := kong.New(&app)
@@ -51,6 +52,7 @@ func TestConfigureOrganizationEnvironment(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				app.Configure.Org = app.Org // The application forwards the global flag or environment.
 				if err := app.Configure.Run(ctx, cli.Globals{}); err != nil {
 					t.Fatalf("configure failed: %v", err)
 				}

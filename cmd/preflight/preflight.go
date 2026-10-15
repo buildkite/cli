@@ -208,6 +208,9 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		Commit:  result.Commit,
 		Branch:  result.Branch,
 		Env:     env,
+		// Preflight always uses a synthetic bk/preflight/<UUID> branch, so pipeline
+		// branch filters must not prevent the explicitly requested build.
+		IgnorePipelineBranchFilters: true,
 	})
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
