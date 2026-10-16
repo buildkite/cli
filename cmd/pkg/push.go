@@ -10,6 +10,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
+	"github.com/buildkite/cli/v3/internal/programstatus"
 	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v5"
@@ -93,14 +94,16 @@ func (c *PushCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	ctx := context.Background()
 	var pkg buildkite.Package
-	if err = bkIO.SpinWhile(f, "Pushing file", func() error {
+	err = bkIO.SpinWhile(f, "Pushing file", func() error {
 		var apiErr error
 		pkg, _, apiErr = f.RestAPIClient.PackagesService.Create(ctx, f.Config.OrganizationSlug(), c.RegistrySlug, buildkite.CreatePackageInput{
 			Filename: packageName,
 			Package:  from,
 		})
 		return apiErr
-	}); err != nil {
+	})
+	programstatus.Finish(err, fmt.Sprintf("Pushed %s", packageName))
+	if err != nil {
 		return fmt.Errorf("%w: request to create package failed: %w", ErrAPIError, err)
 	}
 

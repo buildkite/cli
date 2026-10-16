@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/alecthomas/kong"
@@ -14,6 +16,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/build/view/shared"
 	"github.com/buildkite/cli/v3/internal/build/watch"
 	"github.com/buildkite/cli/v3/internal/cli"
+	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	"github.com/buildkite/cli/v3/internal/programstatus"
 	"github.com/buildkite/cli/v3/internal/validation"
@@ -86,7 +89,8 @@ func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	if c.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, c.Timeout)
@@ -142,7 +146,8 @@ func (c *WatchCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		programstatus.Report(watchStoppedStatus(ctx, err))
 	}
 	if errors.Is(err, context.Canceled) {
-		return nil
+		// Exit as if interrupted so "bk build watch && deploy" does not deploy.
+		return bkErrors.NewUserAbortedError(err, "build watch canceled by user")
 	}
 
 	return err

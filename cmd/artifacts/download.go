@@ -17,9 +17,11 @@ import (
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
+	"github.com/buildkite/cli/v3/internal/programstatus"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	buildkite "github.com/buildkite/go-buildkite/v5"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type DownloadCmd struct {
@@ -127,11 +129,13 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 
 	build := strconv.Itoa(bld.BuildNumber)
 
+	download := c.downloadAll
 	if c.ArtifactID != "" {
-		return c.downloadOne(ctx, f, bld.Organization, bld.Pipeline, build)
+		download = c.downloadOne
 	}
-
-	return c.downloadAll(ctx, f, bld.Organization, bld.Pipeline, build)
+	err = download(ctx, f, bld.Organization, bld.Pipeline, build)
+	programstatus.Finish(err, fmt.Sprintf("Downloaded artifacts from build #%s", build))
+	return err
 }
 
 func (c *DownloadCmd) downloadOne(ctx context.Context, f *factory.Factory, org, pipeline, build string) error {
@@ -176,6 +180,12 @@ func (c *DownloadCmd) downloadAll(ctx context.Context, f *factory.Factory, org, 
 
 	for i := range artifacts {
 		a := &artifacts[i]
+		programstatus.Report(ansi.ProgramStatus{
+			State:       ansi.ProgramStateWorking,
+			Progress:    i * 100 / len(artifacts),
+			HasProgress: true,
+			Message:     fmt.Sprintf("Downloading artifact %d of %d", i+1, len(artifacts)),
+		})
 		destPath := filepath.Join(directory, filepath.FromSlash(a.Path))
 		if err := artifact.DownloadToFile(ctx, f.RestAPIClient, a.DownloadURL, destPath); err != nil {
 			return err

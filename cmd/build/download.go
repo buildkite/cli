@@ -15,6 +15,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
+	"github.com/buildkite/cli/v3/internal/programstatus"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	buildkite "github.com/buildkite/go-buildkite/v5"
@@ -126,10 +127,12 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 		dir             string
 		artifactMatches int
 	)
-	if err = bkIO.SpinWhile(f, "Downloading build resources", func() error {
+	err = bkIO.SpinWhile(f, "Downloading build resources", func() error {
 		dir, artifactMatches, err = download(ctx, bld, c.ArtifactsPath, c.ArtifactsState, f)
 		return err
-	}); err != nil {
+	})
+	programstatus.Finish(err, fmt.Sprintf("Downloaded build #%d", bld.BuildNumber))
+	if err != nil {
 		return err
 	}
 
