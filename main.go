@@ -98,7 +98,7 @@ func (c *CLI) AfterApply(ctx *kong.Context) error {
 	if ctx.Command() == "auth logout" && orgProvided && allProvided {
 		return errors.New("--org and --all cannot be used together")
 	}
-	if err := c.validateOrganizationTargets(ctx); err != nil {
+	if err := c.resolveOrganizationTargets(ctx, orgProvided); err != nil {
 		return err
 	}
 
@@ -115,8 +115,15 @@ func (c *CLI) AfterApply(ctx *kong.Context) error {
 	return nil
 }
 
-func (c *CLI) validateOrganizationTargets(ctx *kong.Context) error {
-	if c.Org == "" {
+// resolveOrganizationTargets reconciles --org with the organization named in
+// qualified pipeline or build targets (org/pipeline, org/pipeline/number, or
+// a Buildkite URL). An explicit --org must agree with every qualified target.
+// Without --org, the first qualified target selects the organization for this
+// invocation so credentials and ambient lookups match the target, and any
+// later qualified target must agree with it.
+func (c *CLI) resolveOrganizationTargets(ctx *kong.Context, orgProvided bool) error {
+	// An explicit empty --org clears the selection; do not infer over it.
+	if orgProvided && c.Org == "" {
 		return nil
 	}
 	// Only job list uses pipeline/build targets; the corresponding flags on
@@ -124,6 +131,7 @@ func (c *CLI) validateOrganizationTargets(ctx *kong.Context) error {
 	if strings.HasPrefix(ctx.Command(), "job ") && !strings.HasPrefix(ctx.Command(), "job list") {
 		return nil
 	}
+	source := "--org"
 	for _, trace := range ctx.Path {
 		var value *kong.Value
 		if trace.Flag != nil {
@@ -138,8 +146,18 @@ func (c *CLI) validateOrganizationTargets(ctx *kong.Context) error {
 		if !ok {
 			continue
 		}
-		if org := pipelineResolver.QualifiedOrganization(target); org != "" && org != c.Org {
-			return fmt.Errorf("--org %q conflicts with organization %q in %s %q; use matching organizations or omit --org", c.Org, org, value.Name, target)
+		org := pipelineResolver.QualifiedOrganization(target)
+		switch {
+		case org == "":
+			continue
+		case c.Org == "":
+			c.Org = org
+			source = fmt.Sprintf("%s %q", value.Name, target)
+		case org != c.Org:
+			if source == "--org" {
+				return fmt.Errorf("--org %q conflicts with organization %q in %s %q; use matching organizations or omit --org", c.Org, org, value.Name, target)
+			}
+			return fmt.Errorf("organization %q in %s conflicts with organization %q in %s %q; use matching organizations", c.Org, source, org, value.Name, target)
 		}
 	}
 	return nil
