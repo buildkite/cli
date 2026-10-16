@@ -23,7 +23,7 @@ Valid keys:
   quiet             Suppress progress output (true, false)
   no_input          Disable interactive prompts (true, false) [user config only]
   pager             Custom pager command [user config only]
-  telemetry         Deprecated; accepted for compatibility, telemetry is no longer collected
+  telemetry         Enable anonymous usage telemetry (true, false) [user config only]
   credential_store  Default credential store for tokens (auto, keyring, shm) [user config only]
 
 Examples:

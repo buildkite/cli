@@ -12,6 +12,7 @@ steps:
       AWS_REGION: us-east-1
       MISE_ENV: release
     secrets:
+      - POSTHOG_API_KEY
       - OAUTH_CLIENT_ID
     plugins:
       - aws-assume-role-with-web-identity#v1.8.0:
