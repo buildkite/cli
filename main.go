@@ -466,7 +466,8 @@ func run() int {
 	// before factory.New() does.
 	factory.ApplyCredentialStoreFromConfig(conf)
 
-	tracker := analytics.Init(versionPkg.Version, conf.TelemetryEnabled())
+	// Pause PostHog telemetry to limit ingestion costs.
+	tracker := analytics.Init(versionPkg.Version, false)
 	defer tracker.Close()
 	tracker.SetOrg(conf.OrganizationSlug())
 

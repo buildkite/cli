@@ -25,6 +25,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/pipeline"
 	"github.com/buildkite/cli/v3/internal/pipeline/resolver"
 	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
+	"github.com/buildkite/cli/v3/internal/programstatus"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	buildkite "github.com/buildkite/go-buildkite/v5"
 )
@@ -110,6 +111,16 @@ func (c *RunCmd) Validate() error {
 }
 
 func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	err := c.run(globals)
+	msg := "Preflight passed"
+	if !c.Watch {
+		msg = "Preflight build created"
+	}
+	programstatus.Finish(err, msg)
+	return err
+}
+
+func (c *RunCmd) run(globals cli.GlobalFlags) error {
 	if err := c.Validate(); err != nil {
 		return err
 	}
@@ -144,7 +155,7 @@ func (c *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		)
 	}
 
-	renderer := rendererFactory(os.Stdout, c.JSON, c.Text, stop)
+	renderer := statusRenderer{rendererFactory(os.Stdout, c.JSON, c.Text, stop)}
 	defer renderer.Close()
 
 	rlTransport.OnRateLimit = func(attempt int, delay time.Duration) {

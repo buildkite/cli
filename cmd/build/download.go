@@ -15,6 +15,7 @@ import (
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
+	"github.com/buildkite/cli/v3/internal/programstatus"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	buildkite "github.com/buildkite/go-buildkite/v5"
@@ -63,9 +64,16 @@ Examples:
 }
 
 func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	msg, err := c.run(kongCtx, globals)
+	programstatus.Finish(err, msg)
+	return err
+}
+
+// run downloads the build and returns a summary of what it downloaded.
+func (c *DownloadCmd) run(kongCtx *kong.Context, globals cli.GlobalFlags) (string, error) {
 	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	f.SkipConfirm = globals.SkipConfirmation()
@@ -73,7 +81,7 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 	f.Quiet = globals.IsQuiet()
 
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
-		return err
+		return "", err
 	}
 
 	ctx := context.Background()
@@ -115,22 +123,23 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 
 	bld, err := buildRes.Resolve(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if bld == nil {
 		fmt.Println("No build found.")
-		return nil
+		return "No build found", nil
 	}
 
 	var (
 		dir             string
 		artifactMatches int
 	)
-	if err = bkIO.SpinWhile(f, "Downloading build resources", func() error {
+	err = bkIO.SpinWhile(f, "Downloading build resources", func() error {
 		dir, artifactMatches, err = download(ctx, bld, c.ArtifactsPath, c.ArtifactsState, f)
 		return err
-	}); err != nil {
-		return err
+	})
+	if err != nil {
+		return "", err
 	}
 
 	// Warn — but do not fail — when a user-supplied filter matched zero
@@ -141,7 +150,7 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 
 	fmt.Printf("Downloaded build to: %s\n", dir)
 
-	return nil
+	return fmt.Sprintf("Downloaded build #%d", bld.BuildNumber), nil
 }
 
 // warnUnmatchedArtifactFilter writes a stderr warning when --artifacts-path

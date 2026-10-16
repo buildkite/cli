@@ -10,6 +10,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
+	"github.com/buildkite/cli/v3/internal/programstatus"
 	"github.com/buildkite/cli/v3/internal/util"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/go-buildkite/v5"
@@ -54,9 +55,16 @@ Examples:
 }
 
 func (c *PushCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	msg, err := c.run(kongCtx, globals)
+	programstatus.Finish(err, msg)
+	return err
+}
+
+// run pushes the package and returns a summary of what it pushed.
+func (c *PushCmd) run(kongCtx *kong.Context, globals cli.GlobalFlags) (string, error) {
 	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	f.SkipConfirm = globals.SkipConfirmation()
@@ -65,7 +73,7 @@ func (c *PushCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	err = c.Validate()
 	if err != nil {
-		return fmt.Errorf("failed to validate flags and args: %w", err)
+		return "", fmt.Errorf("failed to validate flags and args: %w", err)
 	}
 
 	var (
@@ -78,7 +86,7 @@ func (c *PushCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		packageName = c.FilePath
 		file, err := os.Open(c.FilePath)
 		if err != nil {
-			return fmt.Errorf("couldn't open file %s: %w", c.FilePath, err)
+			return "", fmt.Errorf("couldn't open file %s: %w", c.FilePath, err)
 		}
 		defer file.Close()
 
@@ -93,18 +101,19 @@ func (c *PushCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	ctx := context.Background()
 	var pkg buildkite.Package
-	if err = bkIO.SpinWhile(f, "Pushing file", func() error {
+	err = bkIO.SpinWhile(f, "Pushing file", func() error {
 		var apiErr error
 		pkg, _, apiErr = f.RestAPIClient.PackagesService.Create(ctx, f.Config.OrganizationSlug(), c.RegistrySlug, buildkite.CreatePackageInput{
 			Filename: packageName,
 			Package:  from,
 		})
 		return apiErr
-	}); err != nil {
-		return fmt.Errorf("%w: request to create package failed: %w", ErrAPIError, err)
+	})
+	if err != nil {
+		return "", fmt.Errorf("%w: request to create package failed: %w", ErrAPIError, err)
 	}
 
-	return util.OpenInWebBrowser(c.Web, pkg.WebURL)
+	return fmt.Sprintf("Pushed %s", packageName), util.OpenInWebBrowser(c.Web, pkg.WebURL)
 }
 
 func isStdinReadable() (bool, error) {

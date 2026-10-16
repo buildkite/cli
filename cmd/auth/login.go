@@ -12,9 +12,11 @@ import (
 	buildkite "github.com/buildkite/go-buildkite/v5"
 
 	"github.com/buildkite/cli/v3/internal/cli"
+	"github.com/buildkite/cli/v3/internal/programstatus"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/keyring"
 	"github.com/buildkite/cli/v3/pkg/oauth"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/google/uuid"
 	"github.com/pkg/browser"
 )
@@ -200,10 +202,16 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	// inherits the user's full Buildkite permissions.
 	resolvedScopes := oauth.ResolveScopes(c.Scopes)
 
+	login := c.runBrowserLogin
 	if c.Device {
-		return c.runDeviceLogin(context.Background(), f, resolvedScopes, credentialStore)
+		login = c.runDeviceLogin
 	}
+	err = login(context.Background(), f, resolvedScopes, credentialStore)
+	programstatus.Finish(err, "Signed in to Buildkite")
+	return err
+}
 
+func (c *LoginCmd) runBrowserLogin(ctx context.Context, f *factory.Factory, resolvedScopes string, credentialStore oauthTokenStore) error {
 	orgSlug, orgUUID := organizationIdentifier(c.Org)
 
 	// Create OAuth flow
@@ -233,12 +241,14 @@ func (c *LoginCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	// Wait for callback with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
 	fmt.Println("Waiting for authentication...")
 
+	unblock := programstatus.Block(ansi.ProgramStatusKindAuth, "Sign in to Buildkite in your browser")
 	result, err := flow.WaitForCallback(ctx)
+	unblock()
 	if err != nil {
 		return fmt.Errorf("authentication failed: %w", err)
 	}
@@ -345,7 +355,9 @@ func (c *LoginCmd) runDeviceLogin(ctx context.Context, f *factory.Factory, resol
 	pollCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	unblock := programstatus.Block(ansi.ProgramStatusKindAuth, fmt.Sprintf("Enter code %s to sign in to Buildkite", deviceAuth.UserCode))
 	tokenResp, err := oauth.PollDeviceAccessToken(pollCtx, cfg, deviceAuth)
+	unblock()
 	if err != nil {
 		return fmt.Errorf("device authorization failed: %w", err)
 	}

@@ -5,11 +5,15 @@ import (
 	"os"
 	"time"
 
+	"github.com/buildkite/cli/v3/internal/programstatus"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-isatty"
 )
 
 func SpinWhile(f *factory.Factory, name string, action func() error) error {
+	programstatus.Report(ansi.ProgramStatus{State: ansi.ProgramStateWorking, Message: name})
+
 	// If quiet mode is on or not a terminal, just run the action
 	if f.Quiet || !isatty.IsTerminal(os.Stdout.Fd()) {
 		return action()

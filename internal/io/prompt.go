@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/buildkite/cli/v3/internal/programstatus"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
 )
 
@@ -57,7 +59,9 @@ func PromptForOneTo(out io.Writer, resource string, options []string, noInput bo
 	prompt := fmt.Sprintf("Enter number (1-%d): ", len(options))
 	fmt.Fprint(out, prompt)
 
+	unblock := programstatus.Block(ansi.ProgramStatusKindQuestion, message)
 	response, err := ReadLine()
+	unblock()
 	if err != nil {
 		return "", err
 	}
@@ -112,7 +116,9 @@ func PromptForInput(prompt, defaultVal string, noInput bool) (string, error) {
 		fmt.Printf("%s: ", prompt)
 	}
 
+	unblock := programstatus.Block(ansi.ProgramStatusKindQuestion, prompt)
 	response, err := ReadLine()
+	unblock()
 	if err != nil {
 		return "", err
 	}
