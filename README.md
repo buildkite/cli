@@ -74,7 +74,11 @@ bk job list --pipeline https://buildkite.com/other-org/my-pipeline --build 123
 ```
 
 For `pipeline copy`, `--org` selects the source organization; `--target org/name`
-can still specify a different destination organization.
+can still specify a different destination organization. A qualified source such
+as `bk pipeline copy other-org/their-pipeline --target my-copy` reads from
+`other-org` but still creates the copy in the selected organization. `bk browse`
+builds its URL from the target without calling the API, so it does not require
+credentials for the target's organization.
 
 The CLI does not fall back to another organization's stored credentials. For
 automation or a token with access to multiple organizations, supply

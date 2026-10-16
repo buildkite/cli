@@ -642,6 +642,7 @@ func TestQualifiedTargetOrganization(t *testing.T) {
 		{name: "matching targets", args: []string{"build", "view", "other/widgets/42", "--pipeline=other/widgets", "--summary", "--json"}, path: "/pipelines/widgets/builds/42", response: `{"number":42,"state":"passed"}`},
 		{name: "conflicting targets", args: []string{"build", "view", "other/widgets/42", "--pipeline=environment-org/widgets", "--summary", "--json"}, conflict: `organization "other" in build-number "other/widgets/42" conflicts with organization "environment-org" in pipeline "environment-org/widgets"`},
 		{name: "conflicting flag", args: []string{"build", "view", "other/widgets/42", "--org=environment-org", "--summary", "--json"}, conflict: `--org "environment-org" conflicts with organization "other"`},
+		{name: "view explicit empty org", args: []string{"build", "view", "42", "--pipeline", "other/widgets", "--org=", "--summary", "--json"}, path: "/pipelines/widgets/builds/42", response: `{"number":42,"state":"passed"}`},
 		{name: "missing credential", args: []string{"build", "view", "42", "--pipeline", "other/widgets", "--summary", "--json"}, missingToken: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -727,6 +728,67 @@ func TestQualifiedTargetOrganization(t *testing.T) {
 				if err != nil || string(after) != before {
 					t.Fatalf("configuration file %s changed: %v", path, err)
 				}
+			}
+		})
+	}
+}
+
+// A qualified target does not select the organization for commands that give
+// the target another meaning: browse only builds a URL from it, and pipeline
+// copy reads the source from it while creating the copy in the selected
+// organization.
+func TestQualifiedTargetKeepsSelectedOrganization(t *testing.T) {
+	type request struct{ method, path, token string }
+	for _, tt := range []struct {
+		name     string
+		args     []string
+		requests []request
+		stdout   string
+	}{
+		{
+			name:   "browse without target credentials",
+			args:   []string{"browse", "other/widgets/42", "--no-browser"},
+			stdout: "https://buildkite.com/other/widgets/builds/42\n",
+		},
+		{
+			name: "copy creates in selected organization",
+			args: []string{"pipeline", "cp", "other/widgets", "--target", "widgets-copy", "--cluster-uuid", "cluster-1", "--json"},
+			requests: []request{
+				{http.MethodGet, "/v2/organizations/other/pipelines/widgets", "selected-token"},
+				{http.MethodPost, "/v2/organizations/environment-org/pipelines", "selected-token"},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "environment-org")
+			t.Setenv("BUILDKITE_API_TOKEN", "")
+			t.Setenv("BK_TELEMETRY", "false")
+			t.Setenv(keyring.CredentialStoreEnv, keyring.StoreKeyring)
+			keyring.MockForTesting()
+			t.Cleanup(keyring.ResetForTesting)
+			if err := keyring.New().Set("environment-org", "selected-token"); err != nil {
+				t.Fatal(err)
+			}
+			var got []request
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				got = append(got, request{r.Method, r.URL.Path, strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")})
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprint(w, `{"slug":"widgets","name":"widgets","repository":"git@example.com:widgets.git","cluster_id":"cluster-1"}`)
+			}))
+			defer server.Close()
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+			args := append([]string{"--no-input", "--quiet", "--no-pager", "--yes"}, tt.args...)
+			code, stdout, stderr := runCLI(t, args...)
+			if code != 0 {
+				t.Fatalf("exit=%d, stderr=%s", code, stderr)
+			}
+			if tt.stdout != "" && stdout != tt.stdout {
+				t.Fatalf("stdout = %q, want %q", stdout, tt.stdout)
+			}
+			if fmt.Sprint(got) != fmt.Sprint(tt.requests) {
+				t.Fatalf("requests = %v, want %v", got, tt.requests)
 			}
 		})
 	}

@@ -98,7 +98,7 @@ func (c *CLI) AfterApply(ctx *kong.Context) error {
 	if ctx.Command() == "auth logout" && orgProvided && allProvided {
 		return errors.New("--org and --all cannot be used together")
 	}
-	if err := c.resolveOrganizationTargets(ctx, orgProvided); err != nil {
+	if err := c.resolveOrganizationTargets(ctx); err != nil {
 		return err
 	}
 
@@ -121,14 +121,19 @@ func (c *CLI) AfterApply(ctx *kong.Context) error {
 // Without --org, the first qualified target selects the organization for this
 // invocation so credentials and ambient lookups match the target, and any
 // later qualified target must agree with it.
-func (c *CLI) resolveOrganizationTargets(ctx *kong.Context, orgProvided bool) error {
-	// An explicit empty --org clears the selection; do not infer over it.
-	if orgProvided && c.Org == "" {
-		return nil
-	}
+func (c *CLI) resolveOrganizationTargets(ctx *kong.Context) error {
 	// Only job list uses pipeline/build targets; the corresponding flags on
 	// other job commands are deprecated and ignored.
 	if strings.HasPrefix(ctx.Command(), "job ") && !strings.HasPrefix(ctx.Command(), "job list") {
+		return nil
+	}
+	// Some commands give a qualified target a meaning other than "act in this
+	// organization": browse builds a URL from the target without calling the
+	// API, so it must not require that organization's credentials, and
+	// pipeline copy reads the source from the named organization but creates
+	// the copy in the selected organization unless --target names another.
+	// Those keep the selected organization unless --org is given.
+	if c.Org == "" && (strings.HasPrefix(ctx.Command(), "browse") || strings.HasPrefix(ctx.Command(), "pipeline copy")) {
 		return nil
 	}
 	source := "--org"
