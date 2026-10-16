@@ -382,22 +382,7 @@ func (conf *Config) SetPager(v string) error {
 	return conf.writeUser()
 }
 
-// TelemetryEnabled returns whether telemetry is enabled.
-// Defaults to true if not explicitly set.
-// Precedence: env > user config
-func (conf *Config) TelemetryEnabled() bool {
-	if v, ok := lookupBoolEnv("BK_TELEMETRY"); ok {
-		return v
-	}
-
-	if conf.user.Telemetry != nil {
-		return *conf.user.Telemetry
-	}
-
-	return true
-}
-
-// SetTelemetry sets whether telemetry is enabled (user config only)
+// SetTelemetry preserves the legacy preference for compatibility; telemetry is no longer collected.
 func (conf *Config) SetTelemetry(v bool) error {
 	conf.user.Telemetry = &v
 	return conf.writeUser()

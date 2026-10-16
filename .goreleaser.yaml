@@ -34,7 +34,7 @@ builds:
     binary: bk
     main: .
     ldflags:
-      - -s -w -X github.com/buildkite/cli/v3/cmd/version.Version={{.Version}} -X github.com/buildkite/cli/v3/pkg/cmd/pipeline.MigrationEndpoint=https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate -X github.com/buildkite/cli/v3/pkg/analytics.apiKey={{.Env.POSTHOG_API_KEY}} -X github.com/buildkite/cli/v3/pkg/oauth.DefaultClientID={{.Env.OAUTH_CLIENT_ID}}
+      - -s -w -X github.com/buildkite/cli/v3/cmd/version.Version={{.Version}} -X github.com/buildkite/cli/v3/pkg/cmd/pipeline.MigrationEndpoint=https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate -X github.com/buildkite/cli/v3/pkg/oauth.DefaultClientID={{.Env.OAUTH_CLIENT_ID}}
 
   - id: linux
     goos: [linux]
@@ -44,7 +44,7 @@ builds:
     binary: bk
     main: .
     ldflags:
-      - -s -w -X github.com/buildkite/cli/v3/cmd/version.Version={{.Version}} -X github.com/buildkite/cli/v3/pkg/cmd/pipeline.MigrationEndpoint=https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate -X github.com/buildkite/cli/v3/pkg/analytics.apiKey={{.Env.POSTHOG_API_KEY}} -X github.com/buildkite/cli/v3/pkg/oauth.DefaultClientID={{.Env.OAUTH_CLIENT_ID}}
+      - -s -w -X github.com/buildkite/cli/v3/cmd/version.Version={{.Version}} -X github.com/buildkite/cli/v3/pkg/cmd/pipeline.MigrationEndpoint=https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate -X github.com/buildkite/cli/v3/pkg/oauth.DefaultClientID={{.Env.OAUTH_CLIENT_ID}}
 
   - id: windows
     goos: [windows]
@@ -52,7 +52,7 @@ builds:
     binary: bk
     main: .
     ldflags:
-      - -s -w -X github.com/buildkite/cli/v3/cmd/version.Version={{.Version}} -X github.com/buildkite/cli/v3/pkg/cmd/pipeline.MigrationEndpoint=https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate -X github.com/buildkite/cli/v3/pkg/analytics.apiKey={{.Env.POSTHOG_API_KEY}} -X github.com/buildkite/cli/v3/pkg/oauth.DefaultClientID={{.Env.OAUTH_CLIENT_ID}}
+      - -s -w -X github.com/buildkite/cli/v3/cmd/version.Version={{.Version}} -X github.com/buildkite/cli/v3/pkg/cmd/pipeline.MigrationEndpoint=https://m4vrh5pvtd.execute-api.us-east-1.amazonaws.com/production/migrate -X github.com/buildkite/cli/v3/pkg/oauth.DefaultClientID={{.Env.OAUTH_CLIENT_ID}}
 
 kos:
   - repositories:

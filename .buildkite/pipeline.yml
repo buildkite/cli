@@ -44,7 +44,6 @@ steps:
     env:
       MISE_ENV: release
     secrets:
-      - POSTHOG_API_KEY
       - OAUTH_CLIENT_ID
     command: '.buildkite/release.sh release --clean --snapshot'
     plugins:

@@ -40,7 +40,6 @@ import (
 	"github.com/buildkite/cli/v3/internal/config"
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
-	"github.com/buildkite/cli/v3/pkg/analytics"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 )
 
@@ -288,37 +287,6 @@ func handleError(err error) (exitCode int) {
 	return exitCode
 }
 
-// commandTelemetry uses Kong's schema names, never argument values or error text.
-func commandTelemetry(ctx *kong.Context, err error) (command, outcome string) {
-	outcome = "success"
-	if err != nil {
-		outcome = "error"
-		var parseErr *kong.ParseError
-		if errors.As(err, &parseErr) {
-			ctx = parseErr.Context
-			// Kong does not expose a typed unknown-command error. An unexpected
-			// argument at a command branch means no subcommand matched; invalid
-			// flags, missing arguments and extra leaf arguments remain errors.
-			if ctx != nil && strings.HasPrefix(err.Error(), "unexpected argument ") {
-				node := ctx.Selected()
-				if node == nil {
-					node = ctx.Model.Node
-				}
-				for _, child := range node.Children {
-					if child.Type == kong.CommandNode {
-						outcome = "unknown_command"
-						break
-					}
-				}
-			}
-		}
-	}
-	if ctx != nil {
-		command = analytics.ParseSubcommand(ctx.Command())
-	}
-	return command, outcome
-}
-
 func newKongParser(cli *CLI, options ...kong.Option) (*kong.Kong, error) {
 	baseOptions := []kong.Option{
 		kong.Name("bk"),
@@ -443,10 +411,6 @@ func run() int {
 	// before factory.New() does.
 	factory.ApplyCredentialStoreFromConfig(conf)
 
-	tracker := analytics.Init(versionPkg.Version, conf.TelemetryEnabled())
-	defer tracker.Close()
-	tracker.SetOrg(conf.OrganizationSlug())
-
 	parser, err := newKongParser(cliInstance)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -455,8 +419,6 @@ func run() int {
 	applyExperiments(parser, conf)
 	ctx, err := parser.Parse(args)
 	if err != nil {
-		tracker.TrackCommand(commandTelemetry(ctx, err))
-
 		var parseErr *kong.ParseError
 		if errors.As(err, &parseErr) && !strings.Contains(err.Error(), "did you mean") {
 			_ = parseErr.Context.PrintUsage(false)
@@ -482,7 +444,6 @@ func run() int {
 				_ = os.Unsetenv("BUILDKITE_ORGANIZATION_SLUG")
 			}
 		}()
-		tracker.SetOrg(cliInstance.Org)
 	}
 
 	globals := cli.Globals{
@@ -496,7 +457,6 @@ func run() int {
 	ctx.BindTo(cli.GlobalFlags(globals), (*cli.GlobalFlags)(nil))
 
 	err = ctx.Run(cliInstance)
-	tracker.TrackCommand(commandTelemetry(ctx, err))
 	if err != nil {
 		return handleError(err)
 	}

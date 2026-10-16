@@ -22,44 +22,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-func TestCommandTelemetry(t *testing.T) {
-	for _, tt := range []struct {
-		name, command, outcome string
-		args                   []string
-		runErr                 error
-	}{
-		{"positional", "build view", "success", []string{"build", "view", "private-pipeline/123"}, nil},
-		{"flags and alias", "build list", "success", []string{"build", "ls", "--pipeline=private-pipeline", "--branch=secret"}, nil},
-		{"single command", "version", "success", []string{"version"}, nil},
-		{"runtime failure", "build view", "error", []string{"build", "view", "private-pipeline/123"}, errors.New("secret error details")},
-		{"unknown root", "", "unknown_command", []string{"private-unknown-command"}, nil},
-		{"unknown nested", "build", "unknown_command", []string{"build", "private-unknown-command"}, nil},
-		{"suggestion", "", "unknown_command", []string{"buil"}, nil},
-		{"unknown flag", "build view", "error", []string{"build", "view", "--private-flag=secret"}, nil},
-		{"missing positional", "job ssh", "error", []string{"job", "ssh"}, nil},
-		{"extra positional", "version", "error", []string{"version", "secret"}, nil},
-		{"missing subcommand", "build", "error", []string{"build"}, nil},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			parser, err := newKongParser(&CLI{})
-			if err != nil {
-				t.Fatal(err)
-			}
-			ctx, err := parser.Parse(tt.args)
-			if tt.runErr != nil {
-				if err != nil {
-					t.Fatal(err)
-				}
-				err = tt.runErr
-			}
-			command, outcome := commandTelemetry(ctx, err)
-			if command != tt.command || outcome != tt.outcome {
-				t.Fatalf("got (%q, %q), want (%q, %q); error: %v", command, outcome, tt.command, tt.outcome, err)
-			}
-		})
-	}
-}
-
 func TestGitHubActionsSecretMigrationCommandRegistration(t *testing.T) {
 	const workflow = ".github/workflows/migrate.yml"
 	for _, tt := range []struct {
@@ -183,10 +145,6 @@ func TestCacheRegistryCommandRegistration(t *testing.T) {
 			}
 			if got := ctx.Command(); !strings.HasPrefix(got, tt.command) {
 				t.Fatalf("command = %q, want prefix %q", got, tt.command)
-			}
-			command, outcome := commandTelemetry(ctx, nil)
-			if command != tt.command || outcome != "success" {
-				t.Fatalf("telemetry = (%q, %q)", command, outcome)
 			}
 			tt.assert(t, cli)
 		})
@@ -399,7 +357,6 @@ func TestGlobalOrganization(t *testing.T) {
 			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "environment-org")
 			t.Setenv("BUILDKITE_API_TOKEN", tt.envToken)
-			t.Setenv("BK_TELEMETRY", "false")
 			t.Setenv(keyring.CredentialStoreEnv, keyring.StoreKeyring)
 			keyring.MockForTesting()
 			t.Cleanup(keyring.ResetForTesting)
@@ -511,7 +468,6 @@ func TestGlobalOrganizationRepositoryDiscovery(t *testing.T) {
 			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
 			t.Setenv("BUILDKITE_API_TOKEN", "test-token")
-			t.Setenv("BK_TELEMETRY", "false")
 			repo, err := git.PlainInit(".", false)
 			if err != nil {
 				t.Fatal(err)
@@ -628,7 +584,6 @@ func TestGlobalOrganizationSwitchPersists(t *testing.T) {
 				t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 				t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "")
 				t.Setenv("BUILDKITE_API_TOKEN", "test-token")
-				t.Setenv("BK_TELEMETRY", "false")
 				if inRepo {
 					if _, err := git.PlainInit(".", false); err != nil {
 						t.Fatal(err)
@@ -662,7 +617,6 @@ func TestConfigureExplicitEmptyOrganization(t *testing.T) {
 			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "ambient-org")
 			t.Setenv("BUILDKITE_API_TOKEN", "")
-			t.Setenv("BK_TELEMETRY", "false")
 			t.Setenv(keyring.CredentialStoreEnv, keyring.StoreKeyring)
 			keyring.MockForTesting()
 			t.Cleanup(keyring.ResetForTesting)
