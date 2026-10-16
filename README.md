@@ -60,17 +60,25 @@ overwrite the saved pipeline defaults. Existing cached pipeline names are only
 used when the effective organization matches the saved organization; otherwise
 provide `--pipeline` or let repository discovery find a pipeline in the target org.
 
-A qualified pipeline or build target (including a URL) must agree with an explicit
-`--org`; conflicting organizations produce an error before execution. Omit
-`--org` when the target already specifies the desired organization:
+A qualified pipeline or build target (including a URL) selects its organization
+for the invocation in the same way as `--org`, including that organization's
+stored credentials. Omit `--org` when the target already specifies the desired
+organization; when both are given, or two targets name different organizations,
+the conflict produces an error before execution:
 
 ```sh
 bk build list --pipeline other-org/my-pipeline
+bk build view 123 --pipeline other-org/my-pipeline
+bk build view https://buildkite.com/other-org/my-pipeline/builds/123
 bk job list --pipeline https://buildkite.com/other-org/my-pipeline --build 123
 ```
 
 For `pipeline copy`, `--org` selects the source organization; `--target org/name`
-can still specify a different destination organization.
+can still specify a different destination organization. A qualified source such
+as `bk pipeline copy other-org/their-pipeline --target my-copy` reads from
+`other-org` but still creates the copy in the selected organization. `bk browse`
+builds its URL from the target without calling the API, so it does not require
+credentials for the target's organization.
 
 The CLI does not fall back to another organization's stored credentials. For
 automation or a token with access to multiple organizations, supply
