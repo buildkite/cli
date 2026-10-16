@@ -12,6 +12,8 @@ import (
 	"time"
 
 	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
+	"github.com/buildkite/cli/v3/internal/programstatus"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-isatty"
 	"github.com/mattn/go-runewidth"
 )
@@ -33,6 +35,40 @@ func newRenderer(stdout io.Writer, jsonMode bool, textMode bool, cancel context.
 		return newPlainRenderer(stdout)
 	}
 	return newTTYRenderer(cancel)
+}
+
+// statusRenderer also reports preflight progress to the terminal as program
+// status. RunCmd.Run reports how the preflight ended.
+type statusRenderer struct {
+	renderer
+}
+
+func (r statusRenderer) Render(e Event) error {
+	if s, ok := eventStatus(e); ok {
+		programstatus.Report(s)
+	}
+	return r.renderer.Render(e)
+}
+
+func eventStatus(e Event) (ansi.ProgramStatus, bool) {
+	switch e.Type {
+	case EventOperation:
+		return ansi.ProgramStatus{State: ansi.ProgramStateWorking, Message: e.Title}, true
+	case EventBuildStatus:
+		s := ansi.ProgramStatus{
+			State:   ansi.ProgramStateWorking,
+			Message: fmt.Sprintf("Preflight %s #%d %s", e.Pipeline, e.BuildNumber, e.BuildState),
+		}
+		if j := e.Jobs; j != nil {
+			finished := j.Passed + j.Failed + j.SoftFailed + j.Skipped
+			if total := finished + j.Running + j.Scheduled + j.Blocked + j.Waiting; total > 0 {
+				s.Progress = finished * 100 / total
+				s.HasProgress = true
+			}
+		}
+		return s, true
+	}
+	return ansi.ProgramStatus{}, false
 }
 
 type plainRenderer struct {

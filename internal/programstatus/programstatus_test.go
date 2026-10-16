@@ -1,7 +1,10 @@
 package programstatus
 
 import (
+	"context"
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"maps"
 	"strings"
 	"testing"
@@ -30,6 +33,27 @@ func TestEnabled(t *testing.T) {
 			getenv := func(k string) string { return tt.env[k] }
 			if got := enabled(getenv, tt.tty); got != tt.want {
 				t.Errorf("enabled() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestOutcome(t *testing.T) {
+	failed := errors.New("build is failed")
+	tests := []struct {
+		name string
+		err  error
+		want ansi.ProgramStatus
+	}{
+		{"success", nil, ansi.ProgramStatus{State: ansi.ProgramStateDone, Message: "Downloaded"}},
+		{"user canceled", fmt.Errorf("user aborted: %w", context.Canceled), ansi.ProgramStatus{State: ansi.ProgramStateIdle}},
+		{"request timeout is a failure", fmt.Errorf("download: %w", context.DeadlineExceeded), ansi.ProgramStatus{State: ansi.ProgramStateError, Message: "download: context deadline exceeded"}},
+		{"failure", failed, ansi.ProgramStatus{State: ansi.ProgramStateError, Message: "build is failed"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := outcome(tt.err, "Downloaded"); got != tt.want {
+				t.Errorf("outcome() = %+v, want %+v", got, tt.want)
 			}
 		})
 	}

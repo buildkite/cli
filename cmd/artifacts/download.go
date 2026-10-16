@@ -17,9 +17,11 @@ import (
 	bkErrors "github.com/buildkite/cli/v3/internal/errors"
 	bkIO "github.com/buildkite/cli/v3/internal/io"
 	pipelineResolver "github.com/buildkite/cli/v3/internal/pipeline/resolver"
+	"github.com/buildkite/cli/v3/internal/programstatus"
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	buildkite "github.com/buildkite/go-buildkite/v5"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type DownloadCmd struct {
@@ -80,9 +82,16 @@ func (c *DownloadCmd) validate() error {
 }
 
 func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	msg, err := c.run(kongCtx, globals)
+	programstatus.Finish(err, msg)
+	return err
+}
+
+// run downloads the artifacts and returns a summary of what it downloaded.
+func (c *DownloadCmd) run(kongCtx *kong.Context, globals cli.GlobalFlags) (string, error) {
 	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	f.SkipConfirm = globals.SkipConfirmation()
@@ -90,11 +99,11 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 	f.Quiet = globals.IsQuiet()
 
 	if err := validation.ValidateConfiguration(f.Config, kongCtx.Command()); err != nil {
-		return err
+		return "", err
 	}
 
 	if err := c.validate(); err != nil {
-		return err
+		return "", err
 	}
 
 	pipelineRes := pipelineResolver.NewAggregateResolver(
@@ -119,10 +128,10 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 	ctx := context.Background()
 	bld, err := buildRes.Resolve(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if bld == nil {
-		return bkErrors.NewResourceNotFoundError(nil, "no build found")
+		return "", bkErrors.NewResourceNotFoundError(nil, "no build found")
 	}
 
 	build := strconv.Itoa(bld.BuildNumber)
@@ -134,7 +143,7 @@ func (c *DownloadCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error 
 	return c.downloadAll(ctx, f, bld.Organization, bld.Pipeline, build)
 }
 
-func (c *DownloadCmd) downloadOne(ctx context.Context, f *factory.Factory, org, pipeline, build string) error {
+func (c *DownloadCmd) downloadOne(ctx context.Context, f *factory.Factory, org, pipeline, build string) (string, error) {
 	var filename string
 
 	if err := bkIO.SpinWhile(f, "Downloading artifact", func() error {
@@ -146,14 +155,14 @@ func (c *DownloadCmd) downloadOne(ctx context.Context, f *factory.Factory, org, 
 		filename, dlErr = downloadArtifact(ctx, f, a)
 		return dlErr
 	}); err != nil {
-		return err
+		return "", err
 	}
 
 	fmt.Printf("Downloaded: %s\n", filename)
-	return nil
+	return fmt.Sprintf("Downloaded %s", filename), nil
 }
 
-func (c *DownloadCmd) downloadAll(ctx context.Context, f *factory.Factory, org, pipeline, build string) error {
+func (c *DownloadCmd) downloadAll(ctx context.Context, f *factory.Factory, org, pipeline, build string) (string, error) {
 	var artifacts []buildkite.Artifact
 
 	if err := bkIO.SpinWhile(f, "Loading artifacts", func() error {
@@ -161,31 +170,37 @@ func (c *DownloadCmd) downloadAll(ctx context.Context, f *factory.Factory, org, 
 		artifacts, err = artifact.List(ctx, f.RestAPIClient, org, pipeline, build, c.JobUUID, c.Path, c.State)
 		return err
 	}); err != nil {
-		return err
+		return "", err
 	}
 
 	if len(artifacts) == 0 {
 		writeNoArtifactsMessage(os.Stdout, c.Path, c.State)
-		return nil
+		return "No matching artifacts found", nil
 	}
 
 	directory := fmt.Sprintf("artifacts-build-%s", build)
 	if err := os.MkdirAll(directory, os.ModePerm); err != nil {
-		return err
+		return "", err
 	}
 
 	for i := range artifacts {
 		a := &artifacts[i]
+		programstatus.Report(ansi.ProgramStatus{
+			State:       ansi.ProgramStateWorking,
+			Progress:    i * 100 / len(artifacts),
+			HasProgress: true,
+			Message:     fmt.Sprintf("Downloading artifact %d of %d", i+1, len(artifacts)),
+		})
 		destPath := filepath.Join(directory, filepath.FromSlash(a.Path))
 		if err := artifact.DownloadToFile(ctx, f.RestAPIClient, a.DownloadURL, destPath); err != nil {
-			return err
+			return "", err
 		}
 
 		fmt.Printf("Downloaded: %s\n", a.Path)
 	}
 
 	fmt.Printf("Downloaded %d artifacts to: %s\n", len(artifacts), directory)
-	return nil
+	return fmt.Sprintf("Downloaded %d artifacts from build #%s", len(artifacts), build), nil
 }
 
 func findArtifact(ctx context.Context, f *factory.Factory, org, pipeline, build, artifactID, jobUUID string) (*buildkite.Artifact, error) {

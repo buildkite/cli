@@ -10,7 +10,55 @@ import (
 	"github.com/buildkite/cli/v3/internal/build/watch"
 	internalpreflight "github.com/buildkite/cli/v3/internal/preflight"
 	buildkite "github.com/buildkite/go-buildkite/v5"
+	"github.com/charmbracelet/x/ansi"
 )
+
+func TestEventStatus(t *testing.T) {
+	tests := []struct {
+		name   string
+		event  Event
+		want   ansi.ProgramStatus
+		wantOK bool
+	}{
+		{
+			name:   "operation",
+			event:  Event{Type: EventOperation, Title: "Pushing snapshot of working tree..."},
+			want:   ansi.ProgramStatus{State: ansi.ProgramStateWorking, Message: "Pushing snapshot of working tree..."},
+			wantOK: true,
+		},
+		{
+			name: "build status counts finished jobs against all jobs",
+			event: Event{
+				Type: EventBuildStatus, Pipeline: "acme/app", BuildNumber: 12, BuildState: "failing",
+				Jobs: &watch.JobSummary{Passed: 2, Failed: 1, SoftFailed: 1, Skipped: 1, Running: 2, Scheduled: 1, Blocked: 1, Waiting: 1},
+			},
+			want:   ansi.ProgramStatus{State: ansi.ProgramStateWorking, Progress: 50, HasProgress: true, Message: "Preflight acme/app #12 failing"},
+			wantOK: true,
+		},
+		{
+			name:   "build status before any jobs is indeterminate",
+			event:  Event{Type: EventBuildStatus, Pipeline: "acme/app", BuildNumber: 12, BuildState: "scheduled", Jobs: &watch.JobSummary{}},
+			want:   ansi.ProgramStatus{State: ansi.ProgramStateWorking, Message: "Preflight acme/app #12 scheduled"},
+			wantOK: true,
+		},
+		{
+			name:  "job failures leave the status alone",
+			event: Event{Type: EventJobFailure, Job: &buildkite.Job{State: "failed"}},
+		},
+		{
+			name:  "summary is reported by Run once cleanup is done",
+			event: Event{Type: EventBuildSummary, BuildState: "passed"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := eventStatus(tt.event)
+			if got != tt.want || ok != tt.wantOK {
+				t.Errorf("eventStatus() = %+v, %v; want %+v, %v", got, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}
 
 func TestPlainRenderer_Render_Operation(t *testing.T) {
 	var out bytes.Buffer

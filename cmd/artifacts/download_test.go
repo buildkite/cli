@@ -313,8 +313,12 @@ func TestDownloadAllMultiplePaths(t *testing.T) {
 	if _, err := parser.Parse([]string{"--path", "log/rspec*.json", "--path", "log/*"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := cmd.downloadAll(context.Background(), newArtifactsTestFactory(t, server.URL), "acme", "monolith", "429"); err != nil {
+	msg, err := cmd.downloadAll(context.Background(), newArtifactsTestFactory(t, server.URL), "acme", "monolith", "429")
+	if err != nil {
 		t.Fatal(err)
+	}
+	if want := "Downloaded 2 artifacts from build #429"; msg != want {
+		t.Errorf("downloadAll() = %q, want %q", msg, want)
 	}
 	for path, body := range map[string]string{"log/rspec1.json": "/files/rspec", "log/minitest.log": "/files/minitest"} {
 		got, err := os.ReadFile(filepath.Join("artifacts-build-429", path))
@@ -324,5 +328,25 @@ func TestDownloadAllMultiplePaths(t *testing.T) {
 		if downloads[body] != 1 {
 			t.Errorf("downloads of %s = %d, want 1", body, downloads[body])
 		}
+	}
+}
+
+func TestDownloadAllWithNoMatchesDoesNotClaimDownload(t *testing.T) {
+	t.Chdir(t.TempDir())
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeArtifactsPage(t, w, nil, "")
+	}))
+	t.Cleanup(server.Close)
+
+	cmd := DownloadCmd{Path: []string{"missing/*"}}
+	msg, err := cmd.downloadAll(context.Background(), newArtifactsTestFactory(t, server.URL), "acme", "monolith", "429")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "No matching artifacts found"; msg != want {
+		t.Errorf("downloadAll() = %q, want %q", msg, want)
+	}
+	if _, err := os.Stat("artifacts-build-429"); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("artifacts directory was created: %v", err)
 	}
 }

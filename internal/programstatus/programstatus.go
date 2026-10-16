@@ -10,6 +10,8 @@
 package programstatus
 
 import (
+	"context"
+	"errors"
 	"io"
 	"os"
 	"strconv"
@@ -26,6 +28,24 @@ var std = newReporter(defaultWriter())
 // Report sends s as the status of bk, tagged with the bk app name.
 func Report(s ansi.ProgramStatus) {
 	std.report(s)
+}
+
+// Finish reports how long-running work ended, leaving a record the user can
+// come back to: done with msg if err is nil, idle if the user canceled it, and
+// error otherwise.
+func Finish(err error, msg string) {
+	Report(outcome(err, msg))
+}
+
+func outcome(err error, msg string) ansi.ProgramStatus {
+	switch {
+	case err == nil:
+		return ansi.ProgramStatus{State: ansi.ProgramStateDone, Message: msg}
+	case errors.Is(err, context.Canceled):
+		return ansi.ProgramStatus{State: ansi.ProgramStateIdle}
+	default:
+		return ansi.ProgramStatus{State: ansi.ProgramStateError, Message: err.Error()}
+	}
 }
 
 // Block reports that bk is blocked on the user. Call the returned function once
