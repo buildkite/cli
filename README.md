@@ -183,6 +183,36 @@ that no tests failed, particularly when data is missing or inaccessible.
 
 Current test labels do not establish that flakiness caused a failure.
 
+### Retry a build's failed jobs
+
+```sh
+bk build retry-failed-jobs 123 --pipeline my-pipeline
+bk build retry-failed-jobs acme/my-pipeline/123 --states failed,soft_failed --yes --json
+bk build retry-failed-jobs https://buildkite.com/acme/my-pipeline/builds/123 --yes --no-input --text
+```
+
+The required build argument accepts the same number, qualified selector, and URL
+forms as `failed-tests`. JSON/YAML never prompts for pipeline selection; specify
+`--pipeline` when inference is ambiguous. Confirmation is required unless `--yes`
+is supplied. `--no-input` without `--yes` fails without retrying. Confirmation
+prompts go to stderr, leaving structured stdout parseable.
+Malformed selectors and conflicting explicit build/pipeline targets are rejected.
+
+This calls the public build-wide REST `retry_failed_jobs` operation and requires
+`write_builds`. It is not limited to infrastructure failures and does not check
+whether jobs are safe to rerun. Retries can repeat side effects,
+including deployments. By default (including `--states ''`), all retryable failed
+jobs are retried. `--states` accepts a comma-separated list of `canceled`,
+`expired`, `failed`, `soft_failed`, and `timed_out`.
+
+The API returns **202 Accepted**, asynchronously queuing retries in the existing
+build. JSON/YAML includes `organization`, `pipeline`, `build_number`, `web_url`,
+`retried_jobs_count`, and `note`. The count is jobs queued for retry, including
+zero when none were queued, not completed or successful retries. The command
+does not wait; use `bk build view` or `bk build watch` to follow the build.
+If the request was accepted but its count could not be read, the command fails
+without a receipt and warns you to check the build before resubmitting.
+
 ### List a build's dynamic step uploads
 
 ```sh
