@@ -155,7 +155,9 @@ func (c *CompareCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		pipelineResolver.ResolveFromConfig(f.Config, pipelineResolver.PickOneWithFactory(f)),
 		pipelineResolver.ResolveFromRepository(f, pipelineResolver.CachedPicker(f.Config, pipelineResolver.PickOneWithFactory(f))),
 	)
-	bld, err := buildResolver.ResolveFromPositionalArgument([]string{c.BuildNumber}, 0, pipelineRes.Resolve, f.Config)(ctx)
+	// Match pipeline/root target normalization before selecting credentials.
+	buildArg := strings.ReplaceAll(c.BuildNumber, "_", "-")
+	bld, err := buildResolver.ResolveFromPositionalArgument([]string{buildArg}, 0, pipelineRes.Resolve, f.Config)(ctx)
 	if err != nil {
 		return err
 	}

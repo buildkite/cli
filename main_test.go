@@ -384,6 +384,7 @@ func TestGlobalOrganization(t *testing.T) {
 		args                             []string
 		latest, missingToken, noDefaults bool
 		conflict                         bool
+		retry, noYes                     bool
 	}{
 		{name: "list organization", args: []string{"build", "list", "--org", "ExampleOrg", "--summary", "--json"}, path: "/builds"},
 		{name: "list pipeline and leading flag", args: []string{"--org=ExampleOrg", "build", "list", "--pipeline", "widgets", "--summary", "--json"}, path: "/pipelines/widgets/builds"},
@@ -393,6 +394,10 @@ func TestGlobalOrganization(t *testing.T) {
 		{name: "view number", args: []string{"build", "--org", "ExampleOrg", "view", "42", "--pipeline", "widgets", "--summary", "--json"}, path: "/pipelines/widgets/builds/42", response: `{"number":42,"state":"passed"}`},
 		{name: "view preferred pipeline", args: []string{"build", "view", "42", "--org=ExampleOrg", "--summary", "--json"}, path: "/pipelines/widgets/builds/42", response: `{"number":42,"state":"passed"}`},
 		{name: "view latest", args: []string{"build", "view", "--org=ExampleOrg", "--pipeline=widgets", "--branch=feature", "--summary", "--json"}, path: "/pipelines/widgets/builds/42", response: `{"number":42,"state":"passed"}`, latest: true},
+		{name: "retry leading globals", args: []string{"--yes", "--org=ExampleOrg", "build", "retry-failed-jobs", "42", "-p", "widgets", "--json"}, path: "/pipelines/widgets/builds/42/retry_failed_jobs", retry: true},
+		{name: "retry trailing globals", args: []string{"build", "retry-failed-jobs", "ExampleOrg/widgets/42", "--yes", "--no-input", "--org=ExampleOrg", "--json"}, path: "/pipelines/widgets/builds/42/retry_failed_jobs", retry: true},
+		{name: "retry requires yes", args: []string{"build", "retry-failed-jobs", "ExampleOrg/widgets/42", "--no-input", "--json"}, retry: true, noYes: true},
+		{name: "conflicting retry organization", args: []string{"build", "retry-failed-jobs", "different/widgets/42", "--yes", "--org=ExampleOrg", "--json"}, conflict: true, retry: true},
 		{name: "job list", args: []string{"job", "list", "--org=ExampleOrg", "--json"}, path: "/builds"},
 		{name: "agent list", args: []string{"agent", "list", "--org=ExampleOrg", "--json"}, path: "/agents"},
 		{name: "api", args: []string{"api", "/pipelines", "--org=ExampleOrg"}, path: "/pipelines"},
@@ -455,13 +460,21 @@ func TestGlobalOrganization(t *testing.T) {
 					path = "/v2/organizations/ExampleOrg/pipelines/widgets/builds"
 					response = `[{"number":42}]`
 				}
-				if r.Method != http.MethodGet || r.URL.Path != path {
-					t.Errorf("request = %s %s, want GET %s", r.Method, r.URL.Path, path)
+				method := http.MethodGet
+				if tt.retry {
+					method = http.MethodPut
+					response = `{"pipeline":{"slug":"widgets"},"retried_jobs_count":2,"web_url":"https://buildkite.com/ExampleOrg/widgets/builds/42"}`
+				}
+				if r.Method != method || r.URL.Path != path {
+					t.Errorf("request = %s %s, want %s %s", r.Method, r.URL.Path, method, path)
 				}
 				if response == "" {
 					response = "[]"
 				}
 				w.Header().Set("Content-Type", "application/json")
+				if tt.retry {
+					w.WriteHeader(http.StatusAccepted)
+				}
 				fmt.Fprint(w, response)
 			}))
 			defer server.Close()
@@ -471,6 +484,12 @@ func TestGlobalOrganization(t *testing.T) {
 			wantCode, wantRequests := 0, 1
 			if tt.latest {
 				wantRequests = 2
+			}
+			if tt.noYes {
+				wantCode, wantRequests = 1, 0
+				if !strings.Contains(stderr, "--no-input") || stdout != "" {
+					t.Fatalf("missing confirmation error or unexpected receipt: stdout=%s stderr=%s", stdout, stderr)
+				}
 			}
 			if tt.missingToken {
 				wantCode, wantRequests = 1, 0
@@ -490,6 +509,12 @@ func TestGlobalOrganization(t *testing.T) {
 			if strings.HasPrefix(tt.name, "view") && !strings.Contains(stdout, `"organization": "ExampleOrg"`) {
 				t.Fatalf("wrong build identity: %s", stdout)
 			}
+			if tt.retry && wantCode == 0 {
+				var receipt map[string]any
+				if err := json.Unmarshal([]byte(stdout), &receipt); err != nil || receipt["organization"] != "ExampleOrg" || receipt["retried_jobs_count"] != float64(2) {
+					t.Fatalf("invalid retry receipt: %s (%v)", stdout, err)
+				}
+			}
 			if got, exists := os.LookupEnv("BUILDKITE_ORGANIZATION_SLUG"); got != beforeEnv || exists != hadEnv {
 				t.Fatalf("environment changed to %q", got)
 			}
@@ -498,6 +523,100 @@ func TestGlobalOrganization(t *testing.T) {
 				if err != nil || string(after) != before {
 					t.Fatalf("configuration file %s changed: %v", path, err)
 				}
+			}
+		})
+	}
+}
+
+func TestRetryFailedJobsNormalizedTargets(t *testing.T) {
+	for _, target := range []string{
+		"acme_prod/my_pipeline/42",
+		"https://buildkite.com/acme_prod/my_pipeline/builds/42",
+	} {
+		t.Run(target, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "other-org")
+			t.Setenv("BUILDKITE_API_TOKEN", "")
+			t.Setenv("BK_TELEMETRY", "false")
+			t.Setenv(keyring.CredentialStoreEnv, keyring.StoreKeyring)
+			keyring.MockForTesting()
+			t.Cleanup(keyring.ResetForTesting)
+			if err := keyring.New().Set("acme-prod", "target-token"); err != nil {
+				t.Fatal(err)
+			}
+			if err := keyring.New().Set("acme_prod", "wrong-token"); err != nil {
+				t.Fatal(err)
+			}
+			requests := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests++
+				if r.Method != http.MethodPut || r.URL.Path != "/v2/organizations/acme-prod/pipelines/my-pipeline/builds/42/retry_failed_jobs" || r.Header.Get("Authorization") != "Bearer target-token" {
+					t.Errorf("wrong normalized target or credentials: %s %s", r.Method, r.URL)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusAccepted)
+				fmt.Fprint(w, `{"pipeline":{"slug":"my-pipeline"},"retried_jobs_count":2}`)
+			}))
+			defer server.Close()
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+			code, stdout, stderr := runCLI(t, "--org=acme-prod", "build", "retry-failed-jobs", target, "--pipeline=acme_prod/my_pipeline", "--yes", "--no-input", "--json")
+			if code != 0 || requests != 1 {
+				t.Fatalf("exit=%d requests=%d stderr=%s", code, requests, stderr)
+			}
+			var receipt map[string]any
+			if err := json.Unmarshal([]byte(stdout), &receipt); err != nil || receipt["organization"] != "acme-prod" || receipt["pipeline"] != "my-pipeline" || receipt["retried_jobs_count"] != float64(2) {
+				t.Fatalf("wrong normalized receipt: %s (%v)", stdout, err)
+			}
+		})
+	}
+}
+
+func TestCompareNormalizedTargets(t *testing.T) {
+	for _, target := range []string{
+		"acme_prod/my_pipeline/42",
+		"https://buildkite.com/acme_prod/my_pipeline/builds/42",
+	} {
+		t.Run(target, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "other-org")
+			t.Setenv("BUILDKITE_API_TOKEN", "")
+			t.Setenv("BK_TELEMETRY", "false")
+			t.Setenv(keyring.CredentialStoreEnv, keyring.StoreKeyring)
+			keyring.MockForTesting()
+			t.Cleanup(keyring.ResetForTesting)
+			if err := keyring.New().Set("acme-prod", "target-token"); err != nil {
+				t.Fatal(err)
+			}
+			requests := map[string]int{}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests[r.URL.Path]++
+				if r.Method != http.MethodGet || r.Header.Get("Authorization") != "Bearer target-token" {
+					t.Error("wrong method or normalized organization credentials")
+				}
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/v2/organizations/acme-prod/pipelines/my-pipeline/builds/42":
+					fmt.Fprint(w, `{"number":42,"state":"failed"}`)
+				case "/v2/organizations/acme-prod/pipelines/my-pipeline/builds/39":
+					fmt.Fprint(w, `{"number":39,"state":"passed"}`)
+				case "/v2/organizations/acme-prod/pipelines/my-pipeline/builds/42/jobs", "/v2/organizations/acme-prod/pipelines/my-pipeline/builds/39/jobs":
+					fmt.Fprint(w, `{"items":[],"links":{}}`)
+				default:
+					t.Errorf("wrong normalized target: %s", r.URL)
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+			code, stdout, stderr := runCLI(t, "--org=acme-prod", "build", "compare", target, "--baseline=39", "--no-input", "--json")
+			if code != 0 || len(requests) != 4 {
+				t.Fatalf("exit=%d requests=%v stderr=%s", code, requests, stderr)
+			}
+			var result map[string]any
+			if err := json.Unmarshal([]byte(stdout), &result); err != nil || result["organization"] != "acme-prod" || result["pipeline"] != "my-pipeline" {
+				t.Fatalf("wrong normalized comparison: %s (%v)", stdout, err)
 			}
 		})
 	}
