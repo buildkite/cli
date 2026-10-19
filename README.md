@@ -131,6 +131,108 @@ empty starter contains `steps: []` and needs editing.
 Review generated files, then **commit and push them before building**. Remote
 builds cannot see local starters; creating a pipeline does not publish them.
 
+### Compare builds
+
+```sh
+bk build compare 123 --pipeline my-pipeline --json
+bk build compare acme/my-pipeline/123 --baseline 120 --text
+bk build compare https://buildkite.com/acme/my-pipeline/builds/123 --yaml
+# Inspect newly failing target jobs without interpreting every unchanged row:
+bk build compare acme/my-pipeline/123 --json |
+  jq '.steps[] | select(.change == "newly_failing") | .target | {id, web_url, retries_count}'
+```
+
+Requires `read_builds`. The required target accepts the usual build selectors;
+plain numbers use `--pipeline` or configuration/repository inference. JSON/YAML
+never prompts for pipeline selection; specify `--pipeline` when ambiguous.
+Configured/environment `no_input` and `quiet` settings are preserved alongside
+the global CLI flags, including when selecting another organization's credentials.
+`--baseline` is a different positive build number in the **same pipeline**. It
+may be newer, failed or on another branch (cross-branch comparisons warn).
+Without it, search at most five pages/500 candidates in API newest-first order
+for a lower-numbered, strictly earlier-created build on the exact target branch
+that is **currently passed**. It need not have passed before the target started.
+Missing branch/creation time or no eligible baseline is an error: supply
+`--baseline`. Missing/denied builds, failed pages, and inventories exceeding ten
+pages/1000 jobs per build also fail with no partial output, not false additions.
+
+Only final attempts (`retried=false`, including running attempts) are compared.
+Identity includes step key, type, matrix and parallel index **and total**, keeping
+absent coordinates distinct from zero. Keyed renames/group moves still match.
+Unkeyed jobs use an exact name plus group, type, matrix and parallel coordinates,
+reported as `match_method: name_fallback` with a heuristic warning. Keys never
+match names. Duplicate identities on either side leave **all affected jobs on
+both sides unmatched**; unnamed unkeyed jobs also remain unmatched. Renames of
+unkeyed jobs and changed coordinates appear as added/removed, not proven changes
+to the same step. Unfinished builds warn: added/removed is snapshot presence only.
+
+JSON/YAML contains `organization`, `pipeline`, `target`/`baseline` metadata
+(ID, number, state, branch, commit, URL, creation time), `baseline_selection`,
+`candidates_scanned`, final-attempt `target_jobs`/`baseline_jobs`, `change_counts`,
+`steps` and `warnings`. Every comparison row is returned, with no output truncation.
+Empty inventories produce `steps: []` and `change_counts: {}`. Counts count rows,
+so an ambiguous identity can contribute separate target and baseline rows.
+Each row includes identity fields, optional `match_method`/`unmatched_reason`,
+and available `target`/`baseline` attempts with IDs, names, states, `soft_failed`,
+exit status/signal reason, retry counts, URLs and valid timing metrics.
+If a job URL is missing but its step ID is available, its URL opens that step in
+the corresponding build instead. Existing job URLs are preserved.
+
+Outcome precedence and display order are:
+
+| Change | Meaning |
+| --- | --- |
+| `newly_failing` | Passed → failed/timed_out/expired, with unchanged soft-failure flag |
+| `recovered` | Failed/timed_out/expired → passed, with unchanged soft-failure flag |
+| `still_failing` | Both states are failed/timed_out/expired, with unchanged soft-failure flag |
+| `state_changed` | Soft-failure flag changed (takes precedence over the above), or another state change |
+| `retries_changed` | Same outcome/state but a different final-attempt retry count |
+| `added` / `removed` | Unique identity present only in target / baseline |
+| `unmatched` | Missing or ambiguous identity; no pair inferred |
+| `unchanged` | Same outcome/state and retry count; timings may still differ |
+
+One-sided and unmatched rows take precedence over outcome classification. Two
+soft-failed attempts can be `still_failing`; cancellations, broken, waiting_failed
+and skipped states are not classified as failures. Within each category, execution
+deltas sort descending (missing treated as zero), with API order retained for ties.
+`execution_seconds` is finished minus started; `scheduling_seconds` is started
+minus scheduled. Uploaded jobs can inherit the build's creation time as their
+scheduled time, so this interval can include earlier upstream waiting; it is not
+isolated scheduler/agent delay. Missing or reversed timestamps omit the metric;
+zero is valid. `execution_delta_seconds` is target minus baseline when both are
+valid, so positive means slower. These are final-attempt durations, not all-retry
+costs or build wall-clock deltas.
+
+Still-failing jobs can have different causes. Comparison does not prove causality
+or retry safety. No logs are fetched; follow job URLs/IDs for evidence and use
+`bk job --help` for drill-down commands. Text output uses untruncated per-step
+blocks; JSON/YAML is preferable for filtering and automated analysis.
+
+### List a build's annotations
+
+```sh
+bk build annotations 123 --pipeline my-pipeline --json
+bk build annotations acme/my-pipeline/123 --text
+bk build annotations https://buildkite.com/acme/my-pipeline/builds/123 --yaml
+bk build annotations acme/my-pipeline/123 --json | jq '.annotations[].body_html'
+```
+
+The build argument is required. A plain build number uses `--pipeline` (a slug
+or `org/pipeline`) or the pipeline inferred from configuration or the repository.
+JSON/YAML never prompts for pipeline selection; specify `--pipeline` when
+inference is ambiguous. Qualified selectors use the target organization's
+credentials. Requires the `read_builds` token scope.
+
+All pages of both build- and job-scoped annotations are fetched. JSON/YAML
+includes `organization`, `pipeline`, `build_number`, and `annotations` (an empty
+array when there are none). Annotation fields use REST names, including `id`,
+`context`, `style`, `scope`, `job_id` when present, `priority`, `body_html`,
+`created_at`, and `updated_at`. Bodies are rendered HTML, not original Markdown;
+text output also preserves the HTML. `--output/-o json|yaml|text` and the standard
+`--json`, `--yaml`, `--text` flags are supported. Text output reports
+`No annotations found.` for an empty build. Errors, including a failed later
+page, return a nonzero exit status with no partial results on stdout.
+
 ### List a build's failed tests
 
 ```sh
@@ -157,6 +259,62 @@ ends at most 24 hours after build creation. An empty result does **not** prove
 that no tests failed, particularly when data is missing or inaccessible.
 
 Current test labels do not establish that flakiness caused a failure.
+
+### Retry a build's failed jobs
+
+```sh
+bk build retry-failed-jobs 123 --pipeline my-pipeline
+bk build retry-failed-jobs acme/my-pipeline/123 --states failed,soft_failed --yes --json
+bk build retry-failed-jobs https://buildkite.com/acme/my-pipeline/builds/123 --yes --no-input --text
+```
+
+The required build argument accepts the same number, qualified selector, and URL
+forms as `failed-tests`. JSON/YAML never prompts for pipeline selection; specify
+`--pipeline` when inference is ambiguous. Confirmation is required unless `--yes`
+is supplied. `--no-input` without `--yes` fails without retrying. Confirmation
+prompts go to stderr, leaving structured stdout parseable.
+Malformed selectors and conflicting explicit build/pipeline targets are rejected.
+
+This calls the public build-wide REST `retry_failed_jobs` operation and requires
+`write_builds`. It is not limited to infrastructure failures and does not check
+whether jobs are safe to rerun. Retries can repeat side effects,
+including deployments. By default (including `--states ''`), all retryable failed
+jobs are retried. `--states` accepts a comma-separated list of `canceled`,
+`expired`, `failed`, `soft_failed`, and `timed_out`.
+
+The API returns **202 Accepted**, asynchronously queuing retries in the existing
+build. JSON/YAML includes `organization`, `pipeline`, `build_number`, `web_url`,
+`retried_jobs_count`, and `note`. The count is jobs queued for retry, including
+zero when none were queued, not completed or successful retries. The command
+does not wait; use `bk build view` or `bk build watch` to follow the build.
+If the request was accepted but its count could not be read, the command fails
+without a receipt and warns you to check the build before resubmitting.
+
+### List a build's dynamic step uploads
+
+```sh
+bk build step-uploads 123 --pipeline my-pipeline --json
+bk build step-uploads acme/my-pipeline/123 --text
+bk build step-uploads https://buildkite.com/acme/my-pipeline/builds/123 --yaml
+```
+
+The build argument is required and uses the same selectors and prompt-safe
+pipeline inference as `failed-tests`. Requires the `read_builds` token scope.
+All cursor pages are fetched, newest first. JSON output includes `organization`,
+`pipeline`, `build_number`, `step_uploads` (an empty array when none exist), and
+`note`. Uploads include their UUID, state (`pending`, `processing`, `applied`,
+`rejected`, or `failed`), source job, replace flag, timestamps, created job count,
+and any rejection type and outcome message. An unavailable `created_jobs_count`
+is omitted in JSON and shown as `-` in text; an applied upload that created no
+jobs has a count of `0`.
+
+Rejection/failure messages are available without fetching individual uploads.
+They exclude uploaded configuration and internal failure details; inspect the
+source job's pipeline upload command output for further diagnostics. Uploaded
+definitions are not fetched. The API only retains uploads within the build's
+maximum lifetime, up to 30 days after creation. Older builds return a `410 Gone`
+error, not an empty successful result. Other API errors also fail the command
+without emitting partial results.
 
 ### Inspect flaky test failures
 
