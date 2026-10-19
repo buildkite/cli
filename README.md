@@ -123,6 +123,33 @@ empty starter contains `steps: []` and needs editing.
 Review generated files, then **commit and push them before building**. Remote
 builds cannot see local starters; creating a pipeline does not publish them.
 
+### List a build's failed tests
+
+```sh
+bk build failed-tests 123 --pipeline my-pipeline --json
+bk build failed-tests acme/my-pipeline/123 --text
+bk build failed-tests https://buildkite.com/acme/my-pipeline/builds/123 --yaml
+```
+
+The build argument is required. A plain build number uses `--pipeline` or the
+pipeline inferred from configuration or the repository. JSON/YAML never prompts
+for pipeline selection; specify `--pipeline` when inference is ambiguous.
+The command fetches all pages of tests with **at least one failed execution**,
+including tests that passed on retry, from every Test Engine suite accessible to
+your token. It does not restrict results to flaky labels or require the build to
+be failed.
+
+JSON/YAML output includes `organization`, `pipeline`, `build_number`, `build_id`,
+`failed_tests` (an empty array when there are no matches), and `note`. Each test
+includes its identity, source location, links, current labels, and execution
+metrics. Individual execution failure messages and backtraces are not included.
+Requires `read_builds` and `read_suites` token scopes and uploaded Test Engine data
+associated with the build. The API aggregation window is bounded by retention and
+ends at most 24 hours after build creation. An empty result does **not** prove
+that no tests failed, particularly when data is missing or inaccessible.
+
+Current test labels do not establish that flakiness caused a failure.
+
 ### Inspect flaky test failures
 
 List failed tests that Test Engine currently labels flaky for a failed job:
