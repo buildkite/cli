@@ -230,6 +230,7 @@ type (
 	}
 	JobCmd struct {
 		Cancel       job.CancelCmd       `cmd:"" help:"Cancel a job."`
+		Environment  job.EnvironmentCmd  `cmd:"" help:"Read a job's environment variables (sensitive output)."`
 		FlakyTests   job.FlakyTestsCmd   `cmd:"" help:"List failed tests currently labeled flaky by Test Engine for a failed job."`
 		List         job.ListCmd         `cmd:"" help:"List jobs." aliases:"ls"`
 		Log          job.LogCmd          `cmd:"" help:"Get logs for a job."`

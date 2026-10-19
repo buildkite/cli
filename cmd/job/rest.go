@@ -22,6 +22,29 @@ func organizationJobPath(organization, jobID, action string) string {
 	)
 }
 
+func getJobEnvironment(ctx context.Context, client *buildkite.Client, organization, jobID string) (buildkite.JobEnvs, error) {
+	req, err := client.NewRequest(ctx, http.MethodGet, organizationJobPath(organization, jobID, "env"), nil)
+	if err != nil {
+		return buildkite.JobEnvs{}, fmt.Errorf("could not create job environment request")
+	}
+	req.Header.Set("Accept", "application/json")
+
+	var environment buildkite.JobEnvs
+	resp, err := client.Do(req, &environment)
+	if err != nil {
+		// SDK errors can contain raw response bodies or decoded values. Do not
+		// wrap them: environment data must only reach the requested output.
+		if resp != nil && resp.StatusCode >= 400 {
+			return buildkite.JobEnvs{}, fmt.Errorf("could not read job environment (HTTP %d); check the job UUID, organization and read_job_env token scope", resp.StatusCode)
+		}
+		return buildkite.JobEnvs{}, fmt.Errorf("could not read job environment: request failed or response was invalid")
+	}
+	if environment.EnvironmentVariables == nil {
+		environment.EnvironmentVariables = map[string]string{}
+	}
+	return environment, nil
+}
+
 func getJobLog(ctx context.Context, client *buildkite.Client, organization, jobID string) (buildkite.JobLog, error) {
 	req, err := client.NewRequest(ctx, "GET", organizationJobPath(organization, jobID, "log"), nil)
 	if err != nil {

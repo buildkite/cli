@@ -176,6 +176,29 @@ can prevent matches.
 Current flaky labels do not prove that flakiness caused the job failure. An empty
 result does **not** mean “not flaky”: Test Engine data may be missing or incomplete.
 
+### Read a job's environment
+
+```sh
+bk job environment <job-uuid> --json
+bk job environment <job-uuid> --json | jq -r '.env.CI'
+bk job environment <job-uuid> --yaml
+bk job environment <job-uuid> --text
+```
+
+Uses the selected organization (or global `--org`) and a job UUID, without
+requiring pipeline or build identifiers. Requires the `read_job_env` token
+scope. JSON is the default unless configured otherwise; `--output/-o` and the
+standard format flags override configuration. JSON/YAML preserve the API shape
+`{"env":{"NAME":"value"}}`, including empty strings and multiline values. Empty
+environments produce `{"env":{}}`. Text prints sorted `NAME="value"` lines with
+escaped values; it is an inspection format, not a shell script to source.
+
+**Treat all output as sensitive.** Values are intentionally not redacted and may
+contain secrets. Avoid writing them to CI logs, shared files, or LLM prompts
+without reviewing them. Environment response bodies are omitted from `--debug`
+logging, and API errors do not echo response data. The command does not store
+environment values.
+
 ### Find failures across triggered builds
 
 ```sh

@@ -124,8 +124,27 @@ func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return resp, err
 	}
 
-	if dump, err := httputil.DumpResponse(resp, true); err == nil {
-		fmt.Fprintf(os.Stderr, "DEBUG response uri=%s\n%s\n", req.URL, redactBody(string(dump)))
+	// Environment values may have arbitrary names, so field-name redaction
+	// cannot protect them. Omit the whole body, including error responses.
+	// Follow redirect ancestry so a different destination path stays protected.
+	omitResponseBody := false
+	for ancestor := req; ancestor != nil; {
+		if strings.Contains(ancestor.URL.Path, "/jobs/") &&
+			strings.HasSuffix(strings.TrimSuffix(ancestor.URL.Path, "/"), "/env") {
+			omitResponseBody = true
+			break
+		}
+		if ancestor.Response == nil {
+			break
+		}
+		ancestor = ancestor.Response.Request
+	}
+	if dump, err := httputil.DumpResponse(resp, !omitResponseBody); err == nil {
+		redacted := redactBody(string(dump))
+		if omitResponseBody {
+			redacted += "\n[response body omitted]"
+		}
+		fmt.Fprintf(os.Stderr, "DEBUG response uri=%s\n%s\n", req.URL, redacted)
 	}
 
 	return resp, nil
