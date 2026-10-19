@@ -183,6 +183,32 @@ that no tests failed, particularly when data is missing or inaccessible.
 
 Current test labels do not establish that flakiness caused a failure.
 
+### List a build's dynamic step uploads
+
+```sh
+bk build step-uploads 123 --pipeline my-pipeline --json
+bk build step-uploads acme/my-pipeline/123 --text
+bk build step-uploads https://buildkite.com/acme/my-pipeline/builds/123 --yaml
+```
+
+The build argument is required and uses the same selectors and prompt-safe
+pipeline inference as `failed-tests`. Requires the `read_builds` token scope.
+All cursor pages are fetched, newest first. JSON output includes `organization`,
+`pipeline`, `build_number`, `step_uploads` (an empty array when none exist), and
+`note`. Uploads include their UUID, state (`pending`, `processing`, `applied`,
+`rejected`, or `failed`), source job, replace flag, timestamps, created job count,
+and any rejection type and outcome message. An unavailable `created_jobs_count`
+is omitted in JSON and shown as `-` in text; an applied upload that created no
+jobs has a count of `0`.
+
+Rejection/failure messages are available without fetching individual uploads.
+They exclude uploaded configuration and internal failure details; inspect the
+source job's pipeline upload command output for further diagnostics. Uploaded
+definitions are not fetched. The API only retains uploads within the build's
+maximum lifetime, up to 30 days after creation. Older builds return a `410 Gone`
+error, not an empty successful result. Other API errors also fail the command
+without emitting partial results.
+
 ### Inspect flaky test failures
 
 List failed tests that Test Engine currently labels flaky for a failed job:
