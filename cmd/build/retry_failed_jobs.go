@@ -91,7 +91,7 @@ func (c *RetryFailedJobsCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags)
 	noInput := f.NoInput || globals.DisableInput()
 	// Selection prompts write to stdout; never mix them into JSON/YAML.
 	f.NoInput = noInput || format != output.FormatText
-	f.Quiet = globals.IsQuiet()
+	f.Quiet = f.Quiet || globals.IsQuiet()
 	ctx := context.Background()
 	pipelineRes := pipelineResolver.NewAggregateResolver(
 		pipelineResolver.ResolveFromFlag(c.Pipeline, f.Config),
@@ -121,7 +121,7 @@ func (c *RetryFailedJobsCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags)
 	}
 	f.SkipConfirm = globals.SkipConfirmation()
 	f.NoInput = noInput
-	f.Quiet = globals.IsQuiet()
+	f.Quiet = f.Quiet || globals.IsQuiet()
 	if err := validation.ValidateConfigurationForOrg(f.Config, kongCtx.Command(), bld.Organization); err != nil {
 		return err
 	}
