@@ -131,6 +131,31 @@ empty starter contains `steps: []` and needs editing.
 Review generated files, then **commit and push them before building**. Remote
 builds cannot see local starters; creating a pipeline does not publish them.
 
+### List a build's annotations
+
+```sh
+bk build annotations 123 --pipeline my-pipeline --json
+bk build annotations acme/my-pipeline/123 --text
+bk build annotations https://buildkite.com/acme/my-pipeline/builds/123 --yaml
+bk build annotations acme/my-pipeline/123 --json | jq '.annotations[].body_html'
+```
+
+The build argument is required. A plain build number uses `--pipeline` (a slug
+or `org/pipeline`) or the pipeline inferred from configuration or the repository.
+JSON/YAML never prompts for pipeline selection; specify `--pipeline` when
+inference is ambiguous. Qualified selectors use the target organization's
+credentials. Requires the `read_builds` token scope.
+
+All pages of both build- and job-scoped annotations are fetched. JSON/YAML
+includes `organization`, `pipeline`, `build_number`, and `annotations` (an empty
+array when there are none). Annotation fields use REST names, including `id`,
+`context`, `style`, `scope`, `job_id` when present, `priority`, `body_html`,
+`created_at`, and `updated_at`. Bodies are rendered HTML, not original Markdown;
+text output also preserves the HTML. `--output/-o json|yaml|text` and the standard
+`--json`, `--yaml`, `--text` flags are supported. Text output reports
+`No annotations found.` for an empty build. Errors, including a failed later
+page, return a nonzero exit status with no partial results on stdout.
+
 ### List a build's failed tests
 
 ```sh
