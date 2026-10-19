@@ -101,10 +101,11 @@ func TestRefreshTransport_PassesThroughNon401(t *testing.T) {
 	ts := NewTokenSource("old-token")
 
 	transport := &RefreshTransport{
-		Base:        http.DefaultTransport,
-		Org:         "test-org",
-		Keyring:     kr,
-		TokenSource: ts,
+		Base:         http.DefaultTransport,
+		Org:          "test-org",
+		Keyring:      kr,
+		TokenSource:  ts,
+		APIEndpoints: []string{server.URL},
 	}
 
 	req, _ := http.NewRequest("GET", server.URL+"/test", nil)
@@ -136,10 +137,11 @@ func TestRefreshTransport_NoRefreshToken_PassesThrough401(t *testing.T) {
 	ts := NewTokenSource("some-token")
 
 	transport := &RefreshTransport{
-		Base:        http.DefaultTransport,
-		Org:         "test-org",
-		Keyring:     kr,
-		TokenSource: ts,
+		Base:         http.DefaultTransport,
+		Org:          "test-org",
+		Keyring:      kr,
+		TokenSource:  ts,
+		APIEndpoints: []string{server.URL},
 	}
 
 	req, _ := http.NewRequest("GET", server.URL+"/test", nil)
@@ -186,10 +188,11 @@ func TestRefreshTransport_CompareAfterLock_SkipsRedundantRefresh(t *testing.T) {
 	t.Setenv("BUILDKITE_HOST", "127.0.0.1:1")
 
 	transport := &RefreshTransport{
-		Base:        http.DefaultTransport,
-		Org:         "test-org",
-		Keyring:     kr,
-		TokenSource: ts,
+		Base:         http.DefaultTransport,
+		Org:          "test-org",
+		Keyring:      kr,
+		TokenSource:  ts,
+		APIEndpoints: []string{server.URL},
 	}
 
 	// Request with a stale token that triggers 401
@@ -234,10 +237,11 @@ func TestRefreshTransport_UnwritableCredentialStoreDoesNotExchangeRefreshToken(t
 		checkWritableErr: writeErr,
 	}
 	transport := &RefreshTransport{
-		Base:        server.Client().Transport,
-		Org:         "test-org",
-		Keyring:     store,
-		TokenSource: NewTokenSource("old-token"),
+		Base:         server.Client().Transport,
+		Org:          "test-org",
+		Keyring:      store,
+		TokenSource:  NewTokenSource("old-token"),
+		APIEndpoints: []string{server.URL},
 	}
 
 	t.Setenv("BUILDKITE_HOST", strings.TrimPrefix(server.URL, "https://"))
@@ -291,10 +295,11 @@ func TestRefreshTransport_RotatedRefreshTokenStoreFailureReturnsError(t *testing
 		setRefreshTokenErr: errors.New("boom"),
 	}
 	transport := &RefreshTransport{
-		Base:        server.Client().Transport,
-		Org:         "test-org",
-		Keyring:     store,
-		TokenSource: NewTokenSource("old-token"),
+		Base:         server.Client().Transport,
+		Org:          "test-org",
+		Keyring:      store,
+		TokenSource:  NewTokenSource("old-token"),
+		APIEndpoints: []string{server.URL},
 	}
 
 	t.Setenv("BUILDKITE_HOST", strings.TrimPrefix(server.URL, "https://"))
@@ -400,10 +405,11 @@ func TestRefreshTransport_InvalidGrantRotationHandling(t *testing.T) {
 				refreshTokenReads: append([]string(nil), tt.refreshTokenReads...),
 			}
 			transport := &RefreshTransport{
-				Base:        server.Client().Transport,
-				Org:         "test-org",
-				Keyring:     store,
-				TokenSource: NewTokenSource("old-token"),
+				Base:         server.Client().Transport,
+				Org:          "test-org",
+				Keyring:      store,
+				TokenSource:  NewTokenSource("old-token"),
+				APIEndpoints: []string{server.URL},
 			}
 
 			t.Setenv("BUILDKITE_HOST", strings.TrimPrefix(server.URL, "https://"))
@@ -457,10 +463,11 @@ func TestRefreshTransport_DoesNotDeleteRefreshTokenOnTransientError(t *testing.T
 	t.Setenv("BUILDKITE_HOST", "127.0.0.1:1") // connection refused
 
 	transport := &RefreshTransport{
-		Base:        http.DefaultTransport,
-		Org:         "test-org",
-		Keyring:     kr,
-		TokenSource: ts,
+		Base:         http.DefaultTransport,
+		Org:          "test-org",
+		Keyring:      kr,
+		TokenSource:  ts,
+		APIEndpoints: []string{server.URL},
 	}
 
 	req, _ := http.NewRequest("GET", server.URL+"/test", nil)
@@ -506,10 +513,11 @@ func TestRefreshTransport_BuffersAndRetriesPostBody(t *testing.T) {
 	defer server.Close()
 
 	transport := &RefreshTransport{
-		Base:        http.DefaultTransport,
-		Org:         "test-org",
-		Keyring:     kr,
-		TokenSource: ts,
+		Base:         http.DefaultTransport,
+		Org:          "test-org",
+		Keyring:      kr,
+		TokenSource:  ts,
+		APIEndpoints: []string{server.URL},
 	}
 
 	// Simulate a POST with a body that doesn't have GetBody set
@@ -540,16 +548,35 @@ func TestRefreshTransport_ConcurrentRequestsOnlyRefreshOnce(t *testing.T) {
 	defer keyring.ResetForTesting()
 
 	kr := keyring.New()
-	_ = kr.Set("test-org", "new-token")
+	_ = kr.Set("test-org", "old-token")
 	_ = kr.SetRefreshToken("test-org", "refresh-token")
 
-	// TokenSource already has the refreshed token (simulating the first
-	// goroutine having completed the refresh).
-	ts := NewTokenSource("new-token")
+	ts := NewTokenSource("old-token")
+	const concurrentRequests = 5
+	var failedRequests, refreshRequests atomic.Int32
+	allFailed := make(chan struct{})
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/oauth/token" {
+			refreshRequests.Add(1)
+			if got := r.FormValue("refresh_token"); got != "refresh-token" {
+				t.Errorf("unexpected refresh token: %q", got)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"access_token":"new-token","refresh_token":"new-refresh-token"}`)
+			return
+		}
 		auth := r.Header.Get("Authorization")
-		if auth == "Bearer stale-token" {
+		if auth == "Bearer old-token" {
+			if failedRequests.Add(1) == concurrentRequests {
+				close(allFailed)
+			}
+			// Ensure every request used the old token before allowing a refresh.
+			select {
+			case <-allFailed:
+			case <-r.Context().Done():
+				return
+			}
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -562,34 +589,34 @@ func TestRefreshTransport_ConcurrentRequestsOnlyRefreshOnce(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Point BUILDKITE_HOST at a dead port so that if doRefresh is
-	// incorrectly called (bypassing compare-after-lock), it fails.
-	t.Setenv("BUILDKITE_HOST", "127.0.0.1:1")
+	original := http.DefaultTransport
+	http.DefaultTransport = server.Client().Transport
+	defer func() { http.DefaultTransport = original }()
+	t.Setenv("BUILDKITE_HOST", strings.TrimPrefix(server.URL, "https://"))
 
 	transport := &RefreshTransport{
-		Base:        http.DefaultTransport,
-		Org:         "test-org",
-		Keyring:     kr,
-		TokenSource: ts,
+		Base:         &AuthTransport{Base: server.Client().Transport, TokenSource: ts},
+		Org:          "test-org",
+		Keyring:      kr,
+		TokenSource:  ts,
+		APIEndpoints: []string{server.URL},
 	}
 
-	// N goroutines hit 401 with "stale-token" concurrently.
-	// All should use compare-after-lock to skip refresh and retry
-	// with the already-refreshed "new-token".
+	// Concurrent 401s must trigger one exchange and all retry with the new token.
 	var wg sync.WaitGroup
-	results := make([]int, 5)
+	results := make([]int, concurrentRequests)
 
-	for i := range 5 {
+	for i := range concurrentRequests {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
 			req, _ := http.NewRequest("GET", server.URL+"/test", nil)
-			req.Header.Set("Authorization", "Bearer stale-token")
 			resp, err := transport.RoundTrip(req)
 			if err != nil {
 				results[idx] = -1
 				return
 			}
+			defer resp.Body.Close()
 			results[idx] = resp.StatusCode
 		}(i)
 	}
@@ -600,6 +627,14 @@ func TestRefreshTransport_ConcurrentRequestsOnlyRefreshOnce(t *testing.T) {
 		if status != http.StatusOK {
 			t.Errorf("goroutine %d: expected 200, got %d", i, status)
 		}
+	}
+	if got := refreshRequests.Load(); got != 1 {
+		t.Errorf("expected exactly one refresh exchange, got %d", got)
+	}
+	accessToken, _ := kr.Get("test-org")
+	refreshToken, _ := kr.GetRefreshToken("test-org")
+	if accessToken != "new-token" || refreshToken != "new-refresh-token" || ts.Token() != "new-token" {
+		t.Errorf("expected rotated credentials to be persisted and published")
 	}
 }
 
