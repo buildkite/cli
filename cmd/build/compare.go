@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/alecthomas/kong"
 	buildResolver "github.com/buildkite/cli/v3/internal/build/resolver"
@@ -225,7 +226,7 @@ func loadBuildComparison(ctx context.Context, client *buildkite.Client, org, pip
 	}
 	r.TargetJobs, r.BaselineJobs = len(targetJobs), len(baselineJobs)
 	compareBuildJobs(targetJobs, baselineJobs, &r)
-	r.Warnings = append(r.Warnings, "Timings cover final attempts only; scheduling_seconds is scheduled_at to started_at, not dependency/manual waiting. Execution deltas are not build wall-clock deltas. Still-failing does not prove a shared cause or that retrying is safe. No logs were fetched; inspect job IDs/URLs for evidence.")
+	r.Warnings = append(r.Warnings, "Timings cover final attempts only; scheduling_seconds is scheduled_at to started_at and can include upstream waiting when uploaded jobs inherit the build's creation time. It is not isolated scheduler/agent delay. Execution deltas are not build wall-clock deltas. Still-failing does not prove a shared cause or that retrying is safe. No logs were fetched; inspect job IDs/URLs for evidence.")
 	return r, nil
 }
 
@@ -233,7 +234,10 @@ func findComparisonBaseline(ctx context.Context, client *buildkite.Client, org, 
 	if target.Branch == "" || target.CreatedAt == nil {
 		return 0, 0, fmt.Errorf("target has no branch or creation time; provide --baseline")
 	}
-	opts := &buildkite.BuildsListOptions{Branch: []string{target.Branch}, State: []string{"passed"}, CreatedTo: target.CreatedAt.Time, ExcludeJobs: true, ExcludePipeline: true, ListOptions: buildkite.ListOptions{Page: 1, PerPage: 100}}
+	// The SDK encodes whole seconds. Include same-second candidates here, then
+	// enforce the precise, strictly earlier timestamp below.
+	cutoff := target.CreatedAt.Truncate(time.Second).Add(time.Second)
+	opts := &buildkite.BuildsListOptions{Branch: []string{target.Branch}, State: []string{"passed"}, CreatedTo: cutoff, ExcludeJobs: true, ExcludePipeline: true, ListOptions: buildkite.ListOptions{Page: 1, PerPage: 100}}
 	scanned := 0
 	for range 5 {
 		builds, resp, err := client.Builds.ListByPipeline(ctx, org, pipeline, opts)

@@ -29,6 +29,7 @@ func comparisonTime(seconds int) *buildkite.Timestamp {
 type comparisonFixture struct {
 	targetJobs, baselineJobs []buildkite.Job
 	candidates               []buildkite.Build
+	targetCreatedAt          *buildkite.Timestamp
 	noBaseline, missingTime  bool
 	loopJobs, loopBuilds     bool
 	failAt                   string
@@ -65,6 +66,8 @@ func runComparison(t *testing.T, fixture *comparisonFixture, args ...string) (bu
 			if strings.HasSuffix(r.URL.Path, "/39") {
 				// Explicit baselines are permitted on other branches and in failed state.
 				b.Number, b.Branch, b.CreatedAt = 39, "main", comparisonTime(10)
+			} else if fixture.targetCreatedAt != nil {
+				b.CreatedAt = fixture.targetCreatedAt
 			}
 			if fixture.missingTime {
 				b.CreatedAt = nil
@@ -75,6 +78,21 @@ func runComparison(t *testing.T, fixture *comparisonFixture, args ...string) (bu
 			q := r.URL.Query()
 			if q.Get("branch[]") != "feature" || q.Get("state[]") != "passed" || q.Get("created_to") == "" || q.Get("per_page") != "100" {
 				t.Errorf("incorrect baseline filters: %s", r.URL)
+			}
+			if fixture.targetCreatedAt != nil {
+				cutoff, err := time.Parse(time.RFC3339, q.Get("created_to"))
+				if err != nil {
+					t.Error(err)
+				}
+				// Apply the API's strict upper bound before client-side filtering.
+				builds := []buildkite.Build{}
+				for _, b := range fixture.candidates {
+					if b.CreatedAt.Before(cutoff) {
+						builds = append(builds, b)
+					}
+				}
+				_ = json.NewEncoder(w).Encode(builds)
+				return
 			}
 			if fixture.loopBuilds || q.Get("page") == "1" {
 				w.Header().Set("Link", fmt.Sprintf(`<https://api.buildkite.com%s?page=7>; rel="next"`, prefix))
@@ -285,6 +303,28 @@ func TestCompareFinalAttemptOutcomesAndTiming(t *testing.T) {
 		if !strings.Contains(r.TextOutput(), text) {
 			t.Errorf("text missing %q: %s", text, r.TextOutput())
 		}
+	}
+}
+
+func TestCompareSameSecondBaseline(t *testing.T) {
+	f := comparisonFixture{
+		targetCreatedAt: &buildkite.Timestamp{Time: comparisonTime(40).Add(900 * time.Millisecond)},
+		candidates: []buildkite.Build{
+			{Number: 41, Branch: "feature", State: "passed", CreatedAt: &buildkite.Timestamp{Time: comparisonTime(40).Add(950 * time.Millisecond)}},
+			{Number: 40, Branch: "feature", State: "passed", CreatedAt: &buildkite.Timestamp{Time: comparisonTime(40).Add(900 * time.Millisecond)}},
+			{Number: 39, Branch: "feature", State: "passed", CreatedAt: &buildkite.Timestamp{Time: comparisonTime(40).Add(100 * time.Millisecond)}},
+			{Number: 38, Branch: "feature", State: "passed", CreatedAt: comparisonTime(39)},
+		},
+	}
+	r, _, err := runComparison(t, &f, "acme/widgets/42", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Baseline.Number != 39 || r.CandidatesScanned != 3 {
+		t.Fatalf("lost same-second baseline or accepted equal/later candidate: %+v", r)
+	}
+	if !strings.Contains(f.requests[1], "created_to=2026-10-01T00%3A00%3A41Z") {
+		t.Fatalf("API cutoff excludes fractional-second candidates: %s", f.requests[1])
 	}
 }
 

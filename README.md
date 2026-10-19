@@ -196,10 +196,12 @@ soft-failed attempts can be `still_failing`; cancellations, broken, waiting_fail
 and skipped states are not classified as failures. Within each category, execution
 deltas sort descending (missing treated as zero), with API order retained for ties.
 `execution_seconds` is finished minus started; `scheduling_seconds` is started
-minus scheduled, not dependency/manual waiting. Missing or reversed timestamps
-omit the metric; zero is valid. `execution_delta_seconds` is target minus baseline
-when both are valid, so positive means slower. These are final-attempt durations,
-not all-retry costs or build wall-clock deltas.
+minus scheduled. Uploaded jobs can inherit the build's creation time as their
+scheduled time, so this interval can include earlier upstream waiting; it is not
+isolated scheduler/agent delay. Missing or reversed timestamps omit the metric;
+zero is valid. `execution_delta_seconds` is target minus baseline when both are
+valid, so positive means slower. These are final-attempt durations, not all-retry
+costs or build wall-clock deltas.
 
 Still-failing jobs can have different causes. Comparison does not prove causality
 or retry safety. No logs are fetched; follow job URLs/IDs for evidence and use
