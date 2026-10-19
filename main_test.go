@@ -29,6 +29,8 @@ func TestCommandTelemetry(t *testing.T) {
 		runErr                 error
 	}{
 		{"positional", "build view", "success", []string{"build", "view", "private-pipeline/123"}, nil},
+		{"annotations", "build annotations", "success", []string{"build", "annotations", "acme/widgets/42", "--json"}, nil},
+		{"annotations missing build", "build annotations", "error", []string{"build", "annotations"}, nil},
 		{"failed tests", "build failed-tests", "success", []string{"build", "failed-tests", "acme/widgets/42", "--json"}, nil},
 		{"failed tests missing build", "build failed-tests", "error", []string{"build", "failed-tests"}, nil},
 		{"flags and alias", "build list", "success", []string{"build", "ls", "--pipeline=private-pipeline", "--branch=secret"}, nil},
