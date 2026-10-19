@@ -201,6 +201,7 @@ type (
 	BuildCmd struct {
 		Create          build.CreateCmd          `cmd:"" aliases:"new" help:"Create a new build."` // Aliasing "new" because we've renamed this to "create", but we need to support backwards compatibility
 		Cancel          build.CancelCmd          `cmd:"" help:"Cancel a build."`
+		Compare         build.CompareCmd         `cmd:"" help:"Compare final job attempts between two builds."`
 		Annotations     build.AnnotationsCmd     `cmd:"" help:"List a build's annotations, including HTML bodies."`
 		FailedTests     build.FailedTestsCmd     `cmd:"" help:"List tests with failed executions in a build."`
 		RetryFailedJobs build.RetryFailedJobsCmd `cmd:"" help:"Queue retries for failed jobs in a build (may repeat side effects)."`
