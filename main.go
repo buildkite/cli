@@ -98,7 +98,7 @@ func (c *CLI) AfterApply(ctx *kong.Context) error {
 	if ctx.Command() == "auth logout" && orgProvided && allProvided {
 		return errors.New("--org and --all cannot be used together")
 	}
-	if err := c.validateOrganizationTargets(ctx); err != nil {
+	if err := c.resolveOrganizationTargets(ctx); err != nil {
 		return err
 	}
 
@@ -115,15 +115,28 @@ func (c *CLI) AfterApply(ctx *kong.Context) error {
 	return nil
 }
 
-func (c *CLI) validateOrganizationTargets(ctx *kong.Context) error {
-	if c.Org == "" {
-		return nil
-	}
+// resolveOrganizationTargets reconciles --org with the organization named in
+// qualified pipeline or build targets (org/pipeline, org/pipeline/number, or
+// a Buildkite URL). An explicit --org must agree with every qualified target.
+// Without --org, the first qualified target selects the organization for this
+// invocation so credentials and ambient lookups match the target, and any
+// later qualified target must agree with it.
+func (c *CLI) resolveOrganizationTargets(ctx *kong.Context) error {
 	// Only job list uses pipeline/build targets; the corresponding flags on
 	// other job commands are deprecated and ignored.
 	if strings.HasPrefix(ctx.Command(), "job ") && !strings.HasPrefix(ctx.Command(), "job list") {
 		return nil
 	}
+	// Some commands give a qualified target a meaning other than "act in this
+	// organization": browse builds a URL from the target without calling the
+	// API, so it must not require that organization's credentials, and
+	// pipeline copy reads the source from the named organization but creates
+	// the copy in the selected organization unless --target names another.
+	// Those keep the selected organization unless --org is given.
+	if c.Org == "" && (strings.HasPrefix(ctx.Command(), "browse") || strings.HasPrefix(ctx.Command(), "pipeline copy")) {
+		return nil
+	}
+	source := "--org"
 	for _, trace := range ctx.Path {
 		var value *kong.Value
 		if trace.Flag != nil {
@@ -138,8 +151,18 @@ func (c *CLI) validateOrganizationTargets(ctx *kong.Context) error {
 		if !ok {
 			continue
 		}
-		if org := pipelineResolver.QualifiedOrganization(target); org != "" && org != c.Org {
-			return fmt.Errorf("--org %q conflicts with organization %q in %s %q; use matching organizations or omit --org", c.Org, org, value.Name, target)
+		org := pipelineResolver.QualifiedOrganization(target)
+		switch {
+		case org == "":
+			continue
+		case c.Org == "":
+			c.Org = org
+			source = fmt.Sprintf("%s %q", value.Name, target)
+		case org != c.Org:
+			if source == "--org" {
+				return fmt.Errorf("--org %q conflicts with organization %q in %s %q; use matching organizations or omit --org", c.Org, org, value.Name, target)
+			}
+			return fmt.Errorf("organization %q in %s conflicts with organization %q in %s %q; use matching organizations", c.Org, source, org, value.Name, target)
 		}
 	}
 	return nil
