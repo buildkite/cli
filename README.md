@@ -131,6 +131,81 @@ empty starter contains `steps: []` and needs editing.
 Review generated files, then **commit and push them before building**. Remote
 builds cannot see local starters; creating a pipeline does not publish them.
 
+### Compare builds
+
+```sh
+bk build compare 123 --pipeline my-pipeline --json
+bk build compare acme/my-pipeline/123 --baseline 120 --text
+bk build compare https://buildkite.com/acme/my-pipeline/builds/123 --yaml
+# Inspect newly failing target jobs without interpreting every unchanged row:
+bk build compare acme/my-pipeline/123 --json |
+  jq '.steps[] | select(.change == "newly_failing") | .target | {id, web_url, retries_count}'
+```
+
+Requires `read_builds`. The required target accepts the usual build selectors;
+plain numbers use `--pipeline` or configuration/repository inference. JSON/YAML
+never prompts for pipeline selection; specify `--pipeline` when ambiguous.
+Configured/environment `no_input` and `quiet` settings are preserved alongside
+the global CLI flags, including when selecting another organization's credentials.
+`--baseline` is a different positive build number in the **same pipeline**. It
+may be newer, failed or on another branch (cross-branch comparisons warn).
+Without it, search at most five pages/500 candidates in API newest-first order
+for a lower-numbered, strictly earlier-created build on the exact target branch
+that is **currently passed**. It need not have passed before the target started.
+Missing branch/creation time or no eligible baseline is an error: supply
+`--baseline`. Missing/denied builds, failed pages, and inventories exceeding ten
+pages/1000 jobs per build also fail with no partial output, not false additions.
+
+Only final attempts (`retried=false`, including running attempts) are compared.
+Identity includes step key, type, matrix and parallel index **and total**, keeping
+absent coordinates distinct from zero. Keyed renames/group moves still match.
+Unkeyed jobs use an exact name plus group, type, matrix and parallel coordinates,
+reported as `match_method: name_fallback` with a heuristic warning. Keys never
+match names. Duplicate identities on either side leave **all affected jobs on
+both sides unmatched**; unnamed unkeyed jobs also remain unmatched. Renames of
+unkeyed jobs and changed coordinates appear as added/removed, not proven changes
+to the same step. Unfinished builds warn: added/removed is snapshot presence only.
+
+JSON/YAML contains `organization`, `pipeline`, `target`/`baseline` metadata
+(ID, number, state, branch, commit, URL, creation time), `baseline_selection`,
+`candidates_scanned`, final-attempt `target_jobs`/`baseline_jobs`, `change_counts`,
+`steps` and `warnings`. Every comparison row is returned, with no output truncation.
+Empty inventories produce `steps: []` and `change_counts: {}`. Counts count rows,
+so an ambiguous identity can contribute separate target and baseline rows.
+Each row includes identity fields, optional `match_method`/`unmatched_reason`,
+and available `target`/`baseline` attempts with IDs, names, states, `soft_failed`,
+exit status/signal reason, retry counts, URLs and valid timing metrics.
+If a job URL is missing but its step ID is available, its URL opens that step in
+the corresponding build instead. Existing job URLs are preserved.
+
+Outcome precedence and display order are:
+
+| Change | Meaning |
+| --- | --- |
+| `newly_failing` | Passed → failed/timed_out/expired, with unchanged soft-failure flag |
+| `recovered` | Failed/timed_out/expired → passed, with unchanged soft-failure flag |
+| `still_failing` | Both states are failed/timed_out/expired, with unchanged soft-failure flag |
+| `state_changed` | Soft-failure flag changed (takes precedence over the above), or another state change |
+| `retries_changed` | Same outcome/state but a different final-attempt retry count |
+| `added` / `removed` | Unique identity present only in target / baseline |
+| `unmatched` | Missing or ambiguous identity; no pair inferred |
+| `unchanged` | Same outcome/state and retry count; timings may still differ |
+
+One-sided and unmatched rows take precedence over outcome classification. Two
+soft-failed attempts can be `still_failing`; cancellations, broken, waiting_failed
+and skipped states are not classified as failures. Within each category, execution
+deltas sort descending (missing treated as zero), with API order retained for ties.
+`execution_seconds` is finished minus started; `scheduling_seconds` is started
+minus scheduled, not dependency/manual waiting. Missing or reversed timestamps
+omit the metric; zero is valid. `execution_delta_seconds` is target minus baseline
+when both are valid, so positive means slower. These are final-attempt durations,
+not all-retry costs or build wall-clock deltas.
+
+Still-failing jobs can have different causes. Comparison does not prove causality
+or retry safety. No logs are fetched; follow job URLs/IDs for evidence and use
+`bk job --help` for drill-down commands. Text output uses untruncated per-step
+blocks; JSON/YAML is preferable for filtering and automated analysis.
+
 ### List a build's failed tests
 
 ```sh
