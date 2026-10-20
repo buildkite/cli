@@ -401,5 +401,20 @@ go run main.go --help
 ```
 
 `mise.toml` pins the shared toolchain, including the release helpers used in
-CI. The module itself remains compatible with Go `1.26.0` as declared in
+CI. The module itself remains compatible with Go `1.26.10` as declared in
 `go.mod`.
+
+### Certificate trust
+
+Build with Go `1.27.3` or later (or `1.26.10` on the Go 1.26 branch) to include
+the [CVE-2026-111943 mitigation](https://go.dev/issue/82345), which rejects
+certificate chains containing eight distrusted intermediate public keys.
+This does not remove emSign or AAA Certificate Services roots from trust stores.
+The CLI uses the operating system's certificate trust store, not an embedded CA
+bundle. Broader root distrust must be applied to that store separately.
+
+Published container images use `cgr.dev/chainguard/static:latest` via GoReleaser;
+the separate Dockerfile installs Alpine's `ca-certificates` package. Rebuild and
+republish images to pick up updated CA bundles, and update the host trust store
+for standalone binaries. Rebuild and release binaries to pick up Go security
+fixes; updating the installed Go toolchain alone does not update an existing `bk`.
