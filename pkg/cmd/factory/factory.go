@@ -12,6 +12,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/buildkite/cli/v3/cmd/version"
+	"github.com/buildkite/cli/v3/internal/artifact"
 	"github.com/buildkite/cli/v3/internal/config"
 	bkhttp "github.com/buildkite/cli/v3/internal/http"
 	"github.com/buildkite/cli/v3/pkg/keyring"
@@ -124,8 +125,13 @@ func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return resp, err
 	}
 
-	if dump, err := httputil.DumpResponse(resp, true); err == nil {
-		fmt.Fprintf(os.Stderr, "DEBUG response uri=%s\n%s\n", req.URL, redactBody(string(dump)))
+	includeResponseBody := !artifact.IsDownload(req.Context())
+	if dump, err := httputil.DumpResponse(resp, includeResponseBody); err == nil {
+		redacted := redactBody(string(dump))
+		if !includeResponseBody {
+			redacted += "\n[artifact response body omitted]"
+		}
+		fmt.Fprintf(os.Stderr, "DEBUG response uri=%s\n%s\n", req.URL, redacted)
 	}
 
 	return resp, nil
