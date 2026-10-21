@@ -86,6 +86,18 @@ automation or a token with access to multiple organizations, supply
 stored credentials and is not replaced by stored OAuth credentials if a request
 fails authentication.
 
+### Debug HTTP requests
+
+Use `--debug` to log HTTP API requests and responses to stderr. Logged request
+URLs omit userinfo, query strings and fragments. Common credential headers
+(`Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie`, `X-Api-Key`)
+and selected token/password/private-key body fields are redacted; cluster-secret
+create/update request bodies are omitted.
+
+This is not comprehensive sanitisation. Arbitrary bodies, URL paths and other
+headers can still contain sensitive data. Review debug logs before sharing or
+retaining them; do not treat them as safe telemetry.
+
 ### Create a pipeline
 
 From a Git checkout, `bk pipeline create` infers the repository URL and default

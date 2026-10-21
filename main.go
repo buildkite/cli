@@ -52,7 +52,7 @@ type CLI struct {
 	NoInput              bool                    `help:"Disable all interactive prompts" name:"no-input"`
 	Quiet                bool                    `help:"Suppress progress output" short:"q"`
 	NoPager              bool                    `help:"Disable pager for text output" name:"no-pager"`
-	Debug                bool                    `help:"Enable HTTP diagnostics and, for bk api, rate-limit retry warnings (--verbose is an alias with the same output)" aliases:"verbose"`
+	Debug                bool                    `help:"Log HTTP API traffic to stderr; bodies may contain sensitive data"`
 	Agent                AgentCmd                `cmd:"" help:"Manage agents"`
 	Api                  ApiCmd                  `cmd:"" help:"Interact with the Buildkite API"`
 	Artifacts            ArtifactsCmd            `cmd:"" help:"Manage pipeline build artifacts"`
