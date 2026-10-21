@@ -3,6 +3,7 @@ package factory
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,9 +11,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/buildkite/cli/v3/internal/artifact"
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/pkg/keyring"
@@ -76,6 +79,422 @@ func TestFactoryDoesNotBorrowCredentials(t *testing.T) {
 			_, response, err := f.RestAPIClient.Builds.ListByPipeline(context.Background(), "target", "widgets", nil)
 			if err == nil || response == nil || response.StatusCode != http.StatusUnauthorized || requests != 1 || refreshes != 0 {
 				t.Fatalf("expected one unauthenticated request without refresh: err=%v requests=%d refreshes=%d", err, requests, refreshes)
+			}
+		})
+	}
+}
+
+func TestRefreshOnlyForAuthenticatedAPIOrigins(t *testing.T) {
+	for _, test := range []struct {
+		name            string
+		start           string
+		redirect        string
+		wantRefresh     bool
+		omitInitialAuth bool
+		restEndpoint    string
+	}{
+		{"external storage", "https://api.example/proxy/log", "https://storage.example/log?signature=synthetic", false, false, ""},
+		{"API subdomain", "https://api.example/proxy/log", "https://storage.api.example/log", false, false, ""},
+		{"different port", "https://api.example/proxy/log", "https://api.example:8443/log", false, false, ""},
+		{"different scheme", "https://api.example/proxy/log", "http://api.example/log", false, false, ""},
+		{"REST API", "https://api.example/proxy/log", "", true, false, ""},
+		{"GraphQL API", "https://graphql.example/custom/query", "", true, false, ""},
+		{"same origin redirect", "https://api.example/proxy/log", "https://api.example/proxy/download", true, false, ""},
+		{"unauthenticated API redirect", "https://api.example/proxy/log", "https://graphql.example/custom/download", false, true, ""},
+		{"explicit HTTPS default port", "https://api.example/proxy/log", "https://api.example:443/proxy/download", true, false, ""},
+		{"omitted HTTPS default port", "https://api.example:443/proxy/log", "https://api.example/proxy/download", true, false, "https://api.example:443/proxy/"},
+		{"explicit HTTP default port", "http://api.example/proxy/log", "http://api.example:80/proxy/download", true, false, "http://api.example/proxy/"},
+		{"omitted HTTP default port", "http://api.example:80/proxy/log", "http://api.example/proxy/download", true, false, "http://api.example:80/proxy/"},
+		{"padded HTTPS default port", "https://api.example/proxy/log", "https://api.example:0443/proxy/download", true, false, ""},
+		{"omitted padded HTTPS port", "https://api.example:0443/proxy/log", "https://api.example/proxy/download", true, false, "https://api.example:0443/proxy/"},
+		{"explicit to padded HTTPS port", "https://api.example:443/proxy/log", "https://api.example:0443/proxy/download", true, false, "https://api.example:443/proxy/"},
+		{"padded to explicit HTTPS port", "https://api.example:0443/proxy/log", "https://api.example:443/proxy/download", true, false, "https://api.example:0443/proxy/"},
+		{"padded HTTP default port", "http://api.example/proxy/log", "http://api.example:0080/proxy/download", true, false, "http://api.example/proxy/"},
+		{"omitted padded HTTP port", "http://api.example:0080/proxy/log", "http://api.example/proxy/download", true, false, "http://api.example:0080/proxy/"},
+		{"explicit to padded HTTP port", "http://api.example:80/proxy/log", "http://api.example:0080/proxy/download", true, false, "http://api.example:80/proxy/"},
+		{"padded to explicit HTTP port", "http://api.example:0080/proxy/log", "http://api.example:80/proxy/download", true, false, "http://api.example:0080/proxy/"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("BUILDKITE_API_TOKEN", "")
+			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "test")
+			t.Setenv(keyring.CredentialStoreEnv, keyring.StoreKeyring)
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", "https://api.example/proxy/")
+			if test.restEndpoint != "" {
+				t.Setenv("BUILDKITE_REST_API_ENDPOINT", test.restEndpoint)
+			}
+			t.Setenv("BUILDKITE_GRAPHQL_ENDPOINT", "https://graphql.example/custom/query")
+			t.Setenv("BUILDKITE_HOST", "oauth.example")
+			keyring.MockForTesting()
+			defer keyring.ResetForTesting()
+			kr := keyring.New()
+			if err := kr.Set("test", "synthetic-token"); err != nil {
+				t.Fatal(err)
+			}
+			if err := kr.SetRefreshToken("test", "synthetic-refresh"); err != nil {
+				t.Fatal(err)
+			}
+
+			requests, refreshes := 0, 0
+			transport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				resp := &http.Response{
+					StatusCode: http.StatusUnauthorized,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader("unauthorized")),
+					Request:    req,
+				}
+				if req.URL.String() == "https://oauth.example/oauth/token" {
+					refreshes++
+					resp.StatusCode = http.StatusOK
+					resp.Body = io.NopCloser(strings.NewReader(`{"access_token":"rotated-token","refresh_token":"rotated-refresh"}`))
+					return resp, nil
+				}
+				requests++
+				if test.redirect != "" && req.URL.String() == test.start {
+					resp.StatusCode = http.StatusFound
+					resp.Header.Set("Location", test.redirect)
+					return resp, nil
+				}
+				if !test.wantRefresh && req.Header.Get("Authorization") == "Bearer rotated-token" {
+					t.Error("refreshed API credential reached non-API origin")
+				}
+				if test.name == "external storage" && req.Header.Get("Authorization") != "" {
+					t.Error("synthetic Buildkite credential reached redirected storage host after 401")
+				}
+				if test.wantRefresh && req.Header.Get("Authorization") == "Bearer rotated-token" {
+					resp.StatusCode = http.StatusOK
+				}
+				return resp, nil
+			})
+			// Keep OAuth exchanges synthetic too. No request can reach the network.
+			original := http.DefaultTransport
+			http.DefaultTransport = transport
+			defer func() { http.DefaultTransport = original }()
+			f, err := New(WithTransport(transport))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req, err := http.NewRequest(http.MethodGet, test.start, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Match the REST SDK's initial header, including stdlib forwarding
+			// to subdomains and same-host redirects across ports or schemes.
+			if !test.omitInitialAuth {
+				req.Header.Set("Authorization", "Bearer synthetic-token")
+			}
+			resp, err := f.HTTPClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			wantStatus, wantRequests, wantRefreshes := http.StatusUnauthorized, 1, 0
+			if test.redirect != "" {
+				wantRequests++
+			}
+			if test.wantRefresh {
+				wantStatus = http.StatusOK
+				wantRequests++
+				wantRefreshes = 1
+			}
+			if resp.StatusCode != wantStatus || requests != wantRequests || refreshes != wantRefreshes {
+				t.Fatalf("status=%d requests=%d refreshes=%d; want %d, %d, %d", resp.StatusCode, requests, refreshes, wantStatus, wantRequests, wantRefreshes)
+			}
+		})
+	}
+}
+
+func TestRedirectsDoNotRestoreStrippedIdentity(t *testing.T) {
+	for _, test := range []struct {
+		name             string
+		environmentToken bool
+		withBasic        bool
+		returnStatus     int
+		finalStatus      int
+		directReturn     bool
+	}{
+		{"Basic then success without refresh transport", true, true, http.StatusFound, http.StatusOK, false},
+		{"Basic 401 with refresh transport", false, true, http.StatusUnauthorized, 0, false},
+		{"Basic then unauthenticated 401", false, true, http.StatusFound, http.StatusUnauthorized, false},
+		{"unauthenticated return to API", false, false, http.StatusFound, http.StatusUnauthorized, false},
+		{"direct Basic then success", false, true, http.StatusFound, http.StatusOK, true},
+		{"direct Basic 401", false, true, http.StatusUnauthorized, 0, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("BUILDKITE_API_TOKEN", "")
+			if test.environmentToken {
+				t.Setenv("BUILDKITE_API_TOKEN", "synthetic-token")
+			}
+			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "test")
+			t.Setenv(keyring.CredentialStoreEnv, keyring.StoreKeyring)
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", "https://api.example/")
+			t.Setenv("BUILDKITE_GRAPHQL_ENDPOINT", "https://graphql.example/query")
+			t.Setenv("BUILDKITE_HOST", "oauth.example")
+			keyring.MockForTesting()
+			defer keyring.ResetForTesting()
+			kr := keyring.New()
+			if err := kr.Set("test", "synthetic-token"); err != nil {
+				t.Fatal(err)
+			}
+			if err := kr.SetRefreshToken("test", "synthetic-refresh"); err != nil {
+				t.Fatal(err)
+			}
+			requests := 0
+			transport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				requests++
+				resp := &http.Response{StatusCode: http.StatusFound, Header: make(http.Header), Body: io.NopCloser(strings.NewReader("")), Request: req}
+				wantAuth := ""
+				switch req.URL.String() {
+				case "https://api.example/start":
+					wantAuth = "Bearer synthetic-token"
+					resp.Header.Set("Location", "https://storage.example/blob")
+					if test.directReturn {
+						resp.Header.Set("Location", "https://user:pass@api.example/return")
+					}
+				case "https://storage.example/blob":
+					location := "https://api.example/return"
+					if test.withBasic {
+						location = "https://user:pass@api.example/return"
+					}
+					resp.Header.Set("Location", location)
+				case "https://user:pass@api.example/return", "https://api.example/return":
+					if test.withBasic {
+						wantAuth = "Basic dXNlcjpwYXNz"
+					}
+					resp.StatusCode = test.returnStatus
+					resp.Header.Set("Location", "https://api.example/final")
+				case "https://api.example/final":
+					resp.StatusCode = test.finalStatus
+				default:
+					t.Errorf("unexpected request to %s", req.URL.Redacted())
+					resp.StatusCode = http.StatusUnauthorized
+				}
+				if got := req.Header.Get("Authorization"); got != wantAuth {
+					t.Errorf("unexpected identity at %s: Authorization=%q, want %q", req.URL.Redacted(), got, wantAuth)
+				}
+				return resp, nil
+			})
+			original := http.DefaultTransport
+			http.DefaultTransport = transport
+			defer func() { http.DefaultTransport = original }()
+			f, err := New(WithTransport(transport))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req, _ := http.NewRequest(http.MethodGet, "https://api.example/start", nil)
+			if !test.directReturn {
+				req.Header.Set("Authorization", "Bearer synthetic-token")
+			}
+			resp, err := f.HTTPClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			wantStatus, wantRequests := test.finalStatus, 4
+			if test.returnStatus == http.StatusUnauthorized {
+				wantStatus, wantRequests = http.StatusUnauthorized, 3
+			}
+			if test.directReturn {
+				wantRequests--
+			}
+			if resp.StatusCode != wantStatus || requests != wantRequests {
+				t.Errorf("status=%d requests=%d; want %d, %d", resp.StatusCode, requests, wantStatus, wantRequests)
+			}
+		})
+	}
+}
+
+func TestRedirectHostnameIdentity(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		start    string
+		target   string
+		wantAuth bool
+	}{
+		{"distinct Greek hosts", "https://σ.example/start", "https://ς.example/final", false},
+		{"Unicode to IDNA", "https://σ.example/start", "https://xn--4xa.example/final", true},
+		{"IDNA to Unicode", "https://xn--4xa.example/start", "https://σ.example/final", true},
+		{"ASCII case", "https://API.example/start", "https://api.example/final", true},
+		{"IPv6 spelling", "https://[::1]/start", "https://[0:0:0:0:0:0:0:1]/final", true},
+		{"distinct IPv6 zones", "https://[fe80::1%25en0]/start", "https://[fe80::1%25EN0]/final", false},
+		{"ASCII to fullwidth", "https://a.example/start", "https://ａ.example/final", false},
+		{"fullwidth to ASCII", "https://ａ.example/start", "https://a.example/final", false},
+		{"fullwidth to wire IDNA", "https://ａ.example/start", "https://xn--mi7c.example/final", false},
+		{"wire IDNA to fullwidth", "https://xn--mi7c.example/start", "https://ａ.example/final", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("BUILDKITE_API_TOKEN", "synthetic-token")
+			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "test")
+			t.Setenv(keyring.CredentialStoreEnv, keyring.StoreKeyring)
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", test.start)
+			t.Setenv("BUILDKITE_GRAPHQL_ENDPOINT", "https://graphql.example/query")
+			keyring.MockForTesting()
+			defer keyring.ResetForTesting()
+			requests := 0
+			transport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				requests++
+				resp := &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader("")), Request: req}
+				wantAuth := "Bearer synthetic-token"
+				if req.URL.Path == "/start" {
+					resp.StatusCode = http.StatusFound
+					resp.Header.Set("Location", test.target)
+				} else if !test.wantAuth {
+					wantAuth = ""
+				}
+				if got := req.Header.Get("Authorization"); got != wantAuth {
+					t.Errorf("Authorization at %s=%q, want %q", req.URL, got, wantAuth)
+				}
+				return resp, nil
+			})
+			f, err := New(WithTransport(transport))
+			if err != nil {
+				t.Fatal(err)
+			}
+			// No initial header: auth is transport-injected, as with GraphQL.
+			resp, err := f.HTTPClient.Get(test.start)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			if requests != 2 || resp.StatusCode != http.StatusOK {
+				t.Fatalf("expected redirect and final 200, got requests=%d status=%d", requests, resp.StatusCode)
+			}
+		})
+	}
+}
+
+func TestRedirectDoesNotAuthenticateDifferentProxyAuthority(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("BUILDKITE_API_TOKEN", "synthetic-token")
+	t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "test")
+	t.Setenv(keyring.CredentialStoreEnv, keyring.StoreKeyring)
+	t.Setenv("BUILDKITE_REST_API_ENDPOINT", "http://a.example/")
+	keyring.MockForTesting()
+	defer keyring.ResetForTesting()
+	var requests atomic.Int32
+	// This loopback proxy answers both requests itself; no DNS or upstream
+	// connection occurs. Verify the actual absolute request-target and Host.
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		if r.URL.Path == "/start" {
+			if r.Header.Get("Authorization") != "Bearer synthetic-token" {
+				t.Error("expected authenticated initial API request")
+			}
+			http.Redirect(w, r, "http://ａ.example/final", http.StatusFound)
+			return
+		}
+		if r.URL.Host != "xn--mi7c.example" || r.Host != "xn--mi7c.example" {
+			t.Errorf("unexpected wire authority: target=%s Host=%s", r.URL, r.Host)
+		}
+		if auth := r.Header.Get("Authorization"); auth != "" {
+			t.Errorf("API credential reached a different proxy authority: %q", auth)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer proxy.Close()
+	proxyURL, err := url.Parse(proxy.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport := &http.Transport{Proxy: http.ProxyURL(proxyURL)}
+	defer transport.CloseIdleConnections()
+	f, err := New(WithTransport(transport))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := f.HTTPClient.Get("http://a.example/start")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if requests.Load() != 2 || resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected redirect and final 200, got requests=%d status=%d", requests.Load(), resp.StatusCode)
+	}
+}
+
+func TestGraphQLSameOriginRedirect(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		status  int
+		expired bool
+	}{
+		{"307 valid token", http.StatusTemporaryRedirect, false},
+		{"307 expired token", http.StatusTemporaryRedirect, true},
+		{"308 valid token", http.StatusPermanentRedirect, false},
+		{"308 expired token", http.StatusPermanentRedirect, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("BUILDKITE_API_TOKEN", "")
+			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "test")
+			t.Setenv(keyring.CredentialStoreEnv, keyring.StoreKeyring)
+			keyring.MockForTesting()
+			defer keyring.ResetForTesting()
+			kr := keyring.New()
+			if err := kr.Set("test", "synthetic-token"); err != nil {
+				t.Fatal(err)
+			}
+			if err := kr.SetRefreshToken("test", "synthetic-refresh"); err != nil {
+				t.Fatal(err)
+			}
+			const query = "query RedirectProbe { ok }"
+			var refreshes, downloads atomic.Int32
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/oauth/token" {
+					refreshes.Add(1)
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = io.WriteString(w, `{"access_token":"rotated-token","refresh_token":"rotated-refresh"}`)
+					return
+				}
+				var body struct{ Query string }
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Query != query || r.Method != http.MethodPost {
+					t.Errorf("GraphQL POST body not preserved: method=%s query=%q err=%v", r.Method, body.Query, err)
+				}
+				if r.URL.Path == "/graphql" {
+					http.Redirect(w, r, "/redirected", test.status)
+					return
+				}
+				downloads.Add(1)
+				wantToken := "synthetic-token"
+				if test.expired {
+					wantToken = "rotated-token"
+				}
+				if r.Header.Get("Authorization") != "Bearer "+wantToken {
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, `{"data":{"ok":true}}`)
+			}))
+			defer server.Close()
+			original := http.DefaultTransport
+			http.DefaultTransport = server.Client().Transport
+			defer func() { http.DefaultTransport = original }()
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL+"/rest/")
+			t.Setenv("BUILDKITE_GRAPHQL_ENDPOINT", server.URL+"/graphql")
+			t.Setenv("BUILDKITE_HOST", strings.TrimPrefix(server.URL, "https://"))
+			f, err := New()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var data struct{ OK bool }
+			err = f.GraphQLClient.MakeRequest(context.Background(), &graphql.Request{Query: query}, &graphql.Response{Data: &data})
+			if err != nil || !data.OK {
+				t.Fatalf("expected successful GraphQL response, got data=%+v err=%v", data, err)
+			}
+			wantRefreshes, wantDownloads := int32(0), int32(1)
+			if test.expired {
+				wantRefreshes, wantDownloads = 1, 2
+			}
+			if refreshes.Load() != wantRefreshes || downloads.Load() != wantDownloads {
+				t.Errorf("refreshes=%d redirected requests=%d; want %d, %d", refreshes.Load(), downloads.Load(), wantRefreshes, wantDownloads)
 			}
 		})
 	}
