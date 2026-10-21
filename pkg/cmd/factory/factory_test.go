@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -291,6 +292,16 @@ func TestRedactBody(t *testing.T) {
 			input: `{"access_token":"truncated-secret`,
 			want:  `{"access_token":"[REDACTED]`,
 		},
+		{
+			name:  "JSON whitespace and escaped values",
+			input: `{"password" : "prefix\"secret-suffix", "private_key" : "key\\path\nsecret", "value":"visible"}`,
+			want:  `{"password" : "[REDACTED]", "private_key" : "[REDACTED]", "value":"visible"}`,
+		},
+		{
+			name:  "truncated JSON escaped quote and backslash",
+			input: `{"password":"prefix\"secret-suffix\`,
+			want:  `{"password":"[REDACTED]`,
+		},
 	}
 
 	for _, test := range tests {
@@ -414,6 +425,89 @@ func TestDebugArtifactDownloadsStreamWithoutLoggingBodies(t *testing.T) {
 				t.Errorf("debug output grew with the payload: %d bytes", len(output))
 			}
 		})
+	}
+}
+
+func TestDebugTransportRedactsCredentialsWithoutChangingTraffic(t *testing.T) {
+	requestBody := `{"access_token":"synthetic-request-token","password" : "synthetic-request-prefix\"synthetic-request-suffix","value":"visible-request"}`
+	responseBody := `{"private_key" : "synthetic-key\\path\nsynthetic-key-suffix","password":"synthetic-response-prefix\"synthetic-response-suffix","value":"visible-response"}`
+	requestHeaders := http.Header{
+		"Authorization":       {"Bearer synthetic-request-auth"},
+		"Proxy-Authorization": {"Basic synthetic-proxy-auth"},
+		"Cookie":              {"session=synthetic-request-cookie; other=synthetic-other-cookie"},
+		"X-Api-Key":           {"synthetic-request-api-key"},
+	}
+	responseHeaders := http.Header{
+		"Authorization": {"Bearer synthetic-response-auth"},
+		"Set-Cookie":    {"session=synthetic-response-cookie; Path=/", "other=synthetic-response-cookie-two"},
+		"X-Api-Key":     {"synthetic-response-api-key"},
+	}
+	path := "/probe?access_token=synthetic-query-token&%61ccess_token=synthetic-encoded-token&api_key=synthetic-query-api-key&ordinary=synthetic-query-value"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.RequestURI() != path {
+			t.Errorf("outgoing URL changed: %s", r.URL.RequestURI())
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil || string(body) != requestBody {
+			t.Errorf("outgoing body changed: body=%s err=%v", body, err)
+		}
+		for key, values := range requestHeaders {
+			if got := r.Header.Values(key); strings.Join(got, "\n") != strings.Join(values, "\n") {
+				t.Errorf("outgoing %s changed: %v", key, got)
+			}
+		}
+		if r.Trailer.Get("X-Api-Key") != "synthetic-request-trailer" {
+			t.Error("outgoing request trailer changed")
+		}
+		for key, values := range responseHeaders {
+			w.Header()[key] = append([]string(nil), values...)
+		}
+		w.Header().Set("Trailer", "X-Api-Key")
+		_, _ = io.WriteString(w, responseBody)
+		w.Header().Set("X-Api-Key", "synthetic-response-trailer")
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+path+"#synthetic-fragment", strings.NewReader(requestBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.URL.User = url.UserPassword("synthetic-url-user", "synthetic-url-password")
+	originalURL := req.URL.String()
+	req.Header = requestHeaders.Clone()
+	req.ContentLength = -1
+	req.Trailer = http.Header{"X-Api-Key": {"synthetic-request-trailer"}}
+
+	stderr := captureStderr(t, func() {
+		client := &http.Client{Transport: &debugTransport{transport: http.DefaultTransport}}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil || string(body) != responseBody {
+			t.Errorf("caller response body changed: body=%s err=%v", body, err)
+		}
+		for key, values := range responseHeaders {
+			if got := resp.Header.Values(key); strings.Join(got, "\n") != strings.Join(values, "\n") {
+				t.Errorf("caller response %s changed: %v", key, got)
+			}
+		}
+		if resp.Trailer.Get("X-Api-Key") != "synthetic-response-trailer" {
+			t.Error("caller response trailer changed")
+		}
+	})
+	if req.URL.String() != originalURL {
+		t.Error("original request URL mutated")
+	}
+	if strings.Contains(stderr, "synthetic-") {
+		t.Errorf("stderr leaked synthetic credentials:\n%s", stderr)
+	}
+	for _, visible := range []string{"DEBUG request uri=", "DEBUG response uri=", "/probe", "visible-request", "visible-response", "[REDACTED]"} {
+		if !strings.Contains(stderr, visible) {
+			t.Errorf("stderr missing %q:\n%s", visible, stderr)
+		}
 	}
 }
 
