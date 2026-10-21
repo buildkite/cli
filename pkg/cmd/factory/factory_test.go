@@ -9,11 +9,14 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/buildkite/cli/v3/internal/artifact"
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/pkg/keyring"
 	buildkite "github.com/buildkite/go-buildkite/v5"
@@ -708,6 +711,16 @@ func TestRedactBody(t *testing.T) {
 			input: `{"access_token":"truncated-secret`,
 			want:  `{"access_token":"[REDACTED]`,
 		},
+		{
+			name:  "JSON whitespace and escaped values",
+			input: `{"password" : "prefix\"secret-suffix", "private_key" : "key\\path\nsecret", "value":"visible"}`,
+			want:  `{"password" : "[REDACTED]", "private_key" : "[REDACTED]", "value":"visible"}`,
+		},
+		{
+			name:  "truncated JSON escaped quote and backslash",
+			input: `{"password":"prefix\"secret-suffix\`,
+			want:  `{"password":"[REDACTED]`,
+		},
 	}
 
 	for _, test := range tests {
@@ -718,6 +731,202 @@ func TestRedactBody(t *testing.T) {
 				t.Errorf("redactBody() = %q, want %q", got, test.want)
 			}
 		})
+	}
+}
+
+func TestDebugArtifactDownloadsStreamWithoutLoggingBodies(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("BUILDKITE_API_TOKEN", "synthetic-token")
+	keyring.MockForTesting()
+	defer keyring.ResetForTesting()
+
+	for _, test := range []struct {
+		name        string
+		contentType string
+		redirect    bool
+	}{
+		{"direct binary", "application/octet-stream", false},
+		{"redirected text", "text/plain", true},
+		{"redirected JSON", "application/json", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			payload := strings.Repeat("artifact-payload-not-for-debug\x00\xff", 32768)
+			dest := filepath.Join(t.TempDir(), "artifact")
+			streamed := make(chan bool, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/redirect" {
+					w.Header().Set("Location", "/payload")
+					w.WriteHeader(http.StatusFound)
+					_, _ = io.WriteString(w, "redirect-body-not-for-debug")
+					return
+				}
+				if r.URL.Path == "/api" {
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = io.WriteString(w, `{"message":"ordinary-api-diagnostic","access_token":"response-secret"}`)
+					return
+				}
+				w.Header().Set("Content-Type", test.contentType)
+				w.Header().Set("X-Artifact-Metadata", "retained")
+				_, _ = io.WriteString(w, payload[:64<<10])
+				w.(http.Flusher).Flush()
+				// Hold the remaining bytes until the destination gets data. Full-body
+				// buffering instead leaves the file empty until this deadline expires.
+				wroteEarly := false
+				deadline := time.Now().Add(2 * time.Second)
+				for time.Now().Before(deadline) {
+					if st, err := os.Stat(dest); err == nil && st.Size() > 0 {
+						wroteEarly = true
+						break
+					}
+					time.Sleep(time.Millisecond)
+				}
+				streamed <- wroteEarly
+				_, _ = io.WriteString(w, payload[64<<10:])
+			}))
+			defer server.Close()
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+			f, err := New(WithDebug(true))
+			if err != nil {
+				t.Fatal(err)
+			}
+			log, err := os.CreateTemp(t.TempDir(), "debug.log")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer log.Close()
+			original := os.Stderr
+			os.Stderr = log
+			defer func() { os.Stderr = original }()
+
+			path := "/payload"
+			if test.redirect {
+				path = "/redirect"
+			}
+			if err := artifact.DownloadToFile(context.Background(), f.RestAPIClient, server.URL+path, dest); err != nil {
+				t.Fatal(err)
+			}
+			if !<-streamed {
+				t.Error("download did not write to the destination before the complete payload arrived")
+			}
+			got, err := os.ReadFile(dest)
+			if err != nil || string(got) != payload {
+				t.Fatalf("downloaded bytes changed: read error = %v", err)
+			}
+
+			resp, err := f.HTTPClient.Get(server.URL + "/api")
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil || !strings.Contains(string(body), "response-secret") {
+				t.Fatalf("ordinary API response changed: body = %q, error = %v", body, err)
+			}
+			os.Stderr = original
+			output, err := os.ReadFile(log.Name())
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, marker := range []string{"artifact-payload-not-for-debug", "redirect-body-not-for-debug", "response-secret"} {
+				if bytes.Contains(output, []byte(marker)) {
+					t.Errorf("debug output contains %q", marker)
+				}
+			}
+			for _, marker := range []string{"200 OK", "X-Artifact-Metadata: retained", test.contentType, "ordinary-api-diagnostic", "[REDACTED]"} {
+				if !bytes.Contains(output, []byte(marker)) {
+					t.Errorf("debug output is missing %q", marker)
+				}
+			}
+			if test.redirect && !bytes.Contains(output, []byte("302 Found")) {
+				t.Error("debug output is missing redirect metadata")
+			}
+			if len(output) > 16<<10 {
+				t.Errorf("debug output grew with the payload: %d bytes", len(output))
+			}
+		})
+	}
+}
+
+func TestDebugTransportRedactsCredentialsWithoutChangingTraffic(t *testing.T) {
+	requestBody := `{"access_token":"synthetic-request-token","password" : "synthetic-request-prefix\"synthetic-request-suffix","value":"visible-request"}`
+	responseBody := `{"private_key" : "synthetic-key\\path\nsynthetic-key-suffix","password":"synthetic-response-prefix\"synthetic-response-suffix","value":"visible-response"}`
+	requestHeaders := http.Header{
+		"Authorization":       {"Bearer synthetic-request-auth"},
+		"Proxy-Authorization": {"Basic synthetic-proxy-auth"},
+		"Cookie":              {"session=synthetic-request-cookie; other=synthetic-other-cookie"},
+		"X-Api-Key":           {"synthetic-request-api-key"},
+	}
+	responseHeaders := http.Header{
+		"Authorization": {"Bearer synthetic-response-auth"},
+		"Set-Cookie":    {"session=synthetic-response-cookie; Path=/", "other=synthetic-response-cookie-two"},
+		"X-Api-Key":     {"synthetic-response-api-key"},
+	}
+	path := "/probe?access_token=synthetic-query-token&%61ccess_token=synthetic-encoded-token&api_key=synthetic-query-api-key&ordinary=synthetic-query-value"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.RequestURI() != path {
+			t.Errorf("outgoing URL changed: %s", r.URL.RequestURI())
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil || string(body) != requestBody {
+			t.Errorf("outgoing body changed: body=%s err=%v", body, err)
+		}
+		for key, values := range requestHeaders {
+			if got := r.Header.Values(key); strings.Join(got, "\n") != strings.Join(values, "\n") {
+				t.Errorf("outgoing %s changed: %v", key, got)
+			}
+		}
+		if r.Trailer.Get("X-Api-Key") != "synthetic-request-trailer" {
+			t.Error("outgoing request trailer changed")
+		}
+		for key, values := range responseHeaders {
+			w.Header()[key] = append([]string(nil), values...)
+		}
+		w.Header().Set("Trailer", "X-Api-Key")
+		_, _ = io.WriteString(w, responseBody)
+		w.Header().Set("X-Api-Key", "synthetic-response-trailer")
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+path+"#synthetic-fragment", strings.NewReader(requestBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.URL.User = url.UserPassword("synthetic-url-user", "synthetic-url-password")
+	originalURL := req.URL.String()
+	req.Header = requestHeaders.Clone()
+	req.ContentLength = -1
+	req.Trailer = http.Header{"X-Api-Key": {"synthetic-request-trailer"}}
+
+	stderr := captureStderr(t, func() {
+		client := &http.Client{Transport: &debugTransport{transport: http.DefaultTransport}}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil || string(body) != responseBody {
+			t.Errorf("caller response body changed: body=%s err=%v", body, err)
+		}
+		for key, values := range responseHeaders {
+			if got := resp.Header.Values(key); strings.Join(got, "\n") != strings.Join(values, "\n") {
+				t.Errorf("caller response %s changed: %v", key, got)
+			}
+		}
+		if resp.Trailer.Get("X-Api-Key") != "synthetic-response-trailer" {
+			t.Error("caller response trailer changed")
+		}
+	})
+	if req.URL.String() != originalURL {
+		t.Error("original request URL mutated")
+	}
+	if strings.Contains(stderr, "synthetic-") {
+		t.Errorf("stderr leaked synthetic credentials:\n%s", stderr)
+	}
+	for _, visible := range []string{"DEBUG request uri=", "DEBUG response uri=", "/probe", "visible-request", "visible-response", "[REDACTED]"} {
+		if !strings.Contains(stderr, visible) {
+			t.Errorf("stderr missing %q:\n%s", visible, stderr)
+		}
 	}
 }
 
