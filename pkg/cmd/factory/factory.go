@@ -305,11 +305,13 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 	}
 
 	tokenSource := bkhttp.NewTokenSource(token)
+	apiEndpoints := []string{conf.RESTAPIEndpoint(), conf.GetGraphQLEndpoint()}
 
 	transport = &bkhttp.AuthTransport{
-		Base:        transport,
-		TokenSource: tokenSource,
-		UserAgent:   userAgent,
+		Base:         transport,
+		TokenSource:  tokenSource,
+		UserAgent:    userAgent,
+		APIEndpoints: apiEndpoints,
 	}
 
 	// Only stored credentials may be refreshed. An explicit environment token
@@ -317,10 +319,11 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 	kr := keyring.New()
 	if refreshToken, err := kr.GetRefreshToken(org); os.Getenv("BUILDKITE_API_TOKEN") == "" && token != "" && err == nil && refreshToken != "" {
 		transport = &bkhttp.RefreshTransport{
-			Base:        transport,
-			Org:         org,
-			Keyring:     kr,
-			TokenSource: tokenSource,
+			Base:         transport,
+			Org:          org,
+			Keyring:      kr,
+			TokenSource:  tokenSource,
+			APIEndpoints: apiEndpoints,
 		}
 	}
 

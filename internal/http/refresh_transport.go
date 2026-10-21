@@ -6,11 +6,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/netip"
+	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/buildkite/cli/v3/pkg/oauth"
+	"golang.org/x/net/idna"
 )
 
 // TokenSource provides thread-safe access to the current access token.
@@ -46,14 +50,24 @@ func (ts *TokenSource) SetToken(token string) {
 // RefreshTransport (which sits outside it) can override the header on
 // retries.
 type AuthTransport struct {
-	Base        http.RoundTripper
-	TokenSource *TokenSource
-	UserAgent   string
+	Base         http.RoundTripper
+	TokenSource  *TokenSource
+	UserAgent    string
+	APIEndpoints []string
 }
 
 func (t *AuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Skip re-injecting on redirected hops so stdlib's cross-host strip stays in effect.
-	if req.Response == nil {
+	// Go snapshots redirect headers before transport-only auth is injected.
+	// Restore missing auth only when the preceding hop used Bearer auth on this
+	// same configured API origin; never replace another authentication identity.
+	injectAuth := req.Response == nil
+	if req.Response != nil {
+		previous := req.Response.Request
+		injectAuth = req.Header.Get("Authorization") == "" && previous != nil &&
+			extractBearerToken(previous.Header.Get("Authorization")) != "" &&
+			isAPIRequest(req, t.APIEndpoints) && sameOrigin(req.URL, previous.URL)
+	}
+	if injectAuth {
 		token := t.TokenSource.Token()
 		if token != "" {
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
@@ -96,6 +110,11 @@ type RefreshTransport struct {
 	Keyring     credentialStore
 	TokenSource *TokenSource
 
+	// APIEndpoints defines the trusted REST and GraphQL origins for refresh.
+	APIEndpoints []string
+
+	// mu protects all credential-store accesses, including reads, which can
+	// update the store's selected backend, as well as token refreshes.
 	mu sync.Mutex
 }
 
@@ -104,6 +123,68 @@ func (t *RefreshTransport) base() http.RoundTripper {
 		return t.Base
 	}
 	return http.DefaultTransport
+}
+
+func isAPIRequest(req *http.Request, endpoints []string) bool {
+	for _, endpoint := range endpoints {
+		u, err := url.Parse(endpoint)
+		if err == nil && sameOrigin(req.URL, u) {
+			return true
+		}
+	}
+	return false
+}
+
+func sameOrigin(a, b *url.URL) bool {
+	port := effectivePort(a)
+	if port < 0 || !strings.EqualFold(a.Scheme, b.Scheme) || port != effectivePort(b) {
+		return false
+	}
+	dialA, wireA, err := canonicalHostnames(a.Hostname())
+	if err != nil {
+		return false
+	}
+	dialB, wireB, err := canonicalHostnames(b.Hostname())
+	return err == nil && dialA == dialB && wireA == wireB
+}
+
+func canonicalHostnames(host string) (string, string, error) {
+	if ip, err := netip.ParseAddr(host); err == nil {
+		// Normalize IP spelling without folding case-sensitive IPv6 zones.
+		return ip.String(), ip.String(), nil
+	}
+	// net/http uses IDNA Lookup for dialing but raw Punycode for Host and
+	// forward-proxy authorities. Require both interpretations to agree.
+	for _, c := range host {
+		if c > 127 {
+			dial, err := idna.Lookup.ToASCII(host)
+			if err != nil {
+				return "", "", err
+			}
+			wire, err := idna.ToASCII(host)
+			return strings.ToLower(dial), strings.ToLower(wire), err
+		}
+	}
+	host = strings.ToLower(host)
+	return host, host, nil
+}
+
+func effectivePort(u *url.URL) int {
+	if port := u.Port(); port != "" {
+		n, err := strconv.ParseUint(port, 10, 16)
+		if err != nil {
+			return -1
+		}
+		return int(n)
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "https":
+		return 443
+	case "http":
+		return 80
+	default:
+		return -1
+	}
 }
 
 func (t *RefreshTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -121,18 +202,24 @@ func (t *RefreshTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		return resp, nil
 	}
 
-	// Only attempt refresh if we have a refresh token
-	refreshToken, rtErr := t.Keyring.GetRefreshToken(t.Org)
-	if rtErr != nil || refreshToken == "" {
+	// A redirected download can return 401 after stdlib stripped Authorization.
+	// Only retry authenticated requests to configured API origins, never add API
+	// credentials to an unauthenticated request or an external download retry.
+	failedToken := extractBearerToken(req.Header.Get("Authorization"))
+	if failedToken == "" || !isAPIRequest(req, t.APIEndpoints) {
 		return resp, nil
 	}
 
-	// Extract the token that was used for the failed request so we can
-	// detect whether another goroutine already refreshed it.
-	failedToken := extractBearerToken(req.Header.Get("Authorization"))
-
-	// Attempt token refresh (serialised to prevent concurrent refreshes)
+	// Attempt token refresh (serialised to prevent concurrent refreshes).
+	// Even credential reads mutate the keyring's backend selection.
 	t.mu.Lock()
+	// Only attempt refresh if we have a refresh token
+	refreshToken, rtErr := t.Keyring.GetRefreshToken(t.Org)
+	if rtErr != nil || refreshToken == "" {
+		t.mu.Unlock()
+		return resp, nil
+	}
+
 	newToken, refreshErr := t.doRefresh(req.Context(), failedToken)
 	t.mu.Unlock()
 
@@ -247,10 +334,11 @@ func isTerminalRefreshError(err error) bool {
 
 // extractBearerToken extracts the token value from a "Bearer <token>" header.
 func extractBearerToken(header string) string {
-	if strings.HasPrefix(header, "Bearer ") {
-		return header[len("Bearer "):]
+	scheme, token, ok := strings.Cut(header, " ")
+	if ok && strings.EqualFold(scheme, "Bearer") {
+		return token
 	}
-	return header
+	return ""
 }
 
 // bufferRequestBody ensures the request body can be replayed for retries.
