@@ -22,6 +22,111 @@ import (
 	"github.com/spf13/afero"
 )
 
+func TestApiDiagnostics(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		args     []string
+		diagnose bool
+	}{
+		{name: "default", args: []string{"api", "/test"}},
+		{name: "debug", args: []string{"api", "/test", "--debug"}, diagnose: true},
+		{name: "global debug", args: []string{"--debug", "api", "/test"}, diagnose: true},
+		{name: "verbose", args: []string{"api", "/test", "--verbose"}, diagnose: true},
+		{name: "global verbose", args: []string{"--verbose", "api", "/test"}, diagnose: true},
+		{name: "debug disabled", args: []string{"api", "/test", "--debug=false"}},
+		{name: "verbose disabled", args: []string{"api", "/test", "--verbose=false"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "test-org")
+			t.Setenv("BUILDKITE_API_TOKEN", "request-secret")
+			t.Setenv("BK_TELEMETRY", "false")
+			requests := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests++
+				if r.URL.Path != "/v2/organizations/test-org/test" || r.Header.Get("Authorization") != "Bearer request-secret" {
+					t.Error("unexpected request path or authorization")
+				}
+				w.Header().Set("Content-Type", "application/json")
+				if requests <= 2 {
+					w.Header().Set("RateLimit-Reset", "0")
+					w.WriteHeader(http.StatusTooManyRequests)
+					fmt.Fprint(w, `{"message":"rate limited"}`)
+					return
+				}
+				fmt.Fprint(w, `{"ok":true,"access_token":"response-secret"}`)
+			}))
+			defer server.Close()
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+			code, stdout, stderr := runCLI(t, tt.args...)
+			if code != 0 || requests != 3 {
+				t.Fatalf("exit=%d, requests=%d, stderr=%s", code, requests, stderr)
+			}
+			var result struct {
+				OK          bool   `json:"ok"`
+				AccessToken string `json:"access_token"`
+			}
+			if err := json.Unmarshal([]byte(stdout), &result); err != nil || !result.OK || result.AccessToken != "response-secret" {
+				t.Fatalf("expected unmodified JSON result on stdout, got %q, error=%v", stdout, err)
+			}
+			if !tt.diagnose {
+				if stderr != "" {
+					t.Fatalf("unexpected diagnostics: %s", stderr)
+				}
+				return
+			}
+			for _, marker := range []string{"DEBUG request uri=", "DEBUG response uri=", "Authorization: Bearer [REDACTED]", `"access_token":"[REDACTED]"`} {
+				if strings.Count(stderr, marker) != 1 {
+					t.Errorf("expected exactly one %q in stderr: %s", marker, stderr)
+				}
+			}
+			if strings.Count(stderr, "WARNING: Rate limit exceeded, retrying in 0s @ ") != 2 {
+				t.Errorf("expected one warning per retry: %s", stderr)
+			}
+			for _, attempt := range []string{"(attempt 0)", "(attempt 1)"} {
+				if strings.Count(stderr, attempt) != 1 {
+					t.Errorf("expected one warning for %s: %s", attempt, stderr)
+				}
+			}
+			for _, secret := range []string{"request-secret", "response-secret"} {
+				if strings.Contains(stderr, secret) {
+					t.Errorf("diagnostics leaked %s", secret)
+				}
+			}
+		})
+	}
+}
+
+func TestGlobalDebugAliases(t *testing.T) {
+	for _, tt := range []struct {
+		args  []string
+		debug bool
+	}{
+		{[]string{"--debug", "version"}, true},
+		{[]string{"--verbose", "version"}, true},
+		{[]string{"version", "--verbose"}, true},
+		{[]string{"build", "--verbose", "list"}, true},
+		{[]string{"build", "list", "--verbose"}, true},
+		{[]string{"--verbose=false", "version"}, false},
+		{[]string{"build", "list", "--verbose=false"}, false},
+	} {
+		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {
+			command := &CLI{}
+			parser, err := newKongParser(command)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := parser.Parse(tt.args); err != nil {
+				t.Fatal(err)
+			}
+			if command.Debug != tt.debug {
+				t.Fatalf("global debug = %v, want %v", command.Debug, tt.debug)
+			}
+		})
+	}
+}
+
 func TestCommandTelemetry(t *testing.T) {
 	for _, tt := range []struct {
 		name, command, outcome string
