@@ -7,9 +7,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/buildkite/cli/v3/internal/artifact"
 	"github.com/buildkite/cli/v3/internal/config"
 	"github.com/buildkite/cli/v3/pkg/keyring"
 	buildkite "github.com/buildkite/go-buildkite/v5"
@@ -296,6 +299,119 @@ func TestRedactBody(t *testing.T) {
 
 			if got := redactBody(test.input); got != test.want {
 				t.Errorf("redactBody() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestDebugArtifactDownloadsStreamWithoutLoggingBodies(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("BUILDKITE_API_TOKEN", "synthetic-token")
+	keyring.MockForTesting()
+	defer keyring.ResetForTesting()
+
+	for _, test := range []struct {
+		name        string
+		contentType string
+		redirect    bool
+	}{
+		{"direct binary", "application/octet-stream", false},
+		{"redirected text", "text/plain", true},
+		{"redirected JSON", "application/json", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			payload := strings.Repeat("artifact-payload-not-for-debug\x00\xff", 32768)
+			dest := filepath.Join(t.TempDir(), "artifact")
+			streamed := make(chan bool, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/redirect" {
+					w.Header().Set("Location", "/payload")
+					w.WriteHeader(http.StatusFound)
+					_, _ = io.WriteString(w, "redirect-body-not-for-debug")
+					return
+				}
+				if r.URL.Path == "/api" {
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = io.WriteString(w, `{"message":"ordinary-api-diagnostic","access_token":"response-secret"}`)
+					return
+				}
+				w.Header().Set("Content-Type", test.contentType)
+				w.Header().Set("X-Artifact-Metadata", "retained")
+				_, _ = io.WriteString(w, payload[:64<<10])
+				w.(http.Flusher).Flush()
+				// Hold the remaining bytes until the destination gets data. Full-body
+				// buffering instead leaves the file empty until this deadline expires.
+				wroteEarly := false
+				deadline := time.Now().Add(2 * time.Second)
+				for time.Now().Before(deadline) {
+					if st, err := os.Stat(dest); err == nil && st.Size() > 0 {
+						wroteEarly = true
+						break
+					}
+					time.Sleep(time.Millisecond)
+				}
+				streamed <- wroteEarly
+				_, _ = io.WriteString(w, payload[64<<10:])
+			}))
+			defer server.Close()
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+			f, err := New(WithDebug(true))
+			if err != nil {
+				t.Fatal(err)
+			}
+			log, err := os.CreateTemp(t.TempDir(), "debug.log")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer log.Close()
+			original := os.Stderr
+			os.Stderr = log
+			defer func() { os.Stderr = original }()
+
+			path := "/payload"
+			if test.redirect {
+				path = "/redirect"
+			}
+			if err := artifact.DownloadToFile(context.Background(), f.RestAPIClient, server.URL+path, dest); err != nil {
+				t.Fatal(err)
+			}
+			if !<-streamed {
+				t.Error("download did not write to the destination before the complete payload arrived")
+			}
+			got, err := os.ReadFile(dest)
+			if err != nil || string(got) != payload {
+				t.Fatalf("downloaded bytes changed: read error = %v", err)
+			}
+
+			resp, err := f.HTTPClient.Get(server.URL + "/api")
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil || !strings.Contains(string(body), "response-secret") {
+				t.Fatalf("ordinary API response changed: body = %q, error = %v", body, err)
+			}
+			os.Stderr = original
+			output, err := os.ReadFile(log.Name())
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, marker := range []string{"artifact-payload-not-for-debug", "redirect-body-not-for-debug", "response-secret"} {
+				if bytes.Contains(output, []byte(marker)) {
+					t.Errorf("debug output contains %q", marker)
+				}
+			}
+			for _, marker := range []string{"200 OK", "X-Artifact-Metadata: retained", test.contentType, "ordinary-api-diagnostic", "[REDACTED]"} {
+				if !bytes.Contains(output, []byte(marker)) {
+					t.Errorf("debug output is missing %q", marker)
+				}
+			}
+			if test.redirect && !bytes.Contains(output, []byte("302 Found")) {
+				t.Error("debug output is missing redirect metadata")
+			}
+			if len(output) > 16<<10 {
+				t.Errorf("debug output grew with the payload: %d bytes", len(output))
 			}
 		})
 	}
