@@ -12,6 +12,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/buildkite/cli/v3/cmd/version"
+	"github.com/buildkite/cli/v3/internal/artifact"
 	"github.com/buildkite/cli/v3/internal/config"
 	bkhttp "github.com/buildkite/cli/v3/internal/http"
 	"github.com/buildkite/cli/v3/pkg/keyring"
@@ -76,13 +77,11 @@ func WithUserAgentSuffix(suffix string) FactoryOpt {
 	}
 }
 
-// debugTransport wraps an http.RoundTripper and logs requests/responses with sensitive headers redacted
+// debugTransport logs HTTP traffic with selected credentials redacted.
+// Arbitrary request and response content can still be sensitive.
 type debugTransport struct {
 	transport http.RoundTripper
 }
-
-// sensitiveHeaders contains headers that should be redacted in debug output
-var sensitiveHeaders = []string{"Authorization"}
 
 const omittedRequestBody = "[request body omitted]"
 
@@ -105,7 +104,16 @@ func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	// Build a clone with its own copy of the body for dumping
 	reqCopy := req.Clone(req.Context())
+	// Omit all query values, including unknown or encoded credential names.
+	// Clone has already copied URL, so the real request remains unchanged.
+	reqCopy.URL.User = nil
+	reqCopy.URL.RawQuery = ""
+	reqCopy.URL.ForceQuery = false
+	reqCopy.URL.Fragment = ""
+	reqCopy.URL.RawFragment = ""
 	redactHeaders(reqCopy.Header)
+	// Trailers may contain credentials too; omit them from debug dumps only.
+	reqCopy.Trailer = nil
 	if bodyBytes != nil {
 		reqCopy.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	}
@@ -116,7 +124,7 @@ func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		if !includeBody {
 			redacted += "\n" + omittedRequestBody
 		}
-		fmt.Fprintf(os.Stderr, "DEBUG request uri=%s\n%s\n", req.URL, redacted)
+		fmt.Fprintf(os.Stderr, "DEBUG request uri=%s\n%s\n", reqCopy.URL, redacted)
 	}
 
 	resp, err := d.transport.RoundTrip(req)
@@ -124,8 +132,21 @@ func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return resp, err
 	}
 
-	if dump, err := httputil.DumpResponse(resp, true); err == nil {
-		fmt.Fprintf(os.Stderr, "DEBUG response uri=%s\n%s\n", req.URL, redactBody(string(dump)))
+	includeResponseBody := !artifact.IsDownload(req.Context())
+	respCopy := *resp
+	respCopy.Header = resp.Header.Clone()
+	redactHeaders(respCopy.Header)
+	respCopy.Trailer = nil
+	dump, dumpErr := httputil.DumpResponse(&respCopy, includeResponseBody)
+	// DumpResponse restores the consumed body on the copy; return that reader
+	// to the caller without changing the original headers or trailers.
+	resp.Body = respCopy.Body
+	if dumpErr == nil {
+		redacted := redactBody(string(dump))
+		if !includeResponseBody {
+			redacted += "\n[artifact response body omitted]"
+		}
+		fmt.Fprintf(os.Stderr, "DEBUG response uri=%s\n%s\n", reqCopy.URL, redacted)
 	}
 
 	return resp, nil
@@ -159,10 +180,11 @@ func isClusterSecretValueTarget(method, target string) bool {
 
 // sensitiveBodyPatterns matches token values in form-encoded request bodies
 // and JSON response bodies that should be redacted in debug output.
-// The closing JSON quote is optional so truncated response dumps fail closed.
+// Allow JSON whitespace and escaped characters. The final backslash and closing
+// quote are optional so truncated string values are also redacted.
 var sensitiveBodyPatterns = regexp.MustCompile(
 	`((?:refresh_token|access_token|code|code_verifier)=)[^&\s]+` +
-		`|("(?:access_token|refresh_token|code|password|private_key|ssh_private_key)":\s*")[^"]+("?)`,
+		`|("(?:access_token|refresh_token|code|password|private_key|ssh_private_key)"\s*:\s*")(?:\\.|[^"\\])*\\?("?)`,
 )
 
 // redactBody replaces sensitive token values in HTTP dumps.
@@ -177,17 +199,22 @@ func redactBody(dump string) string {
 	})
 }
 
-// redactHeaders replaces sensitive header values with [REDACTED]
+// redactHeaders protects common credential headers, not arbitrary custom headers.
 func redactHeaders(headers http.Header) {
-	for _, header := range sensitiveHeaders {
-		if values := headers.Values(header); len(values) > 0 {
+	for header, values := range headers {
+		switch strings.ToLower(header) {
+		case "authorization", "proxy-authorization":
 			for i, v := range values {
 				// Keep the auth type (Bearer, Basic, etc.) but redact the token
 				if parts := strings.SplitN(v, " ", 2); len(parts) == 2 {
-					headers[header][i] = parts[0] + " [REDACTED]"
+					values[i] = parts[0] + " [REDACTED]"
 				} else {
-					headers[header][i] = "[REDACTED]"
+					values[i] = "[REDACTED]"
 				}
+			}
+		case "cookie", "set-cookie", "x-api-key":
+			for i := range values {
+				values[i] = "[REDACTED]"
 			}
 		}
 	}
@@ -278,11 +305,13 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 	}
 
 	tokenSource := bkhttp.NewTokenSource(token)
+	apiEndpoints := []string{conf.RESTAPIEndpoint(), conf.GetGraphQLEndpoint()}
 
 	transport = &bkhttp.AuthTransport{
-		Base:        transport,
-		TokenSource: tokenSource,
-		UserAgent:   userAgent,
+		Base:         transport,
+		TokenSource:  tokenSource,
+		UserAgent:    userAgent,
+		APIEndpoints: apiEndpoints,
 	}
 
 	// Only stored credentials may be refreshed. An explicit environment token
@@ -290,10 +319,11 @@ func New(opts ...FactoryOpt) (*Factory, error) {
 	kr := keyring.New()
 	if refreshToken, err := kr.GetRefreshToken(org); os.Getenv("BUILDKITE_API_TOKEN") == "" && token != "" && err == nil && refreshToken != "" {
 		transport = &bkhttp.RefreshTransport{
-			Base:        transport,
-			Org:         org,
-			Keyring:     kr,
-			TokenSource: tokenSource,
+			Base:         transport,
+			Org:          org,
+			Keyring:      kr,
+			TokenSource:  tokenSource,
+			APIEndpoints: apiEndpoints,
 		}
 	}
 
