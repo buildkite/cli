@@ -3909,6 +3909,8 @@ type __ListJobsByAgentQueryRulesInput struct {
 	Org             string      `json:"org"`
 	AgentQueryRules []string    `json:"agentQueryRules"`
 	State           []JobStates `json:"state"`
+	CreatedAtFrom   *time.Time  `json:"createdAtFrom,omitempty"`
+	CreatedAtTo     *time.Time  `json:"createdAtTo,omitempty"`
 	First           *int        `json:"first"`
 	After           *string     `json:"after"`
 }
@@ -3922,6 +3924,12 @@ func (v *__ListJobsByAgentQueryRulesInput) GetAgentQueryRules() []string { retur
 // GetState returns __ListJobsByAgentQueryRulesInput.State, and is useful for accessing the field via an interface.
 func (v *__ListJobsByAgentQueryRulesInput) GetState() []JobStates { return v.State }
 
+// GetCreatedAtFrom returns __ListJobsByAgentQueryRulesInput.CreatedAtFrom, and is useful for accessing the field via an interface.
+func (v *__ListJobsByAgentQueryRulesInput) GetCreatedAtFrom() *time.Time { return v.CreatedAtFrom }
+
+// GetCreatedAtTo returns __ListJobsByAgentQueryRulesInput.CreatedAtTo, and is useful for accessing the field via an interface.
+func (v *__ListJobsByAgentQueryRulesInput) GetCreatedAtTo() *time.Time { return v.CreatedAtTo }
+
 // GetFirst returns __ListJobsByAgentQueryRulesInput.First, and is useful for accessing the field via an interface.
 func (v *__ListJobsByAgentQueryRulesInput) GetFirst() *int { return v.First }
 
@@ -3930,11 +3938,13 @@ func (v *__ListJobsByAgentQueryRulesInput) GetAfter() *string { return v.After }
 
 // __ListJobsByQueueInput is used internally by genqlient
 type __ListJobsByQueueInput struct {
-	Org          string      `json:"org"`
-	ClusterQueue []string    `json:"clusterQueue"`
-	State        []JobStates `json:"state"`
-	First        *int        `json:"first"`
-	After        *string     `json:"after"`
+	Org           string      `json:"org"`
+	ClusterQueue  []string    `json:"clusterQueue"`
+	State         []JobStates `json:"state"`
+	CreatedAtFrom *time.Time  `json:"createdAtFrom,omitempty"`
+	CreatedAtTo   *time.Time  `json:"createdAtTo,omitempty"`
+	First         *int        `json:"first"`
+	After         *string     `json:"after"`
 }
 
 // GetOrg returns __ListJobsByQueueInput.Org, and is useful for accessing the field via an interface.
@@ -3945,6 +3955,12 @@ func (v *__ListJobsByQueueInput) GetClusterQueue() []string { return v.ClusterQu
 
 // GetState returns __ListJobsByQueueInput.State, and is useful for accessing the field via an interface.
 func (v *__ListJobsByQueueInput) GetState() []JobStates { return v.State }
+
+// GetCreatedAtFrom returns __ListJobsByQueueInput.CreatedAtFrom, and is useful for accessing the field via an interface.
+func (v *__ListJobsByQueueInput) GetCreatedAtFrom() *time.Time { return v.CreatedAtFrom }
+
+// GetCreatedAtTo returns __ListJobsByQueueInput.CreatedAtTo, and is useful for accessing the field via an interface.
+func (v *__ListJobsByQueueInput) GetCreatedAtTo() *time.Time { return v.CreatedAtTo }
 
 // GetFirst returns __ListJobsByQueueInput.First, and is useful for accessing the field via an interface.
 func (v *__ListJobsByQueueInput) GetFirst() *int { return v.First }
@@ -4305,9 +4321,9 @@ func InviteUser(
 
 // The query executed by ListJobsByAgentQueryRules.
 const ListJobsByAgentQueryRules_Operation = `
-query ListJobsByAgentQueryRules ($org: ID!, $agentQueryRules: [String!], $state: [JobStates!], $first: Int, $after: String) {
+query ListJobsByAgentQueryRules ($org: ID!, $agentQueryRules: [String!], $state: [JobStates!], $createdAtFrom: DateTime, $createdAtTo: DateTime, $first: Int, $after: String) {
 	organization(slug: $org) {
-		jobs(first: $first, after: $after, agentQueryRules: $agentQueryRules, state: $state) {
+		jobs(first: $first, after: $after, agentQueryRules: $agentQueryRules, state: $state, createdAtFrom: $createdAtFrom, createdAtTo: $createdAtTo) {
 			edges {
 				node {
 					__typename
@@ -4346,6 +4362,8 @@ func ListJobsByAgentQueryRules(
 	org string,
 	agentQueryRules []string,
 	state []JobStates,
+	createdAtFrom *time.Time,
+	createdAtTo *time.Time,
 	first *int,
 	after *string,
 ) (data_ *ListJobsByAgentQueryRulesResponse, err_ error) {
@@ -4356,6 +4374,8 @@ func ListJobsByAgentQueryRules(
 			Org:             org,
 			AgentQueryRules: agentQueryRules,
 			State:           state,
+			CreatedAtFrom:   createdAtFrom,
+			CreatedAtTo:     createdAtTo,
 			First:           first,
 			After:           after,
 		},
@@ -4375,9 +4395,9 @@ func ListJobsByAgentQueryRules(
 
 // The query executed by ListJobsByQueue.
 const ListJobsByQueue_Operation = `
-query ListJobsByQueue ($org: ID!, $clusterQueue: [ID!], $state: [JobStates!], $first: Int, $after: String) {
+query ListJobsByQueue ($org: ID!, $clusterQueue: [ID!], $state: [JobStates!], $createdAtFrom: DateTime, $createdAtTo: DateTime, $first: Int, $after: String) {
 	organization(slug: $org) {
-		jobs(clusterQueue: $clusterQueue, state: $state, first: $first, after: $after) {
+		jobs(clusterQueue: $clusterQueue, state: $state, createdAtFrom: $createdAtFrom, createdAtTo: $createdAtTo, first: $first, after: $after) {
 			edges {
 				node {
 					__typename
@@ -4424,6 +4444,8 @@ func ListJobsByQueue(
 	org string,
 	clusterQueue []string,
 	state []JobStates,
+	createdAtFrom *time.Time,
+	createdAtTo *time.Time,
 	first *int,
 	after *string,
 ) (data_ *ListJobsByQueueResponse, err_ error) {
@@ -4431,11 +4453,13 @@ func ListJobsByQueue(
 		OpName: "ListJobsByQueue",
 		Query:  ListJobsByQueue_Operation,
 		Variables: &__ListJobsByQueueInput{
-			Org:          org,
-			ClusterQueue: clusterQueue,
-			State:        state,
-			First:        first,
-			After:        after,
+			Org:           org,
+			ClusterQueue:  clusterQueue,
+			State:         state,
+			CreatedAtFrom: createdAtFrom,
+			CreatedAtTo:   createdAtTo,
+			First:         first,
+			After:         after,
 		},
 	}
 
