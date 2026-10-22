@@ -34,6 +34,9 @@ func getJobEnvironment(ctx context.Context, client *buildkite.Client, organizati
 	if err != nil {
 		// SDK errors can contain raw response bodies or decoded values. Do not
 		// wrap them: environment data must only reach the requested output.
+		if resp != nil && resp.StatusCode == http.StatusTooManyRequests {
+			return buildkite.JobEnvs{}, fmt.Errorf("could not read job environment: rate limit exceeded (HTTP 429); try again later")
+		}
 		if resp != nil && resp.StatusCode >= 400 {
 			return buildkite.JobEnvs{}, fmt.Errorf("could not read job environment (HTTP %d); check the job UUID, organization and read_job_env token scope", resp.StatusCode)
 		}

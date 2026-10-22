@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/buildkite/cli/v3/pkg/keyring"
+	buildkite "github.com/buildkite/go-buildkite/v5"
 	"gopkg.in/yaml.v3"
 )
 
@@ -39,6 +40,7 @@ func TestJobEnvironment(t *testing.T) {
 		{name: "scope denied", status: 403, body: `{"message":"synthetic-only-secret"}`, wantError: "read_job_env"},
 		{name: "not found", status: 404, body: `{"message":"synthetic-only-secret"}`, wantError: "HTTP 404"},
 		{name: "malformed error body", status: 422, body: `synthetic-only-secret`, wantError: "HTTP 422"},
+		{name: "rate limited", status: 429, body: `{"message":"synthetic-only-secret"}`, wantError: "rate limit exceeded (HTTP 429); try again later"},
 		{name: "malformed success body", body: `{"env":{"VALUE":"synthetic-only-secret"`, wantError: "response was invalid"},
 		{name: "wrong value type", body: `{"env":{"VALUE":987654321012345}}`, wantError: "response was invalid"},
 		{name: "redirected success", redirect: true, body: values, format: "json"},
@@ -83,6 +85,9 @@ func TestJobEnvironment(t *testing.T) {
 					return
 				}
 				w.Header().Set("Content-Type", "application/json")
+				if tt.status == http.StatusTooManyRequests {
+					w.Header().Set("RateLimit-Reset", "0")
+				}
 				if tt.status != 0 {
 					w.WriteHeader(tt.status)
 				}
@@ -93,6 +98,9 @@ func TestJobEnvironment(t *testing.T) {
 			args := []string{"job", "environment", jobID, "--debug", "--quiet", "--no-input"}
 			code, stdout, stderr := runCLI(t, append(args, tt.flags...)...)
 			wantRequests := 1
+			if tt.status == http.StatusTooManyRequests {
+				wantRequests += buildkite.DefaultMaxRetries
+			}
 			if tt.redirect {
 				wantRequests = 2
 			}
@@ -110,6 +118,18 @@ func TestJobEnvironment(t *testing.T) {
 			if tt.wantError != "" {
 				if code != 1 || stdout != "" || !strings.Contains(stderr, tt.wantError) {
 					t.Fatalf("exit=%d stdout=%q stderr=%q", code, stdout, stderr)
+				}
+				if tt.status == http.StatusTooManyRequests {
+					for _, misleading := range []string{"job UUID", "organization and", "read_job_env"} {
+						if strings.Contains(stderr, misleading) {
+							t.Errorf("rate limit error contains misleading advice %q: %s", misleading, stderr)
+						}
+					}
+				} else if tt.status >= 400 {
+					want := fmt.Sprintf("could not read job environment (HTTP %d); check the job UUID, organization and read_job_env token scope", tt.status)
+					if !strings.Contains(stderr, want) {
+						t.Errorf("non-rate-limit error changed: %s", stderr)
+					}
 				}
 				return
 			}
