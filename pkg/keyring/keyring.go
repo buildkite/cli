@@ -113,7 +113,7 @@ func ValidateCredentialStore(store string) error {
 
 // Set stores a token for the given organization
 func (k *Keyring) Set(org, token string) error {
-	return k.set(serviceName, org, token)
+	return k.set(k.credentialContext(), serviceName, org, token)
 }
 
 // Get retrieves a token for the given organization
@@ -128,7 +128,25 @@ func (k *Keyring) Delete(org string) error {
 
 // SetRefreshToken stores a refresh token for the given organization
 func (k *Keyring) SetRefreshToken(org, token string) error {
-	return k.set(refreshServiceName, org, token)
+	return k.set(k.credentialContext(), refreshServiceName, org, token)
+}
+
+// SetTokens persists a successful refresh under the caller's existing Lock.
+// The context bounds storage lock waits, not synchronous backend I/O. Writes
+// remain separate and are not crash-atomic. An empty refresh token preserves it.
+func (k *Keyring) SetTokens(ctx context.Context, org, accessToken, refreshToken string) error {
+	// Rotate the refresh token before persisting the new access token so a
+	// failed refresh-token write does not leave us holding a newly-issued
+	// access token with a stale rotated refresh token.
+	if refreshToken != "" {
+		if err := k.set(ctx, refreshServiceName, org, refreshToken); err != nil {
+			return fmt.Errorf("failed to store rotated refresh token: %w", err)
+		}
+	}
+	if err := k.set(ctx, serviceName, org, accessToken); err != nil {
+		return fmt.Errorf("failed to store refreshed access token: %w", err)
+	}
+	return nil
 }
 
 // GetRefreshToken retrieves a refresh token for the given organization
@@ -151,7 +169,7 @@ func (k *Keyring) CheckWritable() error {
 	account := probeID.String()
 	const value = "write-probe"
 
-	if err := k.set(writeProbeService, account, value); err != nil {
+	if err := k.set(k.credentialContext(), writeProbeService, account, value); err != nil {
 		return fmt.Errorf("write credential store probe: %w", err)
 	}
 	stored, err := k.get(writeProbeService, account)
@@ -195,7 +213,10 @@ func (k *Keyring) Description() string {
 	return "the system keychain"
 }
 
-func (k *Keyring) set(service, org, token string) error {
+func (k *Keyring) set(ctx context.Context, service, org, token string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if k.err != nil {
 		return k.err
 	}
@@ -213,7 +234,7 @@ func (k *Keyring) set(service, org, token string) error {
 	if k.canUseKeyring() {
 		if err := keyringBackend.Set(service, org, token); err == nil {
 			k.lastStore.Store(StoreKeyring)
-			if err := k.deletePreferredSHMCredential(service, org); err != nil {
+			if err := k.deletePreferredSHMCredential(ctx, service, org); err != nil {
 				return err
 			}
 			return nil
@@ -226,7 +247,7 @@ func (k *Keyring) set(service, org, token string) error {
 	}
 
 	if k.canUseSHMForWrite() {
-		if err := shmBackend.set(k.credentialContext(), service, org, token); err == nil {
+		if err := shmBackend.set(ctx, service, org, token); err == nil {
 			k.lastStore.Store(StoreSHM)
 			return nil
 		} else if keyringErr == nil {
@@ -354,12 +375,12 @@ func (k *Keyring) preferredSHMStore(service, org string) bool {
 	return err == nil && preferred
 }
 
-func (k *Keyring) deletePreferredSHMCredential(service, org string) error {
+func (k *Keyring) deletePreferredSHMCredential(ctx context.Context, service, org string) error {
 	preferred, err := shmBackend.Preferred(service, org)
 	if err != nil || !preferred {
 		return nil
 	}
-	if err := shmBackend.delete(k.credentialContext(), service, org); err != nil && !errors.Is(err, oskeyring.ErrNotFound) {
+	if err := shmBackend.delete(ctx, service, org); err != nil && !errors.Is(err, oskeyring.ErrNotFound) {
 		return err
 	}
 	return nil

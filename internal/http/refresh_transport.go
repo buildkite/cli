@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/buildkite/cli/v3/pkg/oauth"
 	"golang.org/x/net/idna"
@@ -85,10 +86,9 @@ func (t *AuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 type credentialStore interface {
 	Lock(context.Context, string) (func(), error)
-	Set(org, token string) error
+	SetTokens(ctx context.Context, org, accessToken, refreshToken string) error
 	Get(org string) (string, error)
 	GetRefreshToken(org string) (string, error)
-	SetRefreshToken(org, token string) error
 	DeleteRefreshToken(org string) error
 	CheckWritable() error
 }
@@ -285,17 +285,12 @@ func (t *RefreshTransport) doRefresh(ctx context.Context, failedToken string) (s
 		return "", err
 	}
 
-	// Rotate the refresh token before persisting the new access token so a
-	// failed refresh-token write does not leave us holding a newly-issued
-	// access token with a stale rotated refresh token.
-	if tokenResp.RefreshToken != "" {
-		if err := t.Keyring.SetRefreshToken(t.Org, tokenResp.RefreshToken); err != nil {
-			return "", fmt.Errorf("%w: failed to store rotated refresh token: %w", errCredentialPersistence, err)
-		}
-	}
-
-	if err := t.Keyring.Set(t.Org, tokenResp.AccessToken); err != nil {
-		return "", fmt.Errorf("%w: failed to store refreshed access token: %w", errCredentialPersistence, err)
+	// The server has invalidated the old refresh token. Finish saving its
+	// replacement under the org guard even if the caller disconnects.
+	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 45*time.Second)
+	defer cancel()
+	if err := t.Keyring.SetTokens(persistCtx, t.Org, tokenResp.AccessToken, tokenResp.RefreshToken); err != nil {
+		return "", fmt.Errorf("%w: %w", errCredentialPersistence, err)
 	}
 	t.TokenSource.SetToken(tokenResp.AccessToken)
 

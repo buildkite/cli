@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -36,14 +37,20 @@ func (s *stubCredentialStore) Lock(ctx context.Context, org string) (func(), err
 	return keyring.New().Lock(ctx, org)
 }
 
-func (s *stubCredentialStore) Set(_ string, token string) error {
+func (s *stubCredentialStore) SetTokens(_ context.Context, _ string, accessToken, refreshToken string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if refreshToken != "" {
+		if s.setRefreshTokenErr != nil {
+			return fmt.Errorf("failed to store rotated refresh token: %w", s.setRefreshTokenErr)
+		}
+		s.refreshToken = refreshToken
+	}
 	if s.setAccessErr != nil {
 		return s.setAccessErr
 	}
-	s.accessToken = token
+	s.accessToken = accessToken
 	return nil
 }
 
@@ -69,17 +76,6 @@ func (s *stubCredentialStore) GetRefreshToken(string) (string, error) {
 		return token, nil
 	}
 	return s.refreshToken, nil
-}
-
-func (s *stubCredentialStore) SetRefreshToken(_ string, token string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.setRefreshTokenErr != nil {
-		return s.setRefreshTokenErr
-	}
-	s.refreshToken = token
-	return nil
 }
 
 func (s *stubCredentialStore) DeleteRefreshToken(string) error {

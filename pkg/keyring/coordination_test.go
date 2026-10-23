@@ -185,18 +185,40 @@ func TestCredentialLockCancelsNestedStorageWait(t *testing.T) {
 	if err := kr.Set("nested-wait", "synthetic"); err != nil {
 		t.Fatal(err)
 	}
+	if err := kr.SetRefreshToken("nested-wait", "original-refresh"); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("BK_LOCK_PROCESS_DIR", "storage-lock")
 	t.Setenv("BK_LOCK_PROCESS_SHM", "1")
 	startLockHolder(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-	release, err := kr.Lock(ctx, "nested-wait")
-	if err != nil {
-		t.Fatal(err)
+	for _, operation := range []string{"preflight", "persistence"} {
+		t.Run(operation, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+			lockCtx := context.Background()
+			if operation == "preflight" {
+				lockCtx = ctx
+			}
+			release, err := kr.Lock(lockCtx, "nested-wait")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer release()
+			if operation == "preflight" {
+				err = kr.CheckWritable()
+			} else {
+				err = kr.SetTokens(ctx, "nested-wait", "fresh", "rotated-refresh")
+			}
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("%s storage wait ignored its context: %v", operation, err)
+			}
+		})
 	}
-	defer release()
-	if err := kr.CheckWritable(); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("storage wait ignored credential operation context: %v", err)
+	if access, err := kr.Get("nested-wait"); err != nil || access != "synthetic" {
+		t.Fatalf("expired persistence changed access token: %q, %v", access, err)
+	}
+	if refresh, err := kr.GetRefreshToken("nested-wait"); err != nil || refresh != "original-refresh" {
+		t.Fatalf("expired persistence changed refresh token: %q, %v", refresh, err)
 	}
 }
 
