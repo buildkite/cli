@@ -76,3 +76,59 @@ func TestDefaultConfigPath(t *testing.T) {
 		})
 	}
 }
+
+func TestIsSystemConfigPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		os         string
+		configPath string
+		want       bool
+	}{
+		{"linux package config", "linux", "/etc/buildkite-agent/buildkite-agent.cfg", true},
+		{"linux unclean package config", "linux", "/etc//buildkite-agent/./buildkite-agent.cfg", true},
+		{"linux home config", "linux", "/root/.buildkite-agent/buildkite-agent.cfg", false},
+		{"linux similar prefix", "linux", "/etc/buildkite-agent-old/buildkite-agent.cfg", false},
+		{"linux escapes package dir", "linux", "/etc/buildkite-agent/../buildkite-agent.cfg", false},
+		{"linux package dir itself", "linux", "/etc/buildkite-agent", false},
+		{"darwin ignores package path", "darwin", "/etc/buildkite-agent/buildkite-agent.cfg", false},
+		{"windows ignores package path", "windows", "/etc/buildkite-agent/buildkite-agent.cfg", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := IsSystemConfigPath(tt.os, tt.configPath); got != tt.want {
+				t.Errorf("IsSystemConfigPath(%q, %q) = %v, want %v", tt.os, tt.configPath, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveBuildPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		os         string
+		configPath string
+		buildPath  string
+		want       string
+	}{
+		{"explicit wins over system config", "linux", "/etc/buildkite-agent/buildkite-agent.cfg", "/data/builds", "/data/builds"},
+		{"explicit wins over home config", "linux", "/home/dev/.buildkite-agent/buildkite-agent.cfg", "/data/builds", "/data/builds"},
+		{"linux system config uses package path", "linux", "/etc/buildkite-agent/buildkite-agent.cfg", "", LinuxSystemBuildPath},
+		{"linux home config uses default", "linux", "/home/dev/.buildkite-agent/buildkite-agent.cfg", "", DefaultBuildPath("linux")},
+		{"darwin ignores package path", "darwin", "/etc/buildkite-agent/buildkite-agent.cfg", "", DefaultBuildPath("darwin")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := ResolveBuildPath(tt.os, tt.configPath, tt.buildPath); got != tt.want {
+				t.Errorf("ResolveBuildPath(%q, %q, %q) = %q, want %q", tt.os, tt.configPath, tt.buildPath, got, tt.want)
+			}
+		})
+	}
+}
