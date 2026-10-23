@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/buildkite/cli/v3/internal/cli"
@@ -28,8 +29,8 @@ type RunCmd struct {
 func (r *RunCmd) Help() string {
 	return `Run an ephemeral buildkite-agent locally.
 
-Downloads the agent binary, creates a cluster token, and starts the agent.
-All temporary files are cleaned up when the agent is stopped with Ctrl+C.
+Downloads the agent binary, creates a cluster agent token, and starts the agent.
+When the agent stops, the token is revoked and temporary files are removed.
 
 Examples:
   # Run the latest agent on the Default cluster
@@ -96,7 +97,7 @@ func (r *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 
 	binaryPath := filepath.Join(tmpDir, bkAgent.BinaryName(targetOS))
 
-	// Create API client and provision a cluster token
+	// Create API client and find the cluster to create the token on
 	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
 	if err != nil {
 		return fmt.Errorf("initializing API client: %w", err)
@@ -110,28 +111,50 @@ func (r *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return fmt.Errorf("finding cluster: %w", err)
 	}
 
+	// Catch signals before the token exists, so stopping bk always revokes it.
+	// Leave alone signals bk was started ignoring, such as SIGHUP under nohup.
+	signals := []os.Signal{os.Interrupt, syscall.SIGTERM}
+	for _, sig := range []os.Signal{syscall.SIGHUP, syscall.SIGQUIT} {
+		if !signal.Ignored(sig) {
+			signals = append(signals, sig)
+		}
+	}
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, signals...)
+	defer signal.Stop(sigCh)
+
+	return runAgent(ctx, f, org, clusterID, binaryPath, tmpDir, r.Queue, sigCh)
+}
+
+// runAgent creates a cluster agent token, runs the agent with it until the
+// agent exits, and revokes the token before returning.
+func runAgent(ctx context.Context, f *factory.Factory, org, clusterID, binaryPath, dir, queue string, sigCh <-chan os.Signal) error {
 	fmt.Println("Creating agent token...")
 	token, err := bkAgent.CreateAgentToken(ctx, f, org, clusterID, "Ephemeral token created by bk agent run")
 	if err != nil {
 		return fmt.Errorf("creating agent token: %w", err)
 	}
+	defer revokeAgentToken(f, org, clusterID, token.ID)
 
 	// Write a temporary config file
-	configPath := filepath.Join(tmpDir, "buildkite-agent.cfg")
-	buildPath := filepath.Join(tmpDir, "builds")
+	configPath := filepath.Join(dir, "buildkite-agent.cfg")
+	buildPath := filepath.Join(dir, "builds")
 	var tags []string
-	if r.Queue != "" {
-		tags = append(tags, "queue="+r.Queue)
+	if queue != "" {
+		tags = append(tags, "queue="+queue)
 	}
-	if err := bkAgent.WriteAgentConfig(configPath, token, buildPath, tags); err != nil {
+	if err := bkAgent.WriteAgentConfig(configPath, token.Token, buildPath, tags); err != nil {
 		return fmt.Errorf("writing agent config: %w", err)
 	}
 
-	// Catch signals so we wait for the agent to shut down gracefully
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	// A signal before the agent starts never reaches it, so stop here instead.
+	select {
+	case <-sigCh:
+		return nil
+	default:
+	}
 
-	fmt.Printf("Starting buildkite-agent v%s...\n", version)
+	fmt.Println("Starting buildkite-agent...")
 	cmd := exec.Command(binaryPath, "start", "--config", configPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -147,19 +170,49 @@ func (r *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		errCh <- cmd.Wait()
 	}()
 
-	select {
-	case <-sigCh:
-		fmt.Println("\nShutting down agent...")
-		// The agent already received the signal (same process group)
-		// and will finish any running job before exiting.
-		<-errCh
-		fmt.Println("Agent stopped.")
-		return nil
+	shuttingDown, hungUp := false, false
+	for {
+		select {
+		case sig := <-sigCh:
+			if !shuttingDown {
+				shuttingDown = true
+				fmt.Println("\nShutting down agent...")
+			}
+			// The terminal sends Ctrl+C and Ctrl+\ to the agent too, as it is in
+			// the same process group. SIGTERM is usually sent to bk alone, so
+			// pass each one on: a second SIGTERM cancels the running job, as it
+			// would for the agent. Closing the terminal sends SIGHUP more than
+			// once, but should only ask the agent to stop gracefully.
+			switch {
+			case sig == syscall.SIGTERM:
+				_ = cmd.Process.Signal(syscall.SIGTERM)
+			case sig == syscall.SIGHUP && !hungUp:
+				hungUp = true
+				_ = cmd.Process.Signal(syscall.SIGTERM)
+			}
 
-	case err := <-errCh:
-		if err != nil {
-			return fmt.Errorf("agent exited with error: %w", err)
+		case err := <-errCh:
+			if shuttingDown {
+				fmt.Println("Agent stopped.")
+				return nil
+			}
+			if err != nil {
+				return fmt.Errorf("agent exited with error: %w", err)
+			}
+			return nil
 		}
-		return nil
+	}
+}
+
+// revokeAgentToken revokes the token created for this run. The timeout stops
+// an unresponsive API from keeping bk running after the agent has stopped.
+func revokeAgentToken(f *factory.Factory, org, clusterID, tokenID string) {
+	fmt.Println("Revoking agent token...")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if _, err := f.RestAPIClient.ClusterTokens.Delete(ctx, org, clusterID, tokenID); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not revoke agent token %s: %v\n", tokenID, err)
+		fmt.Fprintf(os.Stderr, "Revoke it with: bk api --method DELETE /clusters/%s/tokens/%s\n", clusterID, tokenID)
 	}
 }
