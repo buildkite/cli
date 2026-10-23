@@ -31,16 +31,13 @@ func FindCluster(ctx context.Context, f *factory.Factory, org, clusterID string)
 	return "", fmt.Errorf("no cluster named \"Default\" found in organization %q", org)
 }
 
-// CreateAgentToken creates an agent token on the given cluster and returns the token string.
-func CreateAgentToken(ctx context.Context, f *factory.Factory, org, clusterID, description string) (string, error) {
+// CreateAgentToken creates an agent token on the given cluster. The returned
+// token's Token field holds the secret value, which the API only returns here.
+func CreateAgentToken(ctx context.Context, f *factory.Factory, org, clusterID, description string) (buildkite.ClusterToken, error) {
 	token, _, err := f.RestAPIClient.ClusterTokens.Create(ctx, org, clusterID, buildkite.ClusterTokenCreate{
 		Description: description,
 	})
-	if err != nil {
-		return "", err
-	}
-
-	return token.Token, nil
+	return token, err
 }
 
 // WriteAgentConfig writes a minimal agent config file with the given token, build path,
