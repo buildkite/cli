@@ -9,6 +9,17 @@ A command line interface for [Buildkite](https://buildkite.com/).
 On macOS, install with [Homebrew](https://brew.sh/):
 
 ```sh
+brew install buildkite
+```
+
+> [!TIP]
+> The Homebrew core formula installs the command as `buildkite`. To use `bk` with
+> the examples below, run `alias bk=buildkite`. Add that line to your shell
+> configuration (`~/.zshrc` for Zsh or `~/.bashrc` for Bash) to keep it across sessions.
+
+Alternatively, install from Buildkite's tap, which provides `bk` directly:
+
+```sh
 brew install buildkite/buildkite/bk@3
 ```
 
