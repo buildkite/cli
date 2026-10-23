@@ -213,6 +213,6 @@ func revokeAgentToken(f *factory.Factory, org, clusterID, tokenID string) {
 
 	if _, err := f.RestAPIClient.ClusterTokens.Delete(ctx, org, clusterID, tokenID); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not revoke agent token %s: %v\n", tokenID, err)
-		fmt.Fprintf(os.Stderr, "Revoke it with: bk api --method DELETE /clusters/%s/tokens/%s\n", clusterID, tokenID)
+		fmt.Fprintf(os.Stderr, "Revoke it with: bk --org %s api --method DELETE /clusters/%s/tokens/%s\n", org, clusterID, tokenID)
 	}
 }
