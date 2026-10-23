@@ -22,8 +22,16 @@ import (
 // RunCmd spins up an ephemeral buildkite-agent attached to a cluster.
 type RunCmd struct {
 	Version     string `help:"Specify an agent version to run" default:"latest"`
+	ClusterName string `help:"Cluster name to create the agent token on (resolved to UUID)" name:"cluster-name" optional:""`
 	ClusterUUID string `help:"Cluster UUID to create the agent token on (default: the \"Default\" cluster)" name:"cluster-uuid" optional:""`
 	Queue       string `help:"Queue for the agent to listen on" default:"default"`
+}
+
+func (r *RunCmd) Validate() error {
+	if r.ClusterUUID != "" && r.ClusterName != "" {
+		return fmt.Errorf("only one of --cluster-uuid or --cluster-name can be specified")
+	}
+	return nil
 }
 
 func (r *RunCmd) Help() string {
@@ -31,6 +39,9 @@ func (r *RunCmd) Help() string {
 
 Downloads the agent binary, creates a cluster agent token, and starts the agent.
 When the agent stops, the token is revoked and temporary files are removed.
+Without a cluster selector, uses the cluster named exactly Default. If it is not
+accessible, lists available clusters and exits. Use --cluster-name or --cluster-uuid
+to select a different cluster.
 
 Examples:
   # Run the latest agent on the Default cluster
@@ -39,7 +50,10 @@ Examples:
   # Run a specific version
   $ bk agent run --version "3.112.0"
 
-  # Run on a specific cluster
+  # Run on a specific cluster by name
+  $ bk agent run --cluster-name "My cluster"
+
+  # Run on a specific cluster by UUID
   $ bk agent run --cluster-uuid "01234567-89ab-cdef-0123-456789abcdef"
 
   # Run on a specific queue
@@ -54,6 +68,20 @@ func (r *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	// for the rest of the run so the write fails instead. Unlike
 	// signal.Ignore, this leaves SIGPIPE at its default in the agent.
 	signal.Notify(make(chan os.Signal, 1), syscall.SIGPIPE)
+
+	// Resolve the cluster before downloading the agent or creating a token.
+	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
+	if err != nil {
+		return fmt.Errorf("initializing API client: %w", err)
+	}
+
+	ctx := context.Background()
+	org := f.Config.OrganizationSlug()
+
+	clusterID, err := bkAgent.FindCluster(ctx, f, org, r.ClusterUUID, r.ClusterName)
+	if err != nil {
+		return fmt.Errorf("finding cluster: %w", err)
+	}
 
 	// Track temp directory for cleanup
 	tmpDir, err := os.MkdirTemp("", "bk-agent-run-*")
@@ -103,20 +131,6 @@ func (r *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	binaryPath := filepath.Join(tmpDir, bkAgent.BinaryName(targetOS))
-
-	// Create API client and find the cluster to create the token on
-	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
-	if err != nil {
-		return fmt.Errorf("initializing API client: %w", err)
-	}
-
-	ctx := context.Background()
-	org := f.Config.OrganizationSlug()
-
-	clusterID, err := bkAgent.FindCluster(ctx, f, org, r.ClusterUUID)
-	if err != nil {
-		return fmt.Errorf("finding cluster: %w", err)
-	}
 
 	// Catch signals before the token exists, so stopping bk always revokes it.
 	// Leave SIGHUP and SIGQUIT ignored if bk was started that way, such as
