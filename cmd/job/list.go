@@ -115,6 +115,11 @@ type jobListOptions struct {
 	orderBy  string
 	limit    int
 	noLimit  bool
+
+	// createdFrom and createdTo are --since and --until resolved to absolute
+	// times by jobListOptionsFromFlags. Nil leaves that side open.
+	createdFrom *time.Time
+	createdTo   *time.Time
 }
 
 func (opts jobListOptions) withoutQueue() jobListOptions {
@@ -400,12 +405,25 @@ func fetchJobs(ctx context.Context, f *factory.Factory, org string, opts jobList
 	return allJobs, nil
 }
 
-type listJobsByQueue func(ctx context.Context, f *factory.Factory, org string, queueIDs []string, states []bkGraphQL.JobStates, cursor *string) ([]buildkite.Job, *string, bool, error)
+// queueJobFilter holds the filters the queue job queries apply on the server.
+// A nil time leaves that side of the creation window open.
+type queueJobFilter struct {
+	states      []bkGraphQL.JobStates
+	createdFrom *time.Time
+	createdTo   *time.Time
+}
+
+type listJobsByQueue func(ctx context.Context, f *factory.Factory, org string, queueIDs []string, filter queueJobFilter, cursor *string) ([]buildkite.Job, *string, bool, error)
 
 func listJobsWithPagination(ctx context.Context, f *factory.Factory, org string, queueIDs []string, opts jobListOptions, listJobs listJobsByQueue) ([]buildkite.Job, error) {
 	var jobs []buildkite.Job
 	var cursor *string
 	states, exactStates := graphQLStatesFor(opts.state)
+	filter := queueJobFilter{
+		states:      states,
+		createdFrom: opts.createdFrom,
+		createdTo:   opts.createdTo,
+	}
 
 	clientOpts := opts.withoutQueue()
 	if exactStates {
@@ -418,7 +436,7 @@ func listJobsWithPagination(ctx context.Context, f *factory.Factory, org string,
 	boundPages := !opts.noLimit && (len(clientOpts.state) > 0 || clientOpts.duration != "")
 
 	for len(jobs) < opts.limit {
-		jobBatch, nextCursor, hasNext, err := listJobs(ctx, f, org, queueIDs, states, cursor)
+		jobBatch, nextCursor, hasNext, err := listJobs(ctx, f, org, queueIDs, filter, cursor)
 		if err != nil {
 			return nil, err
 		}
@@ -605,9 +623,9 @@ func fetchQueuesForCluster(ctx context.Context, client graphql.Client, clusterID
 	return matchingQueueIDs, nil
 }
 
-func listJobsByClusterQueue(ctx context.Context, f *factory.Factory, org string, queueIDs []string, states []bkGraphQL.JobStates, cursor *string) ([]buildkite.Job, *string, bool, error) {
+func listJobsByClusterQueue(ctx context.Context, f *factory.Factory, org string, queueIDs []string, filter queueJobFilter, cursor *string) ([]buildkite.Job, *string, bool, error) {
 	first := pageSize
-	resp, err := bkGraphQL.ListJobsByQueue(ctx, f.GraphQLClient, org, queueIDs, states, &first, cursor)
+	resp, err := bkGraphQL.ListJobsByQueue(ctx, f.GraphQLClient, org, queueIDs, filter.states, filter.createdFrom, filter.createdTo, &first, cursor)
 	if err != nil {
 		return nil, nil, false, fmt.Errorf("failed to list jobs: %w", err)
 	}
@@ -668,10 +686,10 @@ func convertGraphQLJobToBuildkiteJob(jobNode *bkGraphQL.ListJobsByQueueOrganizat
 	}
 }
 
-func listJobsByAgentQueryRules(ctx context.Context, f *factory.Factory, org string, agentQueryRules []string, states []bkGraphQL.JobStates, cursor *string) ([]buildkite.Job, *string, bool, error) {
+func listJobsByAgentQueryRules(ctx context.Context, f *factory.Factory, org string, agentQueryRules []string, filter queueJobFilter, cursor *string) ([]buildkite.Job, *string, bool, error) {
 	first := pageSize
 
-	resp, err := bkGraphQL.ListJobsByAgentQueryRules(ctx, f.GraphQLClient, org, agentQueryRules, states, &first, cursor)
+	resp, err := bkGraphQL.ListJobsByAgentQueryRules(ctx, f.GraphQLClient, org, agentQueryRules, filter.states, filter.createdFrom, filter.createdTo, &first, cursor)
 	if err != nil {
 		return nil, nil, false, fmt.Errorf("failed to list jobs: %w", err)
 	}
@@ -818,6 +836,8 @@ func graphQLStatesFor(states []string) ([]bkGraphQL.JobStates, bool) {
 	return mapped, exact
 }
 
+// jobListOptionsFromFlags validates opts, resolves --since and --until into
+// opts.createdFrom and opts.createdTo, and returns the REST builds options.
 func jobListOptionsFromFlags(opts *jobListOptions) (*buildkite.BuildsListOptions, error) {
 	if opts.build == "" && (opts.stepKey != "" || opts.groupKey != "") {
 		return nil, fmt.Errorf("--step-key and --group-key require --build")
@@ -835,13 +855,17 @@ func jobListOptionsFromFlags(opts *jobListOptions) (*buildkite.BuildsListOptions
 		ExcludePipeline: true,
 	}
 
-	now := time.Now()
+	// Whole seconds in UTC, so GraphQL receives e.g. 2026-10-19T10:00:00Z.
+	// The REST API already receives created_from at this precision.
+	now := time.Now().UTC().Truncate(time.Second)
 	if opts.since != "" {
 		d, err := time.ParseDuration(opts.since)
 		if err != nil {
 			return nil, fmt.Errorf("invalid since duration '%s': %w", opts.since, err)
 		}
-		listOpts.CreatedFrom = now.Add(-d)
+		createdFrom := now.Add(-d)
+		opts.createdFrom = &createdFrom
+		listOpts.CreatedFrom = createdFrom
 	}
 
 	if opts.until != "" {
@@ -849,7 +873,9 @@ func jobListOptionsFromFlags(opts *jobListOptions) (*buildkite.BuildsListOptions
 		if err != nil {
 			return nil, fmt.Errorf("invalid until duration '%s': %w", opts.until, err)
 		}
-		listOpts.CreatedTo = now.Add(-d)
+		createdTo := now.Add(-d)
+		opts.createdTo = &createdTo
+		listOpts.CreatedTo = createdTo
 	}
 
 	return listOpts, nil
