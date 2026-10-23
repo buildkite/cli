@@ -84,6 +84,7 @@ func (t *AuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 type credentialStore interface {
+	Lock(context.Context, string) (func(), error)
 	Set(org, token string) error
 	Get(org string) (string, error)
 	GetRefreshToken(org string) (string, error)
@@ -98,9 +99,8 @@ var errCredentialPersistence = errors.New("credential persistence failed")
 // expired OAuth access tokens using a stored refresh token.
 //
 // On a 401 response it:
-//  1. Acquires a mutex to serialise concurrent refreshes.
-//  2. Checks whether the token has already been refreshed by another
-//     goroutine (compare-after-lock).
+//  1. Acquires the organization's cross-process credential lock.
+//  2. Rereads stored credentials to detect refresh, replacement, or logout.
 //  3. If not, exchanges the refresh token for new tokens.
 //  4. Persists the new tokens and updates the shared TokenSource.
 //  5. Retries the original request with the new token.
@@ -112,10 +112,6 @@ type RefreshTransport struct {
 
 	// APIEndpoints defines the trusted REST and GraphQL origins for refresh.
 	APIEndpoints []string
-
-	// mu protects all credential-store accesses, including reads, which can
-	// update the store's selected backend, as well as token refreshes.
-	mu sync.Mutex
 }
 
 func (t *RefreshTransport) base() http.RoundTripper {
@@ -210,21 +206,10 @@ func (t *RefreshTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		return resp, nil
 	}
 
-	// Attempt token refresh (serialised to prevent concurrent refreshes).
-	// Even credential reads mutate the keyring's backend selection.
-	t.mu.Lock()
-	// Only attempt refresh if we have a refresh token
-	refreshToken, rtErr := t.Keyring.GetRefreshToken(t.Org)
-	if rtErr != nil || refreshToken == "" {
-		t.mu.Unlock()
-		return resp, nil
-	}
-
 	newToken, refreshErr := t.doRefresh(req.Context(), failedToken)
-	t.mu.Unlock()
 
 	if refreshErr != nil {
-		if errors.Is(refreshErr, errCredentialPersistence) {
+		if errors.Is(refreshErr, errCredentialPersistence) || req.Context().Err() != nil {
 			_, _ = io.Copy(io.Discard, resp.Body)
 			_ = resp.Body.Close()
 			return nil, refreshErr
@@ -254,11 +239,19 @@ func (t *RefreshTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 func (t *RefreshTransport) doRefresh(ctx context.Context, failedToken string) (string, error) {
-	// Compare-after-lock: if the current token differs from the one that
-	// failed, another goroutine already refreshed successfully. Skip the
-	// refresh and use the new token.
-	currentToken := t.TokenSource.Token()
-	if currentToken != "" && currentToken != failedToken {
+	release, err := t.Keyring.Lock(ctx, t.Org)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", errCredentialPersistence, err)
+	}
+	defer release()
+
+	currentToken, err := t.Keyring.Get(t.Org)
+	if err != nil || currentToken == "" {
+		// A queued request must not restore credentials removed by logout.
+		return "", errors.New("stored access token unavailable")
+	}
+	if currentToken != failedToken {
+		t.TokenSource.SetToken(currentToken)
 		return currentToken, nil
 	}
 

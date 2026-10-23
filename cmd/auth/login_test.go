@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -25,6 +26,10 @@ type stubOAuthTokenStore struct {
 	refreshErr error
 	access     map[string]string
 	refresh    map[string]string
+}
+
+func (s *stubOAuthTokenStore) Lock(ctx context.Context, org string) (func(), error) {
+	return keyring.New().Lock(ctx, org)
 }
 
 func (s *stubOAuthTokenStore) IsAvailable() bool {
