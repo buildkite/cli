@@ -48,6 +48,13 @@ Examples:
 }
 
 func (r *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	// Ctrl+C also stops a reader such as `bk agent run | tee`. Go kills a
+	// program that writes to a closed stdout unless it asks for SIGPIPE, which
+	// would skip revoking the token and removing temporary files. Ask for it
+	// for the rest of the run so the write fails instead. Unlike
+	// signal.Ignore, this leaves SIGPIPE at its default in the agent.
+	signal.Notify(make(chan os.Signal, 1), syscall.SIGPIPE)
+
 	// Track temp directory for cleanup
 	tmpDir, err := os.MkdirTemp("", "bk-agent-run-*")
 	if err != nil {
@@ -112,7 +119,8 @@ func (r *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 
 	// Catch signals before the token exists, so stopping bk always revokes it.
-	// Leave alone signals bk was started ignoring, such as SIGHUP under nohup.
+	// Leave SIGHUP and SIGQUIT ignored if bk was started that way, such as
+	// SIGHUP under nohup.
 	signals := []os.Signal{os.Interrupt, syscall.SIGTERM}
 	for _, sig := range []os.Signal{syscall.SIGHUP, syscall.SIGQUIT} {
 		if !signal.Ignored(sig) {
