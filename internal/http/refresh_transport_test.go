@@ -1,7 +1,9 @@
 package http
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,8 +19,10 @@ type stubCredentialStore struct {
 	mu sync.Mutex
 
 	accessToken        string
+	accessTokenReads   []string
 	refreshToken       string
 	refreshTokenReads  []string
+	lockErr            error
 	checkWritableErr   error
 	setAccessErr       error
 	setRefreshTokenErr error
@@ -26,14 +30,27 @@ type stubCredentialStore struct {
 	checkWritableCalls int
 }
 
-func (s *stubCredentialStore) Set(_ string, token string) error {
+func (s *stubCredentialStore) Lock(ctx context.Context, org string) (func(), error) {
+	if s.lockErr != nil {
+		return nil, s.lockErr
+	}
+	return keyring.New().Lock(ctx, org)
+}
+
+func (s *stubCredentialStore) SetTokens(_ context.Context, _ string, accessToken, refreshToken string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if refreshToken != "" {
+		if s.setRefreshTokenErr != nil {
+			return fmt.Errorf("failed to store rotated refresh token: %w", s.setRefreshTokenErr)
+		}
+		s.refreshToken = refreshToken
+	}
 	if s.setAccessErr != nil {
 		return s.setAccessErr
 	}
-	s.accessToken = token
+	s.accessToken = accessToken
 	return nil
 }
 
@@ -41,6 +58,11 @@ func (s *stubCredentialStore) Get(string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if len(s.accessTokenReads) > 0 {
+		token := s.accessTokenReads[0]
+		s.accessTokenReads = s.accessTokenReads[1:]
+		return token, nil
+	}
 	return s.accessToken, nil
 }
 
@@ -54,17 +76,6 @@ func (s *stubCredentialStore) GetRefreshToken(string) (string, error) {
 		return token, nil
 	}
 	return s.refreshToken, nil
-}
-
-func (s *stubCredentialStore) SetRefreshToken(_ string, token string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.setRefreshTokenErr != nil {
-		return s.setRefreshTokenErr
-	}
-	s.refreshToken = token
-	return nil
 }
 
 func (s *stubCredentialStore) DeleteRefreshToken(string) error {
@@ -271,6 +282,16 @@ func TestRefreshTransport_UnwritableCredentialStoreDoesNotExchangeRefreshToken(t
 	if transport.TokenSource.Token() != "old-token" {
 		t.Fatalf("expected token source to remain unchanged, got %q", transport.TokenSource.Token())
 	}
+
+	store.checkWritableErr = nil
+	store.lockErr = errors.New("unsafe credential lock path")
+	resp, err = transport.RoundTrip(req)
+	if resp != nil || !errors.Is(err, errCredentialPersistence) || !errors.Is(err, store.lockErr) {
+		t.Fatalf("expected lock failure before refresh, got %v, %v", resp, err)
+	}
+	if refreshRequests.Load() != 0 || store.checkWritableCalls != 1 || store.refreshToken != "old-refresh-token" {
+		t.Fatal("lock failure must not probe, rotate, or change credentials")
+	}
 }
 
 func TestRefreshTransport_RotatedRefreshTokenStoreFailureReturnsError(t *testing.T) {
@@ -332,6 +353,7 @@ func TestRefreshTransport_InvalidGrantRotationHandling(t *testing.T) {
 	tests := []struct {
 		name               string
 		storedAccessToken  string
+		accessTokenReads   []string
 		storedRefreshToken string
 		refreshTokenReads  []string
 		wantStatus         int
@@ -342,8 +364,9 @@ func TestRefreshTransport_InvalidGrantRotationHandling(t *testing.T) {
 		{
 			name:               "recovers with access token rotated by another process",
 			storedAccessToken:  "new-token",
+			accessTokenReads:   []string{"old-token", "new-token"},
 			storedRefreshToken: "new-refresh-token",
-			refreshTokenReads:  []string{"old-refresh-token", "old-refresh-token", "new-refresh-token"},
+			refreshTokenReads:  []string{"old-refresh-token", "new-refresh-token"},
 			wantStatus:         http.StatusOK,
 			wantTokenSource:    "new-token",
 			wantRefreshToken:   "new-refresh-token",
@@ -352,7 +375,7 @@ func TestRefreshTransport_InvalidGrantRotationHandling(t *testing.T) {
 			name:               "preserves rotated refresh token when access token is not stored yet",
 			storedAccessToken:  "old-token",
 			storedRefreshToken: "new-refresh-token",
-			refreshTokenReads:  []string{"old-refresh-token", "old-refresh-token", "new-refresh-token"},
+			refreshTokenReads:  []string{"old-refresh-token", "new-refresh-token"},
 			wantStatus:         http.StatusUnauthorized,
 			wantTokenSource:    "old-token",
 			wantRefreshToken:   "new-refresh-token",
@@ -361,7 +384,7 @@ func TestRefreshTransport_InvalidGrantRotationHandling(t *testing.T) {
 			name:               "deletes unchanged invalid refresh token",
 			storedAccessToken:  "old-token",
 			storedRefreshToken: "old-refresh-token",
-			refreshTokenReads:  []string{"old-refresh-token", "old-refresh-token", "old-refresh-token"},
+			refreshTokenReads:  []string{"old-refresh-token", "old-refresh-token"},
 			wantStatus:         http.StatusUnauthorized,
 			wantTokenSource:    "old-token",
 			wantDeleteCalls:    1,
@@ -401,6 +424,7 @@ func TestRefreshTransport_InvalidGrantRotationHandling(t *testing.T) {
 
 			store := &stubCredentialStore{
 				accessToken:       tt.storedAccessToken,
+				accessTokenReads:  append([]string(nil), tt.accessTokenReads...),
 				refreshToken:      tt.storedRefreshToken,
 				refreshTokenReads: append([]string(nil), tt.refreshTokenReads...),
 			}

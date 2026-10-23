@@ -35,6 +35,12 @@ Sign in through your browser:
 bk auth login
 ```
 
+Stored credential refresh, login replacement, and logout coordinate across `bk`
+processes using private locks in the OS account's persistent home directory,
+independent of `HOME` or repository configuration. On Linux, these operations
+require a local `/etc/passwd` entry and a writable home outside temporary
+directories. Environments without one can use `BUILDKITE_API_TOKEN` instead.
+
 ## Documentation
 
 See the [official documentation](https://buildkite.com/docs/platform/cli) for
