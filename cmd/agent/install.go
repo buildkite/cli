@@ -149,7 +149,7 @@ func (i *InstallCmd) createTokenAndConfig(globals cli.GlobalFlags) error {
 	}
 
 	buildPath := bkAgent.DefaultBuildPath(userOS)
-	if err := bkAgent.WriteAgentConfig(configPath, token, buildPath, nil); err != nil {
+	if err := bkAgent.WriteAgentConfig(configPath, token.Token, buildPath, nil); err != nil {
 		return fmt.Errorf("writing agent config: %w", err)
 	}
 
