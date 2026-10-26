@@ -5,7 +5,7 @@ go 1.26.10
 require (
 	github.com/alecthomas/kong v1.16.1
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be
-	github.com/buildkite/go-buildkite/v5 v5.23.0
+	github.com/buildkite/go-buildkite/v5 v5.24.0
 	github.com/buildkite/termoji v0.0.0-20260330080310-c0aa4ebee0d1
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
@@ -16,10 +16,10 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/jpillora/chisel v1.13.0
-	github.com/mcncl/terminal-to-llm v0.1.1
+	github.com/mcncl/terminal-to-llm v0.2.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
-	github.com/posthog/posthog-go v1.35.1
-	github.com/vektah/gqlparser/v2 v2.5.63
+	github.com/posthog/posthog-go v1.36.0
+	github.com/vektah/gqlparser/v2 v2.5.64
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/sync v0.24.0
@@ -29,7 +29,7 @@ require (
 
 require (
 	buf.build/gen/go/namespace/cloud/protocolbuffers/go v1.36.10-20251121142918-2a477e0555b1.1 // indirect
-	github.com/agnivade/levenshtein v1.2.1 // indirect
+	github.com/agnivade/levenshtein v1.2.2 // indirect
 	github.com/alexflint/go-arg v1.5.1 // indirect
 	github.com/alexflint/go-scalar v1.2.0 // indirect
 	github.com/andybalholm/brotli v1.1.1 // indirect
