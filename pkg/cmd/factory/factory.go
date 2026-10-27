@@ -132,7 +132,22 @@ func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return resp, err
 	}
 
-	includeResponseBody := !artifact.IsDownload(req.Context())
+	// Environment values may have arbitrary names, so field-name redaction
+	// cannot protect them. Omit the whole body, including error responses.
+	// Follow redirect ancestry so a different destination path stays protected.
+	omitResponseBody := false
+	for ancestor := req; ancestor != nil; {
+		if strings.Contains(ancestor.URL.Path, "/jobs/") &&
+			strings.HasSuffix(strings.TrimSuffix(ancestor.URL.Path, "/"), "/env") {
+			omitResponseBody = true
+			break
+		}
+		if ancestor.Response == nil {
+			break
+		}
+		ancestor = ancestor.Response.Request
+	}
+	includeResponseBody := !omitResponseBody && !artifact.IsDownload(req.Context())
 	respCopy := *resp
 	respCopy.Header = resp.Header.Clone()
 	redactHeaders(respCopy.Header)
@@ -143,7 +158,9 @@ func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	resp.Body = respCopy.Body
 	if dumpErr == nil {
 		redacted := redactBody(string(dump))
-		if !includeResponseBody {
+		if omitResponseBody {
+			redacted += "\n[response body omitted]"
+		} else if !includeResponseBody {
 			redacted += "\n[artifact response body omitted]"
 		}
 		fmt.Fprintf(os.Stderr, "DEBUG response uri=%s\n%s\n", reqCopy.URL, redacted)
