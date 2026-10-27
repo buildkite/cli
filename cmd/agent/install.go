@@ -25,10 +25,19 @@ var (
 type InstallCmd struct {
 	Version     string `help:"Specify an agent version to install" default:"latest"`
 	Dest        string `help:"Destination directory for the binary" type:"path"`
+	ClusterName string `help:"Cluster name to create the agent token on (resolved to UUID)" name:"cluster-name" optional:""`
 	ClusterUUID string `help:"Cluster UUID to create the agent token on (default: the \"Default\" cluster)" name:"cluster-uuid" optional:""`
 	NoToken     bool   `help:"Skip creating an agent token and config file" name:"no-token"`
 	ConfigPath  string `help:"Path to write the agent config file" type:"path"`
 	BuildPath   string `help:"Directory the agent runs builds in (default: /var/lib/buildkite-agent/builds for configs under /etc/buildkite-agent on Linux, otherwise the platform default)"`
+	Force       bool   `help:"Overwrite an existing agent config file"`
+}
+
+func (i *InstallCmd) Validate() error {
+	if i.ClusterUUID != "" && i.ClusterName != "" {
+		return fmt.Errorf("only one of --cluster-uuid or --cluster-name can be specified")
+	}
+	return nil
 }
 
 func (i *InstallCmd) Help() string {
@@ -36,6 +45,8 @@ func (i *InstallCmd) Help() string {
 
 By default, this also creates an agent token on the Default cluster and writes
 a minimal config file so the agent is ready to start.
+Use --cluster-name or --cluster-uuid to select a different cluster. If no Default
+cluster is accessible, the command lists available clusters and exits.
 
 Examples:
   # Install the latest version of the agent
@@ -47,15 +58,50 @@ Examples:
   # Install to a custom location
   $ bk agent install --dest ~/.local/bin
 
+  # Install using a cluster selected by name
+  $ bk agent install --cluster-name "My cluster"
+
+  # Install using a cluster selected by UUID
+  $ bk agent install --cluster-uuid "01234567-89ab-cdef-0123-456789abcdef"
+
   # Install without creating a token/config
   $ bk agent install --no-token
 
   # Choose where builds run
   $ bk agent install --build-path /data/buildkite/builds
+
+  # Replace an existing config file with a new token
+  $ bk agent install --force
+
+An existing config file is never overwritten unless --force is given;
+the token in the replaced config is not revoked.
 `
 }
 
 func (i *InstallCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	configPath := i.ConfigPath
+	if configPath == "" {
+		configPath = bkAgent.DefaultConfigPath(userOS)
+	}
+
+	var f *factory.Factory
+	var clusterID string
+	if !i.NoToken {
+		// Check before downloading or creating a token, so a refusal has no side effects
+		if err := checkConfigPath(configPath, i.Force); err != nil {
+			return err
+		}
+		var err error
+		f, err = factory.New(factory.WithDebug(globals.EnableDebug()))
+		if err != nil {
+			return fmt.Errorf("initializing API client: %w", err)
+		}
+		clusterID, err = bkAgent.FindCluster(context.Background(), f, f.Config.OrganizationSlug(), i.ClusterUUID, i.ClusterName)
+		if err != nil {
+			return fmt.Errorf("finding cluster: %w", err)
+		}
+	}
+
 	dest := i.Dest
 	if dest == "" {
 		dest = bkAgent.DefaultBinDir(userOS)
@@ -119,7 +165,7 @@ func (i *InstallCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	fmt.Printf("Installed buildkite-agent to %s\n", filepath.Join(dest, binaryName))
 
 	if !i.NoToken {
-		if err := i.createTokenAndConfig(globals); err != nil {
+		if err := i.createTokenAndConfig(f, clusterID, configPath); err != nil {
 			return err
 		}
 	}
@@ -127,29 +173,33 @@ func (i *InstallCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	return nil
 }
 
-func (i *InstallCmd) createTokenAndConfig(globals cli.GlobalFlags) error {
-	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
-	if err != nil {
-		return fmt.Errorf("initializing API client: %w", err)
+// checkConfigPath refuses to replace an existing config file unless force is set,
+// because WriteAgentConfig rewrites the whole file and would drop any other settings.
+func checkConfigPath(path string, force bool) error {
+	info, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return nil
 	}
+	if err != nil {
+		return fmt.Errorf("checking agent config: %w", err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("agent config path %s is a directory", path)
+	}
+	if force {
+		return nil
+	}
+	return fmt.Errorf("agent config already exists at %s; use --force to replace it (other settings in the file will be lost), or --no-token to only install the binary", path)
+}
 
+func (i *InstallCmd) createTokenAndConfig(f *factory.Factory, clusterID, configPath string) error {
 	ctx := context.Background()
 	org := f.Config.OrganizationSlug()
-
-	clusterID, err := bkAgent.FindCluster(ctx, f, org, i.ClusterUUID)
-	if err != nil {
-		return fmt.Errorf("finding default cluster: %w", err)
-	}
 
 	fmt.Println("Creating agent token...")
 	token, err := bkAgent.CreateAgentToken(ctx, f, org, clusterID, "Token created by bk agent install")
 	if err != nil {
 		return fmt.Errorf("creating agent token: %w", err)
-	}
-
-	configPath := i.ConfigPath
-	if configPath == "" {
-		configPath = bkAgent.DefaultConfigPath(userOS)
 	}
 
 	// BuildPath isn't type:"path" because Kong maps an empty value to the working
@@ -159,7 +209,7 @@ func (i *InstallCmd) createTokenAndConfig(globals cli.GlobalFlags) error {
 		explicitBuildPath = kong.ExpandPath(explicitBuildPath)
 	}
 	buildPath := bkAgent.ResolveBuildPath(userOS, configPath, explicitBuildPath)
-	if err := bkAgent.WriteAgentConfig(configPath, token, buildPath, nil); err != nil {
+	if err := bkAgent.WriteAgentConfig(configPath, token.Token, buildPath, nil); err != nil {
 		return fmt.Errorf("writing agent config: %w", err)
 	}
 

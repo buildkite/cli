@@ -677,6 +677,65 @@ func TestQueueJobListSendsStateFilterToServer(t *testing.T) {
 	}
 }
 
+func TestQueueJobListSendsCreationWindowToServer(t *testing.T) {
+	tests := []struct {
+		name     string
+		since    string
+		until    string
+		wantFrom time.Duration // how long ago createdAtFrom is; 0 means omitted
+		wantTo   time.Duration // how long ago createdAtTo is; 0 means omitted
+	}{
+		{name: "since", since: "1h", wantFrom: time.Hour},
+		{name: "since and until", since: "3h", until: "1h", wantFrom: 3 * time.Hour, wantTo: time.Hour},
+	}
+
+	// A cluster queue uses ListJobsByQueue; any other name falls back to
+	// ListJobsByAgentQueryRules.
+	for _, queue := range []string{"packages-on-origin", "unclustered-queue"} {
+		for _, tt := range tests {
+			t.Run(queue+"/"+tt.name, func(t *testing.T) {
+				var calls []map[string]any
+				server := jobListGraphQLServer(t, `[]`, &calls)
+				f := newJobListTestFactory(t, server.URL, nil)
+				f.GraphQLClient = graphql.NewClient(server.URL, server.Client())
+
+				before := time.Now()
+				opts := jobListOptions{queue: queue, since: tt.since, until: tt.until, limit: 100}
+				listOpts, err := jobListOptionsFromFlags(&opts)
+				if err != nil {
+					t.Fatalf("jobListOptionsFromFlags() error = %v", err)
+				}
+				if _, _, _, err := fetchJobList(context.Background(), f, "test-org", opts, listOpts); err != nil {
+					t.Fatalf("fetchJobList() error = %v", err)
+				}
+				after := time.Now()
+
+				if len(calls) != 1 {
+					t.Fatalf("job queries = %d, want 1", len(calls))
+				}
+				for name, age := range map[string]time.Duration{"createdAtFrom": tt.wantFrom, "createdAtTo": tt.wantTo} {
+					value, sent := calls[0][name]
+					if age == 0 {
+						if sent {
+							t.Fatalf("%s = %v, want it omitted", name, value)
+						}
+						continue
+					}
+					s, _ := value.(string)
+					got, err := time.Parse(time.RFC3339, s)
+					if err != nil || s != got.UTC().Format(time.RFC3339) {
+						t.Fatalf("%s = %v, want a whole-second UTC timestamp", name, value)
+					}
+					earliest, latest := before.Add(-age).Truncate(time.Second), after.Add(-age)
+					if got.Before(earliest) || got.After(latest) {
+						t.Fatalf("%s = %s, want between %s and %s", name, s, earliest.UTC().Format(time.RFC3339), latest.UTC().Format(time.RFC3339))
+					}
+				}
+			})
+		}
+	}
+}
+
 func TestQueueJobListStopsPagingWhenServerFiltersState(t *testing.T) {
 	// The reported hang, against a server that honours the state variable. A
 	// busy queue with few running jobs used to page forever chasing --limit.

@@ -36,9 +36,14 @@ query FindQueuesForCluster($clusterId: ID!, $cursor: String) {
   }
 }
 
-query ListJobsByQueue($org: ID!, $clusterQueue: [ID!], $state: [JobStates!], $first: Int, $after: String) {
+query ListJobsByQueue(
+  $org: ID!, $clusterQueue: [ID!], $state: [JobStates!],
+  # @genqlient(omitempty: true)
+  $createdAtFrom: DateTime, $createdAtTo: DateTime,
+  $first: Int, $after: String
+) {
   organization(slug: $org) {
-    jobs(clusterQueue: $clusterQueue, state: $state, first: $first, after: $after) {
+    jobs(clusterQueue: $clusterQueue, state: $state, createdAtFrom: $createdAtFrom, createdAtTo: $createdAtTo, first: $first, after: $after) {
       edges {
         node {
           ... on JobTypeCommand {
@@ -118,9 +123,14 @@ query ListJobsByState($org: ID!, $state: [JobStates!], $first: Int, $after: Stri
   }
 }
 
-query ListJobsByAgentQueryRules($org: ID!, $agentQueryRules: [String!], $state: [JobStates!], $first: Int, $after: String) {
+query ListJobsByAgentQueryRules(
+  $org: ID!, $agentQueryRules: [String!], $state: [JobStates!],
+  # @genqlient(omitempty: true)
+  $createdAtFrom: DateTime, $createdAtTo: DateTime,
+  $first: Int, $after: String
+) {
   organization(slug: $org) {
-    jobs(first: $first, after: $after, agentQueryRules: $agentQueryRules, state: $state) {
+    jobs(first: $first, after: $after, agentQueryRules: $agentQueryRules, state: $state, createdAtFrom: $createdAtFrom, createdAtTo: $createdAtTo) {
       edges {
         node {
           ... on JobTypeCommand {
