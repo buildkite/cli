@@ -29,6 +29,7 @@ type InstallCmd struct {
 	ClusterUUID string `help:"Cluster UUID to create the agent token on (default: the \"Default\" cluster)" name:"cluster-uuid" optional:""`
 	NoToken     bool   `help:"Skip creating an agent token and config file" name:"no-token"`
 	ConfigPath  string `help:"Path to write the agent config file" type:"path"`
+	BuildPath   string `help:"Directory the agent runs builds in (default: /var/lib/buildkite-agent/builds for configs under /etc/buildkite-agent on Linux, otherwise the platform default)"`
 	Force       bool   `help:"Overwrite an existing agent config file"`
 }
 
@@ -65,6 +66,9 @@ Examples:
 
   # Install without creating a token/config
   $ bk agent install --no-token
+
+  # Choose where builds run
+  $ bk agent install --build-path /data/buildkite/builds
 
   # Replace an existing config file with a new token
   $ bk agent install --force
@@ -198,11 +202,27 @@ func (i *InstallCmd) createTokenAndConfig(f *factory.Factory, clusterID, configP
 		return fmt.Errorf("creating agent token: %w", err)
 	}
 
-	buildPath := bkAgent.DefaultBuildPath(userOS)
+	// BuildPath isn't type:"path" because Kong maps an empty value to the working
+	// directory, which would silently become the build path.
+	explicitBuildPath := i.BuildPath
+	if explicitBuildPath != "" {
+		explicitBuildPath = kong.ExpandPath(explicitBuildPath)
+	}
+	buildPath := bkAgent.ResolveBuildPath(userOS, configPath, explicitBuildPath)
 	if err := bkAgent.WriteAgentConfig(configPath, token.Token, buildPath, nil); err != nil {
 		return fmt.Errorf("writing agent config: %w", err)
 	}
 
 	fmt.Printf("Agent config written to %s\n", configPath)
+	fmt.Printf("Builds will run in %s\n", buildPath)
+
+	// Under sudo the home-based default build path usually resolves to root's home,
+	// which an agent running as any other user (such as the packaged buildkite-agent
+	// service) can't write to.
+	if userOS == "linux" && i.BuildPath == "" && !bkAgent.IsSystemConfigPath(userOS, configPath) && os.Getenv("SUDO_USER") != "" {
+		fmt.Println()
+		fmt.Println("Warning: running under sudo. If the agent will run as another user, it may not")
+		fmt.Printf("  be able to write to %s. Change build-path in %s if so.\n", buildPath, configPath)
+	}
 	return nil
 }
