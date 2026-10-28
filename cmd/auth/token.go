@@ -70,6 +70,11 @@ func (c *TokenCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		return err
 	}
 
+	token := f.Config.APIToken()
+	if token == "" {
+		return fmt.Errorf("no token found; run `bk auth login` to authenticate")
+	}
+
 	if c.JSON {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
@@ -81,11 +86,6 @@ func (c *TokenCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 			return err
 		}
 		return json.NewEncoder(os.Stdout).Encode(inspection)
-	}
-
-	token := f.Config.APIToken()
-	if token == "" {
-		return fmt.Errorf("no token found; run `bk auth login` to authenticate")
 	}
 
 	fmt.Fprintln(os.Stdout, token)

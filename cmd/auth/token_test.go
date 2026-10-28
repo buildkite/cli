@@ -49,6 +49,38 @@ func tokenInspectionFactory(t *testing.T, handler http.HandlerFunc) (*factory.Fa
 	return f, store
 }
 
+func TestTokenCmdMissingTokenDoesNotMakeRequests(t *testing.T) {
+	for _, jsonOutput := range []bool{false, true} {
+		name := "raw"
+		if jsonOutput {
+			name = "json"
+		}
+		t.Run(name, func(t *testing.T) {
+			var requests atomic.Int32
+			_, store := tokenInspectionFactory(t, func(w http.ResponseWriter, request *http.Request) {
+				requests.Add(1)
+				w.WriteHeader(http.StatusUnauthorized)
+			})
+			if err := store.Delete("test-org"); err != nil {
+				t.Fatal(err)
+			}
+			if err := store.DeleteRefreshToken("test-org"); err != nil {
+				t.Fatal(err)
+			}
+
+			cmd := TokenCmd{JSON: jsonOutput, Timeout: time.Second}
+			err := cmd.Run(nil, authStubGlobals{})
+			const want = "no token found; run `bk auth login` to authenticate"
+			if err == nil || err.Error() != want {
+				t.Errorf("Run() error = %v, want %q", err, want)
+			}
+			if got := requests.Load(); got != 0 {
+				t.Errorf("made %d requests without credentials, want 0", got)
+			}
+		})
+	}
+}
+
 func writeTokenInspection(w http.ResponseWriter, expiresAt *time.Time) {
 	w.Header().Set("Content-Type", "application/json")
 	var expiry any
