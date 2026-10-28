@@ -22,6 +22,71 @@ import (
 	"github.com/spf13/afero"
 )
 
+func TestBuildCreatePullRequest(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		args []string
+		want map[string]any
+	}{
+		{
+			name: "pull request",
+			args: []string{
+				"--pull-request-id", "123",
+				"--pull-request-base-branch", "main",
+				"--pull-request-repository", "https://github.com/contributor/widgets.git",
+			},
+			want: map[string]any{
+				"pull_request_id":          float64(123),
+				"pull_request_base_branch": "main",
+				"pull_request_repository":  "https://github.com/contributor/widgets.git",
+			},
+		},
+		{name: "ordinary build"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "acme")
+			t.Setenv("BUILDKITE_API_TOKEN", "test-token")
+			t.Setenv("BK_TELEMETRY", "false")
+			requests := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests++
+				if r.Method != http.MethodPost || r.URL.Path != "/v2/organizations/acme/pipelines/widgets/builds" {
+					t.Errorf("unexpected request: %s %s", r.Method, r.URL)
+				}
+				var body map[string]any
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Error(err)
+				}
+				for _, key := range []string{"pull_request_id", "pull_request_base_branch", "pull_request_repository"} {
+					got, present := body[key]
+					want, expected := tt.want[key]
+					if present != expected || got != want {
+						t.Errorf("%s = %v (present=%t), want %v (present=%t)", key, got, present, want, expected)
+					}
+				}
+				if body["branch"] != "feature/widgets" || body["commit"] != "abc123" {
+					t.Errorf("unexpected build branch or commit: %v", body)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				fmt.Fprint(w, `{"web_url":"https://buildkite.com/acme/widgets/builds/42"}`)
+			}))
+			defer server.Close()
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+			args := append([]string{"build", "create", "--pipeline", "acme/widgets", "--branch", "feature/widgets", "--commit", "abc123", "--yes", "--no-input", "--quiet"}, tt.args...)
+			code, stdout, stderr := runCLI(t, args...)
+			if code != 0 || requests != 1 {
+				t.Fatalf("exit=%d requests=%d stderr=%s", code, requests, stderr)
+			}
+			if !strings.Contains(stdout, "https://buildkite.com/acme/widgets/builds/42") {
+				t.Errorf("missing build URL in output: %s", stdout)
+			}
+		})
+	}
+}
+
 func TestApiDiagnostics(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
