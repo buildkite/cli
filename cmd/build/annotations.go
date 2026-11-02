@@ -121,7 +121,18 @@ func (c *AnnotationsCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) err
 				return fmt.Errorf("failed to list annotations (requires read_builds): %w", err)
 			}
 			for _, annotation := range annotations {
-				result.Annotations = append(result.Annotations, annotationOutput(annotation))
+				// Copy fields explicitly so new SDK fields don't break the build.
+				result.Annotations = append(result.Annotations, annotationOutput{
+					ID:        annotation.ID,
+					Context:   annotation.Context,
+					Style:     annotation.Style,
+					Scope:     annotation.Scope,
+					JobID:     annotation.JobID,
+					Priority:  annotation.Priority,
+					BodyHTML:  annotation.BodyHTML,
+					CreatedAt: annotation.CreatedAt,
+					UpdatedAt: annotation.UpdatedAt,
+				})
 			}
 			if resp.NextPage == 0 {
 				return nil
