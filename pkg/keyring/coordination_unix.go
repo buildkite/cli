@@ -3,20 +3,31 @@
 package keyring
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 var errCredentialLockHome = errors.New("credential coordination requires a persistent home directory from the OS account database")
 
-func credentialLockDirectory() (string, error) {
+// Variables so tests can substitute the account sources. getent has a fixed
+// path so the lock location does not depend on PATH. Systems without it there
+// (such as NixOS) fail closed as before.
+var (
+	passwdFile = "/etc/passwd"
+	getentPath = "/usr/bin/getent"
+)
+
+func credentialLockDirectory(ctx context.Context) (string, error) {
 	var home string
 	if runtime.GOOS == "darwin" {
 		// Darwin resolves the account through libc, including non-cgo builds.
@@ -28,16 +39,27 @@ func credentialLockDirectory() (string, error) {
 	} else {
 		// Static Linux os/user falls back to HOME for unmapped UIDs. Resolve the
 		// account directly instead; without one, fail before changing credentials.
-		data, err := os.ReadFile("/etc/passwd")
+		data, err := os.ReadFile(passwdFile)
 		if err != nil {
 			return "", err
 		}
-		for line := range strings.SplitSeq(string(data), "\n") {
-			fields := strings.Split(line, ":")
-			if len(fields) == 7 && fields[2] == strconv.Itoa(os.Getuid()) {
-				home = fields[5]
-				break
+		uid := strconv.Itoa(os.Getuid())
+		home = passwdHome(data, uid)
+		if home == "" {
+			// Directory-managed accounts (LDAP, SSSD) are only visible through
+			// NSS, which a static binary cannot call. Ask getent instead.
+			lookupCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+			cmd := exec.CommandContext(lookupCtx, getentPath, "passwd", uid)
+			cmd.WaitDelay = time.Second
+			out, err := cmd.Output()
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return "", ctxErr
 			}
+			if err != nil {
+				return "", fmt.Errorf("%w: getent passwd %s: %v", errCredentialLockHome, uid, err)
+			}
+			home = passwdHome(out, uid)
 		}
 	}
 	if !filepath.IsAbs(home) {
@@ -54,6 +76,17 @@ func credentialLockDirectory() (string, error) {
 		}
 	}
 	return filepath.Join(home, ".buildkite-credential-locks"), nil
+}
+
+// passwdHome returns the home directory of the passwd(5) entry for uid.
+func passwdHome(data []byte, uid string) string {
+	for line := range strings.SplitSeq(string(data), "\n") {
+		fields := strings.Split(line, ":")
+		if len(fields) == 7 && fields[2] == uid {
+			return fields[5]
+		}
+	}
+	return ""
 }
 
 func ensureLockDirectory(dir string) error {
