@@ -3,6 +3,7 @@
 package keyring
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -19,12 +20,13 @@ import (
 
 var errCredentialLockHome = errors.New("credential coordination requires a persistent home directory from the OS account database")
 
-// Variables so tests can substitute the account sources. getent has a fixed
-// path so the lock location does not depend on PATH. Systems without it there
-// (such as NixOS) fail closed as before.
+// Variables so tests can substitute the account sources. getent is found at
+// fixed system paths, not via PATH, so the lock location does not depend on the
+// environment. The last entry is the NixOS system profile.
 var (
-	passwdFile = "/etc/passwd"
-	getentPath = "/usr/bin/getent"
+	passwdFile    = "/etc/passwd"
+	getentPaths   = []string{"/usr/bin/getent", "/run/current-system/sw/bin/getent"}
+	getentTimeout = 10 * time.Second
 )
 
 func credentialLockDirectory(ctx context.Context) (string, error) {
@@ -48,15 +50,40 @@ func credentialLockDirectory(ctx context.Context) (string, error) {
 		if home == "" {
 			// Directory-managed accounts (LDAP, SSSD) are only visible through
 			// NSS, which a static binary cannot call. Ask getent instead.
-			lookupCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			getent := ""
+			for _, path := range getentPaths {
+				// An absolute path is checked directly; PATH is not consulted.
+				if _, err := exec.LookPath(path); err == nil {
+					getent = path
+					break
+				}
+			}
+			if getent == "" {
+				return "", fmt.Errorf("%w: getent not found at %s", errCredentialLockHome, strings.Join(getentPaths, ", "))
+			}
+			lookupCtx, cancel := context.WithTimeout(ctx, getentTimeout)
 			defer cancel()
-			cmd := exec.CommandContext(lookupCtx, getentPath, "passwd", uid)
+			cmd := exec.CommandContext(lookupCtx, getent, "passwd", uid)
+			// An empty environment keeps LD_PRELOAD and similar from changing
+			// the answer; NSS lookups do not need one.
+			cmd.Env = []string{}
 			cmd.WaitDelay = time.Second
 			out, err := cmd.Output()
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return "", ctxErr
 			}
+			if lookupCtx.Err() != nil {
+				return "", fmt.Errorf("%w: getent passwd %s timed out after %s", errCredentialLockHome, uid, getentTimeout)
+			}
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) && exitErr.ExitCode() == 2 {
+				// getent also exits 2 when the directory service is unreachable.
+				return "", fmt.Errorf("%w: uid %s not resolved by getent passwd (account unknown or directory unavailable)", errCredentialLockHome, uid)
+			}
 			if err != nil {
+				if exitErr != nil && len(bytes.TrimSpace(exitErr.Stderr)) > 0 {
+					err = fmt.Errorf("%w: %s", err, bytes.TrimSpace(exitErr.Stderr))
+				}
 				return "", fmt.Errorf("%w: getent passwd %s: %v", errCredentialLockHome, uid, err)
 			}
 			home = passwdHome(out, uid)

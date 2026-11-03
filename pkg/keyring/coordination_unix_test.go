@@ -27,7 +27,7 @@ func unmappedAccount(t *testing.T, output, tail string) {
 	}
 	dir := t.TempDir()
 	passwd, out, args, getent := filepath.Join(dir, "passwd"), filepath.Join(dir, "out"), filepath.Join(dir, "args"), filepath.Join(dir, "getent")
-	script := fmt.Sprintf("#!/bin/sh\necho \"$*\" > %q\ncat %q\n%s\n", args, out, tail)
+	script := fmt.Sprintf("#!/bin/sh\necho \"$*|${BK_GETENT_LEAK-}\" > %q\ncat %q\n%s\n", args, out, tail)
 	// Runners may mount the temp directory noexec.
 	if err := os.WriteFile(getent, []byte("#!/bin/sh\n"), 0o700); err != nil {
 		t.Fatal(err)
@@ -40,12 +40,15 @@ func unmappedAccount(t *testing.T, output, tail string) {
 			t.Fatal(err)
 		}
 	}
-	oldPasswd, oldGetent := passwdFile, getentPath
-	passwdFile, getentPath = passwd, getent
+	// The lookup must not see the caller's environment.
+	t.Setenv("BK_GETENT_LEAK", "leaked")
+	oldPasswd, oldGetent := passwdFile, getentPaths
+	// A missing first candidate proves the lookup moves on to the next path.
+	passwdFile, getentPaths = passwd, []string{filepath.Join(dir, "missing"), getent}
 	t.Cleanup(func() {
-		passwdFile, getentPath = oldPasswd, oldGetent
+		passwdFile, getentPaths = oldPasswd, oldGetent
 		// Every failure looks the same, so prove the lookup actually ran.
-		if got, err := os.ReadFile(args); err != nil || string(got) != "passwd "+strconv.Itoa(os.Getuid())+"\n" {
+		if got, err := os.ReadFile(args); err != nil || string(got) != "passwd "+strconv.Itoa(os.Getuid())+"|\n" {
 			t.Errorf("getent stub not run as expected: %q, %v", got, err)
 		}
 	})
@@ -62,7 +65,7 @@ func TestCredentialLockUnmappedUID(t *testing.T) {
 	for _, home := range []string{t.TempDir(), t.TempDir()} {
 		t.Setenv("HOME", home)
 		release, err := kr.Lock(context.Background(), "unmapped-test")
-		if !errors.Is(err, errCredentialLockHome) {
+		if !errors.Is(err, errCredentialLockHome) || !strings.Contains(err.Error(), "not resolved by getent") {
 			if release != nil {
 				release()
 			}
@@ -113,15 +116,53 @@ func TestCredentialLockNSSAccount(t *testing.T) {
 			}
 		})
 	}
+	t.Run("no-getent", func(t *testing.T) {
+		if runtime.GOOS != "linux" {
+			t.Skip("static Linux account lookup regression")
+		}
+		dir := t.TempDir()
+		passwd := filepath.Join(dir, "passwd")
+		if err := os.WriteFile(passwd, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		oldPasswd, oldGetent := passwdFile, getentPaths
+		passwdFile, getentPaths = passwd, []string{filepath.Join(dir, "missing")}
+		t.Cleanup(func() { passwdFile, getentPaths = oldPasswd, oldGetent })
+		_, err := credentialLockDirectory(context.Background())
+		if !errors.Is(err, errCredentialLockHome) || !strings.Contains(err.Error(), "getent not found") {
+			t.Fatalf("missing getent must fail closed: %v", err)
+		}
+	})
+	t.Run("getent-error", func(t *testing.T) {
+		unmappedAccount(t, "", "echo 'unknown database' >&2; exit 1")
+		_, err := credentialLockDirectory(context.Background())
+		if !errors.Is(err, errCredentialLockHome) || !strings.Contains(err.Error(), "exit status 1: unknown database") {
+			t.Fatalf("getent failure must fail closed with its stderr: %v", err)
+		}
+	})
+	t.Run("timeout", func(t *testing.T) {
+		unmappedAccount(t, entry(uid), "exec sleep 10")
+		oldTimeout := getentTimeout
+		getentTimeout = time.Second
+		t.Cleanup(func() { getentTimeout = oldTimeout })
+		_, err := credentialLockDirectory(context.Background())
+		if !errors.Is(err, errCredentialLockHome) || !strings.Contains(err.Error(), "timed out after 1s") {
+			t.Fatalf("hung lookup must fail closed as a timeout: %v", err)
+		}
+	})
 	t.Run("caller-cancelled", func(t *testing.T) {
 		// A slow lookup that the caller abandons reports cancellation, not a
 		// missing account. The forked sleep keeps stdout open after the kill,
-		// so this also proves WaitDelay bounds the lookup; it exits on its own.
-		unmappedAccount(t, entry(uid), "sleep 3")
+		// so returning well before it exits proves WaitDelay bounds the lookup.
+		unmappedAccount(t, entry(uid), "sleep 10")
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
+		start := time.Now()
 		if _, err := credentialLockDirectory(ctx); !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("caller cancellation not reported: %v", err)
+		}
+		if elapsed := time.Since(start); elapsed > 5*time.Second {
+			t.Fatalf("lookup outlived its deadline by waiting on the child's output: %v", elapsed)
 		}
 	})
 }
