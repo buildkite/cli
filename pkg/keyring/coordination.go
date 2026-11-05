@@ -18,7 +18,7 @@ var credentialLocks sync.Map // lock path -> buffered channel
 // exchanges. Callers must release it before returning and must not acquire it
 // recursively. Individual storage operations retain their short file locks.
 func (k *Keyring) Lock(ctx context.Context, org string) (func(), error) {
-	dir, err := credentialLockDirectory()
+	dir, err := credentialLockDirectory(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("find credential lock directory: %w", err)
 	}

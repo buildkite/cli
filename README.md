@@ -38,8 +38,10 @@ bk auth login
 Stored credential refresh, login replacement, and logout coordinate across `bk`
 processes using private locks in the OS account's persistent home directory,
 independent of `HOME` or repository configuration. On Linux, these operations
-require a local `/etc/passwd` entry and a writable home outside temporary
-directories. Environments without one can use `BUILDKITE_API_TOKEN` instead.
+require an account found in `/etc/passwd` or by `getent passwd` (for example
+LDAP or SSSD; `getent` must be in `/usr/bin` or the NixOS system profile),
+with a writable home outside temporary directories.
+Environments without one can use `BUILDKITE_API_TOKEN` instead.
 
 ## Documentation
 

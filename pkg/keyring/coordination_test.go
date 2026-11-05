@@ -152,7 +152,7 @@ func TestCredentialLockEnvironmentIdentity(t *testing.T) {
 	// Model an age-based temporary cleaner unlinking this org's eligible lock
 	// while its descriptor is held. Persistent account locks are out of scope
 	// for that cleaner and must continue to exclude the next process.
-	dir, err := credentialLockDirectory()
+	dir, err := credentialLockDirectory(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

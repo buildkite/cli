@@ -1,6 +1,7 @@
 package keyring
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -11,7 +12,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func credentialLockDirectory() (string, error) {
+func credentialLockDirectory(_ context.Context) (string, error) {
 	u, err := user.Current()
 	if err != nil {
 		return "", err
