@@ -27,6 +27,7 @@ type InstallCmd struct {
 	Dest        string `help:"Destination directory for the binary" type:"path"`
 	ClusterName string `help:"Cluster name to create the agent token on (resolved to UUID)" name:"cluster-name" optional:""`
 	ClusterUUID string `help:"Cluster UUID to create the agent token on (default: the \"Default\" cluster)" name:"cluster-uuid" optional:""`
+	Queue       string `help:"Self-hosted queue key (default: the cluster's configured default queue)"`
 	NoToken     bool   `help:"Skip creating an agent token and config file" name:"no-token"`
 	ConfigPath  string `help:"Path to write the agent config file" type:"path"`
 	BuildPath   string `help:"Directory the agent runs builds in (default: /var/lib/buildkite-agent/builds for configs under /etc/buildkite-agent on Linux, otherwise the platform default)"`
@@ -36,6 +37,9 @@ type InstallCmd struct {
 func (i *InstallCmd) Validate() error {
 	if i.ClusterUUID != "" && i.ClusterName != "" {
 		return fmt.Errorf("only one of --cluster-uuid or --cluster-name can be specified")
+	}
+	if i.NoToken && i.Queue != "" {
+		return fmt.Errorf("--queue cannot be used with --no-token because no agent config is written")
 	}
 	return nil
 }
@@ -47,6 +51,10 @@ By default, this also creates an agent token on the Default cluster and writes
 a minimal config file so the agent is ready to start.
 Use --cluster-name or --cluster-uuid to select a different cluster. If no Default
 cluster is accessible, the command lists available clusters and exits.
+Use --queue with an exact self-hosted queue key, or omit it to use the cluster's
+configured default queue. Hosted queues cannot accept local agents. If queue
+selection fails, the command lists self-hosted queue keys and exits before
+downloading the agent or creating a token. --queue cannot be used with --no-token.
 
 Examples:
   # Install the latest version of the agent
@@ -64,6 +72,9 @@ Examples:
   # Install using a cluster selected by UUID
   $ bk agent install --cluster-uuid "01234567-89ab-cdef-0123-456789abcdef"
 
+  # Install for a specific self-hosted queue
+  $ bk agent install --queue "deploy"
+
   # Install without creating a token/config
   $ bk agent install --no-token
 
@@ -79,13 +90,16 @@ the token in the replaced config is not revoked.
 }
 
 func (i *InstallCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
+	if err := i.Validate(); err != nil {
+		return err
+	}
 	configPath := i.ConfigPath
 	if configPath == "" {
 		configPath = bkAgent.DefaultConfigPath(userOS)
 	}
 
 	var f *factory.Factory
-	var clusterID string
+	var clusterID, queue string
 	if !i.NoToken {
 		// Check before downloading or creating a token, so a refusal has no side effects
 		if err := checkConfigPath(configPath, i.Force); err != nil {
@@ -99,6 +113,10 @@ func (i *InstallCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		clusterID, err = bkAgent.FindCluster(context.Background(), f, f.Config.OrganizationSlug(), i.ClusterUUID, i.ClusterName)
 		if err != nil {
 			return fmt.Errorf("finding cluster: %w", err)
+		}
+		queue, err = bkAgent.FindQueue(context.Background(), f, f.Config.OrganizationSlug(), clusterID, i.Queue)
+		if err != nil {
+			return fmt.Errorf("finding queue: %w", err)
 		}
 	}
 
@@ -165,7 +183,7 @@ func (i *InstallCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	fmt.Printf("Installed buildkite-agent to %s\n", filepath.Join(dest, binaryName))
 
 	if !i.NoToken {
-		if err := i.createTokenAndConfig(f, clusterID, configPath); err != nil {
+		if err := i.createTokenAndConfig(f, clusterID, queue, configPath); err != nil {
 			return err
 		}
 	}
@@ -192,7 +210,7 @@ func checkConfigPath(path string, force bool) error {
 	return fmt.Errorf("agent config already exists at %s; use --force to replace it (other settings in the file will be lost), or --no-token to only install the binary", path)
 }
 
-func (i *InstallCmd) createTokenAndConfig(f *factory.Factory, clusterID, configPath string) error {
+func (i *InstallCmd) createTokenAndConfig(f *factory.Factory, clusterID, queue, configPath string) error {
 	ctx := context.Background()
 	org := f.Config.OrganizationSlug()
 
@@ -209,7 +227,7 @@ func (i *InstallCmd) createTokenAndConfig(f *factory.Factory, clusterID, configP
 		explicitBuildPath = kong.ExpandPath(explicitBuildPath)
 	}
 	buildPath := bkAgent.ResolveBuildPath(userOS, configPath, explicitBuildPath)
-	if err := bkAgent.WriteAgentConfig(configPath, token.Token, buildPath, nil); err != nil {
+	if err := bkAgent.WriteAgentConfig(configPath, token.Token, buildPath, []string{"queue=" + queue}); err != nil {
 		return fmt.Errorf("writing agent config: %w", err)
 	}
 
