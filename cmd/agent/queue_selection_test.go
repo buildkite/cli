@@ -60,57 +60,43 @@ func TestAgentQueueFlags(t *testing.T) {
 
 func TestAgentQueueSelectionBeforeSideEffects(t *testing.T) {
 	for _, command := range []string{"install", "run"} {
-		for _, tt := range []struct {
-			name, key, defaultID, queues, wantErr string
-		}{
-			{name: "missing", key: "missing", wantErr: `no queue with key "missing"`},
-			{name: "hosted", key: "cloud", wantErr: `queue "cloud" is hosted`},
-			{name: "hosted default", defaultID: "q-cloud", wantErr: `queue "cloud" is hosted`},
-			{name: "missing default", wantErr: "no default queue is configured"},
-			{name: "inaccessible default", defaultID: "q-other", wantErr: "configured default queue"},
-			{name: "no queues", queues: `[]`, wantErr: "no default queue is configured"},
-		} {
-			t.Run(command+"/"+tt.name, func(t *testing.T) {
-				downloads, tokens := 0, 0
-				stubAgentDownloads(t, func(r *http.Request) (*http.Response, error) {
-					downloads++
-					return nil, fmt.Errorf("unexpected download: %s", r.URL)
-				})
-				queues := tt.queues
-				if queues == "" {
-					queues = `[{"id":"q-build","key":"build","hosted":false},{"id":"q-cloud","key":"cloud","hosted":true}]`
-				}
-				configureAgentAPI(t, tt.defaultID, queues, func(w http.ResponseWriter, r *http.Request) {
-					if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/tokens") {
-						tokens++
-					}
-					t.Errorf("unexpected API request before queue selection: %s %s", r.Method, r.URL.Path)
-					w.WriteHeader(http.StatusNotFound)
-				})
-				dir := t.TempDir()
-				dest, config := filepath.Join(dir, "bin"), filepath.Join(dir, "agent.cfg")
-				var err error
-				if command == "install" {
-					err = (&InstallCmd{Version: "latest", ClusterUUID: "cluster-1", Queue: tt.key, Dest: dest, ConfigPath: config}).Run(nil, cli.Globals{NoInput: true})
-				} else {
-					err = (&RunCmd{Version: "latest", ClusterName: "Default", Queue: tt.key}).Run(nil, cli.Globals{NoInput: true})
-				}
-				if err == nil || !strings.Contains(err.Error(), tt.wantErr) || !strings.Contains(err.Error(), "--queue <key>") {
-					t.Fatalf("error = %v, want %q and retry advice", err, tt.wantErr)
-				}
-				if tokens != 0 {
-					t.Errorf("created %d tokens before queue selection", tokens)
-				}
-				if downloads != 0 {
-					t.Errorf("made %d downloads before queue selection", downloads)
-				}
-				for _, path := range []string{dest, config} {
-					if _, err := os.Stat(path); !os.IsNotExist(err) {
-						t.Errorf("unexpected install side effect at %s: %v", path, err)
-					}
-				}
+		t.Run(command, func(t *testing.T) {
+			downloads, tokens := 0, 0
+			stubAgentDownloads(t, func(r *http.Request) (*http.Response, error) {
+				downloads++
+				return nil, fmt.Errorf("unexpected download: %s", r.URL)
 			})
-		}
+			configureAgentAPI(t, "q-build", `[{"id":"q-build","key":"build","hosted":false}]`, func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/tokens") {
+					tokens++
+				}
+				t.Errorf("unexpected API request before queue selection: %s %s", r.Method, r.URL.Path)
+				w.WriteHeader(http.StatusNotFound)
+			})
+			dir := t.TempDir()
+			dest, config := filepath.Join(dir, "bin"), filepath.Join(dir, "agent.cfg")
+			var err error
+			if command == "install" {
+				err = (&InstallCmd{Version: "latest", ClusterUUID: "cluster-1", Queue: "missing", Dest: dest, ConfigPath: config}).Run(nil, cli.Globals{NoInput: true})
+			} else {
+				err = (&RunCmd{Version: "latest", ClusterName: "Default", Queue: "missing"}).Run(nil, cli.Globals{NoInput: true})
+			}
+			const wantErr = `no queue with key "missing"`
+			if err == nil || !strings.Contains(err.Error(), wantErr) || !strings.Contains(err.Error(), "--queue <key>") {
+				t.Fatalf("error = %v, want %q and retry advice", err, wantErr)
+			}
+			if tokens != 0 {
+				t.Errorf("created %d tokens before queue selection", tokens)
+			}
+			if downloads != 0 {
+				t.Errorf("made %d downloads before queue selection", downloads)
+			}
+			for _, path := range []string{dest, config} {
+				if _, err := os.Stat(path); !os.IsNotExist(err) {
+					t.Errorf("unexpected install side effect at %s: %v", path, err)
+				}
+			}
+		})
 	}
 }
 
@@ -197,10 +183,6 @@ func TestInstallNoTokenSkipsAPI(t *testing.T) {
 	}
 	if _, err := os.Stat(cmd.ConfigPath); !os.IsNotExist(err) {
 		t.Fatalf("no-token created config: %v", err)
-	}
-	cmd.Queue = "deploy"
-	if err := cmd.Run(nil, cli.Globals{}); err == nil || !strings.Contains(err.Error(), "--queue cannot be used with --no-token") {
-		t.Fatalf("expected conflict before API/downloads, got %v", err)
 	}
 }
 

@@ -67,9 +67,6 @@ Examples:
 }
 
 func (r *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	if err := r.Validate(); err != nil {
-		return err
-	}
 	// Ctrl+C also stops a reader such as `bk agent run | tee`. Go kills a
 	// program that writes to a closed stdout unless it asks for SIGPIPE, which
 	// would skip revoking the token and removing temporary files. Ask for it

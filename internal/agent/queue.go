@@ -48,20 +48,13 @@ func FindQueue(ctx context.Context, f *factory.Factory, org, clusterID, key stri
 		if resp.NextPage == 0 {
 			break
 		}
-		if resp.NextPage <= page {
-			return "", fmt.Errorf("listing queues for cluster %q in organization %q: pagination did not advance from page %d", clusterID, org, page)
-		}
 		page = resp.NextPage
 	}
 
 	var selected *clusterQueue
 	var available []string
-	unknownHosting := false
 	for idx := range queues {
 		q := &queues[idx]
-		if q.Hosted == nil {
-			unknownHosting = true
-		}
 		if q.Hosted != nil && !*q.Hosted {
 			available = append(available, q.Key)
 		}
@@ -75,10 +68,8 @@ func FindQueue(ctx context.Context, f *factory.Factory, org, clusterID, key stri
 
 	var reason string
 	switch {
-	case selected != nil && selected.Hosted == nil:
-		reason = fmt.Sprintf("cannot verify whether queue %q is self-hosted", selected.Key)
 	case selected != nil:
-		reason = fmt.Sprintf("queue %q is hosted; local agents require a self-hosted queue", selected.Key)
+		reason = fmt.Sprintf("queue %q is not a self-hosted queue; local agents require a self-hosted queue", selected.Key)
 	case key != "":
 		reason = fmt.Sprintf("no queue with key %q found", key)
 	case defaultID == "":
@@ -89,9 +80,7 @@ func FindQueue(ctx context.Context, f *factory.Factory, org, clusterID, key stri
 	sort.Strings(available)
 	var message strings.Builder
 	fmt.Fprintf(&message, "%s in cluster %q (organization %q).\n\nAvailable self-hosted queue keys:", reason, clusterID, org)
-	if len(available) == 0 && unknownHosting {
-		message.WriteString("\n  (none verified)\n\nThe API omitted queue hosting information. Contact Buildkite support if this persists; local agents require a verified self-hosted queue before using --queue <key>.")
-	} else if len(available) == 0 {
+	if len(available) == 0 {
 		message.WriteString("\n  (none)\n\nCreate a self-hosted queue in this cluster, then run again with --queue <key>.")
 	} else {
 		for _, k := range available {

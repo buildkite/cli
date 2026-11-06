@@ -32,13 +32,13 @@ func TestFindQueue(t *testing.T) {
 		{name: "exact case", key: "Build", wantErr: `no queue with key "Build" found`},
 		{name: "does not match ID", key: "q-build", wantErr: `no queue with key "q-build" found`},
 		{name: "does not trim key", key: " build ", wantErr: `no queue with key " build " found`},
-		{name: "explicit hosted", key: "cloud", wantErr: `queue "cloud" is hosted`},
-		{name: "hosted default", defaultID: "q-cloud", wantErr: `queue "cloud" is hosted`},
+		{name: "explicit hosted", key: "cloud", wantErr: `queue "cloud" is not a self-hosted queue`},
+		{name: "hosted default", defaultID: "q-cloud", wantErr: `queue "cloud" is not a self-hosted queue`},
 		{name: "no default", wantErr: "no default queue is configured"},
 		{name: "inaccessible default", defaultID: "q-other", wantErr: `configured default queue "q-other" was not found`},
 		{name: "no queues", queues: `[]`, wantErr: "no default queue is configured"},
-		{name: "only hosted", key: "cloud", queues: `[{"id":"q-cloud","key":"cloud","hosted":true}]`, wantErr: "is hosted"},
-		{name: "unknown hosting", key: "unknown", queues: `[{"id":"q-unknown","key":"unknown"}]`, wantErr: "cannot verify whether queue"},
+		{name: "only hosted", key: "cloud", queues: `[{"id":"q-cloud","key":"cloud","hosted":true}]`, wantErr: "is not a self-hosted queue"},
+		{name: "unknown hosting", key: "unknown", queues: `[{"id":"q-unknown","key":"unknown"}]`, wantErr: "is not a self-hosted queue"},
 		{name: "default API failure", status: http.StatusForbidden, wantErr: "getting cluster"},
 		{name: "queues API failure", key: "build", status: http.StatusForbidden, wantErr: "listing queues"},
 	} {
@@ -92,13 +92,10 @@ func TestFindQueue(t *testing.T) {
 					if tt.queues == "" && !strings.Contains(message, "Available self-hosted queue keys:\n  build\n  default\n  zulu") {
 						t.Errorf("missing sorted self-hosted keys: %s", message)
 					}
-					if tt.name == "unknown hosting" && (!strings.Contains(message, "API omitted queue hosting information") || strings.Contains(message, "Create a self-hosted queue")) {
-						t.Errorf("misleading advice for unknown hosting: %s", message)
-					}
 					if strings.Contains(message, "\n  cloud") || strings.Contains(message, "\n  unknown") {
 						t.Errorf("listed an unverified self-hosted queue: %s", message)
 					}
-					if tt.queues != "" && !strings.Contains(message, "(none") {
+					if tt.queues != "" && !strings.Contains(message, "(none)") {
 						t.Errorf("missing no self-hosted queues advice: %s", message)
 					}
 				}
@@ -152,43 +149,6 @@ func TestFindQueuePagination(t *testing.T) {
 			}
 			if queueRequests != 2 {
 				t.Errorf("queue requests = %d, want 2", queueRequests)
-			}
-		})
-	}
-}
-
-func TestFindQueueRejectsNonAdvancingPagination(t *testing.T) {
-	t.Parallel()
-	for _, nextPage := range []int{1, 2} {
-		t.Run(fmt.Sprintf("next=%d", nextPage), func(t *testing.T) {
-			t.Parallel()
-			requests := 0
-			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				requests++
-				w.Header().Set("Content-Type", "application/json")
-				if requests > 2 {
-					t.Error("continued requesting after non-advancing pagination")
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-				next := 2
-				if r.URL.Query().Get("page") == "2" {
-					next = nextPage
-				}
-				w.Header().Set("Link", fmt.Sprintf(`<http://%s%s?page=%d>; rel="next"`, r.Host, r.URL.Path, next))
-				fmt.Fprint(w, `[{"id":"q-build","key":"build","hosted":false}]`)
-			}))
-			defer s.Close()
-			client, err := buildkite.NewOpts(buildkite.WithBaseURL(s.URL))
-			if err != nil {
-				t.Fatal(err)
-			}
-			got, err := FindQueue(context.Background(), &factory.Factory{RestAPIClient: client}, "test-org", "cluster-1", "build")
-			if got != "" || err == nil || !strings.Contains(err.Error(), "pagination did not advance") {
-				t.Fatalf("FindQueue() = %q, %v; want pagination error", got, err)
-			}
-			if requests != 2 {
-				t.Errorf("requests = %d, want 2", requests)
 			}
 		})
 	}

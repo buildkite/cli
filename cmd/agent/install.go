@@ -90,9 +90,6 @@ the token in the replaced config is not revoked.
 }
 
 func (i *InstallCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
-	if err := i.Validate(); err != nil {
-		return err
-	}
 	configPath := i.ConfigPath
 	if configPath == "" {
 		configPath = bkAgent.DefaultConfigPath(userOS)
