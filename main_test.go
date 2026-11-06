@@ -22,6 +22,132 @@ import (
 	"github.com/spf13/afero"
 )
 
+func TestQueueHostedCreate(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"self-hosted", nil, `{"key":"test"}`},
+		{"linux arm64", []string{"--instance-shape", "linux-arm64-2x4"}, `{"key":"test","hostedAgents":{"instanceShape":"linux-arm64-2x4"}}`},
+		{"windows", []string{"--instance-shape", "windows-amd64-4x16"}, `{"key":"test","hostedAgents":{"instanceShape":"windows-amd64-4x16"}}`},
+		{"macos", []string{"--instance-shape", "macos-arm64-m4-6x28", "--macos-version", "SEQUOIA", "--xcode-version", "16.4"}, `{"key":"test","hostedAgents":{"instanceShape":"macos-arm64-m4-6x28","macosVersion":"SEQUOIA","xcodeVersion":"16.4"}}`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "acme")
+			t.Setenv("BUILDKITE_API_TOKEN", "test-token")
+			t.Setenv("BK_TELEMETRY", "false")
+			requests := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests++
+				if r.Method != http.MethodPost || r.URL.Path != "/v2/organizations/acme/clusters/cluster/queues" {
+					t.Errorf("unexpected request: %s %s", r.Method, r.URL)
+				}
+				var got, want map[string]any
+				if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+					t.Error(err)
+				}
+				if err := json.Unmarshal([]byte(tt.want), &want); err != nil {
+					t.Error(err)
+				}
+				gotJSON, _ := json.Marshal(got)
+				wantJSON, _ := json.Marshal(want)
+				if string(gotJSON) != string(wantJSON) {
+					t.Errorf("got %s, want %s", gotJSON, wantJSON)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				fmt.Fprintf(w, `{"id":"new-queue","key":"test","hosted":%t}`, tt.name != "self-hosted")
+			}))
+			defer server.Close()
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+			args := append([]string{"queue", "create", "cluster", "--key", "test", "-o", "json", "--no-input", "--quiet"}, tt.args...)
+			code, stdout, stderr := runCLI(t, args...)
+			if code != 0 || requests != 1 {
+				t.Fatalf("exit=%d requests=%d stderr=%s", code, requests, stderr)
+			}
+			var result struct {
+				ID     string
+				Hosted bool
+			}
+			if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+				t.Fatal(err)
+			}
+			if result.ID != "new-queue" || result.Hosted != (tt.name != "self-hosted") {
+				t.Fatalf("unexpected result: %s", stdout)
+			}
+		})
+	}
+	for _, flag := range []string{"--macos-version", "--xcode-version"} {
+		code, _, stderr := runCLI(t, "queue", "create", "cluster", "--key", "test", flag, "version")
+		if code == 0 || !strings.Contains(stderr, "require --instance-shape") {
+			t.Fatalf("exit=%d stderr=%s", code, stderr)
+		}
+	}
+}
+
+func TestQueueRecommendations(t *testing.T) {
+	const presets = `[{"key":"macos","hostedAgents":{"instanceShape":"macos-arm64-m4-6x28","macosVersion":"SEQUOIA"}},{"key":"linux-arm64","hostedAgents":{"instanceShape":"linux-arm64-2x4"}}]`
+	for _, tt := range []struct {
+		name, body, format, contains string
+		status                       int
+	}{
+		{"json", presets, "json", "macosVersion", 200},
+		{"text", presets, "text", "SEQUOIA", 200},
+		{"empty json", `[]`, "json", "[]", 200},
+		{"empty text", `[]`, "text", "No eligible missing hosted queues", 200},
+		{"forbidden", `{"message":"Forbidden"}`, "json", "Forbidden", 403},
+		{"not deployed", `{"message":"Not Found"}`, "text", "Not Found", 404},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("BUILDKITE_ORGANIZATION_SLUG", "acme")
+			t.Setenv("BUILDKITE_API_TOKEN", "test-token")
+			t.Setenv("BK_TELEMETRY", "false")
+			requests := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests++
+				if r.Method != http.MethodGet || r.URL.Path != "/v2/organizations/acme/clusters/cluster/queues/recommendations" {
+					t.Errorf("unexpected request: %s %s", r.Method, r.URL)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tt.status)
+				fmt.Fprint(w, tt.body)
+			}))
+			defer server.Close()
+			t.Setenv("BUILDKITE_REST_API_ENDPOINT", server.URL)
+			code, stdout, stderr := runCLI(t, "queue", "recommendations", "cluster", "-o", tt.format, "--no-input", "--quiet", "--no-pager")
+			if (code == 0) != (tt.status == 200) || requests != 1 {
+				t.Fatalf("exit=%d requests=%d stderr=%s", code, requests, stderr)
+			}
+			if !strings.Contains(stdout+stderr, tt.contains) {
+				t.Fatalf("missing %q in stdout=%s stderr=%s", tt.contains, stdout, stderr)
+			}
+			if tt.status == 200 && tt.format == "json" {
+				var compact strings.Builder
+				var value any
+				if err := json.Unmarshal([]byte(stdout), &value); err != nil {
+					t.Fatal(err)
+				}
+				if err := json.NewEncoder(&compact).Encode(value); err != nil {
+					t.Fatal(err)
+				}
+				var expected any
+				if err := json.Unmarshal([]byte(tt.body), &expected); err != nil {
+					t.Fatal(err)
+				}
+				want, _ := json.Marshal(expected)
+				if strings.TrimSpace(compact.String()) != string(want) {
+					t.Fatalf("changed creation payloads: %s", stdout)
+				}
+			}
+		})
+	}
+}
+
 func TestBuildCreatePullRequest(t *testing.T) {
 	for _, tt := range []struct {
 		name string
