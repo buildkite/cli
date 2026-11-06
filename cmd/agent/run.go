@@ -24,7 +24,7 @@ type RunCmd struct {
 	Version     string `help:"Specify an agent version to run" default:"latest"`
 	ClusterName string `help:"Cluster name to create the agent token on (resolved to UUID)" name:"cluster-name" optional:""`
 	ClusterUUID string `help:"Cluster UUID to create the agent token on (default: the \"Default\" cluster)" name:"cluster-uuid" optional:""`
-	Queue       string `help:"Queue for the agent to listen on" default:"default"`
+	Queue       string `help:"Self-hosted queue key (default: the cluster's configured default queue)"`
 }
 
 func (r *RunCmd) Validate() error {
@@ -42,6 +42,11 @@ When the agent stops, the token is revoked and temporary files are removed.
 Without a cluster selector, uses the cluster named exactly Default. If it is not
 accessible, lists available clusters and exits. Use --cluster-name or --cluster-uuid
 to select a different cluster.
+Use --queue with an exact self-hosted queue key, or omit it to use the cluster's
+configured default queue, not necessarily the queue named "default". If no default
+queue is configured, specify --queue explicitly. Hosted queues cannot accept local agents. If queue
+selection fails, the command lists self-hosted queue keys and exits before
+downloading the agent or creating a token.
 
 Examples:
   # Run the latest agent on the Default cluster
@@ -69,7 +74,7 @@ func (r *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	// signal.Ignore, this leaves SIGPIPE at its default in the agent.
 	signal.Notify(make(chan os.Signal, 1), syscall.SIGPIPE)
 
-	// Resolve the cluster before downloading the agent or creating a token.
+	// Resolve the cluster and queue before downloading the agent or creating a token.
 	f, err := factory.New(factory.WithDebug(globals.EnableDebug()))
 	if err != nil {
 		return fmt.Errorf("initializing API client: %w", err)
@@ -81,6 +86,10 @@ func (r *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	clusterID, err := bkAgent.FindCluster(ctx, f, org, r.ClusterUUID, r.ClusterName)
 	if err != nil {
 		return fmt.Errorf("finding cluster: %w", err)
+	}
+	queue, err := bkAgent.FindQueue(ctx, f, org, clusterID, r.Queue)
+	if err != nil {
+		return fmt.Errorf("finding queue: %w", err)
 	}
 
 	// Track temp directory for cleanup
@@ -145,7 +154,7 @@ func (r *RunCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	signal.Notify(sigCh, signals...)
 	defer signal.Stop(sigCh)
 
-	return runAgent(ctx, f, org, clusterID, binaryPath, tmpDir, r.Queue, sigCh)
+	return runAgent(ctx, f, org, clusterID, binaryPath, tmpDir, queue, sigCh)
 }
 
 // runAgent creates a cluster agent token, runs the agent with it until the
