@@ -174,6 +174,80 @@ func TestValidatePipeline(t *testing.T) {
 	}
 }
 
+func TestFallbackSchema(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		fileContent string
+		expectValid bool
+	}{
+		{
+			name: "string wait step",
+			fileContent: `steps:
+  - command: make test
+  - wait
+  - command: make deploy`,
+			expectValid: true,
+		},
+		{
+			name: "command list",
+			fileContent: `steps:
+  - command:
+      - make lint
+      - make test`,
+			expectValid: true,
+		},
+		{
+			name: "plugins list",
+			fileContent: `steps:
+  - command: make test
+    plugins:
+      - docker#v5.12.0:
+          image: golang`,
+			expectValid: true,
+		},
+		{
+			name: "branches list and null depends_on",
+			fileContent: `steps:
+  - command: make deploy
+    branches: ["main", "release/*"]
+    depends_on: ~`,
+			expectValid: true,
+		},
+		{
+			name: "invalid label type",
+			fileContent: `steps:
+  - label: 123
+    command: make test`,
+			expectValid: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			jsonData, err := yaml.YAMLToJSON([]byte(test.fileContent))
+			if err != nil {
+				t.Fatalf("error converting YAML to JSON: %v", err)
+			}
+
+			result, err := gojsonschema.Validate(
+				gojsonschema.NewBytesLoader(fallbackSchema),
+				gojsonschema.NewBytesLoader(jsonData),
+			)
+			if err != nil {
+				t.Fatalf("error validating pipeline: %v", err)
+			}
+
+			if result.Valid() != test.expectValid {
+				t.Errorf("Expected valid=%t, got valid=%t with errors: %v", test.expectValid, result.Valid(), result.Errors())
+			}
+		})
+	}
+}
+
 //nolint:tparallel // they change dir, so let them run one at a time to avoid flakiness
 func TestFindPipelineFile(t *testing.T) {
 	t.Parallel()

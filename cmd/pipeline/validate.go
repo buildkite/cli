@@ -25,21 +25,21 @@ var fallbackSchema = []byte(`{
 		"steps": {
 			"type": "array",
 			"items": {
-				"type": "object",
+				"type": ["object", "string"],
 				"properties": {
 					"label": { "type": "string" },
-					"command": { "type": "string" },
-					"plugins": { "type": "object" },
-					"agents": { "type": "object" },
+					"command": { "type": ["string", "array"] },
+					"plugins": { "type": ["object", "array"] },
+					"agents": { "type": ["object", "array"] },
 					"env": { "type": "object" },
-					"branches": { "type": ["string", "object"] },
+					"branches": { "type": ["string", "array"] },
 					"if": { "type": "string" },
-					"depends_on": { "type": ["string", "array"] }
+					"depends_on": { "type": ["null", "string", "array"] }
 				}
 			}
 		},
 		"env": { "type": "object" },
-		"agents": { "type": "object" }
+		"agents": { "type": ["object", "array"] }
 	},
 	"required": ["steps"]
 }`)
