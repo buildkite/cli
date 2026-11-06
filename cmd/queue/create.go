@@ -21,10 +21,16 @@ type CreateCmd struct {
 	Key                string `help:"A unique key for the queue" required:""`
 	Description        string `help:"A description of the queue" optional:""`
 	RetryAgentAffinity string `help:"Retry agent affinity setting (prefer-warmest or prefer-different)" optional:"" name:"retry-agent-affinity"`
+	InstanceShape      string `help:"Hosted instance shape; omit to create a self-hosted queue. See bk queue recommendations."`
+	XcodeVersion       string `help:"Xcode version for a hosted macOS queue"`
+	MacOSVersion       string `help:"macOS version for a hosted macOS queue" name:"macos-version"`
 	output.OutputFlags
 }
 
 func (c *CreateCmd) Validate() error {
+	if c.InstanceShape == "" && (c.XcodeVersion != "" || c.MacOSVersion != "") {
+		return fmt.Errorf("--xcode-version and --macos-version require --instance-shape")
+	}
 	switch buildkite.RetryAgentAffinity(c.RetryAgentAffinity) {
 	case "", buildkite.RetryAgentAffinityPreferWarmest, buildkite.RetryAgentAffinityPreferDifferent:
 		return nil
@@ -49,6 +55,13 @@ Examples:
 
   # Create a queue with retry agent affinity set
   $ bk queue create my-cluster-uuid --key my-queue --retry-agent-affinity prefer-different
+
+  # Discover eligible missing hosted queues, then create one using its instance shape
+  $ bk queue recommendations my-cluster-uuid
+  $ bk queue create my-cluster-uuid --key linux-arm64 --instance-shape linux-arm64-2x4
+
+  # Create a hosted macOS queue with a specific OS version
+  $ bk queue create my-cluster-uuid --key macos --instance-shape macos-arm64-m4-6x28 --macos-version SEQUOIA
 
   # Create a queue and output as JSON
   $ bk queue create my-cluster-uuid --key my-queue -o json
@@ -81,6 +94,13 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	}
 	if c.RetryAgentAffinity != "" {
 		input.RetryAgentAffinity = buildkite.RetryAgentAffinity(c.RetryAgentAffinity)
+	}
+	if c.InstanceShape != "" {
+		input.HostedAgents = &buildkite.ClusterQueueHostedAgentsCreate{
+			InstanceShape: c.InstanceShape,
+			XcodeVersion:  c.XcodeVersion,
+			MacOSVersion:  c.MacOSVersion,
+		}
 	}
 
 	var queue buildkite.ClusterQueue
