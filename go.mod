@@ -18,11 +18,11 @@ require (
 	github.com/jpillora/chisel v1.13.0
 	github.com/mcncl/terminal-to-llm v0.2.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
-	github.com/posthog/posthog-go v1.40.1
+	github.com/posthog/posthog-go v1.41.1
 	github.com/vektah/gqlparser/v2 v2.5.64
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/zalando/go-keyring v0.2.8
-	golang.org/x/sync v0.24.0
+	golang.org/x/sync v0.25.0
 	gopkg.in/yaml.v3 v3.0.1
 	namespacelabs.dev/integrations v0.0.10
 )
