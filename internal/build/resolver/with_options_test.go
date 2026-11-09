@@ -16,6 +16,10 @@ import (
 
 func TestResolveBuildWithOptsExcludesJobsAndPipeline(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The resolved pipeline's organization wins over the selected one.
+		if r.URL.Path != "/v2/organizations/other/pipelines/widgets/builds" {
+			t.Errorf("resolver request path = %q, want the pipeline's organization", r.URL.Path)
+		}
 		if r.URL.Query().Get("exclude_jobs") != "true" || r.URL.Query().Get("exclude_pipeline") != "true" {
 			t.Errorf("resolver request query = %q, want jobs and pipeline excluded", r.URL.RawQuery)
 		}
@@ -31,14 +35,14 @@ func TestResolveBuildWithOptsExcludesJobsAndPipeline(t *testing.T) {
 	conf.SelectOrganization("acme", true)
 	f := &factory.Factory{Config: conf, RestAPIClient: client}
 	resolvePipeline := func(context.Context) (*pipeline.Pipeline, error) {
-		return &pipeline.Pipeline{Name: "widgets", Org: "acme"}, nil
+		return &pipeline.Pipeline{Name: "widgets", Org: "other"}, nil
 	}
 
 	build, err := ResolveBuildWithOpts(f, resolvePipeline)(context.Background())
 	if err != nil {
 		t.Fatalf("ResolveBuildWithOpts failed: %v", err)
 	}
-	if build.BuildNumber != 42 {
-		t.Fatalf("resolved build = %+v, want build 42", build)
+	if build.BuildNumber != 42 || build.Organization != "other" || build.Pipeline != "widgets" {
+		t.Fatalf("resolved build = %+v, want other/widgets build 42", build)
 	}
 }

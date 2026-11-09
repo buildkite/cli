@@ -99,6 +99,11 @@ func loginWithToken(f *factory.Factory, org, token string, kr oauthTokenStore) e
 	}
 
 	if kr.IsAvailable() {
+		release, err := kr.Lock(context.Background(), org)
+		if err != nil {
+			return err
+		}
+		defer release()
 		if err := kr.Set(org, token); err != nil {
 			return fmt.Errorf("failed to store token in credential store: %w", err)
 		}
@@ -128,6 +133,7 @@ func loginWithToken(f *factory.Factory, org, token string, kr oauthTokenStore) e
 }
 
 type oauthTokenStore interface {
+	Lock(context.Context, string) (func(), error)
 	IsAvailable() bool
 	Set(org, token string) error
 	SetRefreshToken(org, token string) error
@@ -148,10 +154,17 @@ func persistOAuthLogin(f *factory.Factory, store oauthTokenStore, org, accessTok
 			"Then retry your login command without --credential-store",
 			f.Config.CredentialStore())
 	}
+	release, err := store.Lock(context.Background(), org)
+	if err != nil {
+		return false, err
+	}
+	defer release()
 	if refreshToken != "" {
 		if err := store.SetRefreshToken(org, refreshToken); err != nil {
 			return false, fmt.Errorf("failed to store refresh token in credential store: %w", err)
 		}
+	} else if err := keyring.ClearRefreshToken(org); err != nil {
+		return false, fmt.Errorf("failed to clear stale OAuth refresh token from credential store: %w", err)
 	}
 	if err := store.Set(org, accessToken); err != nil {
 		return false, fmt.Errorf("failed to store token in credential store: %w", err)

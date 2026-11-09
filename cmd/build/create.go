@@ -19,16 +19,19 @@ import (
 )
 
 type CreateCmd struct {
-	Message             string   `help:"Description of the build. If left blank, the commit message will be used once the build starts." short:"m"`
-	Commit              string   `help:"The commit to build." short:"c" default:"HEAD"`
-	Branch              string   `help:"The branch to build. Defaults to the default branch of the pipeline." short:"b"`
-	Author              string   `help:"Author of the build. Supports: \"Name <email>\", \"email@domain.com\", \"Full Name\", or \"username\"" short:"a"`
-	Web                 bool     `help:"Open the build in a web browser after it has been created." short:"w"`
-	Pipeline            string   `help:"The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
-	Env                 []string `help:"Set environment variables for the build (KEY=VALUE)" short:"e" sep:"none"`
-	Metadata            []string `help:"Set metadata for the build (KEY=VALUE)" short:"M" sep:"none"`
-	IgnoreBranchFilters bool     `help:"Ignore branch filters for the pipeline" short:"i"`
-	EnvFile             string   `help:"Set the environment variables for the build via an environment file" short:"f"`
+	Message               string   `help:"Description of the build. If left blank, the commit message will be used once the build starts." short:"m"`
+	Commit                string   `help:"The commit to build." short:"c" default:"HEAD"`
+	Branch                string   `help:"The branch to build. Defaults to the default branch of the pipeline." short:"b"`
+	Author                string   `help:"Author of the build. Supports: \"Name <email>\", \"email@domain.com\", \"Full Name\", or \"username\"" short:"a"`
+	Web                   bool     `help:"Open the build in a web browser after it has been created." short:"w"`
+	Pipeline              string   `help:"The pipeline to use. This can be a {pipeline slug} or in the format {org slug}/{pipeline slug}." short:"p"`
+	Env                   []string `help:"Set environment variables for the build (KEY=VALUE)" short:"e" sep:"none"`
+	Metadata              []string `help:"Set metadata for the build (KEY=VALUE)" short:"M" sep:"none"`
+	IgnoreBranchFilters   bool     `help:"Ignore branch filters for the pipeline" short:"i"`
+	EnvFile               string   `help:"Set the environment variables for the build via an environment file" short:"f"`
+	PullRequestID         int64    `help:"Pull request number for the build."`
+	PullRequestBaseBranch string   `help:"Base branch of the pull request."`
+	PullRequestRepository string   `help:"Repository URL of the pull request's source branch."`
 }
 
 func (c *CreateCmd) Help() string {
@@ -132,7 +135,7 @@ func (c *CreateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 		}
 	}
 
-	return createBuild(ctx, resolvedPipeline.Org, resolvedPipeline.Name, f, c.Message, c.Commit, c.Branch, c.Web, envMap, metaDataMap, c.IgnoreBranchFilters, c.Author)
+	return createBuild(ctx, resolvedPipeline.Org, resolvedPipeline.Name, f, c.Message, c.Commit, c.Branch, c.Web, envMap, metaDataMap, c.IgnoreBranchFilters, c.Author, c.PullRequestID, c.PullRequestBaseBranch, c.PullRequestRepository)
 }
 
 func parseAuthor(author string) buildkite.Author {
@@ -166,7 +169,7 @@ func parseAuthor(author string) buildkite.Author {
 	return buildkite.Author{Username: author}
 }
 
-func createBuild(ctx context.Context, org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool, env map[string]string, metaData map[string]string, ignoreBranchFilters bool, author string) error {
+func createBuild(ctx context.Context, org string, pipeline string, f *factory.Factory, message string, commit string, branch string, web bool, env map[string]string, metaData map[string]string, ignoreBranchFilters bool, author string, pullRequestID int64, pullRequestBaseBranch string, pullRequestRepository string) error {
 	var build buildkite.Build
 	if err := bkIO.SpinWhile(f, fmt.Sprintf("Starting new build for %s", pipeline), func() error {
 		branch = strings.TrimSpace(branch)
@@ -196,6 +199,9 @@ func createBuild(ctx context.Context, org string, pipeline string, f *factory.Fa
 			Env:                         env,
 			MetaData:                    metaData,
 			IgnorePipelineBranchFilters: ignoreBranchFilters,
+			PullRequestID:               pullRequestID,
+			PullRequestBaseBranch:       pullRequestBaseBranch,
+			PullRequestRepository:       pullRequestRepository,
 		}
 
 		var err error

@@ -27,6 +27,21 @@ There is a continuous integration pipeline on Buildkite:
 
 https://buildkite.com/buildkite/buildkite-cli
 
+### Certificate trust
+
+Build with Go `1.27.3` or later (or `1.26.10` on the Go 1.26 branch) to include
+the [CVE-2026-111943 mitigation](https://go.dev/issue/82345), which rejects
+certificate chains containing eight distrusted intermediate public keys.
+This does not remove emSign or AAA Certificate Services roots from trust stores.
+The CLI uses the operating system's certificate trust store, not an embedded CA
+bundle. Broader root distrust must be applied to that store separately.
+
+Published container images use `cgr.dev/chainguard/static:latest` via GoReleaser;
+the separate Dockerfile installs Alpine's `ca-certificates` package. Rebuild and
+republish images to pick up updated CA bundles, and update the host trust store
+for standalone binaries. Rebuild and release binaries to pick up Go security
+fixes; updating the installed Go toolchain alone does not update an existing `bk`.
+
 ## Releasing
 
 Builds on `main` include a block step to "Create a release". The step takes a tag name, then takes care of tagging the built commit.

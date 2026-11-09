@@ -1,7 +1,9 @@
 package http
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,8 +19,10 @@ type stubCredentialStore struct {
 	mu sync.Mutex
 
 	accessToken        string
+	accessTokenReads   []string
 	refreshToken       string
 	refreshTokenReads  []string
+	lockErr            error
 	checkWritableErr   error
 	setAccessErr       error
 	setRefreshTokenErr error
@@ -26,14 +30,27 @@ type stubCredentialStore struct {
 	checkWritableCalls int
 }
 
-func (s *stubCredentialStore) Set(_ string, token string) error {
+func (s *stubCredentialStore) Lock(ctx context.Context, org string) (func(), error) {
+	if s.lockErr != nil {
+		return nil, s.lockErr
+	}
+	return keyring.New().Lock(ctx, org)
+}
+
+func (s *stubCredentialStore) SetTokens(_ context.Context, _ string, accessToken, refreshToken string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if refreshToken != "" {
+		if s.setRefreshTokenErr != nil {
+			return fmt.Errorf("failed to store rotated refresh token: %w", s.setRefreshTokenErr)
+		}
+		s.refreshToken = refreshToken
+	}
 	if s.setAccessErr != nil {
 		return s.setAccessErr
 	}
-	s.accessToken = token
+	s.accessToken = accessToken
 	return nil
 }
 
@@ -41,6 +58,11 @@ func (s *stubCredentialStore) Get(string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if len(s.accessTokenReads) > 0 {
+		token := s.accessTokenReads[0]
+		s.accessTokenReads = s.accessTokenReads[1:]
+		return token, nil
+	}
 	return s.accessToken, nil
 }
 
@@ -54,17 +76,6 @@ func (s *stubCredentialStore) GetRefreshToken(string) (string, error) {
 		return token, nil
 	}
 	return s.refreshToken, nil
-}
-
-func (s *stubCredentialStore) SetRefreshToken(_ string, token string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.setRefreshTokenErr != nil {
-		return s.setRefreshTokenErr
-	}
-	s.refreshToken = token
-	return nil
 }
 
 func (s *stubCredentialStore) DeleteRefreshToken(string) error {
@@ -101,10 +112,11 @@ func TestRefreshTransport_PassesThroughNon401(t *testing.T) {
 	ts := NewTokenSource("old-token")
 
 	transport := &RefreshTransport{
-		Base:        http.DefaultTransport,
-		Org:         "test-org",
-		Keyring:     kr,
-		TokenSource: ts,
+		Base:         http.DefaultTransport,
+		Org:          "test-org",
+		Keyring:      kr,
+		TokenSource:  ts,
+		APIEndpoints: []string{server.URL},
 	}
 
 	req, _ := http.NewRequest("GET", server.URL+"/test", nil)
@@ -136,10 +148,11 @@ func TestRefreshTransport_NoRefreshToken_PassesThrough401(t *testing.T) {
 	ts := NewTokenSource("some-token")
 
 	transport := &RefreshTransport{
-		Base:        http.DefaultTransport,
-		Org:         "test-org",
-		Keyring:     kr,
-		TokenSource: ts,
+		Base:         http.DefaultTransport,
+		Org:          "test-org",
+		Keyring:      kr,
+		TokenSource:  ts,
+		APIEndpoints: []string{server.URL},
 	}
 
 	req, _ := http.NewRequest("GET", server.URL+"/test", nil)
@@ -186,10 +199,11 @@ func TestRefreshTransport_CompareAfterLock_SkipsRedundantRefresh(t *testing.T) {
 	t.Setenv("BUILDKITE_HOST", "127.0.0.1:1")
 
 	transport := &RefreshTransport{
-		Base:        http.DefaultTransport,
-		Org:         "test-org",
-		Keyring:     kr,
-		TokenSource: ts,
+		Base:         http.DefaultTransport,
+		Org:          "test-org",
+		Keyring:      kr,
+		TokenSource:  ts,
+		APIEndpoints: []string{server.URL},
 	}
 
 	// Request with a stale token that triggers 401
@@ -234,10 +248,11 @@ func TestRefreshTransport_UnwritableCredentialStoreDoesNotExchangeRefreshToken(t
 		checkWritableErr: writeErr,
 	}
 	transport := &RefreshTransport{
-		Base:        server.Client().Transport,
-		Org:         "test-org",
-		Keyring:     store,
-		TokenSource: NewTokenSource("old-token"),
+		Base:         server.Client().Transport,
+		Org:          "test-org",
+		Keyring:      store,
+		TokenSource:  NewTokenSource("old-token"),
+		APIEndpoints: []string{server.URL},
 	}
 
 	t.Setenv("BUILDKITE_HOST", strings.TrimPrefix(server.URL, "https://"))
@@ -267,6 +282,16 @@ func TestRefreshTransport_UnwritableCredentialStoreDoesNotExchangeRefreshToken(t
 	if transport.TokenSource.Token() != "old-token" {
 		t.Fatalf("expected token source to remain unchanged, got %q", transport.TokenSource.Token())
 	}
+
+	store.checkWritableErr = nil
+	store.lockErr = errors.New("unsafe credential lock path")
+	resp, err = transport.RoundTrip(req)
+	if resp != nil || !errors.Is(err, errCredentialPersistence) || !errors.Is(err, store.lockErr) {
+		t.Fatalf("expected lock failure before refresh, got %v, %v", resp, err)
+	}
+	if refreshRequests.Load() != 0 || store.checkWritableCalls != 1 || store.refreshToken != "old-refresh-token" {
+		t.Fatal("lock failure must not probe, rotate, or change credentials")
+	}
 }
 
 func TestRefreshTransport_RotatedRefreshTokenStoreFailureReturnsError(t *testing.T) {
@@ -291,10 +316,11 @@ func TestRefreshTransport_RotatedRefreshTokenStoreFailureReturnsError(t *testing
 		setRefreshTokenErr: errors.New("boom"),
 	}
 	transport := &RefreshTransport{
-		Base:        server.Client().Transport,
-		Org:         "test-org",
-		Keyring:     store,
-		TokenSource: NewTokenSource("old-token"),
+		Base:         server.Client().Transport,
+		Org:          "test-org",
+		Keyring:      store,
+		TokenSource:  NewTokenSource("old-token"),
+		APIEndpoints: []string{server.URL},
 	}
 
 	t.Setenv("BUILDKITE_HOST", strings.TrimPrefix(server.URL, "https://"))
@@ -327,6 +353,7 @@ func TestRefreshTransport_InvalidGrantRotationHandling(t *testing.T) {
 	tests := []struct {
 		name               string
 		storedAccessToken  string
+		accessTokenReads   []string
 		storedRefreshToken string
 		refreshTokenReads  []string
 		wantStatus         int
@@ -337,8 +364,9 @@ func TestRefreshTransport_InvalidGrantRotationHandling(t *testing.T) {
 		{
 			name:               "recovers with access token rotated by another process",
 			storedAccessToken:  "new-token",
+			accessTokenReads:   []string{"old-token", "new-token"},
 			storedRefreshToken: "new-refresh-token",
-			refreshTokenReads:  []string{"old-refresh-token", "old-refresh-token", "new-refresh-token"},
+			refreshTokenReads:  []string{"old-refresh-token", "new-refresh-token"},
 			wantStatus:         http.StatusOK,
 			wantTokenSource:    "new-token",
 			wantRefreshToken:   "new-refresh-token",
@@ -347,7 +375,7 @@ func TestRefreshTransport_InvalidGrantRotationHandling(t *testing.T) {
 			name:               "preserves rotated refresh token when access token is not stored yet",
 			storedAccessToken:  "old-token",
 			storedRefreshToken: "new-refresh-token",
-			refreshTokenReads:  []string{"old-refresh-token", "old-refresh-token", "new-refresh-token"},
+			refreshTokenReads:  []string{"old-refresh-token", "new-refresh-token"},
 			wantStatus:         http.StatusUnauthorized,
 			wantTokenSource:    "old-token",
 			wantRefreshToken:   "new-refresh-token",
@@ -356,7 +384,7 @@ func TestRefreshTransport_InvalidGrantRotationHandling(t *testing.T) {
 			name:               "deletes unchanged invalid refresh token",
 			storedAccessToken:  "old-token",
 			storedRefreshToken: "old-refresh-token",
-			refreshTokenReads:  []string{"old-refresh-token", "old-refresh-token", "old-refresh-token"},
+			refreshTokenReads:  []string{"old-refresh-token", "old-refresh-token"},
 			wantStatus:         http.StatusUnauthorized,
 			wantTokenSource:    "old-token",
 			wantDeleteCalls:    1,
@@ -396,14 +424,16 @@ func TestRefreshTransport_InvalidGrantRotationHandling(t *testing.T) {
 
 			store := &stubCredentialStore{
 				accessToken:       tt.storedAccessToken,
+				accessTokenReads:  append([]string(nil), tt.accessTokenReads...),
 				refreshToken:      tt.storedRefreshToken,
 				refreshTokenReads: append([]string(nil), tt.refreshTokenReads...),
 			}
 			transport := &RefreshTransport{
-				Base:        server.Client().Transport,
-				Org:         "test-org",
-				Keyring:     store,
-				TokenSource: NewTokenSource("old-token"),
+				Base:         server.Client().Transport,
+				Org:          "test-org",
+				Keyring:      store,
+				TokenSource:  NewTokenSource("old-token"),
+				APIEndpoints: []string{server.URL},
 			}
 
 			t.Setenv("BUILDKITE_HOST", strings.TrimPrefix(server.URL, "https://"))
@@ -457,10 +487,11 @@ func TestRefreshTransport_DoesNotDeleteRefreshTokenOnTransientError(t *testing.T
 	t.Setenv("BUILDKITE_HOST", "127.0.0.1:1") // connection refused
 
 	transport := &RefreshTransport{
-		Base:        http.DefaultTransport,
-		Org:         "test-org",
-		Keyring:     kr,
-		TokenSource: ts,
+		Base:         http.DefaultTransport,
+		Org:          "test-org",
+		Keyring:      kr,
+		TokenSource:  ts,
+		APIEndpoints: []string{server.URL},
 	}
 
 	req, _ := http.NewRequest("GET", server.URL+"/test", nil)
@@ -506,10 +537,11 @@ func TestRefreshTransport_BuffersAndRetriesPostBody(t *testing.T) {
 	defer server.Close()
 
 	transport := &RefreshTransport{
-		Base:        http.DefaultTransport,
-		Org:         "test-org",
-		Keyring:     kr,
-		TokenSource: ts,
+		Base:         http.DefaultTransport,
+		Org:          "test-org",
+		Keyring:      kr,
+		TokenSource:  ts,
+		APIEndpoints: []string{server.URL},
 	}
 
 	// Simulate a POST with a body that doesn't have GetBody set
@@ -540,16 +572,35 @@ func TestRefreshTransport_ConcurrentRequestsOnlyRefreshOnce(t *testing.T) {
 	defer keyring.ResetForTesting()
 
 	kr := keyring.New()
-	_ = kr.Set("test-org", "new-token")
+	_ = kr.Set("test-org", "old-token")
 	_ = kr.SetRefreshToken("test-org", "refresh-token")
 
-	// TokenSource already has the refreshed token (simulating the first
-	// goroutine having completed the refresh).
-	ts := NewTokenSource("new-token")
+	ts := NewTokenSource("old-token")
+	const concurrentRequests = 5
+	var failedRequests, refreshRequests atomic.Int32
+	allFailed := make(chan struct{})
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/oauth/token" {
+			refreshRequests.Add(1)
+			if got := r.FormValue("refresh_token"); got != "refresh-token" {
+				t.Errorf("unexpected refresh token: %q", got)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"access_token":"new-token","refresh_token":"new-refresh-token"}`)
+			return
+		}
 		auth := r.Header.Get("Authorization")
-		if auth == "Bearer stale-token" {
+		if auth == "Bearer old-token" {
+			if failedRequests.Add(1) == concurrentRequests {
+				close(allFailed)
+			}
+			// Ensure every request used the old token before allowing a refresh.
+			select {
+			case <-allFailed:
+			case <-r.Context().Done():
+				return
+			}
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -562,34 +613,34 @@ func TestRefreshTransport_ConcurrentRequestsOnlyRefreshOnce(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Point BUILDKITE_HOST at a dead port so that if doRefresh is
-	// incorrectly called (bypassing compare-after-lock), it fails.
-	t.Setenv("BUILDKITE_HOST", "127.0.0.1:1")
+	original := http.DefaultTransport
+	http.DefaultTransport = server.Client().Transport
+	defer func() { http.DefaultTransport = original }()
+	t.Setenv("BUILDKITE_HOST", strings.TrimPrefix(server.URL, "https://"))
 
 	transport := &RefreshTransport{
-		Base:        http.DefaultTransport,
-		Org:         "test-org",
-		Keyring:     kr,
-		TokenSource: ts,
+		Base:         &AuthTransport{Base: server.Client().Transport, TokenSource: ts},
+		Org:          "test-org",
+		Keyring:      kr,
+		TokenSource:  ts,
+		APIEndpoints: []string{server.URL},
 	}
 
-	// N goroutines hit 401 with "stale-token" concurrently.
-	// All should use compare-after-lock to skip refresh and retry
-	// with the already-refreshed "new-token".
+	// Concurrent 401s must trigger one exchange and all retry with the new token.
 	var wg sync.WaitGroup
-	results := make([]int, 5)
+	results := make([]int, concurrentRequests)
 
-	for i := range 5 {
+	for i := range concurrentRequests {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
 			req, _ := http.NewRequest("GET", server.URL+"/test", nil)
-			req.Header.Set("Authorization", "Bearer stale-token")
 			resp, err := transport.RoundTrip(req)
 			if err != nil {
 				results[idx] = -1
 				return
 			}
+			defer resp.Body.Close()
 			results[idx] = resp.StatusCode
 		}(i)
 	}
@@ -600,6 +651,14 @@ func TestRefreshTransport_ConcurrentRequestsOnlyRefreshOnce(t *testing.T) {
 		if status != http.StatusOK {
 			t.Errorf("goroutine %d: expected 200, got %d", i, status)
 		}
+	}
+	if got := refreshRequests.Load(); got != 1 {
+		t.Errorf("expected exactly one refresh exchange, got %d", got)
+	}
+	accessToken, _ := kr.Get("test-org")
+	refreshToken, _ := kr.GetRefreshToken("test-org")
+	if accessToken != "new-token" || refreshToken != "new-refresh-token" || ts.Token() != "new-token" {
+		t.Errorf("expected rotated credentials to be persisted and published")
 	}
 }
 

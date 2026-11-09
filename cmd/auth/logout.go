@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
 	"github.com/alecthomas/kong"
@@ -33,11 +35,8 @@ func (c *LogoutCmd) logoutAll(f *factory.Factory) error {
 	kr := keyring.New()
 	if kr.IsAvailable() {
 		for _, org := range orgs {
-			if err := kr.Delete(org); err != nil {
-				fmt.Printf("Warning: could not remove token from credential store for %q: %v\n", org, err)
-			}
-			if err := kr.DeleteRefreshToken(org); err != nil {
-				fmt.Printf("Warning: could not remove refresh token from credential store for %q: %v\n", org, err)
+			if err := deleteCredentials(kr, org); err != nil {
+				return fmt.Errorf("could not remove credentials for %q: %w", org, err)
 			}
 		}
 	}
@@ -62,16 +61,30 @@ func (c *LogoutCmd) logoutOrg(f *factory.Factory) error {
 
 	kr := keyring.New()
 	if kr.IsAvailable() {
-		if err := kr.Delete(org); err != nil {
-			fmt.Printf("Warning: could not remove token from credential store: %v\n", err)
-		} else {
-			fmt.Println("Token removed from credential store.")
+		if err := deleteCredentials(kr, org); err != nil {
+			return fmt.Errorf("could not remove credentials: %w", err)
 		}
-		if err := kr.DeleteRefreshToken(org); err != nil {
-			fmt.Printf("Warning: could not remove refresh token from credential store: %v\n", err)
-		}
+		fmt.Println("Token removed from credential store.")
 	}
 
 	fmt.Printf("Logged out of organization %q\n", org)
 	return nil
+}
+
+type logoutTokenStore interface {
+	Lock(context.Context, string) (func(), error)
+	Delete(string) error
+	DeleteRefreshToken(string) error
+}
+
+func deleteCredentials(kr logoutTokenStore, org string) error {
+	release, err := kr.Lock(context.Background(), org)
+	if err != nil {
+		return err
+	}
+	defer release()
+	// Attempt both deletions even if one backend fails.
+	accessErr := kr.Delete(org)
+	refreshErr := kr.DeleteRefreshToken(org)
+	return errors.Join(accessErr, refreshErr)
 }

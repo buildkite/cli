@@ -14,11 +14,3 @@ func fileOwnerUID(info os.FileInfo) (uint32, bool) {
 	}
 	return stat.Uid, true
 }
-
-func lockFile(file *os.File) error {
-	return syscall.Flock(int(file.Fd()), syscall.LOCK_EX)
-}
-
-func unlockFile(file *os.File) error {
-	return syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
-}

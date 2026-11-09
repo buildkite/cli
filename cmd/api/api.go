@@ -28,7 +28,6 @@ type ApiCmd struct {
 	Data      string   `help:"Data to send in the request body; use - to read from stdin" short:"d"`
 	Analytics bool     `help:"Use the Test Analytics endpoint"`
 	File      string   `help:"File containing GraphQL query" short:"f"`
-	Verbose   bool     `help:"Enable verbose output (currently only provides information about rate limit exceeded retries)"`
 }
 
 func (c *ApiCmd) Help() string {
@@ -106,7 +105,7 @@ func (c *ApiCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	rl := httpClient.NewRateLimitTransport(nil)
 	rl.MaxRetryDelay = 60 * time.Second
 	rl.OnRateLimit = func(attempt int, delay time.Duration) {
-		if c.Verbose {
+		if globals.EnableDebug() {
 			fmt.Fprintf(os.Stderr, "WARNING: Rate limit exceeded, retrying in %v @ %q (attempt %d)\n", delay, time.Now().Add(delay).Format(time.RFC3339), attempt)
 		}
 	}

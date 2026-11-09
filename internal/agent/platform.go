@@ -3,6 +3,7 @@ package agent
 import (
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // DefaultBinDir returns the platform-appropriate default directory for the agent binary.
@@ -33,10 +34,36 @@ func DefaultBuildPath(targetOS string) string {
 	default:
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return "/var/lib/buildkite-agent/builds"
+			return LinuxSystemBuildPath
 		}
 		return filepath.Join(home, ".buildkite-agent", "builds")
 	}
+}
+
+// LinuxSystemBuildPath is the build path the Linux packages configure for the
+// buildkite-agent system service.
+const LinuxSystemBuildPath = "/var/lib/buildkite-agent/builds"
+
+// IsSystemConfigPath reports whether configPath is where the Linux packages'
+// buildkite-agent service reads its config. That service runs as the
+// buildkite-agent user, so it can't use a build path in the invoking user's home.
+func IsSystemConfigPath(targetOS, configPath string) bool {
+	if targetOS != "linux" {
+		return false
+	}
+	return strings.HasPrefix(filepath.Clean(configPath), "/etc/buildkite-agent/")
+}
+
+// ResolveBuildPath returns buildPath if set, otherwise the default build path to
+// pair with a config written to configPath.
+func ResolveBuildPath(targetOS, configPath, buildPath string) string {
+	if buildPath != "" {
+		return buildPath
+	}
+	if IsSystemConfigPath(targetOS, configPath) {
+		return LinuxSystemBuildPath
+	}
+	return DefaultBuildPath(targetOS)
 }
 
 // DefaultConfigPath returns the platform-appropriate default path for the agent config file.

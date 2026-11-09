@@ -3,12 +3,15 @@
 package keyring
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
 	oskeyring "github.com/zalando/go-keyring"
@@ -36,17 +39,17 @@ var (
 	keyringAvailableOnce sync.Once
 	keyringAvailable     bool
 	keyringMocked        bool
-	shmCredentialMu      sync.Mutex
 
 	errCredentialStoreUnavailable = errors.New("credential store unavailable")
 )
 
 // Keyring provides credential storage with fallback support.
 type Keyring struct {
-	store      string
-	useKeyring bool
-	lastStore  string
-	err        error
+	store       string
+	useKeyring  bool
+	lastStore   atomic.Value // string; unset until a backend is selected
+	lockContext atomic.Pointer[context.Context]
+	err         error
 }
 
 type credentialBackend interface {
@@ -110,7 +113,7 @@ func ValidateCredentialStore(store string) error {
 
 // Set stores a token for the given organization
 func (k *Keyring) Set(org, token string) error {
-	return k.set(serviceName, org, token)
+	return k.set(k.credentialContext(), serviceName, org, token)
 }
 
 // Get retrieves a token for the given organization
@@ -125,7 +128,25 @@ func (k *Keyring) Delete(org string) error {
 
 // SetRefreshToken stores a refresh token for the given organization
 func (k *Keyring) SetRefreshToken(org, token string) error {
-	return k.set(refreshServiceName, org, token)
+	return k.set(k.credentialContext(), refreshServiceName, org, token)
+}
+
+// SetTokens persists a successful refresh under the caller's existing Lock.
+// The context bounds storage lock waits, not synchronous backend I/O. Writes
+// remain separate and are not crash-atomic. An empty refresh token preserves it.
+func (k *Keyring) SetTokens(ctx context.Context, org, accessToken, refreshToken string) error {
+	// Rotate the refresh token before persisting the new access token so a
+	// failed refresh-token write does not leave us holding a newly-issued
+	// access token with a stale rotated refresh token.
+	if refreshToken != "" {
+		if err := k.set(ctx, refreshServiceName, org, refreshToken); err != nil {
+			return fmt.Errorf("failed to store rotated refresh token: %w", err)
+		}
+	}
+	if err := k.set(ctx, serviceName, org, accessToken); err != nil {
+		return fmt.Errorf("failed to store refreshed access token: %w", err)
+	}
+	return nil
 }
 
 // GetRefreshToken retrieves a refresh token for the given organization
@@ -148,7 +169,7 @@ func (k *Keyring) CheckWritable() error {
 	account := probeID.String()
 	const value = "write-probe"
 
-	if err := k.set(writeProbeService, account, value); err != nil {
+	if err := k.set(k.credentialContext(), writeProbeService, account, value); err != nil {
 		return fmt.Errorf("write credential store probe: %w", err)
 	}
 	stored, err := k.get(writeProbeService, account)
@@ -186,13 +207,16 @@ func (k *Keyring) IsAvailable() bool {
 
 // Description returns a user-facing description of the active credential store.
 func (k *Keyring) Description() string {
-	if k.lastStore == StoreSHM || k.store == StoreSHM {
+	if k.lastStore.Load() == StoreSHM || k.store == StoreSHM {
 		return "the /dev/shm credential store"
 	}
 	return "the system keychain"
 }
 
-func (k *Keyring) set(service, org, token string) error {
+func (k *Keyring) set(ctx context.Context, service, org, token string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if k.err != nil {
 		return k.err
 	}
@@ -209,8 +233,8 @@ func (k *Keyring) set(service, org, token string) error {
 	var keyringErr error
 	if k.canUseKeyring() {
 		if err := keyringBackend.Set(service, org, token); err == nil {
-			k.lastStore = StoreKeyring
-			if err := k.deletePreferredSHMCredential(service, org); err != nil {
+			k.lastStore.Store(StoreKeyring)
+			if err := k.deletePreferredSHMCredential(ctx, service, org); err != nil {
 				return err
 			}
 			return nil
@@ -223,8 +247,8 @@ func (k *Keyring) set(service, org, token string) error {
 	}
 
 	if k.canUseSHMForWrite() {
-		if err := shmBackend.Set(service, org, token); err == nil {
-			k.lastStore = StoreSHM
+		if err := shmBackend.set(ctx, service, org, token); err == nil {
+			k.lastStore.Store(StoreSHM)
 			return nil
 		} else if keyringErr == nil {
 			return err
@@ -248,7 +272,7 @@ func (k *Keyring) get(service, org string) (string, error) {
 	if k.store == StoreAuto && k.preferredSHMStore(service, org) {
 		token, err := shmBackend.Get(service, org)
 		if err == nil {
-			k.lastStore = StoreSHM
+			k.lastStore.Store(StoreSHM)
 			return token, nil
 		}
 		if !errors.Is(err, oskeyring.ErrNotFound) {
@@ -260,7 +284,7 @@ func (k *Keyring) get(service, org string) (string, error) {
 	if k.canUseKeyring() {
 		token, err := keyringBackend.Get(service, org)
 		if err == nil {
-			k.lastStore = StoreKeyring
+			k.lastStore.Store(StoreKeyring)
 			return token, nil
 		}
 		keyringErr = err
@@ -272,7 +296,7 @@ func (k *Keyring) get(service, org string) (string, error) {
 	if k.canUseSHMForRead() {
 		token, err := shmBackend.Get(service, org)
 		if err == nil {
-			k.lastStore = StoreSHM
+			k.lastStore.Store(StoreSHM)
 			return token, nil
 		}
 		if keyringErr == nil || !errors.Is(err, oskeyring.ErrNotFound) {
@@ -297,7 +321,7 @@ func (k *Keyring) delete(service, org string) error {
 		}
 	}
 	if k.canUseSHMForRead() {
-		if err := shmBackend.Delete(service, org); err != nil && !errors.Is(err, oskeyring.ErrNotFound) {
+		if err := shmBackend.delete(k.credentialContext(), service, org); err != nil && !errors.Is(err, oskeyring.ErrNotFound) {
 			return err
 		}
 	}
@@ -305,7 +329,7 @@ func (k *Keyring) delete(service, org string) error {
 }
 
 func (k *Keyring) canUseKeyring() bool {
-	if k.store == StoreAuto && k.lastStore == StoreSHM {
+	if k.store == StoreAuto && k.lastStore.Load() == StoreSHM {
 		return false
 	}
 	return k.useKeyring && k.store != StoreSHM
@@ -351,12 +375,12 @@ func (k *Keyring) preferredSHMStore(service, org string) bool {
 	return err == nil && preferred
 }
 
-func (k *Keyring) deletePreferredSHMCredential(service, org string) error {
+func (k *Keyring) deletePreferredSHMCredential(ctx context.Context, service, org string) error {
 	preferred, err := shmBackend.Preferred(service, org)
 	if err != nil || !preferred {
 		return nil
 	}
-	if err := shmBackend.Delete(service, org); err != nil && !errors.Is(err, oskeyring.ErrNotFound) {
+	if err := shmBackend.delete(ctx, service, org); err != nil && !errors.Is(err, oskeyring.ErrNotFound) {
 		return err
 	}
 	return nil
@@ -519,7 +543,11 @@ func shmCredentialFileExists() bool {
 type shmCredentialBackend struct{}
 
 func (shmCredentialBackend) Set(service, org, token string) error {
-	return withSHMCredentialLock(func() error {
+	return shmBackend.set(context.Background(), service, org, token)
+}
+
+func (shmCredentialBackend) set(ctx context.Context, service, org, token string) error {
+	return withSHMCredentialLock(ctx, func() error {
 		creds, err := loadSHMCredentials()
 		if err != nil {
 			return err
@@ -545,7 +573,11 @@ func (shmCredentialBackend) Get(service, org string) (string, error) {
 }
 
 func (shmCredentialBackend) Delete(service, org string) error {
-	return withSHMCredentialLock(func() error {
+	return shmBackend.delete(context.Background(), service, org)
+}
+
+func (shmCredentialBackend) delete(ctx context.Context, service, org string) error {
+	return withSHMCredentialLock(ctx, func() error {
 		creds, err := loadSHMCredentials()
 		if err != nil {
 			return err
@@ -578,34 +610,24 @@ func (shmCredentialBackend) Preferred(service, org string) (bool, error) {
 	return creds.PreferredStores[service][org] == StoreSHM, nil
 }
 
-func withSHMCredentialLock(fn func() error) error {
-	shmCredentialMu.Lock()
-	defer shmCredentialMu.Unlock()
-
+func withSHMCredentialLock(ctx context.Context, fn func() error) error {
 	path := shmCredentialPath()
 	if err := ensureSHMStoreDir(path); err != nil {
 		return err
 	}
 
 	lockPath := shmCredentialLockPath(path)
-	lock, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
+	lock, err := openLockFile(lockPath)
 	if err != nil {
 		return err
 	}
 	defer lock.Close()
 
-	info, err := os.Lstat(lockPath)
-	if err != nil {
+	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	defer cancel()
+	if err := waitForLock(ctx, lock); err != nil {
 		return err
 	}
-	if err := validateSHMFile(lockPath, info); err != nil {
-		return err
-	}
-
-	if err := lockFile(lock); err != nil {
-		return err
-	}
-	defer func() { _ = unlockFile(lock) }()
 
 	return fn()
 }

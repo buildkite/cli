@@ -37,7 +37,7 @@ func ResolveBuildWithOpts(f *factory.Factory, pipelineResolver pipelineResolver.
 			}
 		}
 
-		builds, _, err := f.RestAPIClient.Builds.ListByPipeline(ctx, f.Config.OrganizationSlug(), pipeline.Name, opts)
+		builds, _, err := f.RestAPIClient.Builds.ListByPipeline(ctx, pipeline.Org, pipeline.Name, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -46,7 +46,7 @@ func ResolveBuildWithOpts(f *factory.Factory, pipelineResolver pipelineResolver.
 		}
 
 		return &build.Build{
-			Organization: f.Config.OrganizationSlug(),
+			Organization: pipeline.Org,
 			Pipeline:     pipeline.Name,
 			BuildNumber:  builds[0].Number,
 		}, nil

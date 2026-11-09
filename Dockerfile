@@ -1,4 +1,4 @@
-FROM golang:1.27-alpine AS base
+FROM golang:1.27.3-alpine AS base
 
 RUN apk add --no-cache git ca-certificates
 
@@ -12,7 +12,7 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o bk .
 
-FROM alpine:3.24.1
+FROM alpine:3.24.2
 
 RUN apk --no-cache add ca-certificates \
     && addgroup -S buildkite \
