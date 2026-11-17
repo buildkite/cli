@@ -4,39 +4,42 @@ agents:
 cache: ".buildkite/cache-volume"
 
 steps:
-  - label: ":rocket: :github: release"
-    key: release
-    artifact_paths:
-      - dist/**/*
-    env:
-      AWS_REGION: us-east-1
-      MISE_ENV: release
-    secrets:
-      - POSTHOG_API_KEY
-      - OAUTH_CLIENT_ID
-    plugins:
-      - aws-assume-role-with-web-identity#v1.8.2:
-          role-arn: arn:aws:iam::445615400570:role/pipeline-buildkite-buildkite-cli-release
-          session-tags:
-            - organization_slug
-            - organization_id
-            - pipeline_slug
-      - aws-ssm#v1.1.0:
-          parameters:
-            GITHUB_TOKEN: /pipelines/buildkite/buildkite-cli-release/github-token
-            DOCKERHUB_USER: /pipelines/buildkite/buildkite-cli-release/dockerhub-user
-            DOCKERHUB_PASSWORD: /pipelines/buildkite/buildkite-cli-release/dockerhub-password
-      - mise#v1.1.6: ~
-    command: '.buildkite/release.sh release --clean'
+  - group: ":rocket: Publish release"
+    if: build.tag =~ /^v3\.[0-9]+\.[0-9]+$$/ && build.pull_request.id == null
+    steps:
+      - label: ":rocket: :github: release"
+        key: release
+        artifact_paths:
+          - dist/**/*
+        env:
+          AWS_REGION: us-east-1
+          MISE_ENV: release
+        secrets:
+          - POSTHOG_API_KEY
+          - OAUTH_CLIENT_ID
+        plugins:
+          - aws-assume-role-with-web-identity#v1.8.2:
+              role-arn: arn:aws:iam::445615400570:role/pipeline-buildkite-buildkite-cli-release
+              session-tags:
+                - organization_slug
+                - organization_id
+                - pipeline_slug
+          - aws-ssm#v1.1.0:
+              parameters:
+                GITHUB_TOKEN: /pipelines/buildkite/buildkite-cli-release/github-token
+                DOCKERHUB_USER: /pipelines/buildkite/buildkite-cli-release/dockerhub-user
+                DOCKERHUB_PASSWORD: /pipelines/buildkite/buildkite-cli-release/dockerhub-password
+          - mise#v1.1.6: ~
+        command: '.buildkite/release.sh release --clean'
 
-  - label: ":rocket: :package: upload packages ({{matrix}})"
-    key: upload_packages
-    depends_on: release
-    matrix:
-      - "deb"
-      - "rpm"
-    command: '.buildkite/upload-packages.sh "{{matrix}}"'
-    plugins:
-      - artifacts#v1.11.0:
-          download:
-            - dist/*
+      - label: ":rocket: :package: upload packages ({{matrix}})"
+        key: upload_packages
+        depends_on: release
+        matrix:
+          - "deb"
+          - "rpm"
+        command: '.buildkite/upload-packages.sh "{{matrix}}"'
+        plugins:
+          - artifacts#v1.11.0:
+              download:
+                - dist/*

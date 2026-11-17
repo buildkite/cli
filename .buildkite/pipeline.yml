@@ -38,7 +38,7 @@ steps:
 
   - label: ":terminal: build"
     key: build
-    depends_on: ["lint", "test", "vulncheck"]
+    depends_on: ["lint", "test", "vulncheck", "release_check"]
     artifact_paths:
       - dist/**/*
     env:
@@ -50,46 +50,39 @@ steps:
     plugins:
       - mise#v1.1.6: ~
 
-  - input: ":package: Create a release?"
-    key: release_unblock
-    depends_on: ["lint", "test", "vulncheck", "build"]
-    prompt: "Select the release type"
-    branches:
-      - main
-    allowed_teams:
-      - "support"
-      - "deploy"
-      - "pipelines"
-    blocked_state: "passed"
-    fields:
-      - key: release-type
-        select: "Release Type"
-        required: true
-        options:
-          - label: "Patch (v3.x.X)"
-            value: "patch"
-          - label: "Minor (v3.X.0)"
-            value: "minor"
-          - label: "Major (vX.0.0) - Manual only"
-            value: "major"
-
-  # this tags the commit with the input from the previous block step and pushes it to github
-  # that will trigger the buildkite-cli-release pipeline off the tag which will create a release in github
-  - label: ":rocket: Pushing a tag to release"
-    command: ".buildkite/tag.sh"
-    depends_on: release_unblock
-    branches:
-      - main
+  - label: ":memo: Validate release"
+    key: release_check
+    commands:
+      - go test ./.buildkite
+      - .buildkite/release-pr.sh check
     env:
-      AWS_REGION: us-east-1
+      MISE_ENV: release
+    secrets:
+      - MISE_GITHUB_TOKEN
     plugins:
-      - aws-assume-role-with-web-identity#v1.8.2:
-          role-arn: arn:aws:iam::445615400570:role/pipeline-buildkite-buildkite-cli
-          session-tags:
-            - organization_slug
-            - organization_id
-            - pipeline_slug
-      - aws-ssm#v1.1.0:
-          parameters:
-            GITHUB_TOKEN: /pipelines/buildkite/buildkite-cli/github-token
-            GITHUB_USER: /pipelines/buildkite/buildkite-cli/github-user
+      - mise#v1.1.6: ~
+
+  # A group condition also prevents release credential plugins running on PRs.
+  - group: ":rocket: Release from main"
+    if: build.branch == "main" && build.pull_request.id == null && build.tag == null
+    steps:
+      - label: ":rocket: Tag reviewed release"
+        key: tag_release
+        command: ".buildkite/release-pr.sh tag"
+        depends_on: ["lint", "test", "vulncheck", "build", "release_check"]
+        concurrency: 1
+        concurrency_group: buildkite-cli/tag-release
+        env:
+          AWS_REGION: us-east-1
+          MISE_ENV: release
+        plugins:
+          - aws-assume-role-with-web-identity#v1.8.2:
+              role-arn: arn:aws:iam::445615400570:role/pipeline-buildkite-buildkite-cli
+              session-tags:
+                - organization_slug
+                - organization_id
+                - pipeline_slug
+          - aws-ssm#v1.1.0:
+              parameters:
+                GITHUB_TOKEN: /pipelines/buildkite/buildkite-cli/github-token
+          - mise#v1.1.6: ~
