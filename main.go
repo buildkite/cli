@@ -253,7 +253,11 @@ type (
 		List organization.ListCmd `cmd:"" help:"List configured organizations." aliases:"ls"`
 	}
 	PackageCmd struct {
-		Push pkg.PushCmd `cmd:"" help:"Push a new package to a Buildkite registry"`
+		Push     pkg.PushCmd        `cmd:"" help:"Push a new package to a Buildkite registry"`
+		Registry PackageRegistryCmd `cmd:"" help:"Manage public or private visibility for Packages registries"`
+	}
+	PackageRegistryCmd struct {
+		Update pkg.RegistryUpdateCmd `cmd:"" help:"Set a Packages registry to public or private"`
 	}
 	PipelineCmd struct {
 		Copy     pipeline.CopyCmd     `cmd:"" help:"Copy an existing pipeline." aliases:"cp"`
