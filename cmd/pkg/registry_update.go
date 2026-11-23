@@ -3,7 +3,6 @@ package pkg
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/buildkite/cli/v3/pkg/cmd/factory"
 	"github.com/buildkite/cli/v3/pkg/cmd/validation"
 	"github.com/buildkite/cli/v3/pkg/output"
+	"github.com/buildkite/go-buildkite/v5"
 )
 
 type RegistryUpdateCmd struct {
@@ -49,21 +49,13 @@ func (c *RegistryUpdateCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) 
 		}
 	}
 
-	path := fmt.Sprintf("v2/packages/organizations/%s/registries/%s", url.PathEscape(org), url.PathEscape(c.RegistrySlug))
-	req, err := f.RestAPIClient.NewRequest(context.Background(), http.MethodPatch, path, map[string]string{"visibility": c.Visibility})
+	registry, _, err := f.RestAPIClient.PackageRegistriesService.Update(context.Background(), url.PathEscape(org), url.PathEscape(c.RegistrySlug),
+		buildkite.UpdatePackageRegistryInput{Visibility: buildkite.Some(c.Visibility)})
 	if err != nil {
-		return fmt.Errorf("creating Packages registry update request: %w", err)
-	}
-	var registry map[string]any
-	if _, err := f.RestAPIClient.Do(req, &registry); err != nil {
 		return fmt.Errorf("updating Packages registry visibility: %w", err)
 	}
-	public, ok := registry["public"].(bool)
-	if !ok {
-		return fmt.Errorf("expected a boolean public field in the Packages registry response")
-	}
 	visibility := "private"
-	if public {
+	if registry.Public {
 		visibility = "public"
 	}
 	if visibility != c.Visibility {
