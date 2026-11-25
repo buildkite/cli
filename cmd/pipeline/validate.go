@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/alecthomas/kong"
@@ -194,6 +195,12 @@ func validatePipeline(w io.Writer, filePath string) error {
 		}
 	}
 
+	if err := validateStepKeys(pipelineData); err != nil {
+		fmt.Fprintf(w, "❌ Pipeline file is invalid: %s\n\n", filePath)
+		fmt.Fprintf(w, "- %s\n", err)
+		return err
+	}
+
 	if result.Valid() {
 		fmt.Fprintf(w, "✅ Pipeline file is valid: %s\n", filePath)
 		return nil
@@ -208,6 +215,30 @@ func validatePipeline(w io.Writer, filePath string) error {
 	}
 
 	return fmt.Errorf("pipeline validation failed")
+}
+
+var validStepKey = regexp.MustCompile(`^[A-Za-z0-9_:-]+$`)
+
+func validateStepKeys(pipelineData []byte) error {
+	var pipeline map[string]any
+	if err := yaml.Unmarshal(pipelineData, &pipeline); err != nil {
+		return nil
+	}
+	steps, ok := pipeline["steps"].([]any)
+	if !ok {
+		return nil
+	}
+	for index, step := range steps {
+		stepMap, ok := step.(map[string]any)
+		if !ok {
+			continue
+		}
+		key, ok := stepMap["key"].(string)
+		if ok && key != "" && !validStepKey.MatchString(key) {
+			return fmt.Errorf("steps item #%d key %q is invalid: keys may only contain alphanumeric characters, underscores, dashes and colons", index+1, key)
+		}
+	}
+	return nil
 }
 
 // formatValidationError formats a validation error for better readability

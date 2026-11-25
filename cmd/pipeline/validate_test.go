@@ -248,6 +248,29 @@ func TestFallbackSchema(t *testing.T) {
 	}
 }
 
+func TestValidateStepKeys(t *testing.T) {
+	t.Parallel()
+
+	valid := []byte(`steps:
+  - command: make test
+    key: test
+  - command: make deploy
+    key: deploy:main
+    depends_on: test
+`)
+	if err := validateStepKeys(valid); err != nil {
+		t.Fatalf("expected valid step keys, got %v", err)
+	}
+
+	invalid := []byte(`steps:
+  - command: make test
+    key: testpy{{matrix.python_version}}
+`)
+	if err := validateStepKeys(invalid); err == nil {
+		t.Fatal("expected matrix template in step key to be rejected")
+	}
+}
+
 //nolint:tparallel // they change dir, so let them run one at a time to avoid flakiness
 func TestFindPipelineFile(t *testing.T) {
 	t.Parallel()
