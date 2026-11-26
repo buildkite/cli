@@ -88,7 +88,11 @@ func (c *CleanupCmd) Run(kongCtx *kong.Context, globals cli.GlobalFlags) error {
 	for i := range branches {
 		bb := branches[i]
 		if !bb.IsCompleted() {
-			_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), Title: fmt.Sprintf("Skipping %s (build state: %s)", bb.Branch, bb.Build.State)})
+			state := bb.Build.State
+			if bb.Build.Blocked {
+				state = "blocked"
+			}
+			_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), Title: fmt.Sprintf("Skipping %s (build state: %s)", bb.Branch, state)})
 			skipped++
 			continue
 		}

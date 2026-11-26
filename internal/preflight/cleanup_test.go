@@ -21,6 +21,7 @@ func TestBranchBuild_IsCompleted(t *testing.T) {
 		{"scheduled", &buildkite.Build{State: "scheduled"}, false},
 		{"failing", &buildkite.Build{State: "failing"}, false},
 		{"blocked", &buildkite.Build{State: "blocked"}, false},
+		{"passed but blocked on a block step", &buildkite.Build{State: "passed", Blocked: true}, false},
 	}
 
 	for _, tt := range tests {
