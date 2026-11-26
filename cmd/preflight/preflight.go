@@ -306,7 +306,7 @@ func (c *RunCmd) run(globals cli.GlobalFlags) error {
 				continue
 			}
 			notifiedBlocked[j.ID] = true
-			detail := "Unblock with: bk job unblock " + j.ID
+			detail := fmt.Sprintf("Unblock with: bk job unblock %s --org %s", j.ID, resolvedPipeline.Org)
 			if !c.NoCleanup {
 				detail += "\nOr press Ctrl-C to cancel the build and delete the branch"
 			}

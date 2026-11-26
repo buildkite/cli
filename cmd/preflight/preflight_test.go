@@ -1669,7 +1669,7 @@ func TestPreflightCmd_Run(t *testing.T) {
 		if !strings.Contains(refsWhileBlocked, "bk/preflight/") {
 			t.Errorf("expected preflight branch on the remote while blocked, got refs: %q", refsWhileBlocked)
 		}
-		if !strings.Contains(stdout, `waiting on block step "Deploy?"`) || !strings.Contains(stdout, "bk job unblock job-block") || !strings.Contains(stdout, "Ctrl-C to cancel the build") {
+		if !strings.Contains(stdout, `waiting on block step "Deploy?"`) || !strings.Contains(stdout, "bk job unblock job-block --org test-org") || !strings.Contains(stdout, "Ctrl-C to cancel the build") {
 			t.Errorf("expected block step waiting message with unblock and Ctrl-C hints, got:\n%s", stdout)
 		}
 		if pollCount < 2 {
