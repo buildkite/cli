@@ -14,7 +14,7 @@ require (
 	github.com/go-git/go-git/v5 v5.19.3
 	github.com/goccy/go-yaml v1.19.2
 	github.com/google/uuid v1.6.0
-	github.com/gorilla/websocket v1.5.3
+	github.com/gorilla/websocket v1.5.4-0.20240701034025-d67f41855da4
 	github.com/jpillora/chisel v1.13.0
 	github.com/mcncl/terminal-to-llm v0.2.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
