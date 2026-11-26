@@ -54,7 +54,9 @@ const defaultAwaitTestResultsDuration = 30 * time.Second
 func HelpText() string {
 	return `Preflight is an experimental preview and subject to change without notice.
 
-Snapshots your working tree (staged, unstaged, and untracked files) to a temporary commit on a bk/preflight/<id> branch, triggers a build on the selected pipeline, monitors failures, exits as soon as the build starts failing, and cleans up the temporary branch when finished.`
+Snapshots your working tree (staged, unstaged, and untracked files) to a temporary commit on a bk/preflight/<id> branch, triggers a build on the selected pipeline, monitors failures, exits as soon as the build starts failing, and cleans up the temporary branch when finished.
+
+If the build waits on a block or input step, preflight keeps watching until it is unblocked; interrupting cancels the build and deletes the branch.`
 }
 
 type summaryMeta struct {
@@ -240,6 +242,7 @@ func (c *RunCmd) run(globals cli.GlobalFlags) error {
 
 	interval := time.Duration(c.Interval * float64(time.Second))
 	tracker := watch.NewJobTracker()
+	notifiedBlocked := map[string]bool{}
 
 	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) error {
 		// Ask the server which still-running jobs it classifies as hard-failing
@@ -297,6 +300,29 @@ func (c *RunCmd) run(globals cli.GlobalFlags) error {
 				return err
 			}
 		}
+		// Tell --json consumers how to resume a build waiting on a block step.
+		for _, j := range b.Jobs {
+			if j.Type != "manual" || j.State != "blocked" || notifiedBlocked[j.ID] {
+				continue
+			}
+			notifiedBlocked[j.ID] = true
+			detail := fmt.Sprintf("Unblock with: bk job unblock %s --org %s", j.ID, resolvedPipeline.Org)
+			if !c.NoCleanup {
+				detail += "\nOr press Ctrl-C to cancel the build and delete the branch"
+			}
+			if err := renderer.Render(Event{
+				Type:        EventOperation,
+				Time:        time.Now(),
+				PreflightID: preflightID.String(),
+				Pipeline:    pipelineName,
+				BuildNumber: build.Number,
+				BuildURL:    build.WebURL,
+				Title:       fmt.Sprintf("Build #%d is waiting on block step %q; preflight keeps watching until the build finishes", build.Number, j.Label),
+				Detail:      detail,
+			}); err != nil {
+				return err
+			}
+		}
 		if err := renderer.Render(Event{
 			Type:        EventBuildStatus,
 			Time:        time.Now(),
@@ -313,13 +339,15 @@ func (c *RunCmd) run(globals cli.GlobalFlags) error {
 			return errExitOnBuildFailing
 		}
 		return nil
-	}, watch.WithRetriedJobs())
+	}, watch.WithRetriedJobs(), watch.WithWaitWhileBlocked())
 
 	finalErr := NewResult(finalBuild).Error()
 
 	if errors.Is(err, context.Canceled) {
 		cleanupBranch()
-		if finalBuild.FinishedAt == nil && !buildstate.IsTerminal(buildstate.State(finalBuild.State)) && !c.NoCleanup {
+		// The watch only stops on cancellation while the build is still running
+		// or blocked; cancelBuild tolerates a build that finished in between.
+		if !c.NoCleanup {
 			cancelBuild(f, renderer, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, preflightID.String(), globals.EnableDebug())
 		}
 		return bkErrors.NewUserAbortedError(context.Canceled, "preflight canceled by user")
@@ -351,7 +379,8 @@ func (c *RunCmd) run(globals cli.GlobalFlags) error {
 	}
 
 	// Emit a final summary showing pass/fail, passed jobs (if ≤10), or hard-failed jobs.
-	if buildstate.IsTerminal(buildstate.State(finalBuild.State)) {
+	// A blocked build only gets here when watching failed; it is not finished.
+	if buildstate.IsTerminal(buildstate.State(finalBuild.State)) && !finalBuild.Blocked {
 		summaryEvent := newBuildSummaryEvent(preflightID.String(), pipelineName, build.Number, build.WebURL, finalBuild, startedAt)
 		summaryEvent.ApplySummaryMeta(summaryMeta{})
 		summaryEvent.ApplyJobResults(finalBuild, tracker)
@@ -370,7 +399,12 @@ func (c *RunCmd) run(globals cli.GlobalFlags) error {
 		_ = renderer.Render(summaryEvent)
 	}
 
-	cleanupBranch()
+	if finalBuild.Blocked {
+		// Jobs after the block step still need the branch once it is unblocked.
+		_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Keeping remote branch %s while build #%d is blocked; run `bk preflight cleanup` after it finishes", result.Branch, build.Number)})
+	} else {
+		cleanupBranch()
+	}
 
 	if err != nil {
 		return bkErrors.NewInternalError(

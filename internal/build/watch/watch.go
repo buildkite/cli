@@ -27,6 +27,7 @@ type WatchOpt func(*watchConfig)
 
 type watchConfig struct {
 	includeRetriedJobs bool
+	waitWhileBlocked   bool
 }
 
 // WithRetriedJobs includes retried (superseded) jobs in each poll so the
@@ -34,6 +35,15 @@ type watchConfig struct {
 func WithRetriedJobs() WatchOpt {
 	return func(c *watchConfig) {
 		c.includeRetriedJobs = true
+	}
+}
+
+// WithWaitWhileBlocked keeps polling while the build is blocked on a block or
+// input step. The API reports such builds as finished (for example passed with
+// finished_at set) even though they resume once unblocked.
+func WithWaitWhileBlocked() WatchOpt {
+	return func(c *watchConfig) {
+		c.waitWhileBlocked = true
 	}
 }
 
@@ -89,7 +99,9 @@ func WatchBuild(
 				}
 			}
 
-			if b.FinishedAt != nil || buildstate.IsTerminal(buildstate.State(b.State)) {
+			finished := b.FinishedAt != nil || buildstate.IsTerminal(buildstate.State(b.State))
+			waitingOnBlock := cfg.waitWhileBlocked && b.Blocked
+			if finished && !waitingOnBlock {
 				return b, nil
 			}
 		}

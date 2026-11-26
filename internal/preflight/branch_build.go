@@ -20,11 +20,13 @@ type BranchBuild struct {
 
 // IsCompleted returns true if the associated build has reached a terminal state
 // (passed, failed, canceled, etc.), or if no build was found for the branch.
+// A build blocked on a block or input step is not completed: it can resume and
+// still needs the branch.
 func (bb BranchBuild) IsCompleted() bool {
 	if bb.Build == nil {
 		return true
 	}
-	return buildstate.IsTerminal(buildstate.State(bb.Build.State))
+	return !bb.Build.Blocked && buildstate.IsTerminal(buildstate.State(bb.Build.State))
 }
 
 // ListRemotePreflightBranches returns all remote branches matching bk/preflight/*.
