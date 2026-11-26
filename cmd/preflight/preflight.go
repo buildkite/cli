@@ -379,7 +379,8 @@ func (c *RunCmd) run(globals cli.GlobalFlags) error {
 	}
 
 	// Emit a final summary showing pass/fail, passed jobs (if ≤10), or hard-failed jobs.
-	if buildstate.IsTerminal(buildstate.State(finalBuild.State)) {
+	// A blocked build only gets here when watching failed; it is not finished.
+	if buildstate.IsTerminal(buildstate.State(finalBuild.State)) && !finalBuild.Blocked {
 		summaryEvent := newBuildSummaryEvent(preflightID.String(), pipelineName, build.Number, build.WebURL, finalBuild, startedAt)
 		summaryEvent.ApplySummaryMeta(summaryMeta{})
 		summaryEvent.ApplyJobResults(finalBuild, tracker)
@@ -398,7 +399,12 @@ func (c *RunCmd) run(globals cli.GlobalFlags) error {
 		_ = renderer.Render(summaryEvent)
 	}
 
-	cleanupBranch()
+	if finalBuild.Blocked {
+		// Jobs after the block step still need the branch once it is unblocked.
+		_ = renderer.Render(Event{Type: EventOperation, Time: time.Now(), PreflightID: preflightID.String(), Title: fmt.Sprintf("Keeping remote branch %s while build #%d is blocked; run `bk preflight cleanup` after it finishes", result.Branch, build.Number)})
+	} else {
+		cleanupBranch()
+	}
 
 	if err != nil {
 		return bkErrors.NewInternalError(
