@@ -54,7 +54,9 @@ const defaultAwaitTestResultsDuration = 30 * time.Second
 func HelpText() string {
 	return `Preflight is an experimental preview and subject to change without notice.
 
-Snapshots your working tree (staged, unstaged, and untracked files) to a temporary commit on a bk/preflight/<id> branch, triggers a build on the selected pipeline, monitors failures, exits as soon as the build starts failing, and cleans up the temporary branch when finished.`
+Snapshots your working tree (staged, unstaged, and untracked files) to a temporary commit on a bk/preflight/<id> branch, triggers a build on the selected pipeline, monitors failures, exits as soon as the build starts failing, and cleans up the temporary branch when finished.
+
+If the build waits on a block or input step, preflight keeps watching until it is unblocked; interrupting cancels the build and deletes the branch.`
 }
 
 type summaryMeta struct {
@@ -240,6 +242,7 @@ func (c *RunCmd) run(globals cli.GlobalFlags) error {
 
 	interval := time.Duration(c.Interval * float64(time.Second))
 	tracker := watch.NewJobTracker()
+	notifiedBlocked := map[string]bool{}
 
 	finalBuild, err := watch.WatchBuild(ctx, f.RestAPIClient, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, interval, func(b buildkite.Build) error {
 		// Ask the server which still-running jobs it classifies as hard-failing
@@ -297,6 +300,29 @@ func (c *RunCmd) run(globals cli.GlobalFlags) error {
 				return err
 			}
 		}
+		// Tell --json consumers how to resume a build waiting on a block step.
+		for _, j := range b.Jobs {
+			if j.Type != "manual" || j.State != "blocked" || notifiedBlocked[j.ID] {
+				continue
+			}
+			notifiedBlocked[j.ID] = true
+			detail := "Unblock with: bk job unblock " + j.ID
+			if !c.NoCleanup {
+				detail += "\nOr press Ctrl-C to cancel the build and delete the branch"
+			}
+			if err := renderer.Render(Event{
+				Type:        EventOperation,
+				Time:        time.Now(),
+				PreflightID: preflightID.String(),
+				Pipeline:    pipelineName,
+				BuildNumber: build.Number,
+				BuildURL:    build.WebURL,
+				Title:       fmt.Sprintf("Build #%d is waiting on block step %q; preflight keeps watching until the build finishes", build.Number, j.Label),
+				Detail:      detail,
+			}); err != nil {
+				return err
+			}
+		}
 		if err := renderer.Render(Event{
 			Type:        EventBuildStatus,
 			Time:        time.Now(),
@@ -313,7 +339,7 @@ func (c *RunCmd) run(globals cli.GlobalFlags) error {
 			return errExitOnBuildFailing
 		}
 		return nil
-	}, watch.WithRetriedJobs())
+	}, watch.WithRetriedJobs(), watch.WithWaitWhileBlocked())
 
 	finalErr := NewResult(finalBuild).Error()
 

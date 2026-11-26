@@ -1623,6 +1623,60 @@ func TestPreflightCmd_Run(t *testing.T) {
 		}
 	})
 
+	t.Run("waits while blocked on a block step and keeps the branch", func(t *testing.T) {
+		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
+
+		worktree := initTestRepo(t)
+		t.Chdir(worktree)
+		if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		// While a block step waits, the API reports the build as passed and
+		// blocked with finished_at set.
+		now := &buildkite.Timestamp{Time: time.Now()}
+		pollCount := 0
+		var refsWhileBlocked string
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			switch {
+			case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/builds"):
+				json.NewEncoder(w).Encode(buildkite.Build{Number: 1, State: "scheduled"})
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/builds/1"):
+				pollCount++
+				b := buildkite.Build{Number: 1, State: "passed", FinishedAt: now}
+				if pollCount == 1 {
+					b.Blocked = true
+					b.Jobs = []buildkite.Job{{ID: "job-block", Type: "manual", Label: "Deploy?", State: "blocked"}}
+					out, _ := exec.Command("git", "-C", worktree, "ls-remote", "--heads", "origin").Output()
+					refsWhileBlocked = string(out)
+				}
+				json.NewEncoder(w).Encode(b)
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		defer s.Close()
+		t.Setenv("BUILDKITE_REST_API_ENDPOINT", s.URL)
+
+		stdout := captureStdout(t, func() {
+			cmd := &RunCmd{Pipeline: "test-org/test-pipeline", Watch: true, Interval: 0.01, Text: true}
+			if err := cmd.Run(nil, stubGlobals{}); err != nil {
+				t.Fatalf("expected no error, got: %v", err)
+			}
+		})
+
+		if !strings.Contains(refsWhileBlocked, "bk/preflight/") {
+			t.Errorf("expected preflight branch on the remote while blocked, got refs: %q", refsWhileBlocked)
+		}
+		if !strings.Contains(stdout, `waiting on block step "Deploy?"`) || !strings.Contains(stdout, "bk job unblock job-block") || !strings.Contains(stdout, "Ctrl-C to cancel the build") {
+			t.Errorf("expected block step waiting message with unblock and Ctrl-C hints, got:\n%s", stdout)
+		}
+		if pollCount < 2 {
+			t.Errorf("expected polling to continue after the blocked poll, got %d polls", pollCount)
+		}
+	})
+
 	t.Run("aborts after 10 consecutive polling errors", func(t *testing.T) {
 		t.Setenv("BUILDKITE_EXPERIMENTS", "preflight")
 
