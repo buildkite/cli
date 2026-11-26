@@ -345,7 +345,9 @@ func (c *RunCmd) run(globals cli.GlobalFlags) error {
 
 	if errors.Is(err, context.Canceled) {
 		cleanupBranch()
-		if finalBuild.FinishedAt == nil && !buildstate.IsTerminal(buildstate.State(finalBuild.State)) && !c.NoCleanup {
+		// The watch only stops on cancellation while the build is still running
+		// or blocked; cancelBuild tolerates a build that finished in between.
+		if !c.NoCleanup {
 			cancelBuild(f, renderer, resolvedPipeline.Org, resolvedPipeline.Name, build.Number, preflightID.String(), globals.EnableDebug())
 		}
 		return bkErrors.NewUserAbortedError(context.Canceled, "preflight canceled by user")
