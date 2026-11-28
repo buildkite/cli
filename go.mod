@@ -19,6 +19,7 @@ require (
 	github.com/mcncl/terminal-to-llm v0.2.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/posthog/posthog-go v1.44.1
+	github.com/posthog/posthog-go/v2 v2.3.0
 	github.com/vektah/gqlparser/v2 v2.5.64
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/zalando/go-keyring v0.2.8
